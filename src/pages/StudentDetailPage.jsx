@@ -1,0 +1,249 @@
+import { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { studentAPI, attendanceAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import {
+  ArrowLeft, Phone, MessageCircle, GraduationCap, BookOpen, Calendar,
+  IndianRupee, Award, Clock, CheckCircle, XCircle, MapPin, Mail, User
+} from 'lucide-react';
+
+const statusColors = {
+  active: 'bg-green-100 text-green-700',
+  completed: 'bg-blue-100 text-blue-700',
+  dropped: 'bg-red-100 text-red-700',
+};
+
+const certColors = {
+  not_issued: 'bg-gray-100 text-gray-600',
+  issued: 'bg-amber-100 text-amber-700',
+  sent: 'bg-green-100 text-green-700',
+};
+
+const StudentDetailPage = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { isAdmin } = useAuth();
+  const [student, setStudent] = useState(null);
+  const [fees, setFees] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [attendanceSummary, setAttendanceSummary] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => { loadData(); }, [id]);
+
+  const loadData = async () => {
+    try {
+      const { data } = await studentAPI.getOne(id);
+      setStudent(data.student);
+      setFees(data.fees || []);
+      setPayments(data.payments || []);
+      setAttendanceSummary(data.attendanceSummary || []);
+    } catch (error) {
+      console.error('Load student error:', error);
+    } finally { setLoading(false); }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
+  }
+
+  if (!student) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-gray-500">Student not found.</p>
+        <button onClick={() => navigate('/students')} className="mt-3 text-brand-600 font-medium">← Back to Students</button>
+      </div>
+    );
+  }
+
+  const presentDays = attendanceSummary.find(a => a.status === 'present')?.count || 0;
+  const absentDays = attendanceSummary.find(a => a.status === 'absent')?.count || 0;
+  const lateDays = attendanceSummary.find(a => a.status === 'late')?.count || 0;
+  const totalDays = parseInt(presentDays) + parseInt(absentDays) + parseInt(lateDays);
+  const attendancePct = totalDays > 0 ? (((parseInt(presentDays) + parseInt(lateDays)) / totalDays) * 100).toFixed(0) : 0;
+
+  const totalPaid = fees.reduce((sum, f) => sum + parseFloat(f.amount_paid || 0), 0);
+  const totalBalance = fees.reduce((sum, f) => sum + parseFloat(f.balance || 0), 0);
+  const totalFee = fees.reduce((sum, f) => sum + parseFloat(f.net_fee || 0), 0);
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-5">
+      {/* Back */}
+      <button onClick={() => navigate('/students')} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+        <ArrowLeft size={16} /> Back to Students
+      </button>
+
+      {/* Student Info Card */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+          <div className="w-16 h-16 bg-brand-100 rounded-full flex items-center justify-center shrink-0">
+            <span className="text-brand-700 font-bold text-2xl">{student.name?.charAt(0)?.toUpperCase()}</span>
+          </div>
+          <div className="flex-1">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h1 className="text-xl font-bold text-gray-900">{student.name}</h1>
+                <div className="flex flex-wrap items-center gap-3 mt-1.5 text-sm text-gray-500">
+                  <span className="flex items-center gap-1"><Phone size={14} /> {student.phone}</span>
+                  {student.email && <span className="flex items-center gap-1"><Mail size={14} /> {student.email}</span>}
+                  {student.address && <span className="flex items-center gap-1"><MapPin size={14} /> {student.address}</span>}
+                </div>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${statusColors[student.status]}`}>
+                {student.status}
+              </span>
+            </div>
+
+            <div className="flex flex-wrap gap-4 mt-4 text-sm text-gray-600">
+              {student.course_name && (
+                <div className="flex items-center gap-1.5"><BookOpen size={15} className="text-gray-400" /> {student.course_name}</div>
+              )}
+              {student.batch_name && (
+                <div className="flex items-center gap-1.5"><User size={15} className="text-gray-400" /> {student.batch_name}</div>
+              )}
+              <div className="flex items-center gap-1.5"><Calendar size={15} className="text-gray-400" /> Enrolled: {new Date(student.enrollment_date).toLocaleDateString('en-IN')}</div>
+              {student.expected_completion && (
+                <div className="flex items-center gap-1.5"><Clock size={15} className="text-gray-400" /> Ends: {new Date(student.expected_completion).toLocaleDateString('en-IN')}</div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Contact */}
+        <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
+          <a href={`tel:${student.phone}`} className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100">
+            <Phone size={16} /> Call
+          </a>
+          <a href={`https://wa.me/91${student.phone?.replace(/\D/g, '').slice(-10)}`} target="_blank" rel="noreferrer"
+            className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100">
+            <MessageCircle size={16} /> WhatsApp
+          </a>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {isAdmin && (
+          <>
+            <div className="bg-green-50 rounded-xl p-4">
+              <p className="text-xs font-medium text-green-500">Fee Paid</p>
+              <p className="text-lg font-bold text-green-700 mt-1">₹{totalPaid.toLocaleString('en-IN')}</p>
+            </div>
+            <div className="bg-red-50 rounded-xl p-4">
+              <p className="text-xs font-medium text-red-500">Balance Due</p>
+              <p className="text-lg font-bold text-red-700 mt-1">₹{totalBalance.toLocaleString('en-IN')}</p>
+            </div>
+          </>
+        )}
+        <div className="bg-blue-50 rounded-xl p-4">
+          <p className="text-xs font-medium text-blue-500">Attendance</p>
+          <p className="text-lg font-bold text-blue-700 mt-1">{attendancePct}% <span className="text-xs font-normal">({totalDays} days)</span></p>
+        </div>
+        <div className={`rounded-xl p-4 ${certColors[student.certificate_status]}`}>
+          <p className="text-xs font-medium opacity-70">Certificate</p>
+          <p className="text-lg font-bold mt-1 capitalize">{student.certificate_status?.replace(/_/g, ' ')}</p>
+        </div>
+      </div>
+
+      {/* Attendance Breakdown */}
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+          <GraduationCap size={18} /> Attendance Summary
+        </h3>
+        <div className="grid grid-cols-3 gap-3">
+          <div className="flex items-center gap-3 p-3 bg-green-50 rounded-lg">
+            <CheckCircle size={20} className="text-green-500" />
+            <div>
+              <p className="text-xs text-green-600">Present</p>
+              <p className="text-lg font-bold text-green-700">{presentDays}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 bg-red-50 rounded-lg">
+            <XCircle size={20} className="text-red-500" />
+            <div>
+              <p className="text-xs text-red-600">Absent</p>
+              <p className="text-lg font-bold text-red-700">{absentDays}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg">
+            <Clock size={20} className="text-amber-500" />
+            <div>
+              <p className="text-xs text-amber-600">Late</p>
+              <p className="text-lg font-bold text-amber-700">{lateDays}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Fee Details (Admin only) */}
+      {isAdmin && fees.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+            <IndianRupee size={18} /> Fee Details
+          </h3>
+          {fees.map(fee => (
+            <div key={fee.id} className="space-y-3">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Total Fee</span>
+                <span className="font-medium">₹{parseFloat(fee.total_fee).toLocaleString('en-IN')}</span>
+              </div>
+              {parseFloat(fee.discount) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Discount</span>
+                  <span className="font-medium text-green-600">-₹{parseFloat(fee.discount).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-sm border-t pt-2">
+                <span className="text-gray-700 font-medium">Net Fee</span>
+                <span className="font-bold">₹{parseFloat(fee.net_fee).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Paid</span>
+                <span className="font-medium text-green-600">₹{parseFloat(fee.amount_paid).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Balance</span>
+                <span className="font-medium text-red-600">₹{parseFloat(fee.balance).toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Payment Type</span>
+                <span className="font-medium capitalize">{fee.payment_type}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Status</span>
+                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
+                  fee.status === 'paid' ? 'bg-green-100 text-green-700' :
+                  fee.status === 'partial' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                }`}>{fee.status.charAt(0).toUpperCase() + fee.status.slice(1)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Payment History (Admin only) */}
+      {isAdmin && payments.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 p-5">
+          <h3 className="font-semibold text-gray-900 mb-3">Payment History</h3>
+          <div className="space-y-2">
+            {payments.map(p => (
+              <div key={p.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg text-sm">
+                <div>
+                  <span className="font-semibold text-green-600">₹{parseFloat(p.amount).toLocaleString('en-IN')}</span>
+                  <span className="text-gray-400 ml-2">{new Date(p.payment_date).toLocaleDateString('en-IN')}</span>
+                  <span className="text-gray-400 ml-2 capitalize">{p.payment_mode?.replace(/_/g, ' ')}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-xs text-gray-400">{p.receipt_number}</span>
+                  {p.received_by_name && <p className="text-xs text-gray-400">by {p.received_by_name}</p>}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default StudentDetailPage;
