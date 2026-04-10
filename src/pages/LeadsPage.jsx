@@ -4,7 +4,7 @@ import { leadAPI, courseAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   Plus, Search, Filter, Phone, MessageCircle, ChevronRight,
-  X, Calendar, Clock, User, MapPin, BookOpen, ArrowRight, Eye
+  X, Calendar, Clock, Users, MapPin, BookOpen, ArrowRight, Eye
 } from 'lucide-react';
 
 const stages = ['new', 'contacted', 'interested', 'enrolled', 'dropped'];
