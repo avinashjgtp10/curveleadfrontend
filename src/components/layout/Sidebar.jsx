@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import {
   LayoutDashboard, Users, GraduationCap, BookOpen, IndianRupee,
-  Receipt, UserCog, Settings, LogOut, X, TrendingUp, ClipboardCheck, Layers, Crown, Building2
+  Receipt, UserCog, Settings, LogOut, X, TrendingUp, ClipboardCheck, Layers, Crown, Building2, MessageCircle
 } from 'lucide-react';
 
 const navItems = [
@@ -13,6 +13,7 @@ const navItems = [
   { path: '/batches', label: 'Batches', icon: Layers, roles: ['admin'] },
   { path: '/attendance', label: 'Attendance', icon: ClipboardCheck, roles: ['admin', 'staff'] },
   { path: '/fees', label: 'Fees & Revenue', icon: IndianRupee, roles: ['admin'] },
+  { path: '/templates', label: 'Templates', icon: MessageCircle, roles: ['admin', 'staff'] },
   { path: '/staff', label: 'Staff', icon: UserCog, roles: ['admin'] },
   { path: '/expenses', label: 'Expenses', icon: Receipt, roles: ['admin'] },
   { path: '/salary', label: 'Salary', icon: IndianRupee, roles: ['admin'] },

@@ -22,6 +22,7 @@ import StaffDetailPage from './pages/StaffDetailPage';
 import ReportsPage from './pages/ReportsPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import SettingsPage from './pages/SettingsPage';
+import TemplatesPage from './pages/TemplatesPage';
 
 // Protected route wrapper
 const ProtectedRoute = ({ children }) => {
@@ -90,6 +91,7 @@ const App = () => {
             <Route path="expenses" element={<ExpensesPage />} />
             <Route path="salary" element={<SalaryPage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="templates" element={<TemplatesPage />} />
             <Route path="super-admin" element={<SuperAdminPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>

@@ -11,6 +11,7 @@ const pageTitles = {
   '/batches': 'Batch Management',
   '/attendance': 'Attendance',
   '/fees': 'Fees & Revenue',
+  '/templates': 'Message Templates',
   '/staff': 'Staff Management',
   '/expenses': 'Expenses',
   '/salary': 'Salary Management',

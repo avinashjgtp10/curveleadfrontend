@@ -164,6 +164,24 @@ export const settingsAPI = {
   update: (data) => api.put('/settings', data),
 };
 
+// Template APIs
+export const templateAPI = {
+  getAll: (category) => api.get('/templates', { params: { category } }),
+  create: (data) => api.post('/templates', data),
+  update: (id, data) => api.put(`/templates/${id}`, data),
+  delete: (id) => api.delete(`/templates/${id}`),
+  generate: (id, data) => api.post(`/templates/${id}/send`, data),
+};
+
+// Lead Stages APIs
+export const leadStageAPI = {
+  getAll: () => api.get('/lead-stages'),
+  create: (data) => api.post('/lead-stages', data),
+  update: (id, data) => api.put(`/lead-stages/${id}`, data),
+  delete: (id) => api.delete(`/lead-stages/${id}`),
+  reorder: (stages) => api.put('/lead-stages/reorder', { stages }),
+};
+
 // Dashboard API
 export const dashboardAPI = {
   get: () => api.get('/dashboard'),

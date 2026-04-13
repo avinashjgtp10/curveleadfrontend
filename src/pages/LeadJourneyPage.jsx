@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { leadAPI } from '../services/api';
+import { leadAPI, templateAPI } from '../services/api';
 import {
   ArrowLeft, Phone, MessageCircle, MapPin, BookOpen, Clock,
   PhoneCall, PhoneOff, PhoneMissed, Send, FileText, Eye,
@@ -149,15 +149,15 @@ const LeadJourneyPage = () => {
             className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 transition">
             <Phone size={16} /> Call
           </a>
-          <a href={`https://wa.me/91${lead.phone?.replace(/\D/g, '').slice(-10)}`} target="_blank" rel="noreferrer"
+          <button onClick={() => setActiveModal('template')}
             className="flex-1 inline-flex items-center justify-center gap-2 px-3 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 transition">
-            <MessageCircle size={16} /> WhatsApp
-          </a>
+            <MessageCircle size={16} /> Send Template
+          </button>
         </div>
       </div>
 
       {/* Quick Action Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
         <button onClick={() => setActiveModal('call')}
           className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-green-300 hover:bg-green-50 transition">
           <PhoneCall size={18} className="text-green-600" /> Log Call
@@ -173,6 +173,10 @@ const LeadJourneyPage = () => {
         <button onClick={() => setActiveModal('note')}
           className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50 transition">
           <FileText size={18} className="text-gray-600" /> Add Note
+        </button>
+        <button onClick={() => setActiveModal('template')}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-green-300 hover:bg-green-50 transition">
+          <MessageCircle size={18} className="text-green-600" /> Template
         </button>
       </div>
 
@@ -289,6 +293,9 @@ const LeadJourneyPage = () => {
       )}
       {activeModal === 'note' && (
         <LogNoteModal leadId={id} onClose={() => setActiveModal(null)} onSaved={() => { setActiveModal(null); loadData(); }} />
+      )}
+      {activeModal === 'template' && (
+        <SendTemplateModal lead={lead} leadId={id} onClose={() => setActiveModal(null)} onSent={() => { setActiveModal(null); loadData(); }} />
       )}
     </div>
   );
@@ -543,6 +550,163 @@ const LogNoteModal = ({ leadId, onClose, onSaved }) => {
           {loading ? 'Saving...' : 'Save Note'}
         </button>
       </form>
+    </Modal>
+  );
+};
+
+// Send Template Modal
+const SendTemplateModal = ({ lead, leadId, onClose, onSent }) => {
+  const [templates, setTemplates] = useState([]);
+  const [selectedTemplate, setSelectedTemplate] = useState(null);
+  const [generatedMessage, setGeneratedMessage] = useState('');
+  const [whatsappUrl, setWhatsappUrl] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [filter, setFilter] = useState('');
+
+  useEffect(() => { loadTemplates(); }, [filter]);
+
+  const loadTemplates = async () => {
+    try {
+      const { data } = await templateAPI.getAll(filter || undefined);
+      setTemplates(data.templates);
+    } catch (e) { console.error(e); }
+    finally { setLoading(false); }
+  };
+
+  const selectTemplate = async (template) => {
+    setSelectedTemplate(template);
+    try {
+      const { data } = await templateAPI.generate(template.id, { lead_id: leadId });
+      setGeneratedMessage(data.message);
+      setWhatsappUrl(data.whatsappUrl);
+    } catch (e) {
+      console.error(e);
+      setGeneratedMessage(template.message);
+    }
+  };
+
+  const sendAndLog = async () => {
+    if (!whatsappUrl) return;
+    setSending(true);
+    try {
+      // Log as WhatsApp activity
+      await leadAPI.logWhatsApp(leadId, {
+        direction: 'sent',
+        message: generatedMessage,
+        notes: `Sent template: ${selectedTemplate.name}`,
+      });
+      // Open WhatsApp
+      window.open(whatsappUrl, '_blank');
+      onSent();
+    } catch (e) { alert('Failed to log'); }
+    finally { setSending(false); }
+  };
+
+  const copyMessage = () => {
+    navigator.clipboard.writeText(generatedMessage);
+    alert('Message copied!');
+  };
+
+  const categoryColors = {
+    welcome: 'bg-green-100 text-green-700', followup: 'bg-blue-100 text-blue-700',
+    fee_reminder: 'bg-red-100 text-red-700', course_info: 'bg-purple-100 text-purple-700',
+    custom: 'bg-gray-100 text-gray-700',
+  };
+
+  return (
+    <Modal onClose={onClose} title="Send Template Message">
+      <div className="space-y-4">
+        {/* Lead info */}
+        <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+          <div className="w-9 h-9 bg-brand-100 rounded-full flex items-center justify-center">
+            <span className="text-brand-700 font-bold text-sm">{lead.name?.charAt(0)?.toUpperCase()}</span>
+          </div>
+          <div>
+            <p className="font-medium text-gray-900 text-sm">{lead.name}</p>
+            <p className="text-xs text-gray-500">{lead.phone} {lead.course_name ? `• ${lead.course_name}` : ''}</p>
+          </div>
+        </div>
+
+        {!selectedTemplate ? (
+          /* Template List */
+          <>
+            <div className="flex gap-2">
+              <select value={filter} onChange={e => setFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white flex-1">
+                <option value="">All Templates</option>
+                <option value="welcome">Welcome</option>
+                <option value="followup">Follow-up</option>
+                <option value="fee_reminder">Fee Reminder</option>
+                <option value="course_info">Course Info</option>
+                <option value="custom">Custom</option>
+              </select>
+            </div>
+
+            {loading ? (
+              <div className="flex items-center justify-center h-20"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+            ) : templates.length === 0 ? (
+              <p className="text-center text-sm text-gray-400 py-6">No templates found. Create templates from the Templates page.</p>
+            ) : (
+              <div className="space-y-2 max-h-64 overflow-y-auto">
+                {templates.map(t => (
+                  <button key={t.id} onClick={() => selectTemplate(t)}
+                    className="w-full text-left p-3 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium text-sm text-gray-900">{t.name}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-xs ${categoryColors[t.category] || categoryColors.custom}`}>
+                        {t.category}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500 line-clamp-2">{t.message}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        ) : (
+          /* Preview & Send */
+          <>
+            <button onClick={() => setSelectedTemplate(null)}
+              className="text-sm text-brand-600 hover:text-brand-700 font-medium">← Choose different template</button>
+
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1">{selectedTemplate.name}</p>
+              {/* WhatsApp style bubble */}
+              <div className="bg-[#DCF8C6] rounded-lg rounded-tl-none p-3 text-sm text-gray-800 shadow-sm whitespace-pre-wrap">
+                {generatedMessage}
+                <p className="text-right text-xs text-gray-500 mt-2">
+                  {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} ✓✓
+                </p>
+              </div>
+            </div>
+
+            {/* Edit message */}
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Edit message (optional)</label>
+              <textarea value={generatedMessage} onChange={e => {
+                setGeneratedMessage(e.target.value);
+                const phone = lead.phone?.replace(/\D/g, '').slice(-10);
+                setWhatsappUrl(phone ? `https://wa.me/91${phone}?text=${encodeURIComponent(e.target.value)}` : '');
+              }}
+                rows={4} className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none" />
+            </div>
+
+            <div className="flex gap-2">
+              <button onClick={copyMessage}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200">
+                <FileText size={16} /> Copy
+              </button>
+              <button onClick={sendAndLog} disabled={sending}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-green-600 text-white rounded-lg text-sm font-semibold hover:bg-green-700 disabled:opacity-50">
+                <Send size={16} /> {sending ? 'Sending...' : 'Send WhatsApp'}
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-400 text-center">Opens WhatsApp with pre-filled message + logs activity automatically</p>
+          </>
+        )}
+      </div>
     </Modal>
   );
 };
