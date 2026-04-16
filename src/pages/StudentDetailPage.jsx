@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { studentAPI, attendanceAPI } from '../services/api';
+import PageLoader from '../components/ui/PageLoader';
 import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Phone, MessageCircle, GraduationCap, BookOpen, Calendar,
@@ -43,9 +44,7 @@ const StudentDetailPage = () => {
     } finally { setLoading(false); }
   };
 
-  if (loading) {
-    return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
-  }
+  if (loading) return <PageLoader />;
 
   if (!student) {
     return (

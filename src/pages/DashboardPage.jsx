@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { dashboardAPI } from '../services/api';
+import PageLoader from '../components/ui/PageLoader';
 import { useAuth } from '../context/AuthContext';
 import {
   Users, GraduationCap, IndianRupee, TrendingUp, AlertCircle,
@@ -46,13 +47,7 @@ const DashboardPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   if (!data) {
     return (

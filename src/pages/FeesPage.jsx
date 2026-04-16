@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { feeAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import PageLoader from '../components/ui/PageLoader';
 import {
   IndianRupee, Search, Phone, MessageCircle, X, ChevronRight,
   AlertCircle, Clock, CheckCircle, Download, TrendingUp, Calendar,
@@ -336,7 +337,7 @@ const RemindersTab = () => {
     } catch (e) { alert('Failed'); }
   };
 
-  if (loading) return <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
+  if (loading) return <PageLoader className="h-40" />;
 
   return (
     <>
@@ -431,7 +432,7 @@ const RevenueTab = () => {
     return `${months[parseInt(mo) - 1]} ${y}`;
   };
 
-  if (loading) return <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
+  if (loading) return <PageLoader className="h-40" />;
 
   return (
     <>
