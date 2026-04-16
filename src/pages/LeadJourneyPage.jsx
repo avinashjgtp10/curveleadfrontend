@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { leadAPI, templateAPI } from '../services/api';
+import { leadAPI, templateAPI, leadStageAPI } from '../services/api';
 import PageLoader from '../components/ui/PageLoader';
 import {
   ArrowLeft, Phone, MessageCircle, MapPin, BookOpen, Clock,
   PhoneCall, PhoneOff, PhoneMissed, Send, FileText, Eye,
   ChevronDown, ChevronUp, X, Calendar, User, ArrowRightCircle,
-  CheckCircle, XCircle, AlertCircle
+  CheckCircle, XCircle, AlertCircle, RefreshCw
 } from 'lucide-react';
 
 const activityIcons = {
@@ -29,12 +29,11 @@ const activityColors = {
   followup_scheduled: 'bg-amber-100 text-amber-600 border-amber-200',
 };
 
-const stageColors = {
-  new: 'bg-blue-100 text-blue-700',
-  contacted: 'bg-yellow-100 text-yellow-700',
-  interested: 'bg-purple-100 text-purple-700',
-  enrolled: 'bg-green-100 text-green-700',
-  dropped: 'bg-red-100 text-red-700',
+const stageColorMap = {
+  blue: 'bg-blue-100 text-blue-700', yellow: 'bg-yellow-100 text-yellow-700',
+  purple: 'bg-purple-100 text-purple-700', green: 'bg-green-100 text-green-700',
+  red: 'bg-red-100 text-red-700', orange: 'bg-orange-100 text-orange-700',
+  pink: 'bg-pink-100 text-pink-700', gray: 'bg-gray-100 text-gray-700',
 };
 
 const LeadJourneyPage = () => {
@@ -42,6 +41,7 @@ const LeadJourneyPage = () => {
   const navigate = useNavigate();
   const [lead, setLead] = useState(null);
   const [activities, setActivities] = useState([]);
+  const [stages, setStages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeModal, setActiveModal] = useState(null); // 'call', 'whatsapp', 'visit', 'note'
 
@@ -51,14 +51,23 @@ const LeadJourneyPage = () => {
 
   const loadData = async () => {
     try {
-      const { data } = await leadAPI.getActivities(id);
-      setLead(data.lead);
-      setActivities(data.activities);
+      const [journeyRes, stagesRes] = await Promise.all([
+        leadAPI.getActivities(id),
+        leadStageAPI.getAll(),
+      ]);
+      setLead(journeyRes.data.lead);
+      setActivities(journeyRes.data.activities);
+      setStages(stagesRes.data.stages);
     } catch (error) {
       console.error('Load journey error:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const getStageColor = (stageName) => {
+    const stage = stages.find(s => s.name.toLowerCase() === stageName?.toLowerCase());
+    return stageColorMap[stage?.color] || 'bg-gray-100 text-gray-700';
   };
 
   if (loading) return <PageLoader />;
@@ -124,7 +133,7 @@ const LeadJourneyPage = () => {
                   {lead.course_name && <span className="flex items-center gap-1"><BookOpen size={14} /> {lead.course_name}</span>}
                 </div>
               </div>
-              <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize shrink-0 ${stageColors[lead.stage]}`}>
+              <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize shrink-0 ${getStageColor(lead.stage)}`}>
                 {lead.stage}
               </span>
             </div>
@@ -135,6 +144,22 @@ const LeadJourneyPage = () => {
               <span>Created: {new Date(lead.created_at).toLocaleDateString('en-IN')}</span>
               {lead.assigned_to_name && <span>Assigned: {lead.assigned_to_name}</span>}
             </div>
+
+            {/* Followup date */}
+            {lead.next_followup && (
+              <button
+                onClick={() => setActiveModal('followup')}
+                className={`inline-flex items-center gap-1.5 mt-2 px-2.5 py-1 rounded-lg text-xs font-medium transition hover:opacity-80 ${
+                  new Date(lead.next_followup) < new Date()
+                    ? 'bg-red-50 text-red-600 border border-red-200'
+                    : 'bg-amber-50 text-amber-600 border border-amber-200'
+                }`}
+              >
+                <Clock size={12} />
+                Follow-up: {new Date(lead.next_followup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                {new Date(lead.next_followup) < new Date() && <span className="font-semibold ml-0.5">· Overdue</span>}
+              </button>
+            )}
           </div>
         </div>
 
@@ -152,7 +177,12 @@ const LeadJourneyPage = () => {
       </div>
 
       {/* Quick Action Buttons */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+        <button onClick={() => setActiveModal('followup')}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm font-medium text-amber-700 hover:bg-amber-100 transition col-span-2 sm:col-span-3 lg:col-span-6">
+          <Calendar size={18} className="text-amber-600" />
+          {lead.next_followup ? `Follow-up: ${new Date(lead.next_followup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Schedule Follow-up'}
+        </button>
         <button onClick={() => setActiveModal('call')}
           className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-green-300 hover:bg-green-50 transition">
           <PhoneCall size={18} className="text-green-600" /> Log Call
@@ -172,6 +202,10 @@ const LeadJourneyPage = () => {
         <button onClick={() => setActiveModal('template')}
           className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-green-300 hover:bg-green-50 transition">
           <MessageCircle size={18} className="text-green-600" /> Template
+        </button>
+        <button onClick={() => setActiveModal('status')}
+          className="flex items-center justify-center gap-2 px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium text-gray-700 hover:border-blue-300 hover:bg-blue-50 transition col-span-2 sm:col-span-1">
+          <RefreshCw size={18} className="text-blue-600" /> Update Status
         </button>
       </div>
 
@@ -245,11 +279,11 @@ const LeadJourneyPage = () => {
                       {/* Stage change */}
                       {activity.activity_type === 'stage_change' && activity.old_value && (
                         <div className="flex items-center gap-2 mt-1.5 text-sm">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${stageColors[activity.old_value] || ''}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStageColor(activity.old_value)}`}>
                             {activity.old_value}
                           </span>
                           <ArrowRightCircle size={14} className="text-gray-400" />
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${stageColors[activity.new_value] || ''}`}>
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getStageColor(activity.new_value)}`}>
                             {activity.new_value}
                           </span>
                         </div>
@@ -291,6 +325,12 @@ const LeadJourneyPage = () => {
       )}
       {activeModal === 'template' && (
         <SendTemplateModal lead={lead} leadId={id} onClose={() => setActiveModal(null)} onSent={() => { setActiveModal(null); loadData(); }} />
+      )}
+      {activeModal === 'status' && (
+        <UpdateStatusModal leadId={id} currentStage={lead.stage} stages={stages} onClose={() => setActiveModal(null)} onSaved={() => { setActiveModal(null); loadData(); }} />
+      )}
+      {activeModal === 'followup' && (
+        <ScheduleFollowupModal leadId={id} currentFollowup={lead.next_followup} onClose={() => setActiveModal(null)} onSaved={() => { setActiveModal(null); loadData(); }} />
       )}
     </div>
   );
@@ -702,6 +742,192 @@ const SendTemplateModal = ({ lead, leadId, onClose, onSent }) => {
           </>
         )}
       </div>
+    </Modal>
+  );
+};
+
+// Schedule Followup Modal
+const ScheduleFollowupModal = ({ leadId, currentFollowup, onClose, onSaved }) => {
+  const toLocalDatetime = (dateStr) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
+  const [form, setForm] = useState({
+    followup_type: 'call',
+    next_followup_at: toLocalDatetime(currentFollowup),
+    notes: '',
+  });
+  const [loading, setLoading] = useState(false);
+
+  const followupTypes = [
+    { value: 'call', label: 'Call', icon: PhoneCall, color: 'text-green-600 bg-green-50 border-green-200', ring: 'ring-green-100' },
+    { value: 'whatsapp', label: 'WhatsApp', icon: MessageCircle, color: 'text-emerald-600 bg-emerald-50 border-emerald-200', ring: 'ring-emerald-100' },
+    { value: 'visit', label: 'Visit', icon: MapPin, color: 'text-purple-600 bg-purple-50 border-purple-200', ring: 'ring-purple-100' },
+    { value: 'other', label: 'Other', icon: FileText, color: 'text-gray-600 bg-gray-50 border-gray-200', ring: 'ring-gray-100' },
+  ];
+
+  const quickSlots = [
+    { label: 'In 1 hour', hours: 1 },
+    { label: 'Tomorrow 10am', fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(10, 0, 0, 0); return d; } },
+    { label: 'Tomorrow 5pm', fn: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(17, 0, 0, 0); return d; } },
+    { label: 'In 2 days', hours: 48 },
+    { label: 'Next week', hours: 168 },
+  ];
+
+  const applyQuick = (slot) => {
+    const d = slot.fn ? slot.fn() : new Date(Date.now() + slot.hours * 3600000);
+    const pad = n => String(n).padStart(2, '0');
+    setForm(f => ({ ...f, next_followup_at: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}` }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.next_followup_at) { alert('Please select a follow-up date & time'); return; }
+    setLoading(true);
+    try {
+      await leadAPI.addFollowup(leadId, form);
+      onSaved();
+    } catch (err) { alert(err.response?.data?.error || 'Failed to schedule follow-up'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <Modal title="Schedule Follow-up" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Current followup notice */}
+        {currentFollowup && (
+          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium ${
+            new Date(currentFollowup) < new Date() ? 'bg-red-50 text-red-600' : 'bg-amber-50 text-amber-600'
+          }`}>
+            <Clock size={13} />
+            Current: {new Date(currentFollowup).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+            {new Date(currentFollowup) < new Date() && ' · Overdue'}
+          </div>
+        )}
+
+        {/* Followup type */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Follow-up Type</label>
+          <div className="grid grid-cols-4 gap-2">
+            {followupTypes.map(t => (
+              <button key={t.value} type="button"
+                onClick={() => setForm(f => ({ ...f, followup_type: t.value }))}
+                className={`flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg text-xs font-medium border transition ${
+                  form.followup_type === t.value
+                    ? `${t.color} ring-2 ${t.ring}`
+                    : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+                }`}>
+                <t.icon size={16} /> {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick slots */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Quick Select</label>
+          <div className="flex flex-wrap gap-2">
+            {quickSlots.map(s => (
+              <button key={s.label} type="button"
+                onClick={() => applyQuick(s)}
+                className="px-3 py-1.5 bg-gray-100 hover:bg-amber-50 hover:text-amber-700 hover:border-amber-200 border border-transparent text-gray-600 rounded-lg text-xs font-medium transition">
+                {s.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Date & time picker */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Date & Time</label>
+          <input
+            type="datetime-local"
+            value={form.next_followup_at}
+            onChange={e => setForm(f => ({ ...f, next_followup_at: e.target.value }))}
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm"
+            required
+          />
+        </div>
+
+        {/* Notes */}
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+          <textarea
+            value={form.notes}
+            onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+            rows={2}
+            placeholder="What to discuss, any context..."
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm resize-none"
+          />
+        </div>
+
+        <button type="submit" disabled={loading}
+          className="w-full py-2.5 bg-amber-500 text-white rounded-lg text-sm font-semibold hover:bg-amber-600 disabled:opacity-50">
+          {loading ? 'Scheduling...' : 'Schedule Follow-up'}
+        </button>
+      </form>
+    </Modal>
+  );
+};
+
+// Update Status Modal
+const UpdateStatusModal = ({ leadId, currentStage, stages, onClose, onSaved }) => {
+  const [selectedStage, setSelectedStage] = useState(currentStage);
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (selectedStage === currentStage) { onClose(); return; }
+    setLoading(true);
+    try {
+      await leadAPI.update(leadId, { stage: selectedStage, status_notes: notes });
+      onSaved();
+    } catch (err) { alert(err.response?.data?.error || 'Failed to update status'); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <Modal title="Update Lead Status" onClose={onClose}>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-2">Select Stage</label>
+          <div className="grid grid-cols-2 gap-2">
+            {stages.map(s => {
+              const value = s.name.toLowerCase();
+              const colorClass = stageColorMap[s.color] || 'bg-gray-100 text-gray-700';
+              const isSelected = selectedStage === value;
+              return (
+                <button key={s.id} type="button"
+                  onClick={() => setSelectedStage(value)}
+                  className={`px-3 py-2.5 rounded-lg text-sm font-medium border transition ${
+                    isSelected
+                      ? `${colorClass} border-current ring-2 ring-current/20`
+                      : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  {s.name}
+                  {value === currentStage && <span className="ml-1 text-xs opacity-60">(current)</span>}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Reason / Notes <span className="text-gray-400 font-normal">(optional)</span></label>
+          <textarea value={notes} onChange={e => setNotes(e.target.value)}
+            rows={3} placeholder="Why is this status being updated..."
+            className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm resize-none" />
+        </div>
+
+        <button type="submit" disabled={loading}
+          className="w-full py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50">
+          {loading ? 'Updating...' : 'Update Status'}
+        </button>
+      </form>
     </Modal>
   );
 };
