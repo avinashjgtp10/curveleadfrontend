@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { leadAPI, templateAPI } from '../services/api';
+import PageLoader from '../components/ui/PageLoader';
 import {
   ArrowLeft, Phone, MessageCircle, MapPin, BookOpen, Clock,
   PhoneCall, PhoneOff, PhoneMissed, Send, FileText, Eye,
@@ -60,13 +61,7 @@ const LeadJourneyPage = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   if (!lead) {
     return (

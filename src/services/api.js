@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { loadingState } from './loadingState';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -7,19 +8,24 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach token to every request
+// Attach token + start global loading indicator
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('curvelead_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  loadingState.start();
   return config;
 });
 
-// Handle 401 responses
+// Handle 401 responses + stop global loading indicator
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    loadingState.done();
+    return response;
+  },
   (error) => {
+    loadingState.done();
     if (error.response?.status === 401) {
       localStorage.removeItem('curvelead_token');
       localStorage.removeItem('curvelead_user');
