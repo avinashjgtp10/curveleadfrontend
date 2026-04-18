@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { studentAPI, attendanceAPI } from '../services/api';
-import PageLoader from '../components/ui/PageLoader';
+import { studentAPI, attendanceAPI, feeAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Phone, MessageCircle, GraduationCap, BookOpen, Calendar,
-  IndianRupee, Award, Clock, CheckCircle, XCircle, MapPin, Mail, User
+  IndianRupee, Award, Clock, CheckCircle, XCircle, MapPin, Mail, User, Trash2
 } from 'lucide-react';
 
 const statusColors = {
@@ -44,7 +43,9 @@ const StudentDetailPage = () => {
     } finally { setLoading(false); }
   };
 
-  if (loading) return <PageLoader />;
+  if (loading) {
+    return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
+  }
 
   if (!student) {
     return (
@@ -232,13 +233,33 @@ const StudentDetailPage = () => {
                   <span className="text-gray-400 ml-2">{new Date(p.payment_date).toLocaleDateString('en-IN')}</span>
                   <span className="text-gray-400 ml-2 capitalize">{p.payment_mode?.replace(/_/g, ' ')}</span>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs text-gray-400">{p.receipt_number}</span>
-                  {p.received_by_name && <p className="text-xs text-gray-400">by {p.received_by_name}</p>}
+                <div className="flex items-center gap-2">
+                  <div className="text-right">
+                    <span className="text-xs text-gray-400">{p.receipt_number}</span>
+                    {p.received_by_name && <p className="text-xs text-gray-400">by {p.received_by_name}</p>}
+                  </div>
+                  <button onClick={async () => {
+                    if (!window.confirm('Delete this payment? Balance will be restored.')) return;
+                    try { await feeAPI.deletePayment(p.id); loadData(); } catch (e) { alert('Failed'); }
+                  }} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-500" title="Delete Payment">
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Delete Student Button */}
+      {isAdmin && (
+        <div className="pt-4 border-t border-gray-200">
+          <button onClick={async () => {
+            if (!window.confirm('Delete this student and all their records? This cannot be undone.')) return;
+            try { await studentAPI.delete(id); navigate('/students'); } catch (e) { alert('Failed'); }
+          }} className="px-4 py-2.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition">
+            <Trash2 size={16} className="inline mr-2" />Delete Student
+          </button>
         </div>
       )}
     </div>

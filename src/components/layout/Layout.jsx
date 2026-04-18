@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
-import LoadingBar from '../ui/LoadingBar';
 
 const pageTitles = {
   '/dashboard': 'Dashboard',
@@ -32,7 +31,6 @@ const Layout = () => {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      <LoadingBar />
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header onMenuClick={() => setSidebarOpen(true)} title={getTitle()} />
