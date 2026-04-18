@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { staffAPI } from '../services/api';
 import { ArrowLeft, Phone, Clock, CheckCircle, XCircle, IndianRupee, Plus, Trash2, X, Calendar } from 'lucide-react';
-import PageLoader from '../components/ui/PageLoader';
 
 const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -44,7 +43,7 @@ const StaffDetailPage = () => {
     try { await staffAPI.deleteIncentive(incId); loadData(); } catch (e) { alert('Failed'); }
   };
 
-  if (loading) return <PageLoader />;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
   if (!data) return <div className="text-center py-12"><p className="text-gray-500">Staff not found.</p></div>;
 
   const { staff, timeLogs, attendanceSummary: att, currentMonthSalary: sal, incentives, salaryHistory, gracePeriod } = data;
