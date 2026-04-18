@@ -1,5 +1,4 @@
 import axios from 'axios';
-import { loadingState } from './loadingState';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
@@ -8,24 +7,19 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach token + start global loading indicator
+// Attach token to every request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('curvelead_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
-  loadingState.start();
   return config;
 });
 
-// Handle 401 responses + stop global loading indicator
+// Handle 401 responses
 api.interceptors.response.use(
-  (response) => {
-    loadingState.done();
-    return response;
-  },
+  (response) => response,
   (error) => {
-    loadingState.done();
     if (error.response?.status === 401) {
       localStorage.removeItem('curvelead_token');
       localStorage.removeItem('curvelead_user');
@@ -89,6 +83,7 @@ export const studentAPI = {
   getOne: (id) => api.get(`/students/${id}`),
   create: (data) => api.post('/students', data),
   update: (id, data) => api.put(`/students/${id}`, data),
+  delete: (id) => api.delete(`/students/${id}`),
   enrollLead: (leadId, data) => api.post(`/students/enroll-lead/${leadId}`, data),
 };
 
@@ -109,6 +104,10 @@ export const feeAPI = {
   getReminders: () => api.get('/fees/reminders'),
   actionReminder: (installmentId, data) => api.post(`/fees/reminders/${installmentId}/action`, data),
   updateInstallments: (id, data) => api.put(`/fees/${id}/installments`, data),
+  delete: (id) => api.delete(`/fees/${id}`),
+  deletePayment: (id) => api.delete(`/fees/payment/${id}`),
+  downloadReceiptPDF: (feeId, paymentId) => api.get(`/fees/${feeId}/receipt/${paymentId}/pdf`, { responseType: 'blob' }),
+  emailReceipt: (feeId, paymentId, data) => api.post(`/fees/${feeId}/receipt/${paymentId}/email`, data),
 };
 
 // Staff APIs

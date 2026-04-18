@@ -43,7 +43,7 @@ const LeadsPage = () => {
   const [todayFollowups, setTodayFollowups] = useState([]);
 
   useEffect(() => { loadCourses(); loadStages(); }, []);
-  useEffect(() => { loadLeads(); }, [filters.stage, filters.source, pagination.page]);
+  useEffect(() => { loadLeads(); }, [filters.stage, filters.source, pagination.page, tab]);
   useEffect(() => { if (tab === 'followups') loadFollowups(); }, [tab]);
 
   const loadCourses = async () => { try { const { data } = await courseAPI.getAll(); setCourses(data.courses); } catch (e) {} };
@@ -52,7 +52,8 @@ const LeadsPage = () => {
   const loadLeads = async () => {
     setLoading(true);
     try {
-      const { data } = await leadAPI.getAll({ ...filters, page: pagination.page, limit: 20 });
+      const limit = tab === 'pipeline' ? 200 : 20;
+      const { data } = await leadAPI.getAll({ ...filters, page: tab === 'pipeline' ? 1 : pagination.page, limit });
       setLeads(data.leads); setPagination(data.pagination);
     } catch (e) {} finally { setLoading(false); }
   };
@@ -93,8 +94,13 @@ const LeadsPage = () => {
     try { await leadAPI.update(leadId, { stage: newStage }); loadLeads(); } catch (e) {}
   };
 
+  const handleDeleteLead = async (leadId) => {
+    if (!window.confirm('Delete this lead? This cannot be undone.')) return;
+    try { await leadAPI.delete(leadId); loadLeads(); } catch (e) { alert('Failed to delete lead.'); }
+  };
+
   const getStageColor = (stageName) => {
-    const stage = stages.find(s => s.name.toLowerCase() === stageName);
+    const stage = stages.find(s => s.name.toLowerCase() === stageName?.toLowerCase());
     return stageColorMap[stage?.color] || 'bg-gray-100 text-gray-700';
   };
 
@@ -217,11 +223,13 @@ const LeadsPage = () => {
                         </td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-1">
-                            <a href={`tel:${lead.phone}`} className="p-1.5 hover:bg-green-50 rounded text-green-600"><Phone size={16} /></a>
+                            <a href={`tel:${lead.phone}`} className="p-1.5 hover:bg-green-50 rounded text-green-600" title="Call"><Phone size={16} /></a>
                             <a href={`https://wa.me/91${lead.phone?.replace(/\D/g, '').slice(-10)}`} target="_blank" rel="noreferrer"
-                              className="p-1.5 hover:bg-green-50 rounded text-green-600"><MessageCircle size={16} /></a>
-                            <button onClick={() => openFollowup(lead)} className="p-1.5 hover:bg-brand-50 rounded text-brand-600"><Clock size={16} /></button>
-                            <button onClick={() => navigate(`/leads/${lead.id}/journey`)} className="p-1.5 hover:bg-purple-50 rounded text-purple-600"><Eye size={16} /></button>
+                              className="p-1.5 hover:bg-green-50 rounded text-green-600" title="WhatsApp"><MessageCircle size={16} /></a>
+                            <button onClick={() => openFollowup(lead)} className="p-1.5 hover:bg-brand-50 rounded text-brand-600" title="Schedule Follow-up"><Clock size={16} /></button>
+                            <button onClick={() => openEditModal(lead)} className="p-1.5 hover:bg-blue-50 rounded text-blue-600" title="Edit"><Edit2 size={16} /></button>
+                            <button onClick={() => navigate(`/leads/${lead.id}/journey`)} className="p-1.5 hover:bg-purple-50 rounded text-purple-600" title="Journey"><Eye size={16} /></button>
+                            <button onClick={() => handleDeleteLead(lead.id)} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-500" title="Delete"><Trash2 size={16} /></button>
                           </div>
                         </td>
                       </tr>
@@ -287,9 +295,12 @@ const LeadsPage = () => {
 
       {/* Pipeline Tab */}
       {tab === 'pipeline' && (
+        loading ? (
+          <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+        ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
           {stages.map(stage => {
-            const stageLeads = leads.filter(l => l.stage === stage.name.toLowerCase());
+            const stageLeads = leads.filter(l => l.stage?.toLowerCase() === stage.name?.toLowerCase());
             return (
               <div key={stage.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
                 <div className={`px-3 py-2 ${stageColorMap[stage.color]} flex items-center justify-between`}>
@@ -310,6 +321,7 @@ const LeadsPage = () => {
             );
           })}
         </div>
+        )
       )}
 
       {/* Add/Edit Lead Modal */}

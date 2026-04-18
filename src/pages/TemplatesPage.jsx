@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { templateAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import PageLoader from '../components/ui/PageLoader';
 import { Plus, Edit2, Trash2, X, MessageCircle, Copy, Send, Eye, FileText } from 'lucide-react';
 
 const categoryLabels = {
@@ -103,7 +102,7 @@ const TemplatesPage = () => {
     return preview;
   };
 
-  if (loading) return <PageLoader />;
+  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
 
   return (
     <div className="space-y-4">

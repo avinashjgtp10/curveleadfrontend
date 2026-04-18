@@ -4,7 +4,7 @@ import { studentAPI, courseAPI, batchAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   Plus, Search, GraduationCap, Phone, X, IndianRupee,
-  Award, ChevronRight, Calendar, BookOpen, Users
+  Award, ChevronRight, Calendar, BookOpen, Users, Edit2, Trash2
 } from 'lucide-react';
 
 const statusColors = {
@@ -115,6 +115,12 @@ const StudentsPage = () => {
       await studentAPI.update(id, updates);
       loadStudents();
     } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteStudent = async (id) => {
+    if (!window.confirm('Delete this student? This will also delete their fee records. This cannot be undone.')) return;
+    try { await studentAPI.delete(id); loadStudents(); }
+    catch (e) { alert(e.response?.data?.error || 'Failed to delete student.'); }
   };
 
   // When course changes in form, auto-fill fee
@@ -228,10 +234,16 @@ const StudentsPage = () => {
                       </select>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => navigate(`/students/${s.id}`)}
-                        className="p-1.5 hover:bg-brand-50 rounded text-brand-600" title="View Details">
-                        <ChevronRight size={16} />
-                      </button>
+                      <div className="flex items-center justify-end gap-1">
+                        <button onClick={() => navigate(`/students/${s.id}`)}
+                          className="p-1.5 hover:bg-brand-50 rounded text-brand-600" title="View Details">
+                          <ChevronRight size={16} />
+                        </button>
+                        <button onClick={() => handleDeleteStudent(s.id)}
+                          className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-500" title="Delete">
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

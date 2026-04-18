@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { studentAPI, attendanceAPI } from '../services/api';
-import PageLoader from '../components/ui/PageLoader';
+import { studentAPI, attendanceAPI, feeAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Phone, MessageCircle, GraduationCap, BookOpen, Calendar,
-  IndianRupee, Award, Clock, CheckCircle, XCircle, MapPin, Mail, User
+  IndianRupee, Award, Clock, CheckCircle, XCircle, MapPin, Mail, User, Trash2, Download, Send
 } from 'lucide-react';
 
 const statusColors = {
@@ -44,7 +43,9 @@ const StudentDetailPage = () => {
     } finally { setLoading(false); }
   };
 
-  if (loading) return <PageLoader />;
+  if (loading) {
+    return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
+  }
 
   if (!student) {
     return (
@@ -232,13 +233,50 @@ const StudentDetailPage = () => {
                   <span className="text-gray-400 ml-2">{new Date(p.payment_date).toLocaleDateString('en-IN')}</span>
                   <span className="text-gray-400 ml-2 capitalize">{p.payment_mode?.replace(/_/g, ' ')}</span>
                 </div>
-                <div className="text-right">
-                  <span className="text-xs text-gray-400">{p.receipt_number}</span>
-                  {p.received_by_name && <p className="text-xs text-gray-400">by {p.received_by_name}</p>}
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-400 mr-2">{p.receipt_number}</span>
+                  <button onClick={async () => {
+                    try {
+                      const { data } = await feeAPI.downloadReceiptPDF(p.student_fee_id, p.id);
+                      const url = window.URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+                      const a = document.createElement('a'); a.href = url; a.download = `Receipt_${p.receipt_number}.pdf`; a.click();
+                      window.URL.revokeObjectURL(url);
+                    } catch (e) { alert('Failed to download PDF'); }
+                  }} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Download PDF">
+                    <Download size={14} />
+                  </button>
+                  {student.email && (
+                    <button onClick={async () => {
+                      try {
+                        await feeAPI.emailReceipt(p.student_fee_id, p.id, { email: student.email });
+                        alert(`Receipt emailed to ${student.email}`);
+                      } catch (e) { alert(e.response?.data?.error || 'Failed to send email'); }
+                    }} className="p-1.5 hover:bg-green-50 rounded text-green-500" title="Email Receipt">
+                      <Send size={14} />
+                    </button>
+                  )}
+                  <button onClick={async () => {
+                    if (!window.confirm('Delete this payment? Balance will be restored.')) return;
+                    try { await feeAPI.deletePayment(p.id); loadData(); } catch (e) { alert('Failed'); }
+                  }} className="p-1.5 hover:bg-red-50 rounded text-gray-400 hover:text-red-500" title="Delete Payment">
+                    <Trash2 size={14} />
+                  </button>
                 </div>
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* Delete Student Button */}
+      {isAdmin && (
+        <div className="pt-4 border-t border-gray-200">
+          <button onClick={async () => {
+            if (!window.confirm('Delete this student and all their records? This cannot be undone.')) return;
+            try { await studentAPI.delete(id); navigate('/students'); } catch (e) { alert('Failed'); }
+          }} className="px-4 py-2.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition">
+            <Trash2 size={16} className="inline mr-2" />Delete Student
+          </button>
         </div>
       )}
     </div>
