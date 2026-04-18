@@ -106,6 +106,8 @@ export const feeAPI = {
   updateInstallments: (id, data) => api.put(`/fees/${id}/installments`, data),
   delete: (id) => api.delete(`/fees/${id}`),
   deletePayment: (id) => api.delete(`/fees/payment/${id}`),
+  downloadReceiptPDF: (feeId, paymentId) => api.get(`/fees/${feeId}/receipt/${paymentId}/pdf`, { responseType: 'blob' }),
+  emailReceipt: (feeId, paymentId, data) => api.post(`/fees/${feeId}/receipt/${paymentId}/email`, data),
 };
 
 // Staff APIs

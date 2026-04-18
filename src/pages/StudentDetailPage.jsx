@@ -4,7 +4,7 @@ import { studentAPI, attendanceAPI, feeAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import {
   ArrowLeft, Phone, MessageCircle, GraduationCap, BookOpen, Calendar,
-  IndianRupee, Award, Clock, CheckCircle, XCircle, MapPin, Mail, User, Trash2
+  IndianRupee, Award, Clock, CheckCircle, XCircle, MapPin, Mail, User, Trash2, Download, Send
 } from 'lucide-react';
 
 const statusColors = {
@@ -233,11 +233,28 @@ const StudentDetailPage = () => {
                   <span className="text-gray-400 ml-2">{new Date(p.payment_date).toLocaleDateString('en-IN')}</span>
                   <span className="text-gray-400 ml-2 capitalize">{p.payment_mode?.replace(/_/g, ' ')}</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <div className="text-right">
-                    <span className="text-xs text-gray-400">{p.receipt_number}</span>
-                    {p.received_by_name && <p className="text-xs text-gray-400">by {p.received_by_name}</p>}
-                  </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-400 mr-2">{p.receipt_number}</span>
+                  <button onClick={async () => {
+                    try {
+                      const { data } = await feeAPI.downloadReceiptPDF(p.student_fee_id, p.id);
+                      const url = window.URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+                      const a = document.createElement('a'); a.href = url; a.download = `Receipt_${p.receipt_number}.pdf`; a.click();
+                      window.URL.revokeObjectURL(url);
+                    } catch (e) { alert('Failed to download PDF'); }
+                  }} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Download PDF">
+                    <Download size={14} />
+                  </button>
+                  {student.email && (
+                    <button onClick={async () => {
+                      try {
+                        await feeAPI.emailReceipt(p.student_fee_id, p.id, { email: student.email });
+                        alert(`Receipt emailed to ${student.email}`);
+                      } catch (e) { alert(e.response?.data?.error || 'Failed to send email'); }
+                    }} className="p-1.5 hover:bg-green-50 rounded text-green-500" title="Email Receipt">
+                      <Send size={14} />
+                    </button>
+                  )}
                   <button onClick={async () => {
                     if (!window.confirm('Delete this payment? Balance will be restored.')) return;
                     try { await feeAPI.deletePayment(p.id); loadData(); } catch (e) { alert('Failed'); }
