@@ -43,7 +43,7 @@ const LeadsPage = () => {
   const [todayFollowups, setTodayFollowups] = useState([]);
 
   useEffect(() => { loadCourses(); loadStages(); }, []);
-  useEffect(() => { loadLeads(); }, [filters.stage, filters.source, pagination.page, tab]);
+  useEffect(() => { loadLeads(); }, [filters.stage, filters.source, filters.date_from, filters.date_to, pagination.page, tab]);
   useEffect(() => { if (tab === 'followups') loadFollowups(); }, [tab]);
 
   const loadCourses = async () => { try { const { data } = await courseAPI.getAll(); setCourses(data.courses); } catch (e) {} };
