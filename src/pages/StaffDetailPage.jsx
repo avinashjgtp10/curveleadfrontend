@@ -52,7 +52,7 @@ const StaffDetailPage = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-5">
-      <button onClick={() => navigate('/staff')} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"><ArrowLeft size={16} /> Back to Staff</button>
+      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"><ArrowLeft size={16} /> Back to Staff</button>
 
       {/* Staff Info */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">

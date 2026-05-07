@@ -23,6 +23,8 @@ import ReportsPage from './pages/ReportsPage';
 import SuperAdminPage from './pages/SuperAdminPage';
 import SettingsPage from './pages/SettingsPage';
 import TemplatesPage from './pages/TemplatesPage';
+import LandingPage from './pages/LandingPage';
+import NotificationsPage from './pages/NotificationsPage';
 
 // Protected route wrapper
 const ProtectedRoute = ({ children }) => {
@@ -68,6 +70,7 @@ const App = () => {
       <AuthProvider>
         <Routes>
           {/* Public routes */}
+          <Route path="/home" element={<LandingPage />} />
           <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
           <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
           <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
@@ -92,6 +95,7 @@ const App = () => {
             <Route path="salary" element={<SalaryPage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="templates" element={<TemplatesPage />} />
+            <Route path="notifications" element={<NotificationsPage />} />
             <Route path="super-admin" element={<SuperAdminPage />} />
             <Route path="settings" element={<SettingsPage />} />
           </Route>
