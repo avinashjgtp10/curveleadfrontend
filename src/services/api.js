@@ -106,6 +106,7 @@ export const feeAPI = {
   updateInstallments: (id, data) => api.put(`/fees/${id}/installments`, data),
   delete: (id) => api.delete(`/fees/${id}`),
   deletePayment: (id) => api.delete(`/fees/payment/${id}`),
+  updateFee: (id, data) => api.put(`/fees/${id}`, data),
   downloadReceiptPDF: (feeId, paymentId) => api.get(`/fees/${feeId}/receipt/${paymentId}/pdf`, { responseType: 'blob' }),
   emailReceipt: (feeId, paymentId, data) => api.post(`/fees/${feeId}/receipt/${paymentId}/email`, data),
 };
@@ -152,6 +153,22 @@ export const salaryAPI = {
 export const reportsAPI = {
   getPnL: (view, fy) => api.get('/reports/pnl', { params: { view, fy } }),
   getSummary: () => api.get('/reports/summary'),
+};
+
+// Billing APIs
+export const billingAPI = {
+  createOrder: (plan_id) => api.post('/billing/create-order', { plan_id }),
+  verifyPayment: (data) => api.post('/billing/verify-payment', data),
+  getInvoices: () => api.get('/billing/invoices'),
+  getCurrent: () => api.get('/billing/current'),
+};
+
+// Notification APIs
+export const notificationAPI = {
+  getAll: () => api.get('/notifications'),
+  getCount: () => api.get('/notifications/count'),
+  markAsRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllAsRead: () => api.put('/notifications/read-all'),
 };
 
 // Super Admin APIs

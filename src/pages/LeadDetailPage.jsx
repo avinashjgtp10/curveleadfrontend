@@ -79,7 +79,7 @@ const LeadDetailPage = () => {
       <div className="text-center py-12">
         <AlertCircle className="mx-auto mb-3 text-gray-300" size={40} />
         <p className="text-gray-500">Lead not found</p>
-        <button onClick={() => navigate('/leads')} className="mt-3 text-brand-600 font-medium">Back to Leads</button>
+        <button onClick={() => navigate(-1)} className="mt-3 text-brand-600 font-medium">Back to Leads</button>
       </div>
     );
   }
@@ -88,7 +88,7 @@ const LeadDetailPage = () => {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={() => navigate('/leads')} className="p-2 hover:bg-gray-100 rounded-lg">
+        <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-lg">
           <ArrowLeft size={20} />
         </button>
         <div className="flex-1">

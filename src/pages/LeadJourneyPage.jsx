@@ -72,7 +72,7 @@ const LeadJourneyPage = () => {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">Lead not found.</p>
-        <button onClick={() => navigate('/leads')} className="mt-3 text-brand-600 font-medium">
+        <button onClick={() => navigate(-1)} className="mt-3 text-brand-600 font-medium">
           ← Back to Leads
         </button>
       </div>
@@ -102,7 +102,7 @@ const LeadJourneyPage = () => {
     <div className="max-w-3xl mx-auto space-y-5">
       {/* Back button */}
       <button
-        onClick={() => navigate('/leads')}
+        onClick={() => navigate(-1)}
         className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700"
       >
         <ArrowLeft size={16} /> Back to Leads

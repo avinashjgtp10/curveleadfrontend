@@ -28,6 +28,9 @@ const StudentDetailPage = () => {
   const [payments, setPayments] = useState([]);
   const [attendanceSummary, setAttendanceSummary] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showEditFeeModal, setShowEditFeeModal] = useState(false);
+  const [editFeeForm, setEditFeeForm] = useState({ id: '', total_fee: '', discount: '', payment_type: '' });
+  const [savingFee, setSavingFee] = useState(false);
 
   useEffect(() => { loadData(); }, [id]);
 
@@ -43,6 +46,30 @@ const StudentDetailPage = () => {
     } finally { setLoading(false); }
   };
 
+  const handleEditFee = async () => {
+    setSavingFee(true);
+    try {
+      const totalFee = parseFloat(editFeeForm.total_fee) || 0;
+      const discount = parseFloat(editFeeForm.discount) || 0;
+      const netFee = totalFee - discount;
+      const amountPaid = parseFloat(fees[0]?.amount_paid) || 0;
+      const balance = netFee - amountPaid;
+      const status = balance <= 0 ? 'paid' : amountPaid > 0 ? 'partial' : 'pending';
+
+      await feeAPI.updateFee(editFeeForm.id, {
+        total_fee: totalFee,
+        discount,
+        net_fee: netFee,
+        balance,
+        status,
+        payment_type: editFeeForm.payment_type,
+      });
+      setShowEditFeeModal(false);
+      loadData();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to update fee.'); }
+    finally { setSavingFee(false); }
+  };
+
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
   }
@@ -51,7 +78,7 @@ const StudentDetailPage = () => {
     return (
       <div className="text-center py-12">
         <p className="text-gray-500">Student not found.</p>
-        <button onClick={() => navigate('/students')} className="mt-3 text-brand-600 font-medium">← Back to Students</button>
+        <button onClick={() => navigate(-1)} className="mt-3 text-brand-600 font-medium">← Back to Students</button>
       </div>
     );
   }
@@ -69,7 +96,7 @@ const StudentDetailPage = () => {
   return (
     <div className="max-w-3xl mx-auto space-y-5">
       {/* Back */}
-      <button onClick={() => navigate('/students')} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
         <ArrowLeft size={16} /> Back to Students
       </button>
 
@@ -178,9 +205,23 @@ const StudentDetailPage = () => {
       {/* Fee Details (Admin only) */}
       {isAdmin && fees.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
-          <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
-            <IndianRupee size={18} /> Fee Details
-          </h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <IndianRupee size={18} /> Fee Details
+            </h3>
+            <button onClick={() => {
+              const f = fees[0];
+              setEditFeeForm({
+                id: f.id,
+                total_fee: f.total_fee,
+                discount: f.discount,
+                payment_type: f.payment_type,
+              });
+              setShowEditFeeModal(true);
+            }} className="px-3 py-1.5 bg-gray-100 text-gray-600 rounded-lg text-xs font-medium hover:bg-gray-200">
+              Edit Fee
+            </button>
+          </div>
           {fees.map(fee => (
             <div key={fee.id} className="space-y-3">
               <div className="flex justify-between text-sm">
@@ -277,6 +318,49 @@ const StudentDetailPage = () => {
           }} className="px-4 py-2.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition">
             <Trash2 size={16} className="inline mr-2" />Delete Student
           </button>
+        </div>
+      )}
+      {/* Edit Fee Modal */}
+      {showEditFeeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setShowEditFeeModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold">Edit Fee Details</h2>
+              <button onClick={() => setShowEditFeeModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Trash2 size={0} /><span className="text-xl leading-none">&times;</span></button>
+            </div>
+            <div className="p-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Fee (₹)</label>
+                <input type="number" value={editFeeForm.total_fee} onChange={e => setEditFeeForm({...editFeeForm, total_fee: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Discount (₹)</label>
+                <input type="number" value={editFeeForm.discount} onChange={e => setEditFeeForm({...editFeeForm, discount: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm" />
+              </div>
+              <div className="p-3 bg-brand-50 rounded-lg flex justify-between">
+                <span className="text-sm font-medium text-brand-800">Net Fee</span>
+                <span className="text-sm font-bold text-brand-700">₹{((parseFloat(editFeeForm.total_fee) || 0) - (parseFloat(editFeeForm.discount) || 0)).toLocaleString('en-IN')}</span>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Payment Type</label>
+                <select value={editFeeForm.payment_type} onChange={e => setEditFeeForm({...editFeeForm, payment_type: e.target.value})}
+                  className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm bg-white">
+                  <option value="full">Full Payment</option>
+                  <option value="installment">Installments</option>
+                </select>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => setShowEditFeeModal(false)} className="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={handleEditFee} disabled={savingFee}
+                  className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+                  {savingFee ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
