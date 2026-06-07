@@ -1,203 +1,146 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { Eye, EyeOff, Rocket } from 'lucide-react';
+import { Eye, EyeOff, ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
+
+const businessTypes = [
+  { id: 'lead_management', icon: '🎯', name: 'Lead Management', desc: 'Agencies, freelancers, sales' },
+  { id: 'real_estate', icon: '🏠', name: 'Real Estate', desc: 'Agents, brokers' },
+  { id: 'salon', icon: '💇', name: 'Salon / Spa', desc: 'Beauty businesses' },
+  { id: 'gym', icon: '💪', name: 'Gym / Fitness', desc: 'Studios, trainers' },
+  { id: 'clinic', icon: '🏥', name: 'Clinic / Doctor', desc: 'Medical practices' },
+  { id: 'other', icon: '✨', name: 'Other', desc: 'Any lead-based business' },
+];
 
 const SignupPage = () => {
-  const { signup } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({
-    academyName: '',
-    name: '',
-    email: '',
-    phone: '',
-    password: '',
-    academyType: 'Other',
-  });
+  const { signup } = useAuth();
+  const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const academyTypes = ['Beauty', 'IT & Computer', 'Coaching', 'Vocational', 'Dance & Music', 'Fitness', 'Other'];
+  const [error, setError] = useState('');
+  const [form, setForm] = useState({
+    businessType: '', businessName: '', name: '', email: '', phone: '', password: '',
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
-
-    if (form.password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-
     setLoading(true);
+    setError('');
     try {
       await signup(form);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Signup failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
+      setError(err.response?.data?.error || 'Signup failed.');
+    } finally { setLoading(false); }
   };
 
-  const updateForm = (field, value) => setForm({ ...form, [field]: value });
-
   return (
-    <div className="min-h-screen flex">
-      {/* Left side - branding */}
-      <div className="hidden lg:flex lg:w-1/2 bg-brand-600 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-600 via-brand-700 to-brand-900" />
-        <div className="relative z-10 flex flex-col justify-center px-16">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur">
-              <span className="text-white font-bold text-xl">CL</span>
-            </div>
-            <span className="text-white font-bold text-3xl">CurveLead</span>
-          </div>
-          <h2 className="text-4xl font-bold text-white mb-4 leading-tight">
-            Start your<br />14-day free trial
-          </h2>
-          <p className="text-brand-200 text-lg max-w-md">
-            No credit card required. Set up your academy in 2 minutes and start managing leads, students & finances.
-          </p>
-          <div className="mt-12 space-y-3">
-            {['Lead tracking & follow-ups', 'Student & batch management', 'Fee collection & reminders', 'Revenue & expense dashboard'].map((item) => (
-              <div key={item} className="flex items-center gap-3">
-                <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center">
-                  <span className="text-white text-xs">✓</span>
-                </div>
-                <span className="text-white/90">{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Right side - signup form */}
-      <div className="flex-1 flex items-center justify-center p-8">
-        <div className="w-full max-w-md">
-          {/* Mobile logo */}
-          <div className="lg:hidden flex items-center gap-2 mb-6 justify-center">
+    <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
+      <div className="w-full max-w-2xl">
+        <div className="text-center mb-6">
+          <div className="inline-flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
             <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center">
               <span className="text-white font-bold">CL</span>
             </div>
-            <span className="font-bold text-2xl text-gray-900">CurveLead</span>
+            <span className="font-bold text-2xl">CurveLead</span>
           </div>
+        </div>
 
-          <h1 className="text-2xl font-bold text-gray-900 mb-1">Create your account</h1>
-          <p className="text-gray-500 mb-6">14-day free trial • No credit card needed</p>
+        <div className="flex items-center justify-center gap-3 mb-6">
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${step >= 1 ? 'bg-brand-600 text-white' : 'bg-gray-200 text-gray-400'}`}>
+            {step > 1 ? <CheckCircle size={16} /> : '1'}
+          </div>
+          <div className={`w-12 h-0.5 ${step >= 2 ? 'bg-brand-600' : 'bg-gray-200'}`} />
+          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${step >= 2 ? 'bg-brand-600 text-white' : 'bg-gray-200 text-gray-400'}`}>2</div>
+        </div>
 
-          {error && (
-            <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-700 text-sm rounded-lg">
-              {error}
-            </div>
+        <div className="bg-white rounded-2xl shadow-xl border p-6 sm:p-8">
+          {error && <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{error}</div>}
+
+          {step === 1 && (
+            <>
+              <h2 className="text-2xl font-bold">Welcome! Let's get started.</h2>
+              <p className="text-gray-500 text-sm mt-1">What type of business are you running?</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
+                {businessTypes.map(b => (
+                  <button key={b.id} type="button" onClick={() => setForm({ ...form, businessType: b.id })}
+                    className={`text-left p-4 rounded-xl border-2 transition ${form.businessType === b.id ? 'border-brand-600 bg-brand-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div className="flex items-start gap-3">
+                      <div className="text-2xl">{b.icon}</div>
+                      <div className="flex-1">
+                        <p className="font-semibold text-sm">{b.name}</p>
+                        <p className="text-xs text-gray-500">{b.desc}</p>
+                      </div>
+                      {form.businessType === b.id && <CheckCircle size={18} className="text-brand-600 shrink-0" />}
+                    </div>
+                  </button>
+                ))}
+              </div>
+
+              <button onClick={() => setStep(2)} disabled={!form.businessType}
+                className="mt-6 w-full py-3 bg-brand-600 text-white rounded-xl font-semibold hover:bg-brand-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                Continue <ArrowRight size={18} />
+              </button>
+            </>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Academy Name</label>
-              <input
-                type="text"
-                value={form.academyName}
-                onChange={(e) => updateForm('academyName', e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-                placeholder="e.g. Lakme Academy Baramati"
-                required
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Academy Type</label>
-              <select
-                value={form.academyType}
-                onChange={(e) => updateForm('academyType', e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none bg-white"
-              >
-                {academyTypes.map((type) => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Your Name</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => updateForm('name', e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-                placeholder="Your full name"
-                required
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={form.email}
-                  onChange={(e) => updateForm('email', e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-                  placeholder="you@email.com"
-                  required
-                />
+          {step === 2 && (
+            <form onSubmit={handleSubmit}>
+              <div className="flex items-center gap-2 mb-2">
+                <button type="button" onClick={() => setStep(1)} className="p-1.5 hover:bg-gray-100 rounded-lg"><ArrowLeft size={18} /></button>
+                <h2 className="text-2xl font-bold">Create your account</h2>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                <input
-                  type="tel"
-                  value={form.phone}
-                  onChange={(e) => updateForm('phone', e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none"
-                  placeholder="9876543210"
-                />
+              <p className="text-gray-500 text-sm">14-day free trial. No credit card.</p>
+
+              <div className="mt-6 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Business Name *</label>
+                  <input type="text" required value={form.businessName}
+                    onChange={e => setForm({ ...form, businessName: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Your Name *</label>
+                  <input type="text" required value={form.name}
+                    onChange={e => setForm({ ...form, name: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email *</label>
+                  <input type="email" required value={form.email}
+                    onChange={e => setForm({ ...form, email: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                  <input type="tel" value={form.phone}
+                    onChange={e => setForm({ ...form, phone: e.target.value })}
+                    className="w-full px-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Password *</label>
+                  <div className="relative">
+                    <input type={showPassword ? 'text' : 'password'} required minLength={6} value={form.password}
+                      onChange={e => setForm({ ...form, password: e.target.value })}
+                      className="w-full px-3 py-2.5 pr-10 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-brand-500" />
+                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={form.password}
-                  onChange={(e) => updateForm('password', e.target.value)}
-                  className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none pr-11"
-                  placeholder="Min 6 characters"
-                  minLength={6}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                </button>
-              </div>
-            </div>
+              <button type="submit" disabled={loading}
+                className="mt-6 w-full py-3 bg-brand-600 text-white rounded-xl font-semibold hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                {loading ? 'Creating...' : 'Create Account'} {!loading && <ArrowRight size={18} />}
+              </button>
+            </form>
+          )}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-brand-600 text-white py-2.5 rounded-lg font-semibold hover:bg-brand-700 focus:ring-4 focus:ring-brand-200 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-            >
-              {loading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <Rocket size={18} />
-                  Start Free Trial
-                </>
-              )}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-gray-500">
-            Already have an account?{' '}
-            <Link to="/login" className="text-brand-600 font-semibold hover:text-brand-700">
-              Sign in
-            </Link>
+          <p className="text-center text-sm text-gray-500 mt-6">
+            Already have an account? <Link to="/login" className="text-brand-600 font-semibold">Sign in</Link>
           </p>
         </div>
       </div>
