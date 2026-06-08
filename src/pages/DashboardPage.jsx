@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { reportsAPI } from '../services/api';
+import PageLoader from '../components/ui/PageLoader';
 import { Users, TrendingUp, IndianRupee, Target, ArrowUpRight } from 'lucide-react';
 
 const DashboardPage = () => {
@@ -15,13 +16,13 @@ const DashboardPage = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
+  if (loading) return <PageLoader message="Loading dashboard..." />;
 
   const stats = [
-    { label: 'Total Leads', value: data?.totalLeads || 0, icon: Users, color: 'bg-blue-100 text-blue-600' },
-    { label: 'Hot Leads', value: data?.hotLeads || 0, icon: TrendingUp, color: 'bg-red-100 text-red-600' },
-    { label: 'Won This Month', value: data?.wonThisMonth || 0, icon: Target, color: 'bg-green-100 text-green-600' },
-    { label: 'Revenue', value: `₹${(data?.totalRevenue || 0).toLocaleString('en-IN')}`, icon: IndianRupee, color: 'bg-purple-100 text-purple-600' },
+    { label: 'Total Leads', value: data?.total_leads || 0, icon: Users, color: 'bg-blue-100 text-blue-600' },
+    { label: 'Hot Leads', value: data?.hot_leads || 0, icon: TrendingUp, color: 'bg-red-100 text-red-600' },
+    { label: 'Won This Month', value: data?.won_this_month || 0, icon: Target, color: 'bg-green-100 text-green-600' },
+    { label: 'Revenue', value: `₹${Number(data?.total_revenue || 0).toLocaleString('en-IN')}`, icon: IndianRupee, color: 'bg-purple-100 text-purple-600' },
   ];
 
   return (

@@ -20,8 +20,23 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const refreshProfile = async () => {
+    const { data } = await authAPI.me();
+    setUser(data.user);
+    setTenant(data.tenant);
+    return data;
+  };
+
   const login = async (credentials) => {
     const { data } = await authAPI.login(credentials);
+    localStorage.setItem('token', data.token);
+    setUser(data.user);
+    setTenant(data.tenant);
+    return data;
+  };
+
+  const verifyOtp = async (payload) => {
+    const { data } = await authAPI.verifyOtp(payload);
     localStorage.setItem('token', data.token);
     setUser(data.user);
     setTenant(data.tenant);
@@ -43,7 +58,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, signup, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,161 +1,406 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Users, TrendingUp, MessageCircle, Bot, BarChart3, CheckCircle, ArrowRight, Menu, X, ChevronDown } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import {
+  ArrowRight,
+  BarChart3,
+  Bot,
+  BookOpen,
+  CheckCircle,
+  ChevronDown,
+  Clock,
+  FileText,
+  IndianRupee,
+  Menu,
+  MessageCircle,
+  Megaphone,
+  Send,
+  Sparkles,
+  Target,
+  Users,
+  X,
+  Zap,
+} from 'lucide-react';
+import BrandLogo from '../components/ui/BrandLogo';
+
+const painPoints = [
+  'Meta leads sit unseen until someone exports a CSV.',
+  'Salespeople forget who needs a callback today.',
+  'WhatsApp chats, brochures, quotations, and notes live in different places.',
+  'Ad spend keeps rising, but nobody knows which campaign actually closes.',
+];
+
+const workflow = [
+  {
+    icon: Zap,
+    label: 'Capture',
+    title: 'Pull Meta Ads leads into one workspace',
+    desc: 'Facebook and Instagram lead form enquiries can land directly in your pipeline with source, campaign, owner, and stage attached.',
+  },
+  {
+    icon: Bot,
+    label: 'Prioritise',
+    title: 'Let AI mark hot, warm, and cold leads',
+    desc: 'CurveLead helps your team focus on the prospects most likely to convert instead of treating every enquiry the same.',
+  },
+  {
+    icon: MessageCircle,
+    label: 'Engage',
+    title: 'Move every conversation to WhatsApp faster',
+    desc: 'Use a shared WhatsApp inbox, lead notes, files, brochures, and follow-ups so every salesperson knows the full context.',
+  },
+  {
+    icon: BarChart3,
+    label: 'Measure',
+    title: 'See campaign ROI and team performance',
+    desc: 'Track leads by source, staff, campaign, pipeline stage, revenue, and follow-up activity from one dashboard.',
+  },
+];
 
 const features = [
-  { icon: Zap, title: 'Auto-capture from Meta Ads', desc: 'Leads from Facebook & Instagram land in your pipeline instantly.' },
-  { icon: Bot, title: 'AI Lead Scoring', desc: 'Hot/Warm/Cold classification powered by AI. Focus on what converts.' },
-  { icon: MessageCircle, title: 'WhatsApp Inbox', desc: 'Shared team inbox. Reply, qualify, close — all from one place.' },
-  { icon: Users, title: 'Visual Pipeline', desc: 'Drag-drop leads through stages. Real-time team collaboration.' },
-  { icon: TrendingUp, title: 'Campaign ROI', desc: 'Track spend vs leads vs revenue. Know exactly what works.' },
-  { icon: BarChart3, title: 'Reports & Analytics', desc: 'Conversion by source, staff, campaign. Make data-driven decisions.' },
+  { icon: MessageCircle, title: 'Shared WhatsApp Inbox', desc: 'Reply, qualify, and keep conversation history tied to the right lead.' },
+  { icon: Clock, title: 'Follow-up Discipline', desc: 'Schedule, complete, and track callbacks so fewer enquiries slip away.' },
+  { icon: Megaphone, title: 'Campaign ROI', desc: 'Connect ad spend to leads, won deals, CPL, and revenue outcomes.' },
+  { icon: FileText, title: 'Quotations', desc: 'Create, send, accept, reject, and manage quotations inside the sales flow.' },
+  { icon: BookOpen, title: 'Brochures & Files', desc: 'Keep product material ready and share it with leads from the same workspace.' },
+  { icon: Users, title: 'Team Workspace', desc: 'Invite staff, assign ownership, monitor activity, and keep customer data separated by tenant.' },
 ];
 
 const plans = [
-  { name: 'Free', price: 0, features: ['20 leads', '1 user', 'Pipeline', 'Email support'] },
-  { name: 'Starter', price: 9, features: ['100 leads', '1 user', 'Meta Ads', 'WhatsApp inbox'] },
-  { name: 'Growth', price: 29, features: ['Unlimited leads', '5 users', 'AI scoring', 'Campaigns', 'Reports'], popular: true },
-  { name: 'Pro', price: 79, features: ['Everything in Growth', 'Unlimited users', 'API access', 'Priority support'] },
+  { name: 'Free', monthly: '$0', yearly: '$0', sub: 'for getting started', features: ['20 leads', '1 user', 'Pipeline', 'Email support'] },
+  { name: 'Starter', monthly: '$9', yearly: '$90', features: ['100 leads', '1 user', 'Meta Ads capture', 'WhatsApp inbox'] },
+  { name: 'Growth', monthly: '$29', yearly: '$290', features: ['Unlimited leads', '5 users', 'AI scoring', 'Campaign ROI', 'Reports'], popular: true },
+  { name: 'Pro', price: 'Custom', sub: 'for sales teams', features: ['Everything in Growth', 'Unlimited users', 'Priority support', 'Advanced setup help'] },
 ];
 
 const faqs = [
-  { q: 'Is there a free trial?', a: '14-day free trial, no credit card. Plus a free forever plan with 20 leads.' },
-  { q: 'How does Meta Ads integration work?', a: 'Connect your Facebook page once. Lead form leads auto-import into CurveLead.' },
-  { q: 'Can I cancel anytime?', a: 'Yes. Cancel anytime, no questions asked.' },
-  { q: 'Is my data secure?', a: 'Bank-grade encryption, daily backups, GDPR compliant.' },
+  { q: 'Who is CurveLead built for?', a: 'Sales teams that receive leads from Meta Ads, websites, forms, and WhatsApp, especially teams that need faster follow-up and campaign visibility.' },
+  { q: 'Is CurveLead only for academies?', a: 'No. The current product is a lead engagement CRM for any business that captures, follows up, and closes enquiries.' },
+  { q: 'Does it replace WhatsApp?', a: 'No. It helps your team manage lead context, follow-ups, files, and reporting around WhatsApp conversations.' },
+  { q: 'Can I try it before paying?', a: 'Yes. Start free, test the workflow, and upgrade when your team needs higher lead limits or advanced features.' },
+];
+
+const productStats = [
+  { value: 'Meta', label: 'lead capture ready' },
+  { value: 'AI', label: 'hot/warm/cold scoring' },
+  { value: 'WhatsApp', label: 'shared sales inbox' },
+  { value: 'ROI', label: 'campaign reporting' },
 ];
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [mobileMenu, setMobileMenu] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
+  const [billingPeriod, setBillingPeriod] = useState('monthly');
+
+  const closeMenu = () => setMobileMenu(false);
+  const handlePlanClick = (planName) => {
+    if (planName === 'Pro') {
+      window.location.href = 'mailto:support@curvelead.com?subject=CurveLead%20Pro%20plan';
+      return;
+    }
+    navigate(user ? '/billing' : '/signup');
+  };
 
   return (
-    <div className="min-h-screen bg-white">
-      <nav className="fixed top-0 left-0 right-0 bg-white/95 backdrop-blur border-b z-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 flex items-center justify-between h-16">
-          <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-8 h-8 bg-brand-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">CL</span>
-            </div>
-            <span className="font-bold text-xl">CurveLead</span>
+    <div className="min-h-screen bg-white text-gray-950">
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <button className="flex items-center gap-2" onClick={() => navigate('/')}>
+            <BrandLogo className="h-10 w-24 p-1" />
+          </button>
+
+          <div className="hidden items-center gap-7 md:flex">
+            <a href="#workflow" className="text-sm text-gray-600 hover:text-gray-950">Workflow</a>
+            <a href="#features" className="text-sm text-gray-600 hover:text-gray-950">Features</a>
+            <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-950">Pricing</a>
+            <button onClick={() => navigate('/login')} className="text-sm font-semibold text-brand-700">Sign In</button>
+            <button onClick={() => navigate('/signup')} className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+              Start Free
+            </button>
           </div>
-          <div className="hidden md:flex items-center gap-7">
-            <a href="#features" className="text-sm text-gray-600 hover:text-gray-900">Features</a>
-            <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-900">Pricing</a>
-            <a href="#faq" className="text-sm text-gray-600 hover:text-gray-900">FAQ</a>
-            <button onClick={() => navigate('/login')} className="text-sm font-medium text-brand-600">Sign In</button>
-            <button onClick={() => navigate('/signup')} className="px-5 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Start Free</button>
-          </div>
-          <button onClick={() => setMobileMenu(!mobileMenu)} className="md:hidden p-2">{mobileMenu ? <X size={24} /> : <Menu size={24} />}</button>
+
+          <button onClick={() => setMobileMenu(!mobileMenu)} className="p-2 md:hidden" aria-label="Open menu">
+            {mobileMenu ? <X size={24} /> : <Menu size={24} />}
+          </button>
         </div>
+
         {mobileMenu && (
-          <div className="md:hidden border-t bg-white p-4 space-y-3">
-            <a href="#features" onClick={() => setMobileMenu(false)} className="block py-2 text-gray-600">Features</a>
-            <a href="#pricing" onClick={() => setMobileMenu(false)} className="block py-2 text-gray-600">Pricing</a>
-            <button onClick={() => navigate('/signup')} className="w-full px-5 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Start Free</button>
+          <div className="space-y-3 border-t bg-white p-4 md:hidden">
+            <a href="#workflow" onClick={closeMenu} className="block py-2 text-gray-600">Workflow</a>
+            <a href="#features" onClick={closeMenu} className="block py-2 text-gray-600">Features</a>
+            <a href="#pricing" onClick={closeMenu} className="block py-2 text-gray-600">Pricing</a>
+            <button onClick={() => navigate('/signup')} className="w-full rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white">Start Free</button>
           </div>
         )}
       </nav>
 
-      <section className="pt-28 pb-16 px-4 sm:px-6">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-brand-50 text-brand-700 rounded-full text-sm font-medium mb-6">
-            <Zap size={14} /> 14-day free trial — No credit card
-          </div>
-          <h1 className="text-4xl sm:text-6xl font-extrabold tracking-tight">
-            Capture leads. <br/><span className="text-brand-600">Close deals.</span> Grow faster.
-          </h1>
-          <p className="mt-6 text-lg sm:text-xl text-gray-500 max-w-2xl mx-auto">
-            Lead management platform for businesses in India and beyond. Auto-capture from Meta Ads. AI scoring. WhatsApp automation.
-          </p>
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <button onClick={() => navigate('/signup')} className="px-8 py-3.5 bg-brand-600 text-white rounded-xl font-semibold hover:bg-brand-700 shadow-lg shadow-brand-200 flex items-center gap-2">
-              Start Free Trial <ArrowRight size={18} />
-            </button>
-            <a href="#features" className="px-8 py-3.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200">See Features</a>
-          </div>
-        </div>
-      </section>
-
-      <section className="bg-gradient-to-r from-brand-600 to-purple-600 py-10">
-        <div className="max-w-5xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-6 px-4 text-center">
-          {[{n:'50+',l:'Businesses'},{n:'5,000+',l:'Leads'},{n:'$500K+',l:'Deals Closed'},{n:'12+',l:'Countries'}].map(s => (
-            <div key={s.l}>
-              <p className="text-3xl font-bold text-white">{s.n}</p>
-              <p className="text-sm text-white/70">{s.l}</p>
+      <main>
+        <section className="px-4 pb-12 pt-24 sm:px-6 lg:pb-16">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1fr_0.92fr]">
+            <div>
+              <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-4 py-1.5 text-sm font-semibold text-brand-700">
+                <Sparkles size={15} /> Built for Meta Ads, WhatsApp, and fast follow-up
+              </div>
+              <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-normal sm:text-5xl lg:text-6xl">
+                Turn Meta Ads leads into WhatsApp conversations before they go cold.
+              </h1>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
+                CurveLead captures enquiries, scores them with AI, keeps follow-ups on track, and shows which campaigns and salespeople are actually closing.
+              </p>
+              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+                <button onClick={() => navigate('/signup')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-brand-100 hover:bg-brand-700">
+                  Start Free Trial <ArrowRight size={18} />
+                </button>
+                <a href="#workflow" className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-7 py-3.5 font-semibold text-gray-800 hover:bg-gray-50">
+                  See how it works
+                </a>
+              </div>
+              <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                {productStats.map((stat) => (
+                  <div key={stat.label} className="rounded-lg border border-gray-200 bg-white p-3">
+                    <p className="text-lg font-bold text-gray-950">{stat.value}</p>
+                    <p className="mt-1 text-xs text-gray-500">{stat.label}</p>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
-        </div>
-      </section>
 
-      <section id="features" className="py-20 px-4 bg-gray-50">
-        <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-14">Everything you need to convert leads</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {features.map(f => (
-              <div key={f.title} className="bg-white rounded-2xl p-6 border hover:shadow-lg transition">
-                <div className="w-12 h-12 bg-gradient-to-br from-brand-500 to-brand-600 rounded-xl flex items-center justify-center mb-4">
-                  <f.icon size={22} className="text-white" />
+            <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-2xl shadow-gray-200/70">
+              <div className="rounded-xl border border-gray-200 bg-white">
+                <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Today</p>
+                    <p className="font-semibold">Lead command center</p>
+                  </div>
+                  <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">Live</span>
                 </div>
-                <h3 className="font-semibold text-lg">{f.title}</h3>
-                <p className="mt-2 text-sm text-gray-500">{f.desc}</p>
+                <div className="grid gap-3 p-4 sm:grid-cols-2">
+                  <div className="rounded-lg bg-brand-600 p-4 text-white">
+                    <p className="text-sm text-white/70">New Meta leads</p>
+                    <p className="mt-2 text-3xl font-bold">38</p>
+                    <p className="mt-3 text-xs text-white/75">12 assigned in the last hour</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <p className="text-sm text-gray-500">Hot leads</p>
+                    <p className="mt-2 text-3xl font-bold text-gray-950">11</p>
+                    <p className="mt-3 text-xs text-red-600">AI marked urgent follow-up</p>
+                  </div>
+                  <div className="sm:col-span-2 rounded-lg border border-gray-200">
+                    {[
+                      { name: 'Aarav Kulkarni', source: 'Facebook Lead Form', score: 'HOT', tone: 'bg-red-50 text-red-700' },
+                      { name: 'Priya Shah', source: 'Instagram Campaign', score: 'WARM', tone: 'bg-amber-50 text-amber-700' },
+                      { name: 'Rahul Mehta', source: 'Website Form', score: 'NEW', tone: 'bg-blue-50 text-blue-700' },
+                    ].map((lead) => (
+                      <div key={lead.name} className="flex items-center justify-between border-b border-gray-100 px-4 py-3 last:border-b-0">
+                        <div>
+                          <p className="text-sm font-semibold">{lead.name}</p>
+                          <p className="text-xs text-gray-500">{lead.source}</p>
+                        </div>
+                        <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${lead.tone}`}>{lead.score}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <Send size={16} className="text-green-600" />
+                      <p className="text-sm font-semibold">WhatsApp next</p>
+                    </div>
+                    <p className="text-xs leading-5 text-gray-500">Send brochure, schedule callback, and create quotation from the same lead view.</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 p-4">
+                    <div className="mb-3 flex items-center gap-2">
+                      <IndianRupee size={16} className="text-brand-600" />
+                      <p className="text-sm font-semibold">Revenue view</p>
+                    </div>
+                    <p className="text-xs leading-5 text-gray-500">Track campaign spend, won deals, and team conversion performance.</p>
+                  </div>
+                </div>
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section id="pricing" className="py-20 px-4">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl sm:text-4xl font-bold text-center mb-14">Simple, transparent pricing</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-            {plans.map(p => (
-              <div key={p.name} className={`rounded-2xl p-6 border-2 relative ${p.popular ? 'border-brand-600 shadow-xl' : 'border-gray-200'}`}>
-                {p.popular && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-brand-600 text-white text-xs font-bold rounded-full">POPULAR</div>}
-                <h3 className="text-xl font-bold">{p.name}</h3>
-                <div className="mt-4"><span className="text-4xl font-extrabold">${p.price}</span><span className="text-gray-500 text-sm">/month</span></div>
-                <ul className="mt-6 space-y-2.5">
-                  {p.features.map(f => <li key={f} className="flex items-start gap-2 text-sm text-gray-600"><CheckCircle size={15} className="text-green-500 mt-0.5 shrink-0" />{f}</li>)}
-                </ul>
-                <button onClick={() => navigate('/signup')} className={`mt-6 w-full py-2.5 rounded-xl text-sm font-semibold ${p.popular ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}>
-                  {p.price === 0 ? 'Start Free' : 'Start Trial'}
-                </button>
+        <section className="border-y border-gray-200 bg-gray-50 px-4 py-10 sm:px-6">
+          <div className="mx-auto max-w-7xl">
+            <h2 className="text-center text-2xl font-bold sm:text-3xl">The sales problems CurveLead is built to stop</h2>
+            <div className="mt-8 grid gap-3 md:grid-cols-4">
+              {painPoints.map((point) => (
+                <div key={point} className="rounded-lg border border-gray-200 bg-white p-4 text-sm leading-6 text-gray-600">
+                  {point}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="workflow" className="px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-7xl">
+            <div className="max-w-2xl">
+              <p className="text-sm font-bold uppercase tracking-wider text-brand-600">Capture to close</p>
+              <h2 className="mt-3 text-3xl font-bold sm:text-4xl">One workflow for every enquiry your team handles.</h2>
+            </div>
+            <div className="mt-10 grid gap-5 lg:grid-cols-4">
+              {workflow.map((step) => (
+                <div key={step.title} className="rounded-lg border border-gray-200 bg-white p-5">
+                  <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg bg-brand-50 text-brand-700">
+                    <step.icon size={21} />
+                  </div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-brand-600">{step.label}</p>
+                  <h3 className="mt-2 text-lg font-bold">{step.title}</h3>
+                  <p className="mt-3 text-sm leading-6 text-gray-600">{step.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="features" className="bg-gray-950 px-4 py-20 text-white sm:px-6">
+          <div className="mx-auto max-w-7xl">
+            <div className="grid gap-10 lg:grid-cols-[0.8fr_1.2fr]">
+              <div>
+                <p className="text-sm font-bold uppercase tracking-wider text-brand-300">Product surface</p>
+                <h2 className="mt-3 text-3xl font-bold sm:text-4xl">More than a CRM list. It is your sales operating room.</h2>
+                <p className="mt-5 leading-7 text-gray-300">
+                  CurveLead keeps lead context, WhatsApp conversations, campaign reporting, sales material, quotations, and staff activity together.
+                </p>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section id="faq" className="py-20 px-4 bg-gray-50">
-        <div className="max-w-2xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-10">Frequently asked questions</h2>
-          <div className="space-y-3">
-            {faqs.map((f, i) => (
-              <div key={i} className="bg-white rounded-xl border overflow-hidden">
-                <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full flex items-center justify-between px-5 py-4 text-left">
-                  <span className="font-medium text-sm">{f.q}</span>
-                  <ChevronDown size={18} className={`text-gray-400 transition ${openFaq === i ? 'rotate-180' : ''}`} />
-                </button>
-                {openFaq === i && <div className="px-5 pb-4 text-sm text-gray-500">{f.a}</div>}
+              <div className="grid gap-4 sm:grid-cols-2">
+                {features.map((feature) => (
+                  <div key={feature.title} className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
+                    <feature.icon size={22} className="text-brand-300" />
+                    <h3 className="mt-4 font-bold">{feature.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-gray-300">{feature.desc}</p>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="py-20 px-4">
-        <div className="max-w-3xl mx-auto bg-gradient-to-br from-brand-600 to-purple-700 rounded-3xl p-10 sm:p-14 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white">Ready to capture more leads?</h2>
-          <p className="mt-4 text-white/80 text-lg">14-day free trial. No credit card required.</p>
-          <button onClick={() => navigate('/signup')} className="mt-8 px-10 py-4 bg-white text-brand-700 rounded-xl font-bold hover:bg-gray-50 shadow-lg flex items-center gap-2 mx-auto">
-            Get Started Free <ArrowRight size={18} />
-          </button>
-        </div>
-      </section>
+        <section className="px-4 py-20 sm:px-6">
+          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1fr_0.9fr] lg:items-center">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-wider text-brand-600">Visibility for owners</p>
+              <h2 className="mt-3 text-3xl font-bold sm:text-4xl">Know where every rupee of ad spend is going.</h2>
+              <p className="mt-5 leading-7 text-gray-600">
+                Track leads by campaign, stage, staff member, source, revenue, and follow-up activity. Owners get the control they need without chasing every salesperson for updates.
+              </p>
+            </div>
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xl shadow-gray-100">
+              <div className="mb-5 flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">June Campaign ROI</p>
+                  <p className="text-2xl font-bold">₹8.4L revenue</p>
+                </div>
+                <Target className="text-brand-600" size={28} />
+              </div>
+              {[
+                { label: 'Instagram Enquiry Ads', value: '72%', width: 'w-[72%]' },
+                { label: 'Facebook Retargeting', value: '51%', width: 'w-[51%]' },
+                { label: 'Website Lead Form', value: '38%', width: 'w-[38%]' },
+              ].map((row) => (
+                <div key={row.label} className="mb-4 last:mb-0">
+                  <div className="mb-2 flex items-center justify-between text-sm">
+                    <span className="font-medium">{row.label}</span>
+                    <span className="text-gray-500">{row.value}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-gray-100">
+                    <div className={`h-2 rounded-full bg-brand-600 ${row.width}`} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
 
-      <footer className="bg-gray-900 text-gray-400 py-12 px-4">
-        <div className="max-w-5xl mx-auto text-center text-xs">
+        <section id="pricing" className="bg-gray-50 px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-7xl">
+            <div className="mx-auto max-w-2xl text-center">
+              <h2 className="text-3xl font-bold sm:text-4xl">Simple pricing while you validate your sales workflow.</h2>
+              <p className="mt-4 text-gray-600">Start free, then upgrade when your team needs more leads, users, AI, and reporting.</p>
+              <div className="mt-6 inline-flex rounded-lg border border-gray-200 bg-white p-1">
+                {[
+                  { id: 'monthly', label: 'Monthly' },
+                  { id: 'yearly', label: 'Yearly' },
+                ].map((period) => (
+                  <button
+                    key={period.id}
+                    onClick={() => setBillingPeriod(period.id)}
+                    className={`rounded-md px-4 py-2 text-sm font-semibold ${billingPeriod === period.id ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                  >
+                    {period.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="mt-10 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+              {plans.map((plan) => (
+                <div key={plan.name} className={`relative rounded-lg border bg-white p-6 ${plan.popular ? 'border-brand-600 shadow-xl shadow-brand-100' : 'border-gray-200'}`}>
+                  {plan.popular && <div className="absolute -top-3 left-5 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold text-white">POPULAR</div>}
+                  <h3 className="text-xl font-bold">{plan.name}</h3>
+                  <div className="mt-5">
+                    <span className="text-3xl font-extrabold">{plan.price || plan[billingPeriod]}</span>
+                    <p className="mt-1 text-sm text-gray-500">
+                      {plan.sub || (billingPeriod === 'yearly' ? 'per year' : 'per month')}
+                    </p>
+                    {billingPeriod === 'yearly' && plan.name !== 'Free' && plan.name !== 'Pro' && (
+                      <p className="mt-2 text-xs font-semibold text-green-700">Two months free</p>
+                    )}
+                  </div>
+                  <ul className="mt-6 space-y-3">
+                    {plan.features.map((feature) => (
+                      <li key={feature} className="flex items-start gap-2 text-sm text-gray-600">
+                        <CheckCircle size={16} className="mt-0.5 shrink-0 text-green-600" />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  <button onClick={() => handlePlanClick(plan.name)} className={`mt-7 w-full rounded-lg py-2.5 text-sm font-semibold ${plan.popular ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>
+                    {plan.name === 'Pro' ? 'Talk to us' : user ? 'Open Billing' : 'Start Free'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section id="faq" className="px-4 py-20 sm:px-6">
+          <div className="mx-auto max-w-3xl">
+            <h2 className="text-center text-3xl font-bold">Questions sales teams ask first</h2>
+            <div className="mt-10 space-y-3">
+              {faqs.map((faq, index) => (
+                <div key={faq.q} className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                  <button onClick={() => setOpenFaq(openFaq === index ? null : index)} className="flex w-full items-center justify-between px-5 py-4 text-left">
+                    <span className="text-sm font-semibold">{faq.q}</span>
+                    <ChevronDown size={18} className={`shrink-0 text-gray-400 transition ${openFaq === index ? 'rotate-180' : ''}`} />
+                  </button>
+                  {openFaq === index && <div className="px-5 pb-5 text-sm leading-6 text-gray-600">{faq.a}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 pb-20 sm:px-6">
+          <div className="mx-auto max-w-5xl rounded-2xl bg-brand-600 px-6 py-12 text-center text-white sm:px-10">
+            <h2 className="text-3xl font-bold sm:text-4xl">Ready to stop losing leads after the first enquiry?</h2>
+            <p className="mx-auto mt-4 max-w-2xl text-white/80">
+              Bring your Meta Ads leads, WhatsApp follow-ups, team pipeline, brochures, quotations, and reporting into CurveLead.
+            </p>
+            <button onClick={() => navigate('/signup')} className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3.5 font-bold text-brand-700 hover:bg-gray-50">
+              Get Started Free <ArrowRight size={18} />
+            </button>
+          </div>
+        </section>
+      </main>
+
+      <footer className="border-t border-gray-200 bg-white px-4 py-10 sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <BrandLogo className="h-9 w-24 p-1" />
+          </div>
           <p>© 2026 CurveLead. Built in Baramati, India.</p>
         </div>
       </footer>

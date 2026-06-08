@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { leadAPI, aiAPI } from '../services/api';
-import { Plus, Search, Filter, Phone, MessageCircle, Trash2, Edit2, Zap, X } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, Users, SlidersHorizontal } from 'lucide-react';
 
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
@@ -19,7 +19,7 @@ const LeadsPage = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', source: 'manual', notes: '' });
 
-  useEffect(() => { loadData(); }, [filters]);
+  useEffect(() => { loadData(); }, [filters, view]);
 
   const loadData = async () => {
     setLoading(true);
@@ -57,77 +57,101 @@ const LeadsPage = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      {/* Filters */}
-      <div className="bg-white rounded-2xl border p-3 flex flex-wrap items-center gap-2">
-        <div className="flex-1 min-w-[200px] relative">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="text" placeholder="Search by name or phone..."
-            value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
-            className="w-full pl-10 pr-3 py-2 border border-gray-200 rounded-lg text-sm" />
+    <div className="space-y-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase text-cyan-600">Global lead workspace</p>
+          <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
         </div>
-        <select value={filters.score} onChange={e => setFilters(f => ({ ...f, score: e.target.value }))}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-          <option value="">All scores</option>
-          <option value="hot">🔥 Hot</option>
-          <option value="warm">⭐ Warm</option>
-          <option value="cold">❄️ Cold</option>
-        </select>
-        <select value={filters.source} onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}
-          className="px-3 py-2 border border-gray-200 rounded-lg text-sm">
-          <option value="">All sources</option>
-          <option value="meta_ads">Meta Ads</option>
-          <option value="google_ads">Google Ads</option>
-          <option value="whatsapp">WhatsApp</option>
-          <option value="referral">Referral</option>
-          <option value="manual">Manual</option>
-        </select>
         <button onClick={() => setShowAddModal(true)}
-          className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
-          <Plus size={16} /> Add Lead
+          className="inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 text-sm font-extrabold uppercase text-white shadow-sm hover:bg-cyan-700">
+          <Plus size={18} /> Add New Lead
         </button>
       </div>
 
-      {/* View toggle */}
-      <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-        <button onClick={() => setView('list')} className={`px-3 py-1.5 rounded-md text-xs font-medium ${view === 'list' ? 'bg-white shadow' : 'text-gray-500'}`}>List</button>
-        <button onClick={() => setView('pipeline')} className={`px-3 py-1.5 rounded-md text-xs font-medium ${view === 'pipeline' ? 'bg-white shadow' : 'text-gray-500'}`}>Pipeline</button>
-      </div>
+      <div className="bg-white shadow-sm">
+        <div className="flex flex-wrap border-b border-gray-200 px-5">
+          {[
+            { id: 'list', label: 'All Leads' },
+            { id: 'pipeline', label: 'Pipeline' },
+            { id: 'uncontacted', label: 'Uncontacted' },
+            { id: 'followups', label: 'Follow Ups' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => ['list', 'pipeline'].includes(tab.id) && setView(tab.id)}
+              className={`mr-7 border-b-2 py-4 text-sm font-extrabold ${view === tab.id ? 'border-gray-900 text-gray-950' : 'border-transparent text-gray-900 hover:text-cyan-700'}`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 p-5">
+          <div className="relative min-w-[240px] flex-1">
+            <Search size={19} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <input type="text" placeholder="Search leads..."
+              value={filters.search} onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
+              className="h-11 w-full bg-gray-200/70 pl-11 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+          </div>
+          <div className="relative min-w-[190px]">
+            <Users size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <select value={filters.score} onChange={e => setFilters(f => ({ ...f, score: e.target.value }))}
+              className="h-11 w-full appearance-none bg-gray-200/70 pl-10 pr-8 text-sm font-bold text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+              <option value="">All scores</option>
+              <option value="hot">Hot</option>
+              <option value="warm">Warm</option>
+              <option value="cold">Cold</option>
+            </select>
+          </div>
+          <div className="relative min-w-[190px]">
+            <SlidersHorizontal size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            <select value={filters.source} onChange={e => setFilters(f => ({ ...f, source: e.target.value }))}
+              className="h-11 w-full appearance-none bg-gray-200/70 pl-10 pr-8 text-sm font-bold text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+              <option value="">All sources</option>
+              <option value="meta_ads">Meta Ads</option>
+              <option value="google_ads">Google Ads</option>
+              <option value="whatsapp">WhatsApp</option>
+              <option value="referral">Referral</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+        </div>
 
       {loading ? (
         <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
       ) : view === 'list' ? (
-        <div className="bg-white rounded-2xl border overflow-hidden">
+        <div className="overflow-hidden px-5 pb-5">
           {leads.length === 0 ? (
-            <div className="p-12 text-center text-gray-400">
+            <div className="border-t border-gray-200 p-12 text-center text-gray-400">
               <p>No leads yet. Add your first lead to get started!</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead className="border-y border-gray-200 text-xs uppercase text-gray-500">
                   <tr>
-                    <th className="text-left px-4 py-3">Name</th>
-                    <th className="text-left px-4 py-3">Phone</th>
-                    <th className="text-left px-4 py-3">Source</th>
-                    <th className="text-left px-4 py-3">Score</th>
-                    <th className="text-left px-4 py-3">Stage</th>
-                    <th className="text-right px-4 py-3">Actions</th>
+                    <th className="text-left px-3 py-3">Name</th>
+                    <th className="text-left px-3 py-3">Phone Number</th>
+                    <th className="text-left px-3 py-3">Source</th>
+                    <th className="text-left px-3 py-3">Score</th>
+                    <th className="text-left px-3 py-3">Stage</th>
+                    <th className="text-right px-3 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {leads.map(l => (
-                    <tr key={l.id} className="border-t hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium cursor-pointer" onClick={() => navigate(`/leads/${l.id}`)}>{l.name}</td>
-                      <td className="px-4 py-3 text-gray-600">{l.phone}</td>
-                      <td className="px-4 py-3 text-gray-600 capitalize">{l.source?.replace(/_/g, ' ')}</td>
-                      <td className="px-4 py-3">
+                    <tr key={l.id} className="border-b border-gray-200 hover:bg-gray-50">
+                      <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => navigate(`/leads/${l.id}`)}>{l.name}</td>
+                      <td className="px-3 py-3 text-gray-700">{l.phone}</td>
+                      <td className="px-3 py-3 text-gray-600 capitalize">{l.source?.replace(/_/g, ' ')}</td>
+                      <td className="px-3 py-3">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[l.lead_score] || 'bg-gray-100 text-gray-600'}`}>
                           {l.lead_score?.toUpperCase() || 'N/A'}
                         </span>
                       </td>
-                      <td className="px-4 py-3 text-gray-600 capitalize">{l.stage}</td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-3 py-3 text-gray-600 capitalize">{l.stage}</td>
+                      <td className="px-3 py-3 text-right">
                         <div className="flex justify-end gap-1">
                           <a href={`tel:${l.phone}`} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                           <a href={`https://wa.me/${l.phone}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
@@ -144,7 +168,7 @@ const LeadsPage = () => {
           )}
         </div>
       ) : (
-        <div className="overflow-x-auto pb-2">
+        <div className="overflow-x-auto px-5 pb-5">
           <div className="flex gap-3 min-w-max">
             {stages.map(stage => {
               const stageLeads = leads.filter(l => l.stage?.toLowerCase() === stage.name?.toLowerCase());
@@ -171,6 +195,7 @@ const LeadsPage = () => {
           </div>
         </div>
       )}
+      </div>
 
       {/* Add Lead Modal */}
       {showAddModal && (

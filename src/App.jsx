@@ -1,5 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import PageLoader from './components/ui/PageLoader';
 
 // Public
 import LandingPage from './pages/LandingPage';
@@ -20,6 +21,7 @@ import FollowupsPage from './pages/FollowupsPage';
 import StaffPage from './pages/StaffPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import BillingPage from './pages/BillingPage';
 
 // ⭐ NEW: Brochures & Quotations
 import BrochuresPage from './pages/BrochuresPage';
@@ -29,7 +31,7 @@ import QuotationViewPage from './pages/QuotationViewPage';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="flex items-center justify-center h-screen"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
+  if (loading) return <PageLoader message="Checking your session..." minHeight="h-screen" />;
   return user ? children : <Navigate to="/login" replace />;
 };
 
@@ -63,6 +65,7 @@ const App = () => (
         <Route path="quotations/:id" element={<QuotationViewPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="billing" element={<BillingPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>

@@ -30,6 +30,8 @@ api.interceptors.response.use(
 export const authAPI = {
   signup: (data) => api.post('/auth/signup', data),
   login: (data) => api.post('/auth/login', data),
+  requestOtp: (email) => api.post('/auth/request-otp', { email }),
+  verifyOtp: (data) => api.post('/auth/verify-otp', data),
   me: () => api.get('/auth/me'),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (data) => api.post('/auth/reset-password', data),
@@ -46,7 +48,7 @@ export const leadAPI = {
   update: (id, data) => api.put(`/leads/${id}`, data),
   delete: (id) => api.delete(`/leads/${id}`),
   score: (id) => api.post(`/leads/${id}/score`),
-  getStages: () => api.get('/leads/stages'),
+  getStages: () => api.get('/leads/stages/all'),
 };
 
 // ============================================
@@ -108,7 +110,7 @@ export const reportsAPI = {
   bySource: (params) => api.get('/reports/by-source', { params }),
   byStaff: (params) => api.get('/reports/by-staff', { params }),
   byCampaign: (params) => api.get('/reports/by-campaign', { params }),
-  dashboard: () => api.get('/reports/dashboard'),
+  dashboard: () => api.get('/reports/summary'),
 };
 
 // ============================================
@@ -117,6 +119,15 @@ export const reportsAPI = {
 export const settingsAPI = {
   get: () => api.get('/settings'),
   update: (data) => api.put('/settings', data),
+};
+
+// ============================================
+// Payments
+// ============================================
+export const paymentAPI = {
+  getPlans: () => api.get('/payments/plans'),
+  createOrder: (planName, billingPeriod) => api.post('/payments/create-order', { planName, billingPeriod }),
+  verify: (data) => api.post('/payments/verify', data),
 };
 
 // ============================================

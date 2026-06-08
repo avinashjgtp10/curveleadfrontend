@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Eye, EyeOff, ArrowLeft, ArrowRight, CheckCircle } from 'lucide-react';
+import BrandLogo from '../components/ui/BrandLogo';
 
 const businessTypes = [
   { id: 'lead_management', icon: '🎯', name: 'Lead Management', desc: 'Agencies, freelancers, sales' },
@@ -39,11 +40,8 @@ const SignupPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="w-10 h-10 bg-brand-600 rounded-xl flex items-center justify-center">
-              <span className="text-white font-bold">CL</span>
-            </div>
-            <span className="font-bold text-2xl">CurveLead</span>
+          <div className="inline-flex cursor-pointer" onClick={() => navigate('/')}>
+            <BrandLogo className="h-20 w-auto max-w-44 p-2 shadow-sm" />
           </div>
         </div>
 

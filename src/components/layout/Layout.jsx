@@ -15,6 +15,7 @@ const Layout = () => {
     '/followups': 'Follow-ups',
     '/staff': 'Team',
     '/reports': 'Reports',
+    '/billing': 'Billing',
     '/settings': 'Settings',
   };
 
