@@ -1,212 +1,181 @@
 import axios from 'axios';
 
-const API_BASE = import.meta.env.VITE_API_URL || '/api';
-
 const api = axios.create({
-  baseURL: API_BASE,
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Attach token to every request
+// Auto-attach JWT
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('curvelead_token');
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
+  const token = localStorage.getItem('token');
+  if (token) config.headers.Authorization = `Bearer ${token}`;
   return config;
 });
 
-// Handle 401 responses
+// Handle 401 (auto logout)
 api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('curvelead_token');
-      localStorage.removeItem('curvelead_user');
-      localStorage.removeItem('curvelead_tenant');
+  (res) => res,
+  (err) => {
+    if (err.response?.status === 401 && !window.location.pathname.includes('/login')) {
+      localStorage.removeItem('token');
       window.location.href = '/login';
     }
-    return Promise.reject(error);
+    return Promise.reject(err);
   }
 );
 
-// Auth APIs
+// ============================================
+// Auth
+// ============================================
 export const authAPI = {
   signup: (data) => api.post('/auth/signup', data),
   login: (data) => api.post('/auth/login', data),
-  getProfile: () => api.get('/auth/me'),
-  changePassword: (data) => api.put('/auth/change-password', data),
-  inviteStaff: (data) => api.post('/auth/invite-staff', data),
-  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  requestOtp: (email) => api.post('/auth/request-otp', { email }),
+  verifyOtp: (data) => api.post('/auth/verify-otp', data),
+  me: () => api.get('/auth/me'),
+  forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (data) => api.post('/auth/reset-password', data),
+  changePassword: (data) => api.post('/auth/change-password', data),
 };
 
-// Lead APIs
+// ============================================
+// Leads
+// ============================================
 export const leadAPI = {
   getAll: (params) => api.get('/leads', { params }),
   getOne: (id) => api.get(`/leads/${id}`),
   create: (data) => api.post('/leads', data),
   update: (id, data) => api.put(`/leads/${id}`, data),
   delete: (id) => api.delete(`/leads/${id}`),
-  addFollowup: (id, data) => api.post(`/leads/${id}/followups`, data),
-  getStats: () => api.get('/leads/stats'),
-  getTodayFollowups: () => api.get('/leads/followups/today'),
-  // Journey / Activities
-  getActivities: (id) => api.get(`/leads/${id}/activities`),
-  addActivity: (id, data) => api.post(`/leads/${id}/activities`, data),
-  logCall: (id, data) => api.post(`/leads/${id}/log-call`, data),
-  logWhatsApp: (id, data) => api.post(`/leads/${id}/log-whatsapp`, data),
-  logVisit: (id, data) => api.post(`/leads/${id}/log-visit`, data),
-  logNote: (id, data) => api.post(`/leads/${id}/log-note`, data),
+  score: (id) => api.post(`/leads/${id}/score`),
+  getStages: () => api.get('/leads/stages/all'),
 };
 
-// Course APIs
-export const courseAPI = {
-  getAll: () => api.get('/courses'),
-  create: (data) => api.post('/courses', data),
-  update: (id, data) => api.put(`/courses/${id}`, data),
-  delete: (id) => api.delete(`/courses/${id}`),
+// ============================================
+// Campaigns
+// ============================================
+export const campaignAPI = {
+  getAll: (params) => api.get('/campaigns', { params }),
+  getOne: (id) => api.get(`/campaigns/${id}`),
+  create: (data) => api.post('/campaigns', data),
+  update: (id, data) => api.put(`/campaigns/${id}`, data),
+  delete: (id) => api.delete(`/campaigns/${id}`),
+  getROI: (id) => api.get(`/campaigns/${id}/roi`),
+  getLeads: (id) => api.get(`/campaigns/${id}/leads`),
 };
 
-// Batch APIs
-export const batchAPI = {
-  getAll: (params) => api.get('/batches', { params }),
-  getOne: (id) => api.get(`/batches/${id}`),
-  create: (data) => api.post('/batches', data),
-  update: (id, data) => api.put(`/batches/${id}`, data),
-  delete: (id) => api.delete(`/batches/${id}`),
+// ============================================
+// WhatsApp
+// ============================================
+export const whatsappAPI = {
+  getInbox: () => api.get('/whatsapp/inbox'),
+  getConversation: (leadId) => api.get(`/whatsapp/conversations/${leadId}`),
+  send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
 };
 
-// Student APIs
-export const studentAPI = {
-  getAll: (params) => api.get('/students', { params }),
-  getOne: (id) => api.get(`/students/${id}`),
-  create: (data) => api.post('/students', data),
-  update: (id, data) => api.put(`/students/${id}`, data),
-  delete: (id) => api.delete(`/students/${id}`),
-  enrollLead: (leadId, data) => api.post(`/students/enroll-lead/${leadId}`, data),
+// ============================================
+// AI
+// ============================================
+export const aiAPI = {
+  scoreLead: (leadId) => api.post(`/ai/score-lead/${leadId}`),
+  scoreBulk: () => api.post('/ai/score-bulk'),
+  qualify: (leadId) => api.post(`/ai/qualify/${leadId}`),
 };
 
-// Attendance APIs
-export const attendanceAPI = {
-  getByBatch: (batchId, date) => api.get(`/attendance/batch/${batchId}`, { params: { date } }),
-  mark: (batchId, data) => api.post(`/attendance/batch/${batchId}`, data),
-  getByStudent: (studentId, month) => api.get(`/attendance/student/${studentId}`, { params: { month } }),
-  getBatchReport: (batchId, month) => api.get(`/attendance/report/${batchId}`, { params: { month } }),
+// ============================================
+// Followups
+// ============================================
+export const followupAPI = {
+  getAll: (params) => api.get('/followups', { params }),
+  create: (data) => api.post('/followups', data),
+  complete: (id, data) => api.put(`/followups/${id}/complete`, data),
+  delete: (id) => api.delete(`/followups/${id}`),
 };
 
-// Fee APIs
-export const feeAPI = {
-  getAll: (params) => api.get('/fees', { params }),
-  getDetails: (id) => api.get(`/fees/${id}`),
-  recordPayment: (id, data) => api.post(`/fees/${id}/pay`, data),
-  getMonthlyRevenue: (months) => api.get('/fees/revenue/monthly', { params: { months } }),
-  getReminders: () => api.get('/fees/reminders'),
-  actionReminder: (installmentId, data) => api.post(`/fees/reminders/${installmentId}/action`, data),
-  updateInstallments: (id, data) => api.put(`/fees/${id}/installments`, data),
-  delete: (id) => api.delete(`/fees/${id}`),
-  deletePayment: (id) => api.delete(`/fees/payment/${id}`),
-  updateFee: (id, data) => api.put(`/fees/${id}`, data),
-  downloadReceiptPDF: (feeId, paymentId) => api.get(`/fees/${feeId}/receipt/${paymentId}/pdf`, { responseType: 'blob' }),
-  emailReceipt: (feeId, paymentId, data) => api.post(`/fees/${feeId}/receipt/${paymentId}/email`, data),
-};
-
-// Staff APIs
+// ============================================
+// Staff
+// ============================================
 export const staffAPI = {
   getAll: () => api.get('/staff'),
-  getOne: (id, params) => api.get(`/staff/${id}`, { params }),
-  create: (data) => api.post('/staff', data),
+  invite: (data) => api.post('/staff/invite', data),
   update: (id, data) => api.put(`/staff/${id}`, data),
-  getTrainers: () => api.get('/staff/trainers'),
-  // Time management
-  getTimeLogs: (date) => api.get('/staff/time-logs', { params: { date } }),
-  checkIn: (data) => api.post('/staff/check-in', data),
-  checkOut: (data) => api.post('/staff/check-out', data),
-  overrideStatus: (id, data) => api.put(`/staff/time-logs/${id}/override`, data),
-  markAttendance: (data) => api.post('/staff/attendance', data),
-  // Incentives
-  addIncentive: (data) => api.post('/staff/incentives', data),
-  deleteIncentive: (id) => api.delete(`/staff/incentives/${id}`),
-  // Settings
-  updateSettings: (data) => api.put('/staff/settings', data),
+  delete: (id) => api.delete(`/staff/${id}`),
 };
 
-// Expense APIs
-export const expenseAPI = {
-  getAll: (params) => api.get('/expenses', { params }),
-  getCategories: () => api.get('/expenses/categories'),
-  createCategory: (data) => api.post('/expenses/categories', data),
-  create: (data) => api.post('/expenses', data),
-  update: (id, data) => api.put(`/expenses/${id}`, data),
-  delete: (id) => api.delete(`/expenses/${id}`),
-  getMonthlyReport: (months) => api.get('/expenses/report/monthly', { params: { months } }),
-};
-
-// Salary APIs
-export const salaryAPI = {
-  getOverview: (month, year) => api.get('/salary', { params: { month, year } }),
-  process: (data) => api.post('/salary/process', data),
-  getHistory: (months) => api.get('/salary/history', { params: { months } }),
-};
-
-// Reports APIs
+// ============================================
+// Reports
+// ============================================
 export const reportsAPI = {
-  getPnL: (view, fy) => api.get('/reports/pnl', { params: { view, fy } }),
-  getSummary: () => api.get('/reports/summary'),
+  conversion: (params) => api.get('/reports/conversion', { params }),
+  bySource: (params) => api.get('/reports/by-source', { params }),
+  byStaff: (params) => api.get('/reports/by-staff', { params }),
+  byCampaign: (params) => api.get('/reports/by-campaign', { params }),
+  dashboard: () => api.get('/reports/summary'),
 };
 
-// Billing APIs
-export const billingAPI = {
-  createOrder: (plan_id) => api.post('/billing/create-order', { plan_id }),
-  verifyPayment: (data) => api.post('/billing/verify-payment', data),
-  getInvoices: () => api.get('/billing/invoices'),
-  getCurrent: () => api.get('/billing/current'),
-};
-
-// Notification APIs
-export const notificationAPI = {
-  getAll: () => api.get('/notifications'),
-  getCount: () => api.get('/notifications/count'),
-  markAsRead: (id) => api.put(`/notifications/${id}/read`),
-  markAllAsRead: () => api.put('/notifications/read-all'),
-};
-
-// Super Admin APIs
-export const superAdminAPI = {
-  getStats: () => api.get('/super-admin/stats'),
-  getPlans: () => api.get('/super-admin/plans'),
-  getTenants: (params) => api.get('/super-admin/tenants', { params }),
-  updateTenant: (id, data) => api.put(`/super-admin/tenants/${id}`, data),
-  extendTrial: (id, days) => api.post(`/super-admin/tenants/${id}/extend-trial`, { days }),
-};
-
-// Settings APIs
+// ============================================
+// Settings
+// ============================================
 export const settingsAPI = {
   get: () => api.get('/settings'),
   update: (data) => api.put('/settings', data),
 };
 
-// Template APIs
-export const templateAPI = {
-  getAll: (category) => api.get('/templates', { params: { category } }),
-  create: (data) => api.post('/templates', data),
-  update: (id, data) => api.put(`/templates/${id}`, data),
-  delete: (id) => api.delete(`/templates/${id}`),
-  generate: (id, data) => api.post(`/templates/${id}/send`, data),
+// ============================================
+// Payments
+// ============================================
+export const paymentAPI = {
+  getPlans: () => api.get('/payments/plans'),
+  createOrder: (planName, billingPeriod) => api.post('/payments/create-order', { planName, billingPeriod }),
+  verify: (data) => api.post('/payments/verify', data),
 };
 
-// Lead Stages APIs
-export const leadStageAPI = {
-  getAll: () => api.get('/lead-stages'),
-  create: (data) => api.post('/lead-stages', data),
-  update: (id, data) => api.put(`/lead-stages/${id}`, data),
-  delete: (id) => api.delete(`/lead-stages/${id}`),
-  reorder: (stages) => api.put('/lead-stages/reorder', { stages }),
+// ============================================
+// ⭐ NEW: Notes
+// ============================================
+export const notesAPI = {
+  getByLead: (leadId) => api.get(`/notes/lead/${leadId}`),
+  create: (leadId, data) => api.post(`/notes/lead/${leadId}`, data),
+  update: (leadId, noteId, data) => api.put(`/notes/lead/${leadId}/${noteId}`, data),
+  delete: (leadId, noteId) => api.delete(`/notes/lead/${leadId}/${noteId}`),
 };
 
-// Dashboard API
-export const dashboardAPI = {
-  get: () => api.get('/dashboard'),
+// ============================================
+// ⭐ NEW: Attachments
+// ============================================
+export const attachmentsAPI = {
+  getByLead: (leadId) => api.get(`/attachments/lead/${leadId}`),
+  upload: (leadId, formData) => api.post(`/attachments/lead/${leadId}`, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  delete: (leadId, attachmentId) => api.delete(`/attachments/lead/${leadId}/${attachmentId}`),
+  shareWhatsApp: (leadId, attachmentId) => api.post(`/attachments/lead/${leadId}/${attachmentId}/share-whatsapp`),
+};
+
+// ============================================
+// ⭐ NEW: Brochures
+// ============================================
+export const brochuresAPI = {
+  getAll: (params) => api.get('/brochures', { params }),
+  upload: (formData) => api.post('/brochures', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
+  delete: (id) => api.delete(`/brochures/${id}`),
+  shareWithLead: (brochureId, leadId) => api.post(`/brochures/${brochureId}/share/${leadId}`),
+};
+
+// ============================================
+// ⭐ NEW: Quotations
+// ============================================
+export const quotationsAPI = {
+  getAll: (params) => api.get('/quotations', { params }),
+  getOne: (id) => api.get(`/quotations/${id}`),
+  create: (data) => api.post('/quotations', data),
+  update: (id, data) => api.put(`/quotations/${id}`, data),
+  send: (id) => api.post(`/quotations/${id}/send`),
+  accept: (id) => api.post(`/quotations/${id}/accept`),
+  reject: (id, reason) => api.post(`/quotations/${id}/reject`, { reason }),
+  delete: (id) => api.delete(`/quotations/${id}`),
 };
 
 export default api;

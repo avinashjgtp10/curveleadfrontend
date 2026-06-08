@@ -1,13 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
 
-const AuthContext = createContext(null);
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
-  return context;
-};
+const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
@@ -15,30 +9,35 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const token = localStorage.getItem('curvelead_token');
+    const token = localStorage.getItem('token');
     if (token) {
-      loadProfile();
+      authAPI.me()
+        .then(({ data }) => { setUser(data.user); setTenant(data.tenant); })
+        .catch(() => localStorage.removeItem('token'))
+        .finally(() => setLoading(false));
     } else {
       setLoading(false);
     }
   }, []);
 
-  const loadProfile = async () => {
-    try {
-      const { data } = await authAPI.getProfile();
-      setUser(data.user);
-      setTenant(data.tenant);
-    } catch (error) {
-      console.error('Failed to load profile:', error);
-      logout();
-    } finally {
-      setLoading(false);
-    }
+  const refreshProfile = async () => {
+    const { data } = await authAPI.me();
+    setUser(data.user);
+    setTenant(data.tenant);
+    return data;
   };
 
-  const login = async (email, password) => {
-    const { data } = await authAPI.login({ email, password });
-    localStorage.setItem('curvelead_token', data.token);
+  const login = async (credentials) => {
+    const { data } = await authAPI.login(credentials);
+    localStorage.setItem('token', data.token);
+    setUser(data.user);
+    setTenant(data.tenant);
+    return data;
+  };
+
+  const verifyOtp = async (payload) => {
+    const { data } = await authAPI.verifyOtp(payload);
+    localStorage.setItem('token', data.token);
     setUser(data.user);
     setTenant(data.tenant);
     return data;
@@ -46,23 +45,23 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (formData) => {
     const { data } = await authAPI.signup(formData);
-    localStorage.setItem('curvelead_token', data.token);
+    localStorage.setItem('token', data.token);
     setUser(data.user);
     setTenant(data.tenant);
     return data;
   };
 
   const logout = () => {
-    localStorage.removeItem('curvelead_token');
+    localStorage.removeItem('token');
     setUser(null);
     setTenant(null);
   };
 
-  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, signup, logout, isAdmin, loadProfile }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, signup, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
+export const useAuth = () => useContext(AuthContext);
