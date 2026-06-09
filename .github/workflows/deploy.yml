@@ -1,4 +1,4 @@
-name: Deploy Frontend
+name: Deploy CurveLead Frontend
 
 on:
   push:
@@ -8,17 +8,31 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy to EC2
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install & Build
+        run: |
+          npm ci
+          npm run build
+
+      - name: Clean old build
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            cd /home/ubuntu/curveleadfrontend
-            git pull origin master
-            npm install
-            chmod +x node_modules/.bin/vite
-            npm run build
-            sudo cp -r dist/* /var/www/curvelead/
-            echo "Frontend deployed!"
+          script: rm -rf /var/www/curvelead/*
+
+      - name: Copy new build
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "dist/*"
+          target: "/var/www/curvelead"
+          strip_components: 1
