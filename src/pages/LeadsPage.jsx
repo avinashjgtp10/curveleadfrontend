@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { leadAPI, aiAPI } from '../services/api';
+import { leadAPI, aiAPI, stageAPI } from '../services/api';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, Users, SlidersHorizontal } from 'lucide-react';
 
 const scoreColors = {
@@ -17,7 +17,8 @@ const LeadsPage = () => {
   const [view, setView] = useState('list');
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', source: 'manual', notes: '' });
+  const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return d.toISOString().slice(0, 16); };
+  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
 
   useEffect(() => { loadData(); }, [filters, view]);
 
@@ -26,7 +27,7 @@ const LeadsPage = () => {
     try {
       const [leadsRes, stagesRes] = await Promise.all([
         leadAPI.getAll({ ...filters, limit: view === 'pipeline' ? 200 : 50 }),
-        leadAPI.getStages().catch(() => ({ data: { stages: [] } })),
+        stageAPI.getAll().catch(() => ({ data: { stages: [] } })),
       ]);
       setLeads(leadsRes.data.leads || []);
       setStages(stagesRes.data.stages || []);
@@ -39,7 +40,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.create(newLead);
       setShowAddModal(false);
-      setNewLead({ name: '', phone: '', email: '', source: 'manual', notes: '' });
+      setNewLead({ name: '', phone: '', email: '', location: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
       loadData();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
   };
@@ -207,11 +208,19 @@ const LeadsPage = () => {
               <button onClick={() => setShowAddModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Lead Date & Time</label>
+                <input type="datetime-local" value={newLead.lead_date}
+                  onChange={e => setNewLead({ ...newLead, lead_date: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
               <input type="text" placeholder="Name *" value={newLead.name} onChange={e => setNewLead({ ...newLead, name: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <input type="tel" placeholder="Phone *" value={newLead.phone} onChange={e => setNewLead({ ...newLead, phone: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <input type="email" placeholder="Email" value={newLead.email} onChange={e => setNewLead({ ...newLead, email: e.target.value })}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <input type="text" placeholder="City" value={newLead.location} onChange={e => setNewLead({ ...newLead, location: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <select value={newLead.source} onChange={e => setNewLead({ ...newLead, source: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
