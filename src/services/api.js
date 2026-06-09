@@ -49,6 +49,7 @@ export const leadAPI = {
   delete: (id) => api.delete(`/leads/${id}`),
   score: (id) => api.post(`/leads/${id}/score`),
   getStages: () => api.get('/leads/stages/all'),
+  addFollowup: (id, data) => api.post(`/leads/${id}/followups`, data),
 };
 
 // ============================================
@@ -119,6 +120,28 @@ export const reportsAPI = {
 export const settingsAPI = {
   get: () => api.get('/settings'),
   update: (data) => api.put('/settings', data),
+};
+
+// ============================================
+// Lead Stages
+// ============================================
+export const stageAPI = {
+  getAll: () => api.get('/lead-stages'),
+  create: (data) => api.post('/lead-stages', data),
+  update: (id, data) => api.put(`/lead-stages/${id}`, data),
+  delete: (id) => api.delete(`/lead-stages/${id}`),
+  reorder: (stages) => api.put('/lead-stages/reorder', { stages }),
+};
+
+// ============================================
+// Templates
+// ============================================
+export const templateAPI = {
+  getAll: (params) => api.get('/templates', { params }),
+  create: (data) => api.post('/templates', data),
+  update: (id, data) => api.put(`/templates/${id}`, data),
+  delete: (id) => api.delete(`/templates/${id}`),
+  generate: (id, data) => api.post(`/templates/${id}/send`, data),
 };
 
 // ============================================

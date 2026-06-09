@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
 import { brochuresAPI } from '../services/api';
-import { Plus, Upload, FileText, Image as ImageIcon, Trash2, Send, BookOpen, X } from 'lucide-react';
+import { Plus, FileText, Image as ImageIcon, Trash2, BookOpen, X, MessageCircle } from 'lucide-react';
 
 const BrochuresPage = () => {
   const [brochures, setBrochures] = useState([]);
@@ -45,6 +45,11 @@ const BrochuresPage = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this brochure?')) return;
     try { await brochuresAPI.delete(id); load(); } catch (e) { alert('Failed'); }
+  };
+
+  const handleShareWA = (b) => {
+    const text = `Hi! Please find our brochure — *${b.name}*\n\n${b.file_url}`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   return (
@@ -101,6 +106,9 @@ const BrochuresPage = () => {
                     className="flex-1 py-1.5 hover:bg-blue-50 rounded text-xs text-blue-600 text-center flex items-center justify-center gap-1">
                     View
                   </a>
+                  <button onClick={() => handleShareWA(b)} className="flex-1 py-1.5 hover:bg-green-50 rounded text-xs text-green-600 flex items-center justify-center gap-1" title="Share via WhatsApp">
+                    <MessageCircle size={12} /> Share
+                  </button>
                   <button onClick={() => handleDelete(b.id)} className="flex-1 py-1.5 hover:bg-red-50 rounded text-xs text-red-500 flex items-center justify-center gap-1">
                     <Trash2 size={12} /> Delete
                   </button>

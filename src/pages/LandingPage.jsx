@@ -115,10 +115,10 @@ const LandingPage = () => {
             <a href="#workflow" className="text-sm text-gray-600 hover:text-gray-950">Workflow</a>
             <a href="#features" className="text-sm text-gray-600 hover:text-gray-950">Features</a>
             <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-950">Pricing</a>
-            <button onClick={() => navigate('/login')} className="text-sm font-semibold text-brand-700">Sign In</button>
-            <button onClick={() => navigate('/signup')} className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
+            <a href="/login" className="text-sm font-semibold text-brand-700">Sign In</a>
+            <a href="/signup" className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
               Start Free
-            </button>
+            </a>
           </div>
 
           <button onClick={() => setMobileMenu(!mobileMenu)} className="p-2 md:hidden" aria-label="Open menu">
@@ -131,7 +131,7 @@ const LandingPage = () => {
             <a href="#workflow" onClick={closeMenu} className="block py-2 text-gray-600">Workflow</a>
             <a href="#features" onClick={closeMenu} className="block py-2 text-gray-600">Features</a>
             <a href="#pricing" onClick={closeMenu} className="block py-2 text-gray-600">Pricing</a>
-            <button onClick={() => navigate('/signup')} className="w-full rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white">Start Free</button>
+            <a href="/signup" className="block w-full rounded-lg bg-brand-600 px-5 py-2.5 text-center text-sm font-semibold text-white">Start Free</a>
           </div>
         )}
       </nav>
@@ -150,9 +150,9 @@ const LandingPage = () => {
                 CurveLead captures enquiries, scores them with AI, keeps follow-ups on track, and shows which campaigns and salespeople are actually closing.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <button onClick={() => navigate('/signup')} className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-brand-100 hover:bg-brand-700">
+                <a href="/signup" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-brand-100 hover:bg-brand-700">
                   Start Free Trial <ArrowRight size={18} />
-                </button>
+                </a>
                 <a href="#workflow" className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-7 py-3.5 font-semibold text-gray-800 hover:bg-gray-50">
                   See how it works
                 </a>
@@ -389,9 +389,9 @@ const LandingPage = () => {
             <p className="mx-auto mt-4 max-w-2xl text-white/80">
               Bring your Meta Ads leads, WhatsApp follow-ups, team pipeline, brochures, quotations, and reporting into CurveLead.
             </p>
-            <button onClick={() => navigate('/signup')} className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3.5 font-bold text-brand-700 hover:bg-gray-50">
+            <a href="/signup" className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3.5 font-bold text-brand-700 hover:bg-gray-50">
               Get Started Free <ArrowRight size={18} />
-            </button>
+            </a>
           </div>
         </section>
       </main>

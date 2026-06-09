@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { quotationsAPI } from '../services/api';
-import { Plus, FileText, Send, Eye, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Plus, FileText, Send, Eye, Trash2, MessageCircle } from 'lucide-react';
 
 const statusColors = {
   draft: 'bg-gray-100 text-gray-700',
@@ -34,6 +34,16 @@ const QuotationsPage = () => {
       window.open(data.whatsapp_url, '_blank');
       load();
     } catch (e) { alert('Failed'); }
+  };
+
+  const handleShareWA = (q) => {
+    const phone = (q.lead_phone || '').replace(/\D/g, '');
+    const amount = parseFloat(q.total).toLocaleString('en-IN');
+    const text = `Hi ${q.lead_name}! 👋\n\nPlease find your quotation details below:\n*Quote No:* ${q.quote_number}\n*Title:* ${q.title || 'Quotation'}\n*Total Amount:* ₹${amount}\n\nKindly review and let us know if you'd like to proceed.`;
+    const url = phone
+      ? `https://wa.me/${phone.length === 10 ? '91' + phone : phone}?text=${encodeURIComponent(text)}`
+      : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(url, '_blank');
   };
 
   const handleDelete = async (id) => {
@@ -96,9 +106,10 @@ const QuotationsPage = () => {
                     <td className="px-4 py-3 text-right">
                       <div className="flex justify-end gap-1">
                         <button onClick={() => navigate(`/quotations/${q.id}`)} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="View"><Eye size={14} /></button>
+                        <button onClick={() => handleShareWA(q)} className="p-1.5 hover:bg-green-50 rounded text-green-600" title="Share via WhatsApp"><MessageCircle size={14} /></button>
                         {q.status === 'draft' && (
                           <>
-                            <button onClick={() => handleSend(q.id)} className="p-1.5 hover:bg-green-50 rounded text-green-500" title="Send"><Send size={14} /></button>
+                            <button onClick={() => handleSend(q.id)} className="p-1.5 hover:bg-brand-50 rounded text-brand-600" title="Mark as Sent"><Send size={14} /></button>
                             <button onClick={() => handleDelete(q.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Delete"><Trash2 size={14} /></button>
                           </>
                         )}
