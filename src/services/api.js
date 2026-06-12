@@ -51,6 +51,8 @@ export const leadAPI = {
   getStages: () => api.get('/leads/stages/all'),
   addFollowup: (id, data) => api.post(`/leads/${id}/followups`, data),
   getFollowupsToday: (params) => api.get('/leads/followups/today', { params }),
+  bulkUpdate: (data) => api.put('/leads/bulk', data),
+  bulkDelete: (ids) => api.delete('/leads/bulk', { data: { ids } }),
 };
 
 // ============================================
