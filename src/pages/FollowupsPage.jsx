@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { followupAPI } from '../services/api';
-import { Clock, CheckCircle, Calendar, Phone, MessageCircle, Navigation } from 'lucide-react';
+import { Clock, CheckCircle, Calendar, Phone, MessageCircle, Navigation, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const typeIcon = { call: Phone, whatsapp: MessageCircle, visit: Navigation };
 const typeColor = {
@@ -10,19 +10,25 @@ const typeColor = {
   visit: 'bg-purple-100 text-purple-600',
 };
 
+const LIMIT = 15;
+
 const FollowupsPage = () => {
   const navigate = useNavigate();
   const [followups, setFollowups] = useState([]);
   const [tab, setTab] = useState('pending');
   const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, pages: 1 });
 
-  useEffect(() => { loadData(); }, [tab]);
+  useEffect(() => { setPage(1); }, [tab]);
+  useEffect(() => { loadData(); }, [tab, page]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data } = await followupAPI.getAll({ status: tab });
+      const { data } = await followupAPI.getAll({ status: tab, page, limit: LIMIT });
       setFollowups(data.followups || []);
+      setPagination(data.pagination || { total: 0, pages: 1 });
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -55,47 +61,83 @@ const FollowupsPage = () => {
           <p className="text-gray-500">No {tab} follow-ups</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border divide-y">
-          {followups.map(f => {
-            const TypeIcon = typeIcon[f.followup_type] || Clock;
-            const iconClass = typeColor[f.followup_type] || 'bg-amber-100 text-amber-600';
-            const overdue = !f.is_completed && isOverdue(f.next_followup_at);
-            return (
-              <div key={f.id} className="p-4 flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  f.is_completed ? 'bg-green-100 text-green-600' :
-                  overdue ? 'bg-red-100 text-red-600' : iconClass
-                }`}>
-                  {f.is_completed ? <CheckCircle size={18} /> : <TypeIcon size={18} />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => navigate(`/leads/${f.lead_id}`)} className="font-medium text-sm hover:text-brand-600 text-left">
-                      {f.lead_name}
-                    </button>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold capitalize ${
-                      overdue ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
-                    }`}>
-                      {overdue ? 'Overdue' : f.followup_type}
-                    </span>
+        <>
+          <div className="bg-white rounded-2xl border divide-y">
+            {followups.map(f => {
+              const TypeIcon = typeIcon[f.followup_type] || Clock;
+              const iconClass = typeColor[f.followup_type] || 'bg-amber-100 text-amber-600';
+              const overdue = !f.is_completed && isOverdue(f.next_followup_at);
+              return (
+                <div key={f.id} className="p-4 flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    f.is_completed ? 'bg-green-100 text-green-600' :
+                    overdue ? 'bg-red-100 text-red-600' : iconClass
+                  }`}>
+                    {f.is_completed ? <CheckCircle size={18} /> : <TypeIcon size={18} />}
                   </div>
-                  <p className="text-xs text-gray-500">{f.lead_phone}</p>
-                  {f.notes && <p className="text-sm mt-1 text-gray-700">{f.notes}</p>}
-                  <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
-                    <Calendar size={12} />
-                    {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => navigate(`/leads/${f.lead_id}`)} className="font-medium text-sm hover:text-brand-600 text-left">
+                        {f.lead_name}
+                      </button>
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold capitalize ${
+                        overdue ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {overdue ? 'Overdue' : f.followup_type}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-500">{f.lead_phone}</p>
+                    {f.notes && <p className="text-sm mt-1 text-gray-700">{f.notes}</p>}
+                    <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
+                      <Calendar size={12} />
+                      {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  {!f.is_completed && (
+                    <button onClick={() => handleComplete(f.id)}
+                      className="shrink-0 px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100">
+                      Mark Done
+                    </button>
+                  )}
                 </div>
-                {!f.is_completed && (
-                  <button onClick={() => handleComplete(f.id)}
-                    className="shrink-0 px-3 py-1.5 bg-green-50 text-green-600 rounded-lg text-xs font-medium hover:bg-green-100">
-                    Mark Done
-                  </button>
-                )}
+              );
+            })}
+          </div>
+
+          {pagination.pages > 1 && (
+            <div className="flex items-center justify-between px-1">
+              <p className="text-xs text-gray-500">
+                {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, pagination.total)} of {pagination.total}
+              </p>
+              <div className="flex items-center gap-1">
+                <button onClick={() => setPage(p => p - 1)} disabled={page === 1}
+                  className="p-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <ChevronLeft size={16} />
+                </button>
+                {Array.from({ length: pagination.pages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === pagination.pages || Math.abs(p - page) <= 1)
+                  .reduce((acc, p, idx, arr) => {
+                    if (idx > 0 && p - arr[idx - 1] > 1) acc.push('...');
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, idx) => p === '...' ? (
+                    <span key={`ellipsis-${idx}`} className="px-1 text-xs text-gray-400">…</span>
+                  ) : (
+                    <button key={p} onClick={() => setPage(p)}
+                      className={`w-8 h-8 rounded-lg text-xs font-medium border ${page === p ? 'bg-brand-600 text-white border-brand-600' : 'hover:bg-gray-50'}`}>
+                      {p}
+                    </button>
+                  ))
+                }
+                <button onClick={() => setPage(p => p + 1)} disabled={page === pagination.pages}
+                  className="p-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                  <ChevronRight size={16} />
+                </button>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
