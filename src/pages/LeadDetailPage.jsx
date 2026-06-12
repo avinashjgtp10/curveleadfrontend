@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, brochuresAPI, staffAPI } from '../services/api';
+import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
@@ -66,7 +66,15 @@ const LeadDetailPage = () => {
   });
   const [savingFollowup, setSavingFollowup] = useState(false);
 
+  // Follow-up history with pagination
+  const [followupHistory, setFollowupHistory] = useState([]);
+  const [followupPage, setFollowupPage] = useState(1);
+  const [followupPagination, setFollowupPagination] = useState({ total: 0, pages: 1 });
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const FOLLOWUP_LIMIT = 5;
+
   useEffect(() => { loadData(); loadStages(); loadTemplatesAndBrochures(); }, [id]);
+  useEffect(() => { if (id) loadFollowupHistory(); }, [id, followupPage]);
 
   const loadTemplatesAndBrochures = async () => {
     try {
@@ -109,6 +117,16 @@ const LeadDetailPage = () => {
     } catch (e) { console.error(e); }
   };
 
+  const loadFollowupHistory = async () => {
+    setHistoryLoading(true);
+    try {
+      const { data } = await followupAPI.getAll({ lead_id: id, status: 'all', page: followupPage, limit: FOLLOWUP_LIMIT });
+      setFollowupHistory(data.followups || []);
+      setFollowupPagination(data.pagination || { total: 0, pages: 1 });
+    } catch (e) { console.error(e); }
+    finally { setHistoryLoading(false); }
+  };
+
   const handleSave = async () => {
     try {
       await leadAPI.update(id, form);
@@ -135,7 +153,9 @@ const LeadDetailPage = () => {
         notes: followupForm.notes.trim() || null,
       });
       setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '' });
+      setFollowupPage(1);
       loadData();
+      loadFollowupHistory();
     } catch (e) { alert(e.response?.data?.error || 'Failed to schedule follow-up'); }
     finally { setSavingFollowup(false); }
   };
@@ -409,6 +429,64 @@ const LeadDetailPage = () => {
               </button>
             </div>
           </div>
+
+          {/* Follow-up History */}
+          {(followupHistory.length > 0 || historyLoading) && (
+            <div className="bg-white rounded-2xl border p-5">
+              <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+                <Calendar size={16} /> Follow-up History
+                <span className="ml-auto text-xs text-gray-400 font-normal">{followupPagination.total} total</span>
+              </h3>
+
+              {historyLoading ? (
+                <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+              ) : (
+                <div className="space-y-2">
+                  {followupHistory.map(f => (
+                    <div key={f.id} className={`p-2.5 rounded-xl border ${f.is_completed ? 'bg-gray-50' : 'bg-white'}`}>
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {f.is_completed
+                            ? <CheckCircle size={13} className="text-green-500 shrink-0" />
+                            : <Calendar size={13} className="text-cyan-500 shrink-0" />
+                          }
+                          <span className={`text-xs font-medium capitalize ${f.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                            {f.followup_type}
+                          </span>
+                        </div>
+                        {!f.is_completed && (
+                          <button
+                            onClick={async () => { await followupAPI.complete(f.id, { outcome: 'Done' }); setFollowupPage(1); loadFollowupHistory(); loadData(); }}
+                            className="shrink-0 text-[10px] px-2 py-0.5 bg-green-50 text-green-600 rounded-md hover:bg-green-100">
+                            Done
+                          </button>
+                        )}
+                      </div>
+                      {f.notes && <p className="text-xs text-gray-500 mt-1 truncate">{f.notes}</p>}
+                      <p className="text-[10px] text-gray-400 mt-1">
+                        {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {followupPagination.pages > 1 && (
+                <div className="flex items-center justify-between mt-3 pt-3 border-t">
+                  <span className="text-[10px] text-gray-400">
+                    {(followupPage - 1) * FOLLOWUP_LIMIT + 1}–{Math.min(followupPage * FOLLOWUP_LIMIT, followupPagination.total)} of {followupPagination.total}
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => setFollowupPage(p => p - 1)} disabled={followupPage === 1}
+                      className="p-1 rounded border hover:bg-gray-50 disabled:opacity-40"><ChevronLeft size={13} /></button>
+                    <span className="text-xs px-1">{followupPage} / {followupPagination.pages}</span>
+                    <button onClick={() => setFollowupPage(p => p + 1)} disabled={followupPage === followupPagination.pages}
+                      className="p-1 rounded border hover:bg-gray-50 disabled:opacity-40"><ChevronRight size={13} /></button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Share Materials */}
           <div className="bg-white rounded-2xl border p-5">
