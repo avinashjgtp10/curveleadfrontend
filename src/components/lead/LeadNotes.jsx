@@ -16,7 +16,7 @@ const noteTypeColors = {
   follow_up: 'bg-amber-100 text-amber-700',
 };
 
-const LeadNotes = ({ leadId }) => {
+const LeadNotes = ({ leadId, onActivityAdded }) => {
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -46,6 +46,7 @@ const LeadNotes = ({ leadId }) => {
       setEditing(null);
       setForm({ note: '', note_type: 'general' });
       load();
+      if (!editing) onActivityAdded?.();
     } catch (e) { alert('Failed'); }
   };
 

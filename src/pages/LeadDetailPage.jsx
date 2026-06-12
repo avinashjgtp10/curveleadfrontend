@@ -1,24 +1,28 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, brochuresAPI } from '../services/api';
+import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, brochuresAPI, staffAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
-    call:           { Icon: PhoneCall,    bg: 'bg-blue-50',   color: 'text-blue-600' },
-    whatsapp:       { Icon: MessageSquare,bg: 'bg-green-50',  color: 'text-green-600' },
-    whatsapp_sent:  { Icon: MessageSquare,bg: 'bg-green-50',  color: 'text-green-600' },
-    whatsapp_received:{ Icon: MessageSquare,bg:'bg-green-50', color: 'text-green-600' },
-    visit:          { Icon: Navigation,   bg: 'bg-purple-50', color: 'text-purple-600' },
-    stage_change:   { Icon: GitBranch,    bg: 'bg-amber-50',  color: 'text-amber-600' },
-    note:           { Icon: StickyNote,   bg: 'bg-gray-50',   color: 'text-gray-500' },
-    quotation:      { Icon: FileText,     bg: 'bg-indigo-50', color: 'text-indigo-600' },
-    followup_scheduled:{ Icon: Calendar,  bg: 'bg-cyan-50',   color: 'text-cyan-600' },
-    enrolled:       { Icon: UserCheck,    bg: 'bg-green-50',  color: 'text-green-700' },
-    lead_created:   { Icon: PlusCircle,   bg: 'bg-brand-50',  color: 'text-brand-600' },
-    ai_scored:      { Icon: Star,         bg: 'bg-yellow-50', color: 'text-yellow-600' },
+    call:                { Icon: PhoneCall,    bg: 'bg-blue-50',    color: 'text-blue-600' },
+    whatsapp:            { Icon: MessageSquare,bg: 'bg-green-50',   color: 'text-green-600' },
+    whatsapp_sent:       { Icon: MessageSquare,bg: 'bg-green-50',   color: 'text-green-600' },
+    whatsapp_received:   { Icon: MessageSquare,bg: 'bg-green-50',   color: 'text-green-600' },
+    visit:               { Icon: Navigation,   bg: 'bg-purple-50',  color: 'text-purple-600' },
+    stage_change:        { Icon: GitBranch,    bg: 'bg-amber-50',   color: 'text-amber-600' },
+    source_change:       { Icon: Radio,        bg: 'bg-sky-50',     color: 'text-sky-600' },
+    note:                { Icon: StickyNote,   bg: 'bg-gray-50',    color: 'text-gray-500' },
+    quotation:           { Icon: FileText,     bg: 'bg-indigo-50',  color: 'text-indigo-600' },
+    followup_scheduled:  { Icon: Calendar,     bg: 'bg-cyan-50',    color: 'text-cyan-600' },
+    file_uploaded:       { Icon: Paperclip,    bg: 'bg-orange-50',  color: 'text-orange-600' },
+    share_material:      { Icon: Share2,       bg: 'bg-teal-50',    color: 'text-teal-600' },
+    enrolled:            { Icon: UserCheck,    bg: 'bg-green-50',   color: 'text-green-700' },
+    lead_created:        { Icon: PlusCircle,   bg: 'bg-brand-50',   color: 'text-brand-600' },
+    created:             { Icon: PlusCircle,   bg: 'bg-brand-50',   color: 'text-brand-600' },
+    ai_scored:           { Icon: Star,         bg: 'bg-yellow-50',  color: 'text-yellow-600' },
   };
   return map[type] || { Icon: StickyNote, bg: 'bg-gray-50', color: 'text-gray-400' };
 };
@@ -48,9 +52,10 @@ const LeadDetailPage = () => {
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
 
-  // Stages
+  // Stages & Staff
   const [stages, setStages] = useState([]);
   const [stageSaving, setStageSaving] = useState(false);
+  const [staff, setStaff] = useState([]);
 
   // Follow-up
   const [followups, setFollowups] = useState([]);
@@ -95,8 +100,12 @@ const LeadDetailPage = () => {
 
   const loadStages = async () => {
     try {
-      const { data } = await stageAPI.getAll();
-      setStages(data.stages || []);
+      const [stageRes, staffRes] = await Promise.all([
+        stageAPI.getAll(),
+        staffAPI.getAll().catch(() => ({ data: { staff: [] } })),
+      ]);
+      setStages(stageRes.data.stages || []);
+      setStaff(staffRes.data.staff || []);
     } catch (e) { console.error(e); }
   };
 
@@ -263,6 +272,14 @@ const LeadDetailPage = () => {
                     </select>
                   </div>
                   <div>
+                    <label className="text-xs text-gray-500">Assign To</label>
+                    <select value={form.assigned_to || ''} onChange={e => setForm({ ...form, assigned_to: e.target.value || null })}
+                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300">
+                      <option value="">Unassigned</option>
+                      {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                  </div>
+                  <div>
                     <label className="text-xs text-gray-500">Notes</label>
                     <textarea value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })}
                       rows={2} className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
@@ -289,6 +306,14 @@ const LeadDetailPage = () => {
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Source</p>
                     <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
+                  </div>
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-gray-500">Assigned To</p>
+                    {lead.assigned_to_name ? (
+                      <p className="font-medium">{lead.assigned_to_name}</p>
+                    ) : (
+                      <button onClick={() => setEditing(true)} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
+                    )}
                   </div>
                 </>
               )}
@@ -525,10 +550,10 @@ const LeadDetailPage = () => {
           </div>
 
           {/* Notes */}
-          <LeadNotes leadId={id} />
+          <LeadNotes leadId={id} onActivityAdded={loadData} />
 
           {/* Attachments */}
-          <LeadAttachments leadId={id} />
+          <LeadAttachments leadId={id} onActivityAdded={loadData} />
 
           {/* Activity Timeline */}
           <div className="bg-white rounded-2xl border p-5">

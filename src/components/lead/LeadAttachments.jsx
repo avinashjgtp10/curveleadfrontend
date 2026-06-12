@@ -17,7 +17,7 @@ const formatBytes = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const LeadAttachments = ({ leadId }) => {
+const LeadAttachments = ({ leadId, onActivityAdded }) => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -49,6 +49,7 @@ const LeadAttachments = ({ leadId }) => {
       setDescription('');
       e.target.value = '';
       load();
+      onActivityAdded?.();
     } catch (err) { alert(err.response?.data?.error || 'Upload failed'); }
     finally { setUploading(false); }
   };
