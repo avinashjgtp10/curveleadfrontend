@@ -73,7 +73,7 @@ const LeadDetailPage = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const FOLLOWUP_LIMIT = 5;
 
-  useEffect(() => { loadData(); loadStages(); loadTemplatesAndBrochures(); }, [id]);
+  useEffect(() => { loadData(); loadStages(); }, [id]);
   useEffect(() => { if (id) loadFollowupHistory(); }, [id, followupPage]);
 
   const loadTemplatesAndBrochures = async () => {
@@ -108,12 +108,16 @@ const LeadDetailPage = () => {
 
   const loadStages = async () => {
     try {
-      const [stageRes, staffRes] = await Promise.all([
-        stageAPI.getAll(),
-        staffAPI.getAll().catch(() => ({ data: { staff: [] } })),
-      ]);
-      setStages(stageRes.data.stages || []);
-      setStaff(staffRes.data.staff || []);
+      const { data } = await stageAPI.getAll();
+      setStages(data.stages || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const loadStaff = async () => {
+    if (staff.length > 0) return;
+    try {
+      const { data } = await staffAPI.getAll().catch(() => ({ data: { staff: [] } }));
+      setStaff(data.staff || []);
     } catch (e) { console.error(e); }
   };
 
@@ -254,7 +258,7 @@ const LeadDetailPage = () => {
                     <X size={16} />
                   </button>
                 )}
-                <button onClick={() => editing ? handleSave() : setEditing(true)} className="p-2 hover:bg-gray-100 rounded-lg" title={editing ? 'Save' : 'Edit'}>
+                <button onClick={() => editing ? handleSave() : (setEditing(true), loadStaff())} className="p-2 hover:bg-gray-100 rounded-lg" title={editing ? 'Save' : 'Edit'}>
                   {editing ? <Save size={16} className="text-brand-600" /> : <Edit2 size={16} />}
                 </button>
               </div>
@@ -332,7 +336,7 @@ const LeadDetailPage = () => {
                     {lead.assigned_to_name ? (
                       <p className="font-medium">{lead.assigned_to_name}</p>
                     ) : (
-                      <button onClick={() => setEditing(true)} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
                     )}
                   </div>
                 </>
