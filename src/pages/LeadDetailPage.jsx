@@ -73,7 +73,7 @@ const LeadDetailPage = () => {
   const [historyLoading, setHistoryLoading] = useState(false);
   const FOLLOWUP_LIMIT = 5;
 
-  useEffect(() => { loadData(); loadStages(); }, [id]);
+  useEffect(() => { loadData(); loadStages(); loadTemplatesAndBrochures(); }, [id]);
   useEffect(() => { if (id) loadFollowupHistory(); }, [id, followupPage]);
 
   const loadTemplatesAndBrochures = async () => {
