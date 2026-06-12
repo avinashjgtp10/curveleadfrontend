@@ -50,6 +50,7 @@ export const leadAPI = {
   score: (id) => api.post(`/leads/${id}/score`),
   getStages: () => api.get('/leads/stages/all'),
   addFollowup: (id, data) => api.post(`/leads/${id}/followups`, data),
+  getFollowupsToday: (params) => api.get('/leads/followups/today', { params }),
 };
 
 // ============================================

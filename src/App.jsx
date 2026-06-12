@@ -28,6 +28,7 @@ import BrochuresPage from './pages/BrochuresPage';
 import QuotationsPage from './pages/QuotationsPage';
 import QuotationEditorPage from './pages/QuotationEditorPage';
 import QuotationViewPage from './pages/QuotationViewPage';
+import QuotationPublicPage from './pages/QuotationPublicPage';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -49,6 +50,7 @@ const App = () => (
       <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
       <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
       <Route path="/reset-password" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
+      <Route path="/q/:id" element={<QuotationPublicPage />} />
 
       <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
         <Route path="dashboard" element={<DashboardPage />} />

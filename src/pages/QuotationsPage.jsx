@@ -39,7 +39,8 @@ const QuotationsPage = () => {
   const handleShareWA = (q) => {
     const phone = (q.lead_phone || '').replace(/\D/g, '');
     const amount = parseFloat(q.total).toLocaleString('en-IN');
-    const text = `Hi ${q.lead_name}! 👋\n\nPlease find your quotation details below:\n*Quote No:* ${q.quote_number}\n*Title:* ${q.title || 'Quotation'}\n*Total Amount:* ₹${amount}\n\nKindly review and let us know if you'd like to proceed.`;
+    const viewUrl = `${window.location.origin}/q/${q.id}`;
+    const text = `Hi ${q.lead_name}! 👋\n\nPlease find your quotation details below:\n*Quote No:* ${q.quote_number}\n*Title:* ${q.title || 'Quotation'}\n*Total Amount:* ₹${amount}\n\n📄 *View your quotation:*\n${viewUrl}\n\nKindly review and let us know if you'd like to proceed.`;
     const url = phone
       ? `https://wa.me/${phone.length === 10 ? '91' + phone : phone}?text=${encodeURIComponent(text)}`
       : `https://wa.me/?text=${encodeURIComponent(text)}`;

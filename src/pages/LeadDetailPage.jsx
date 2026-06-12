@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, brochuresAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
@@ -32,6 +32,7 @@ const scoreColors = {
 const LeadDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [lead, setLead] = useState(null);
   const [activities, setActivities] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -194,7 +195,7 @@ const LeadDetailPage = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+        <button onClick={() => navigate('/leads', { state: { view: location.state?.returnView || 'list' } })} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
           <ArrowLeft size={16} /> Back
         </button>
         <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
@@ -208,45 +209,102 @@ const LeadDetailPage = () => {
         <div className="lg:col-span-1 space-y-4">
           <div className="bg-white rounded-2xl border p-5">
             <div className="flex items-start justify-between mb-4">
-              <div>
+              <div className="flex-1 min-w-0 pr-2">
                 {editing ? (
-                  <input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
+                  <input value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })}
+                    placeholder="Full name"
                     className="text-xl font-bold w-full border-b focus:outline-none focus:border-brand-500" />
-                ) : <h2 className="text-xl font-bold">{lead.name}</h2>}
+                ) : <h2 className="text-xl font-bold truncate">{lead.name}</h2>}
                 <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
                   {lead.lead_score?.toUpperCase()}
                 </span>
               </div>
-              <button onClick={() => editing ? handleSave() : setEditing(true)} className="p-2 hover:bg-gray-100 rounded-lg">
-                {editing ? <Save size={16} /> : <Edit2 size={16} />}
-              </button>
+              <div className="flex gap-1 shrink-0">
+                {editing && (
+                  <button onClick={() => { setEditing(false); setForm(lead); }} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400" title="Cancel">
+                    <X size={16} />
+                  </button>
+                )}
+                <button onClick={() => editing ? handleSave() : setEditing(true)} className="p-2 hover:bg-gray-100 rounded-lg" title={editing ? 'Save' : 'Edit'}>
+                  {editing ? <Save size={16} className="text-brand-600" /> : <Edit2 size={16} />}
+                </button>
+              </div>
             </div>
 
             <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-2">
-                <Phone size={14} className="text-gray-400" />
-                <a href={`tel:${lead.phone}`} className="hover:text-brand-600">{lead.phone}</a>
-              </div>
-              {lead.email && <div className="flex items-center gap-2"><Mail size={14} className="text-gray-400" /><a href={`mailto:${lead.email}`} className="hover:text-brand-600">{lead.email}</a></div>}
-              {lead.location && <div className="flex items-center gap-2"><MapPin size={14} className="text-gray-400" /><span>{lead.location}</span></div>}
+              {editing ? (
+                <div className="space-y-2">
+                  <div>
+                    <label className="text-xs text-gray-500">Phone *</label>
+                    <input type="tel" value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })}
+                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Email</label>
+                    <input type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })}
+                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">City</label>
+                    <input value={form.location || ''} onChange={e => setForm({ ...form, location: e.target.value })}
+                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Source</label>
+                    <select value={form.source || 'manual'} onChange={e => setForm({ ...form, source: e.target.value })}
+                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300">
+                      <option value="manual">Manual</option>
+                      <option value="meta_ads">Meta Ads</option>
+                      <option value="google_ads">Google Ads</option>
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="referral">Referral</option>
+                      <option value="website">Website</option>
+                      <option value="walkin">Walk-in</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Notes</label>
+                    <textarea value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })}
+                      rows={2} className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Phone size={14} className="text-gray-400 shrink-0" />
+                    <a href={`tel:${lead.phone}`} className="hover:text-brand-600">{lead.phone}</a>
+                  </div>
+                  {lead.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail size={14} className="text-gray-400 shrink-0" />
+                      <a href={`mailto:${lead.email}`} className="hover:text-brand-600 truncate">{lead.email}</a>
+                    </div>
+                  )}
+                  {lead.location && (
+                    <div className="flex items-center gap-2">
+                      <MapPin size={14} className="text-gray-400 shrink-0" />
+                      <span>{lead.location}</span>
+                    </div>
+                  )}
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-gray-500">Source</p>
+                    <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
+                  </div>
+                </>
+              )}
 
-              <div className="pt-3 border-t">
-                <p className="text-xs text-gray-500">Source</p>
-                <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
-              </div>
-
-              {/* Stage Dropdown */}
-              <div>
+              {/* Stage Dropdown — always visible */}
+              <div className={editing ? '' : 'pt-2 border-t'}>
                 <p className="text-xs text-gray-500 mb-1">Stage</p>
                 <div className="relative">
                   <select
-                    value={lead.stage || ''}
+                    value={(lead.stage || '').toLowerCase()}
                     onChange={e => handleStageChange(e.target.value)}
                     disabled={stageSaving}
                     className="w-full appearance-none px-3 py-2 border rounded-lg text-sm font-medium bg-white pr-8 focus:outline-none focus:ring-2 focus:ring-brand-300 capitalize disabled:opacity-60">
                     {stages.length > 0
                       ? stages.map(s => <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>)
-                      : <option value={lead.stage}>{lead.stage}</option>
+                      : <option value={(lead.stage || '').toLowerCase()}>{lead.stage || 'Select stage'}</option>
                     }
                   </select>
                   <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
