@@ -205,6 +205,17 @@ export const quotationsAPI = {
 };
 
 // ============================================
+// Integrations
+// ============================================
+export const integrationsAPI = {
+  getSettings: () => api.get('/integrations/settings'),
+  updateSettings: (data) => api.put('/integrations/settings', data),
+  generateApiKey: () => api.post('/integrations/api-key'),
+  revokeApiKey: () => api.delete('/integrations/api-key'),
+  getEmbedScript: () => api.get('/integrations/embed-script'),
+};
+
+// ============================================
 // Notifications
 // ============================================
 export const notificationsAPI = {

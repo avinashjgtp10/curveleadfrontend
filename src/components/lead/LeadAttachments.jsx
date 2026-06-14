@@ -141,6 +141,19 @@ const LeadAttachments = ({ leadId, onActivityAdded }) => {
     try { await attachmentsAPI.delete(leadId, id); load(); } catch (e) { alert('Failed'); }
   };
 
+  const handleDownload = async (f) => {
+    try {
+      const res = await fetch(f.file_url);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = f.file_name;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch { alert('Download failed'); }
+  };
+
   const handleShare = async (id) => {
     try {
       const { data } = await attachmentsAPI.shareWhatsApp(leadId, id);
@@ -219,9 +232,9 @@ const LeadAttachments = ({ leadId, onActivityAdded }) => {
                   </p>
                 </div>
                 <div className="flex gap-1 shrink-0">
-                  <a href={f.file_url} download className="p-1.5 hover:bg-white rounded text-gray-500" title="Download">
+                  <button onClick={() => handleDownload(f)} className="p-1.5 hover:bg-white rounded text-gray-500" title="Download">
                     <Download size={14} />
-                  </a>
+                  </button>
                   <button onClick={() => handleShare(f.id)} className="p-1.5 hover:bg-green-50 rounded text-green-500" title="Share on WhatsApp">
                     <Send size={14} />
                   </button>

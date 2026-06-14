@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, Megaphone, MessageCircle, Clock, UserCog, BarChart3, Settings, LogOut, X, BookOpen, FileText, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Users, Megaphone, MessageCircle, Clock, UserCog, BarChart3, Settings, LogOut, X, BookOpen, FileText, CreditCard, Plug } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
 
 const navItems = [
@@ -13,6 +14,7 @@ const navItems = [
   { path: '/followups', label: 'Follow-ups', icon: Clock, roles: ['admin', 'staff'] },
   { path: '/staff', label: 'Team', icon: UserCog, roles: ['admin'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
+  { path: '/integrations', label: 'Integrations', icon: Plug, roles: ['admin'] },
   { path: '/billing', label: 'Billing', icon: CreditCard, roles: ['admin'] },
   { path: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
 ];
@@ -21,6 +23,7 @@ const Sidebar = ({ isOpen, onClose }) => {
   const { user, tenant, logout } = useAuth();
   const navigate = useNavigate();
   const role = user?.role === 'super_admin' ? 'admin' : user?.role;
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -58,12 +61,34 @@ const Sidebar = ({ isOpen, onClose }) => {
               <p className="text-sm font-medium truncate">{user?.name}</p>
               <p className="text-[10px] text-gray-500 capitalize">{user?.role}</p>
             </div>
-            <button onClick={handleLogout} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Logout">
+            <button onClick={() => setShowLogoutConfirm(true)} className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg" title="Logout">
               <LogOut size={16} />
             </button>
           </div>
         </div>
       </aside>
+
+      {showLogoutConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50" onClick={() => setShowLogoutConfirm(false)}>
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-72 mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-center w-12 h-12 bg-red-100 rounded-full mx-auto mb-4">
+              <LogOut size={22} className="text-red-500" />
+            </div>
+            <h3 className="text-center font-semibold text-gray-800 mb-1">Logout</h3>
+            <p className="text-center text-sm text-gray-500 mb-5">Are you sure you want to logout?</p>
+            <div className="flex gap-3">
+              <button onClick={() => setShowLogoutConfirm(false)}
+                className="flex-1 py-2 rounded-xl border text-sm font-medium text-gray-600 hover:bg-gray-50">
+                Cancel
+              </button>
+              <button onClick={handleLogout}
+                className="flex-1 py-2 rounded-xl bg-red-500 text-white text-sm font-medium hover:bg-red-600">
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 };

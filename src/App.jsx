@@ -25,6 +25,7 @@ import BillingPage from './pages/BillingPage';
 
 // ⭐ NEW: Brochures & Quotations
 import BrochuresPage from './pages/BrochuresPage';
+import IntegrationsPage from './pages/IntegrationsPage';
 import QuotationsPage from './pages/QuotationsPage';
 import QuotationEditorPage from './pages/QuotationEditorPage';
 import QuotationViewPage from './pages/QuotationViewPage';
@@ -69,6 +70,7 @@ const App = () => (
         <Route path="reports" element={<ReportsPage />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="integrations" element={<IntegrationsPage />} />
       </Route>
     </Routes>
   </AuthProvider>
