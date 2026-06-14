@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { integrationsAPI } from '../services/api';
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw } from 'lucide-react';
 
-const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
+const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
 
 const loadFbSdk = () =>
   new Promise((resolve) => {
@@ -231,7 +231,6 @@ const MetaConfig = ({ settings, onRefresh }) => {
   const [disconnecting, setDisconnecting] = useState(false);
 
   const handleFbLogin = useCallback(async () => {
-    if (!FB_APP_ID) return alert('VITE_FACEBOOK_APP_ID is not set. Add it to your .env file.');
     setConnecting(true);
     try {
       const FB = await loadFbSdk();
