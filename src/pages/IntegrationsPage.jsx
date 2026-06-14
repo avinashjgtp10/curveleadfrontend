@@ -229,21 +229,22 @@ const MetaConfig = ({ settings, onRefresh }) => {
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState(null);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [fbReady, setFbReady] = useState(false);
 
-  const handleFbLogin = useCallback(async () => {
+  // Load SDK on mount so FB.login() can be called synchronously on click
+  useEffect(() => {
+    loadFbSdk().then(() => setFbReady(true)).catch(console.error);
+  }, []);
+
+  const handleFbLogin = useCallback(() => {
+    if (!window.FB) return alert('Facebook SDK not loaded yet. Please wait a moment and try again.');
     setConnecting(true);
-    try {
-      const FB = await loadFbSdk();
-      FB.login(async (authResp) => {
-        if (authResp.status !== 'connected') { setConnecting(false); return; }
-        try {
-          const { data } = await integrationsAPI.facebookAuth(authResp.authResponse.accessToken);
-          setPages(data.pages);
-        } catch (e) {
-          alert(e.response?.data?.error || 'Facebook auth failed.');
-        } finally { setConnecting(false); }
-      }, { scope: 'leads_retrieval,pages_manage_ads,pages_read_engagement,pages_manage_metadata,business_management' });
-    } catch { setConnecting(false); }
+    window.FB.login((authResp) => {
+      if (authResp.status !== 'connected') { setConnecting(false); return; }
+      integrationsAPI.facebookAuth(authResp.authResponse.accessToken)
+        .then(({ data }) => { setPages(data.pages); setConnecting(false); })
+        .catch(e => { alert(e.response?.data?.error || 'Facebook auth failed.'); setConnecting(false); });
+    }, { scope: 'leads_retrieval,pages_manage_ads,pages_read_engagement,pages_manage_metadata,business_management' });
   }, []);
 
   const handleSelectPage = async (page) => {
