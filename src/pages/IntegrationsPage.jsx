@@ -1,6 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { integrationsAPI } from '../services/api';
-import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock } from 'lucide-react';
+import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw } from 'lucide-react';
+
+const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID;
+
+const loadFbSdk = () =>
+  new Promise((resolve) => {
+    if (window.FB) return resolve(window.FB);
+    window.fbAsyncInit = () => {
+      window.FB.init({ appId: FB_APP_ID, version: 'v19.0', xfbml: false, cookie: true });
+      resolve(window.FB);
+    };
+    const s = document.createElement('script');
+    s.src = 'https://connect.facebook.net/en_US/sdk.js';
+    s.async = true;
+    document.head.appendChild(s);
+  });
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
 
@@ -208,53 +223,148 @@ const CATEGORIES = ['All', 'Ads', 'Website', 'Forms', 'Marketplace', 'Automation
 
 // ── Config panels ──────────────────────────────────────────────────────────
 
-const MetaConfig = ({ settings, form, setForm, saving, handleSave }) => (
-  <div className="space-y-5">
-    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${settings.meta_configured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-      {settings.meta_configured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-      {settings.meta_configured ? 'Meta integration is active.' : 'Not configured — enter your Page ID and Access Token below.'}
+const MetaConfig = ({ settings, onRefresh }) => {
+  const [pages, setPages] = useState(null);
+  const [connecting, setConnecting] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  const handleFbLogin = useCallback(async () => {
+    if (!FB_APP_ID) return alert('VITE_FACEBOOK_APP_ID is not set. Add it to your .env file.');
+    setConnecting(true);
+    try {
+      const FB = await loadFbSdk();
+      FB.login(async (authResp) => {
+        if (authResp.status !== 'connected') { setConnecting(false); return; }
+        try {
+          const { data } = await integrationsAPI.facebookAuth(authResp.authResponse.accessToken);
+          setPages(data.pages);
+        } catch (e) {
+          alert(e.response?.data?.error || 'Facebook auth failed.');
+        } finally { setConnecting(false); }
+      }, { scope: 'leads_retrieval,pages_manage_ads,pages_read_engagement,pages_manage_metadata,business_management' });
+    } catch { setConnecting(false); }
+  }, []);
+
+  const handleSelectPage = async (page) => {
+    try {
+      await integrationsAPI.facebookConnectPage({ page_id: page.id, page_access_token: page.access_token, page_name: page.name });
+      setPages(null);
+      onRefresh();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to connect page.'); }
+  };
+
+  const handleSync = async () => {
+    setSyncing(true); setSyncResult(null);
+    try {
+      const { data } = await integrationsAPI.facebookSyncLeads();
+      setSyncResult(data.message);
+      onRefresh();
+    } catch (e) { setSyncResult(e.response?.data?.error || 'Sync failed.'); }
+    finally { setSyncing(false); }
+  };
+
+  const handleDisconnect = async () => {
+    if (!window.confirm('Disconnect Facebook page? Real-time webhook will also stop.')) return;
+    setDisconnecting(true);
+    try {
+      await integrationsAPI.updateSettings({ meta_page_id: '', meta_page_access_token: '' });
+      onRefresh();
+    } catch { alert('Failed to disconnect.'); }
+    finally { setDisconnecting(false); }
+  };
+
+  // Page selector view
+  if (pages) return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-2xl border p-5 space-y-4">
+        <div className="flex items-center gap-2">
+          <Users size={16} className="text-blue-500" />
+          <h2 className="font-semibold">Select a Facebook Page</h2>
+        </div>
+        {pages.length === 0 && <p className="text-sm text-gray-500">No pages found. Make sure you manage at least one Facebook Page.</p>}
+        <div className="space-y-2">
+          {pages.map(page => (
+            <button key={page.id} onClick={() => handleSelectPage(page)}
+              className="w-full flex items-center justify-between px-4 py-3 border rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors text-left">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">{page.name}</p>
+                <p className="text-xs text-gray-400">ID: {page.id}</p>
+              </div>
+              <ChevronRight size={16} className="text-gray-400" />
+            </button>
+          ))}
+        </div>
+        <button onClick={() => setPages(null)} className="text-xs text-gray-400 hover:text-gray-600">← Cancel</button>
+      </div>
     </div>
-    <div className="bg-white rounded-2xl border p-5 space-y-4">
-      <div>
-        <h2 className="font-semibold mb-1">Step 1 — Add Webhook URL in Meta Business Suite</h2>
-        <p className="text-xs text-gray-500 mb-3">Go to Meta Business Suite → Leads Access → CRM Integration → paste this URL:</p>
+  );
+
+  return (
+    <div className="space-y-5">
+      {/* Connection status */}
+      {settings.meta_configured ? (
+        <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <CheckCircle size={18} className="text-green-500" />
+            <div>
+              <p className="text-sm font-semibold text-green-800">Connected</p>
+              <p className="text-xs text-green-600">{settings.meta_page_name || `Page ID: ${settings.meta_page_id}`}</p>
+            </div>
+          </div>
+          <button onClick={handleDisconnect} disabled={disconnecting}
+            className="text-xs text-red-500 hover:text-red-700 font-medium">
+            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        </div>
+      ) : (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-2">
+          <AlertCircle size={16} className="text-amber-500" />
+          <p className="text-sm text-amber-700">Not connected — click the button below to log in with Facebook.</p>
+        </div>
+      )}
+
+      {/* Login / reconnect button */}
+      <div className="bg-white rounded-2xl border p-5 space-y-4">
+        <button onClick={handleFbLogin} disabled={connecting}
+          className="w-full flex items-center justify-center gap-2 py-3 bg-[#1877F2] text-white rounded-xl text-sm font-semibold hover:bg-[#166FE5] disabled:opacity-60 transition-colors">
+          <LogIn size={16} />
+          {connecting ? 'Opening Facebook…' : settings.meta_configured ? 'Reconnect with Facebook' : 'Login with Facebook'}
+        </button>
+        <p className="text-[11px] text-center text-gray-400">
+          We'll ask for permission to access your Lead Ads. Your Facebook password is never shared with us.
+        </p>
+      </div>
+
+      {/* Sync leads */}
+      {settings.meta_configured && (
+        <div className="bg-white rounded-2xl border p-5 space-y-3">
+          <h2 className="font-semibold">Sync Past Leads</h2>
+          <p className="text-xs text-gray-500">Import all existing leads from your connected Facebook page. New leads come in automatically via webhook.</p>
+          {syncResult && (
+            <div className="flex items-start gap-2 bg-blue-50 rounded-xl px-3 py-2">
+              <CheckCircle size={14} className="text-blue-500 shrink-0 mt-0.5" />
+              <p className="text-xs text-blue-700">{syncResult}</p>
+            </div>
+          )}
+          <button onClick={handleSync} disabled={syncing}
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+            <RotateCcw size={14} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Syncing leads…' : 'Sync Leads Now'}
+          </button>
+        </div>
+      )}
+
+      {/* Webhook info */}
+      <div className="bg-white rounded-2xl border p-5 space-y-3">
+        <h2 className="font-semibold">Real-time Webhook</h2>
+        <p className="text-xs text-gray-500">For instant lead delivery, also add this webhook URL in Meta Business Suite → Leads Access → CRM Integration:</p>
         <UrlRow label="Webhook URL" url={settings.webhook_url} />
       </div>
-      <div>
-        <h2 className="font-semibold mb-1">Step 2 — Configure Credentials</h2>
-        <div className="space-y-3">
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Facebook Page ID</label>
-            <input value={form.meta_page_id} onChange={e => setForm({ ...form, meta_page_id: e.target.value })}
-              placeholder="e.g. 123456789012345"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Page Access Token</label>
-            <input value={form.meta_page_access_token} onChange={e => setForm({ ...form, meta_page_access_token: e.target.value })}
-              onFocus={e => { if (e.target.value.startsWith('•')) setForm(f => ({ ...f, meta_page_access_token: '' })); }}
-              type="password" placeholder="EAAxxxx…"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
-            <p className="text-[10px] text-gray-400 mt-1">Get this from Meta for Developers → Your App → Page Access Token.</p>
-          </div>
-        </div>
-      </div>
-      <button onClick={handleSave} disabled={saving}
-        className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-        {saving ? 'Saving…' : 'Save Meta Settings'}
-      </button>
     </div>
-    <div className="bg-white rounded-2xl border p-5">
-      <h2 className="font-semibold mb-2">How it works</h2>
-      <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
-        <li>Someone fills your Facebook / Instagram Lead Ad form.</li>
-        <li>Meta sends the lead data to your webhook URL instantly.</li>
-        <li>CurveLead creates the lead automatically with source = <code className="bg-gray-100 px-1 rounded">meta_ads</code>.</li>
-        <li>Duplicate phone numbers are skipped automatically.</li>
-      </ol>
-    </div>
-  </div>
-);
+  );
+};
 
 const WebsiteConfig = ({ settings, embedScript, handleLoadEmbed }) => (
   <div className="space-y-5">
@@ -460,7 +570,7 @@ const IntegrationsPage = () => {
           </div>
         </div>
 
-        {selected === 'meta' && <MetaConfig settings={settings} form={form} setForm={setForm} saving={saving} handleSave={handleSave} />}
+        {selected === 'meta' && <MetaConfig settings={settings} onRefresh={load} />}
         {selected === 'website' && <WebsiteConfig settings={settings} embedScript={embedScript} handleLoadEmbed={handleLoadEmbed} />}
         {selected === 'api' && <ApiKeyConfig settings={settings} newKeyValue={newKeyValue} handleGenerateKey={handleGenerateKey} handleRevokeKey={handleRevokeKey} />}
         {selected === 'google' && <GoogleConfig settings={settings} form={form} setForm={setForm} saving={saving} handleSave={handleSave} />}
