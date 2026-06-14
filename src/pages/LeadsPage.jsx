@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, User, CheckSquare, Square, GitBranch, UserCheck } from 'lucide-react';
 
 const scoreColors = {
@@ -14,6 +15,8 @@ const EMPTY_FILTERS = { search: '', stage: '', source: '', score: '', assigned_t
 const LeadsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [leads, setLeads] = useState([]);
   const [stages, setStages] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -27,12 +30,13 @@ const LeadsPage = () => {
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
   const [editingStageId, setEditingStageId] = useState(null);
+  const [editingAssignId, setEditingAssignId] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkStage, setBulkStage] = useState('');
   const [bulkAssign, setBulkAssign] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
   const PAGE_SIZE = 25;
-  const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return d.toISOString().slice(0, 16); };
+  const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
 
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => k !== 'search' && v).length;
@@ -108,6 +112,18 @@ const LeadsPage = () => {
       await leadAPI.update(leadId, { stage: newStage });
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
     } catch (e) { alert('Failed to update stage'); }
+  };
+
+  const handleAssignChange = async (leadId, staffId) => {
+    setEditingAssignId(null);
+    try {
+      await leadAPI.update(leadId, { assigned_to: staffId || null });
+      const member = staff.find(s => s.id === staffId);
+      setLeads(prev => prev.map(l => l.id === leadId
+        ? { ...l, assigned_to: staffId || null, assigned_to_name: member?.name || null }
+        : l
+      ));
+    } catch (e) { alert('Failed to update assignment'); }
   };
 
   const toggleSelect = (id) => setSelectedIds(prev => {
@@ -476,13 +492,30 @@ const LeadsPage = () => {
                             </button>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-gray-500 text-xs">
-                          {l.assigned_to_name ? (
-                            <span className="inline-flex items-center gap-1">
+                        <td className="px-3 py-3 text-xs">
+                          {editingAssignId === l.id ? (
+                            <select
+                              autoFocus
+                              defaultValue={l.assigned_to || ''}
+                              onBlur={() => setEditingAssignId(null)}
+                              onChange={e => handleAssignChange(l.id, e.target.value)}
+                              className="border border-cyan-400 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                            >
+                              <option value="">Unassigned</option>
+                              {staff.map(s => (
+                                <option key={s.id} value={s.id}>{s.name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <button
+                              onClick={() => setEditingAssignId(l.id)}
+                              className="inline-flex items-center gap-1 text-gray-500 hover:text-cyan-700 hover:underline cursor-pointer"
+                              title="Click to reassign"
+                            >
                               <User size={12} className="text-gray-400" />
-                              {l.assigned_to_name}
-                            </span>
-                          ) : <span className="text-gray-300">—</span>}
+                              {l.assigned_to_name || <span className="text-gray-300">—</span>}
+                            </button>
+                          )}
                         </td>
                         <td className="px-3 py-3 text-right">
                           <div className="flex justify-end gap-1">

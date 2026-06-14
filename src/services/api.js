@@ -204,4 +204,14 @@ export const quotationsAPI = {
   delete: (id) => api.delete(`/quotations/${id}`),
 };
 
+// ============================================
+// Notifications
+// ============================================
+export const notificationsAPI = {
+  getAll: () => api.get('/notifications'),
+  getCount: () => api.get('/notifications/count'),
+  markRead: (id) => api.put(`/notifications/${id}/read`),
+  markAllRead: () => api.put('/notifications/read-all'),
+};
+
 export default api;

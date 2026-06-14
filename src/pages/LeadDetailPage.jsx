@@ -59,8 +59,9 @@ const LeadDetailPage = () => {
 
   // Follow-up
   const [followups, setFollowups] = useState([]);
+  const getLocalNow = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [followupForm, setFollowupForm] = useState({
-    next_followup_at: '',
+    next_followup_at: getLocalNow(),
     followup_type: 'call',
     notes: '',
   });
@@ -401,7 +402,7 @@ const LeadDetailPage = () => {
                   type="datetime-local"
                   value={followupForm.next_followup_at}
                   onChange={e => setFollowupForm({ ...followupForm, next_followup_at: e.target.value })}
-                  min={new Date().toISOString().slice(0, 16)}
+                  min={getLocalNow()}
                   className="w-full px-3 py-2 border rounded-lg text-sm" />
               </div>
 
