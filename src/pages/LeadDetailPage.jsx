@@ -161,8 +161,11 @@ const LeadDetailPage = () => {
     if (!followupForm.next_followup_at) return alert('Please pick a date and time');
     setSavingFollowup(true);
     try {
+      // Convert local datetime string to UTC ISO so the server (UTC) stores it correctly
+      const utcAt = new Date(followupForm.next_followup_at).toISOString();
       await leadAPI.addFollowup(id, {
         ...followupForm,
+        next_followup_at: utcAt,
         notes: (followupForm.notes || '').trim() || null,
       });
       setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '', meeting_url: '' });

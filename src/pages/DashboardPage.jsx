@@ -1,8 +1,50 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { reportsAPI } from '../services/api';
-import PageLoader from '../components/ui/PageLoader';
-import { Users, TrendingUp, IndianRupee, Target, ArrowUpRight } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import {
+  Users, IndianRupee, Target, TrendingUp,
+  ArrowUpRight, ArrowDownRight, Minus,
+  Calendar, Video, AlertTriangle, ChevronRight,
+} from 'lucide-react';
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
+const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+
+const fmtMoney = (n) => {
+  const v = Number(n || 0);
+  if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
+  if (v >= 100000)   return `₹${(v / 100000).toFixed(1)}L`;
+  if (v >= 1000)     return `₹${(v / 1000).toFixed(1)}K`;
+  return `₹${fmt(v)}`;
+};
+
+const STAGE_COLOR = {
+  blue: '#3b82f6', green: '#22c55e', yellow: '#eab308', orange: '#f97316',
+  red: '#ef4444', purple: '#a855f7', pink: '#ec4899', indigo: '#6366f1',
+  teal: '#14b8a6', violet: '#8b5cf6', emerald: '#10b981', gray: '#9ca3af',
+};
+
+const Trend = ({ change }) => {
+  if (change > 0) return (
+    <span className="flex items-center gap-0.5 text-emerald-600 text-xs font-semibold">
+      <ArrowUpRight size={13} />{change}% vs last month
+    </span>
+  );
+  if (change < 0) return (
+    <span className="flex items-center gap-0.5 text-red-500 text-xs font-semibold">
+      <ArrowDownRight size={13} />{Math.abs(change)}% vs last month
+    </span>
+  );
+  return (
+    <span className="flex items-center gap-0.5 text-gray-400 text-xs">
+      <Minus size={13} />Same as last month
+    </span>
+  );
+};
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 const DashboardPage = () => {
   const navigate = useNavigate();
@@ -16,68 +58,297 @@ const DashboardPage = () => {
       .finally(() => setLoading(false));
   }, []);
 
-  if (loading) return <PageLoader message="Loading dashboard..." />;
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full" />
+    </div>
+  );
 
-  const stats = [
-    { label: 'Total Leads', value: data?.total_leads || 0, icon: Users, color: 'bg-blue-100 text-blue-600' },
-    { label: 'Hot Leads', value: data?.hot_leads || 0, icon: TrendingUp, color: 'bg-red-100 text-red-600' },
-    { label: 'Won This Month', value: data?.won_this_month || 0, icon: Target, color: 'bg-green-100 text-green-600' },
-    { label: 'Revenue', value: `₹${Number(data?.total_revenue || 0).toLocaleString('en-IN')}`, icon: IndianRupee, color: 'bg-purple-100 text-purple-600' },
-  ];
+  const monthName = new Date().toLocaleString('en-IN', { month: 'long' });
+  const pipelineTotal = (data?.pipeline || []).reduce((s, p) => s + p.count, 0) || 1;
+
+  const trendData = (data?.trend || []).map(t => ({
+    day: new Date(t.day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    Leads: parseInt(t.count),
+  }));
 
   return (
-    <div className="space-y-6 max-w-6xl mx-auto">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-        {stats.map(s => (
+    <div className="space-y-5 max-w-7xl mx-auto">
+
+      {/* ── KPI Cards ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {[
+          {
+            label: `Leads in ${monthName}`,
+            value: fmt(data?.leads_this_month),
+            sub: `${fmt(data?.total_leads)} total`,
+            trend: data?.leads_change,
+            icon: Users,
+            iconCls: 'bg-blue-100 text-blue-600',
+          },
+          {
+            label: `Revenue in ${monthName}`,
+            value: fmtMoney(data?.revenue_this_month),
+            sub: `${fmtMoney(data?.total_revenue)} total`,
+            trend: data?.revenue_change,
+            icon: IndianRupee,
+            iconCls: 'bg-emerald-100 text-emerald-600',
+          },
+          {
+            label: 'Conversion Rate',
+            value: `${data?.conversion_rate || '0.0'}%`,
+            sub: `${fmt(data?.won_this_month)} won this month`,
+            icon: Target,
+            iconCls: 'bg-violet-100 text-violet-600',
+          },
+          {
+            label: 'Avg Deal Value',
+            value: fmtMoney(data?.avg_deal_value),
+            sub: `${fmt(data?.total_won)} deals closed`,
+            icon: TrendingUp,
+            iconCls: 'bg-amber-100 text-amber-600',
+          },
+        ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl p-5 border">
-            <div className={`w-10 h-10 ${s.color} rounded-xl flex items-center justify-center mb-3`}>
-              <s.icon size={20} />
+            <div className="flex items-start justify-between gap-2">
+              <div className={`w-10 h-10 ${s.iconCls} rounded-xl flex items-center justify-center shrink-0`}>
+                <s.icon size={18} />
+              </div>
+              {s.trend !== undefined && <Trend change={s.trend} />}
             </div>
-            <p className="text-xs text-gray-500">{s.label}</p>
-            <p className="text-2xl font-bold mt-0.5">{s.value}</p>
+            <p className="text-2xl font-bold mt-3 text-gray-900">{s.value}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            <p className="text-[11px] text-gray-400 mt-1">{s.sub}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold">Recent Leads</h3>
-            <button onClick={() => navigate('/leads')} className="text-sm text-brand-600 flex items-center gap-1">View all <ArrowUpRight size={14} /></button>
-          </div>
-          {data?.recentLeads?.length > 0 ? (
-            <div className="space-y-2">
-              {data.recentLeads.map(l => (
-                <button key={l.id} onClick={() => navigate(`/leads/${l.id}`)}
-                  className="w-full flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg text-left">
-                  <div>
-                    <p className="font-medium text-sm">{l.name}</p>
-                    <p className="text-xs text-gray-500">{l.phone} • {l.source}</p>
-                  </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                    l.lead_score === 'hot' ? 'bg-red-100 text-red-700' :
-                    l.lead_score === 'warm' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
-                  }`}>{l.lead_score?.toUpperCase()}</span>
-                </button>
-              ))}
+      {/* ── Today's Action Strip ── */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          {
+            label: 'New Today',
+            value: data?.leads_today || 0,
+            icon: Users,
+            cls: 'text-blue-600 bg-blue-50 border-blue-100',
+            to: '/leads',
+          },
+          {
+            label: 'Follow-ups Today',
+            value: data?.followups_today || 0,
+            icon: Calendar,
+            cls: 'text-amber-600 bg-amber-50 border-amber-100',
+            to: '/leads',
+          },
+          {
+            label: 'Demos Today',
+            value: data?.demos_today || 0,
+            icon: Video,
+            cls: 'text-violet-600 bg-violet-50 border-violet-100',
+            to: '/appointments',
+          },
+          {
+            label: 'Overdue',
+            value: data?.overdue_followups || 0,
+            icon: AlertTriangle,
+            cls: data?.overdue_followups > 0
+              ? 'text-red-600 bg-red-50 border-red-200'
+              : 'text-gray-400 bg-gray-50 border-gray-100',
+            to: '/leads',
+          },
+        ].map(s => (
+          <button key={s.label} onClick={() => navigate(s.to)}
+            className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:opacity-80 transition-opacity text-left w-full`}>
+            <s.icon size={18} className="shrink-0" />
+            <div>
+              <p className="text-xl font-bold leading-none">{s.value}</p>
+              <p className="text-[11px] mt-0.5 opacity-70 font-medium">{s.label}</p>
             </div>
-          ) : <p className="text-sm text-gray-400 text-center py-6">No leads yet. Start capturing!</p>}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Pipeline + Recent Leads ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+        {/* Pipeline funnel */}
+        <div className="lg:col-span-3 bg-white rounded-2xl p-5 border">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-semibold text-gray-900">Pipeline</h3>
+            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">
+              {fmt(pipelineTotal)} total leads
+            </span>
+          </div>
+          <div className="space-y-4">
+            {(data?.pipeline || []).map(stage => {
+              const pct = Math.round((stage.count / pipelineTotal) * 100);
+              const bar = STAGE_COLOR[stage.color] || STAGE_COLOR.gray;
+              return (
+                <div key={stage.name}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: bar }} />
+                      {stage.name}
+                      {stage.is_won && (
+                        <span className="text-[9px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded font-bold">WON</span>
+                      )}
+                      {stage.is_lost && (
+                        <span className="text-[9px] bg-red-100 text-red-500 px-1.5 py-0.5 rounded font-bold">LOST</span>
+                      )}
+                    </span>
+                    <div className="flex items-center gap-4 text-xs text-gray-500 shrink-0">
+                      {stage.pipeline_value > 0 && (
+                        <span className="text-gray-400">{fmtMoney(stage.pipeline_value)}</span>
+                      )}
+                      <span className="font-bold text-gray-800 w-5 text-right">{stage.count}</span>
+                      <span className="text-gray-400 w-7 text-right">{pct}%</span>
+                    </div>
+                  </div>
+                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700"
+                      style={{ width: `${pct}%`, background: bar }} />
+                  </div>
+                </div>
+              );
+            })}
+            {!data?.pipeline?.length && (
+              <p className="text-sm text-gray-400 text-center py-6">No stages configured yet</p>
+            )}
+          </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold mb-4">Today's Follow-ups</h3>
-          {data?.todayFollowups?.length > 0 ? (
-            <div className="space-y-2">
-              {data.todayFollowups.map(f => (
-                <div key={f.id} className="p-3 bg-amber-50 rounded-lg">
-                  <p className="font-medium text-sm">{f.lead_name}</p>
-                  <p className="text-xs text-gray-500">{new Date(f.scheduled_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+        {/* Recent leads */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">Recent Leads</h3>
+            <button onClick={() => navigate('/leads')}
+              className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+              View all <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="space-y-1">
+            {(data?.recentLeads || []).map(l => (
+              <button key={l.id} onClick={() => navigate(`/leads/${l.id}`)}
+                className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 text-left group transition-colors">
+                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0 group-hover:bg-brand-50 group-hover:text-brand-700 transition-colors">
+                  {l.name?.charAt(0)?.toUpperCase()}
                 </div>
-              ))}
-            </div>
-          ) : <p className="text-sm text-gray-400 text-center py-6">No follow-ups today.</p>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800 truncate">{l.name}</p>
+                  <p className="text-xs text-gray-400 truncate capitalize">{l.stage}</p>
+                </div>
+                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                  l.lead_score === 'hot'  ? 'bg-red-100 text-red-600' :
+                  l.lead_score === 'warm' ? 'bg-amber-100 text-amber-600' :
+                                            'bg-gray-100 text-gray-500'
+                }`}>{(l.lead_score || 'new').toUpperCase()}</span>
+              </button>
+            ))}
+            {!data?.recentLeads?.length && (
+              <p className="text-sm text-gray-400 text-center py-8">No leads yet</p>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* ── Sources + Team ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        {/* Lead sources */}
+        <div className="bg-white rounded-2xl p-5 border">
+          <h3 className="font-semibold text-gray-900 mb-4">Lead Sources</h3>
+          {(data?.sources || []).length > 0 ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
+                  <th className="text-left pb-2 font-semibold">Source</th>
+                  <th className="text-right pb-2 font-semibold">Leads</th>
+                  <th className="text-right pb-2 font-semibold">Won</th>
+                  <th className="text-right pb-2 font-semibold">Conv%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.sources.map(s => (
+                  <tr key={s.source} className="border-b last:border-0">
+                    <td className="py-2.5 font-medium text-gray-700 capitalize">{s.source}</td>
+                    <td className="py-2.5 text-right text-gray-500">{s.total}</td>
+                    <td className="py-2.5 text-right font-semibold text-emerald-600">{s.won}</td>
+                    <td className="py-2.5 text-right">
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                        parseFloat(s.conversion_rate) >= 20 ? 'bg-emerald-100 text-emerald-700' :
+                        parseFloat(s.conversion_rate) >= 10 ? 'bg-amber-100 text-amber-700' :
+                                                              'bg-gray-100 text-gray-500'
+                      }`}>{s.conversion_rate}%</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-8">No source data yet</p>
+          )}
+        </div>
+
+        {/* Team performance */}
+        <div className="bg-white rounded-2xl p-5 border">
+          <h3 className="font-semibold text-gray-900 mb-4">Team Performance</h3>
+          {(data?.team || []).length > 0 ? (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
+                  <th className="text-left pb-2 font-semibold">Member</th>
+                  <th className="text-right pb-2 font-semibold">Leads</th>
+                  <th className="text-right pb-2 font-semibold">Won</th>
+                  <th className="text-right pb-2 font-semibold">Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.team.map((t, i) => (
+                  <tr key={t.name} className="border-b last:border-0">
+                    <td className="py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}</span>
+                        <span className="font-medium text-gray-700">{t.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-2.5 text-right text-gray-500">{t.total_leads}</td>
+                    <td className="py-2.5 text-right font-semibold text-emerald-600">{t.won}</td>
+                    <td className="py-2.5 text-right font-semibold text-gray-700">{fmtMoney(t.revenue)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-sm text-gray-400 text-center py-8">No team data yet</p>
+          )}
+        </div>
+      </div>
+
+      {/* ── 14-Day Lead Trend ── */}
+      {trendData.length > 1 && (
+        <div className="bg-white rounded-2xl p-5 border">
+          <h3 className="font-semibold text-gray-900 mb-4">Lead Trend — Last 14 Days</h3>
+          <ResponsiveContainer width="100%" height={160}>
+            <AreaChart data={trendData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+              <defs>
+                <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.18} />
+                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip
+                contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }}
+                cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 2' }}
+              />
+              <Area type="monotone" dataKey="Leads" stroke="#6366f1" strokeWidth={2}
+                fill="url(#leadGrad)" dot={false} activeDot={{ r: 4, fill: '#6366f1' }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+
     </div>
   );
 };
