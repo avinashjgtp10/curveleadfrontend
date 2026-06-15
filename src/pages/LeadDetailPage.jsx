@@ -157,7 +157,7 @@ const LeadDetailPage = () => {
     try {
       await leadAPI.addFollowup(id, {
         ...followupForm,
-        notes: followupForm.notes.trim() || null,
+        notes: (followupForm.notes || '').trim() || null,
       });
       setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '' });
       setFollowupPage(1);
