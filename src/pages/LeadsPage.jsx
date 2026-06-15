@@ -92,16 +92,16 @@ const LeadsPage = () => {
     return [1, '…', page - 1, page, page + 1, '…', t];
   };
 
-  const downloadTemplate = () => {
-    const csv = [
-      'Name *,Phone *,Email,Source,Stage,Notes,Deal Value (INR),City',
-      'Rahul Sharma,9876543210,rahul@example.com,Facebook,New,Interested in premium,50000,Mumbai',
-      'Priya Patel,8765432109,priya@example.com,Google,Contacted,,25000,Pune',
-    ].join('\n');
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    a.download = 'curvelead_import_template.csv';
-    a.click();
+  const downloadTemplate = async () => {
+    try {
+      const { data } = await leadImportAPI.downloadTemplate();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([data], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+      a.download = 'curvelead_import_template.xlsx';
+      a.click();
+    } catch {
+      alert('Failed to download template.');
+    }
   };
 
   const handleImportFile = (file) => {

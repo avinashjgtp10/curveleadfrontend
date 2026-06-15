@@ -89,6 +89,7 @@ export const leadImportAPI = {
     fd.append('file', file);
     return api.post('/leads/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
+  downloadTemplate: () => api.get('/leads/import/template', { responseType: 'blob' }),
 };
 
 export const aiAPI = {
