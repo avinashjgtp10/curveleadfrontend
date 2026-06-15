@@ -3,7 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
@@ -17,6 +17,7 @@ const activityConfig = (type) => {
     note:                { Icon: StickyNote,   bg: 'bg-gray-50',    color: 'text-gray-500' },
     quotation:           { Icon: FileText,     bg: 'bg-indigo-50',  color: 'text-indigo-600' },
     followup_scheduled:  { Icon: Calendar,     bg: 'bg-cyan-50',    color: 'text-cyan-600' },
+    demo:                { Icon: Video,        bg: 'bg-violet-50',  color: 'text-violet-600' },
     file_uploaded:       { Icon: Paperclip,    bg: 'bg-orange-50',  color: 'text-orange-600' },
     share_material:      { Icon: Share2,       bg: 'bg-teal-50',    color: 'text-teal-600' },
     enrolled:            { Icon: UserCheck,    bg: 'bg-green-50',   color: 'text-green-700' },
@@ -392,9 +393,11 @@ const LeadDetailPage = () => {
             </h3>
 
             {nextFollowup && (
-              <div className="mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg">
-                <p className="text-xs font-medium text-amber-700">Next scheduled:</p>
-                <p className="text-xs text-amber-600 mt-0.5">
+              <div className={`mb-3 px-3 py-2 rounded-lg border ${nextFollowup.followup_type === 'demo' ? 'bg-violet-50 border-violet-200' : 'bg-amber-50 border-amber-200'}`}>
+                <p className={`text-xs font-medium ${nextFollowup.followup_type === 'demo' ? 'text-violet-700' : 'text-amber-700'}`}>
+                  {nextFollowup.followup_type === 'demo' ? '🎥 Demo scheduled:' : 'Next scheduled:'}
+                </p>
+                <p className={`text-xs mt-0.5 ${nextFollowup.followup_type === 'demo' ? 'text-violet-600' : 'text-amber-600'}`}>
                   {new Date(nextFollowup.next_followup_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
                   {' '}· <span className="capitalize">{nextFollowup.followup_type}</span>
                 </p>
@@ -415,10 +418,10 @@ const LeadDetailPage = () => {
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Type</label>
                 <div className="flex gap-2">
-                  {['call', 'whatsapp', 'visit'].map(t => (
+                  {['call', 'whatsapp', 'visit', 'demo'].map(t => (
                     <button key={t} onClick={() => setFollowupForm({ ...followupForm, followup_type: t })}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium capitalize border transition-colors ${followupForm.followup_type === t ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                      {t}
+                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium capitalize border transition-colors ${followupForm.followup_type === t ? (t === 'demo' ? 'bg-violet-600 text-white border-violet-600' : 'bg-brand-600 text-white border-brand-600') : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                      {t === 'demo' ? '🎥 Demo' : t}
                     </button>
                   ))}
                 </div>

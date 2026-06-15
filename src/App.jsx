@@ -18,6 +18,7 @@ import CampaignsPage from './pages/CampaignsPage';
 import CampaignDetailPage from './pages/CampaignDetailPage';
 import WhatsAppInboxPage from './pages/WhatsAppInboxPage';
 import FollowupsPage from './pages/FollowupsPage';
+import AppointmentsPage from './pages/AppointmentsPage';
 import StaffPage from './pages/StaffPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
@@ -61,6 +62,7 @@ const App = () => (
         <Route path="campaigns/:id" element={<CampaignDetailPage />} />
         <Route path="whatsapp" element={<WhatsAppInboxPage />} />
         <Route path="followups" element={<FollowupsPage />} />
+        <Route path="appointments" element={<AppointmentsPage />} />
         <Route path="brochures" element={<BrochuresPage />} />
         <Route path="quotations" element={<QuotationsPage />} />
         <Route path="quotations/new" element={<QuotationEditorPage />} />

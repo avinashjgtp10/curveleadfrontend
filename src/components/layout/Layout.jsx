@@ -13,6 +13,7 @@ const Layout = () => {
     '/campaigns': 'Campaigns',
     '/whatsapp': 'WhatsApp Inbox',
     '/followups': 'Follow-ups',
+    '/appointments': 'Appointments',
     '/staff': 'Team',
     '/reports': 'Reports',
     '/billing': 'Billing',

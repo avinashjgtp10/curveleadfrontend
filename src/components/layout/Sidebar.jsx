@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, Megaphone, MessageCircle, Clock, UserCog, BarChart3, Settings, LogOut, X, BookOpen, FileText, CreditCard, Plug } from 'lucide-react';
+import { LayoutDashboard, Users, Megaphone, MessageCircle, Clock, UserCog, BarChart3, Settings, LogOut, X, BookOpen, FileText, CreditCard, Plug, CalendarCheck } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { path: '/campaigns', label: 'Campaigns', icon: Megaphone, roles: ['admin'] },
   { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
   { path: '/followups', label: 'Follow-ups', icon: Clock, roles: ['admin', 'staff'] },
+  { path: '/appointments', label: 'Appointments', icon: CalendarCheck, roles: ['admin', 'staff'] },
   { path: '/staff', label: 'Team', icon: UserCog, roles: ['admin'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
   { path: '/integrations', label: 'Integrations', icon: Plug, roles: ['admin'] },
