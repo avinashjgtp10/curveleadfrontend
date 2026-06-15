@@ -61,6 +61,7 @@ const LeadDetailPage = () => {
   // Follow-up
   const [followups, setFollowups] = useState([]);
   const getLocalNow = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+  const getDateShortcut = (daysOffset, hour = 10) => { const d = new Date(); d.setDate(d.getDate() + daysOffset); d.setHours(hour, 0, 0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [followupForm, setFollowupForm] = useState({
     next_followup_at: getLocalNow(),
     followup_type: 'call',
@@ -406,7 +407,18 @@ const LeadDetailPage = () => {
 
             <div className="space-y-2">
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Date & Time *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs text-gray-500">Date & Time *</label>
+                  <div className="flex gap-1">
+                    {[['Today', 0], ['Tomorrow', 1], ['In 2 days', 2]].map(([label, days]) => (
+                      <button key={label} type="button"
+                        onClick={() => setFollowupForm({ ...followupForm, next_followup_at: getDateShortcut(days) })}
+                        className="px-2 py-0.5 text-[11px] font-medium rounded-md border bg-gray-50 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 text-gray-500 transition-colors">
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <input
                   type="datetime-local"
                   value={followupForm.next_followup_at}
