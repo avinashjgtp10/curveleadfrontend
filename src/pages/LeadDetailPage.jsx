@@ -305,6 +305,12 @@ const LeadDetailPage = () => {
                     </select>
                   </div>
                   <div>
+                    <label className="text-xs text-gray-500">Deal Value (₹)</label>
+                    <input type="number" min="0" value={form.deal_value || ''} onChange={e => setForm({ ...form, deal_value: e.target.value })}
+                      placeholder="0"
+                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                  </div>
+                  <div>
                     <label className="text-xs text-gray-500">Notes</label>
                     <textarea value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })}
                       rows={2} className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
