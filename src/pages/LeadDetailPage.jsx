@@ -230,7 +230,7 @@ const LeadDetailPage = () => {
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={() => navigate('/leads', { state: { view: location.state?.returnView || 'list' } })} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+        <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
           <ArrowLeft size={16} /> Back
         </button>
         <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
