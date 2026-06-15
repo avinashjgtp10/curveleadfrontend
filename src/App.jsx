@@ -23,6 +23,7 @@ import StaffPage from './pages/StaffPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
 import BillingPage from './pages/BillingPage';
+import MarketIntelligencePage from './pages/MarketIntelligencePage';
 
 // ⭐ NEW: Brochures & Quotations
 import BrochuresPage from './pages/BrochuresPage';
@@ -73,6 +74,7 @@ const App = () => (
         <Route path="billing" element={<BillingPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />
+        <Route path="market-intelligence" element={<MarketIntelligencePage />} />
       </Route>
     </Routes>
   </AuthProvider>

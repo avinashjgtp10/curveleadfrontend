@@ -84,6 +84,7 @@ export const aiAPI = {
   scoreLead: (leadId) => api.post(`/ai/score-lead/${leadId}`),
   scoreBulk: () => api.post('/ai/score-bulk'),
   qualify: (leadId) => api.post(`/ai/qualify/${leadId}`),
+  marketAnalysis: (data) => api.post('/ai/market-analysis', data),
 };
 
 // ============================================
