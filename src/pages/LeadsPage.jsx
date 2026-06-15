@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, stageAPI, staffAPI } from '../services/api';
+import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, User, CheckSquare, Square, GitBranch, UserCheck } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download } from 'lucide-react';
 
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
@@ -38,6 +38,14 @@ const LeadsPage = () => {
   const PAGE_SIZE = 25;
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
+
+  // Import state
+  const [showImport, setShowImport] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [importPreview, setImportPreview] = useState(null); // { headers, rows }
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState(null);
+  const [importDragOver, setImportDragOver] = useState(false);
 
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => k !== 'search' && v).length;
 
@@ -82,6 +90,62 @@ const LeadsPage = () => {
     if (page <= 4) return [1, 2, 3, 4, 5, '…', t];
     if (page >= t - 3) return [1, '…', t - 4, t - 3, t - 2, t - 1, t];
     return [1, '…', page - 1, page, page + 1, '…', t];
+  };
+
+  const downloadTemplate = () => {
+    const csv = [
+      'Name *,Phone *,Email,Source,Stage,Notes,Deal Value (INR),City',
+      'Rahul Sharma,9876543210,rahul@example.com,Facebook,New,Interested in premium,50000,Mumbai',
+      'Priya Patel,8765432109,priya@example.com,Google,Contacted,,25000,Pune',
+    ].join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'curvelead_import_template.csv';
+    a.click();
+  };
+
+  const handleImportFile = (file) => {
+    if (!file) return;
+    const allowed = /\.(csv|xlsx|xls)$/i.test(file.name);
+    if (!allowed) return alert('Only CSV (.csv) and Excel (.xlsx, .xls) files allowed.');
+    setImportFile(file);
+    setImportResult(null);
+    // Preview: CSV only
+    if (file.name.toLowerCase().endsWith('.csv')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const lines = e.target.result.split('\n').filter(l => l.trim());
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const rows = lines.slice(1, 4).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+        setImportPreview({ headers, rows });
+      };
+      reader.readAsText(file);
+    } else {
+      setImportPreview(null);
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) return;
+    setImporting(true);
+    try {
+      const { data } = await leadImportAPI.import(importFile);
+      setImportResult(data);
+      setImportFile(null);
+      setImportPreview(null);
+      fetchLeads();
+    } catch (e) {
+      setImportResult({ error: e.response?.data?.error || 'Import failed. Please check your file.' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const closeImport = () => {
+    setShowImport(false);
+    setImportFile(null);
+    setImportPreview(null);
+    setImportResult(null);
   };
 
   const handleAdd = async () => {
@@ -184,10 +248,18 @@ const LeadsPage = () => {
           <p className="text-xs font-bold uppercase text-cyan-600">Global lead workspace</p>
           <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
         </div>
-        <button onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 text-sm font-extrabold uppercase text-white shadow-sm hover:bg-cyan-700">
-          <Plus size={18} /> Add New Lead
-        </button>
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button onClick={() => setShowImport(true)}
+              className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
+              <Upload size={16} /> Import CSV
+            </button>
+          )}
+          <button onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 text-sm font-extrabold uppercase text-white shadow-sm hover:bg-cyan-700">
+            <Plus size={18} /> Add New Lead
+          </button>
+        </div>
       </div>
 
       <div className="bg-white shadow-sm">
@@ -700,6 +772,139 @@ const LeadsPage = () => {
                 <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
                 <button onClick={handleAdd} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Add Lead</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Import CSV/Excel Modal ── */}
+      {showImport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeImport}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <FileSpreadsheet size={18} className="text-emerald-600" /> Import Leads
+              </h2>
+              <button onClick={closeImport} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {/* Result state */}
+              {importResult ? (
+                <div className="space-y-4">
+                  {importResult.error ? (
+                    <div className="flex gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+                      <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+                      <p className="text-sm text-red-700">{importResult.error}</p>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+                        <CheckCircle size={18} className="text-emerald-500 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-emerald-800">{importResult.message}</p>
+                          <div className="flex gap-4 mt-1 text-sm text-emerald-700">
+                            <span>✅ {importResult.inserted} added</span>
+                            <span>⏭️ {importResult.skipped} skipped</span>
+                          </div>
+                        </div>
+                      </div>
+                      {importResult.errors?.length > 0 && (
+                        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                          <p className="text-xs font-semibold text-amber-700 mb-2">Row errors (first 20):</p>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {importResult.errors.map((e, i) => (
+                              <p key={i} className="text-xs text-amber-700">Row {e.row}: {e.name} — {e.error}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => { setImportResult(null); setImportFile(null); setImportPreview(null); }}
+                      className="flex-1 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Import Another</button>
+                    <button onClick={closeImport}
+                      className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700">Done</button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* Template download */}
+                  <button onClick={downloadTemplate}
+                    className="w-full flex items-center justify-center gap-2 py-2 border border-dashed border-gray-300 rounded-xl text-sm text-gray-600 hover:border-brand-400 hover:text-brand-600 hover:bg-brand-50 transition-colors">
+                    <Download size={14} /> Download CSV Template
+                  </button>
+
+                  {/* Drop zone */}
+                  <div
+                    onDragOver={e => { e.preventDefault(); setImportDragOver(true); }}
+                    onDragLeave={() => setImportDragOver(false)}
+                    onDrop={e => { e.preventDefault(); setImportDragOver(false); handleImportFile(e.dataTransfer.files[0]); }}
+                    onClick={() => document.getElementById('csv-file-input').click()}
+                    className={`cursor-pointer rounded-xl border-2 border-dashed p-8 text-center transition-colors ${importDragOver ? 'border-brand-400 bg-brand-50' : importFile ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <input id="csv-file-input" type="file" accept=".csv,.xlsx,.xls" className="hidden"
+                      onChange={e => handleImportFile(e.target.files[0])} />
+                    {importFile ? (
+                      <>
+                        <FileSpreadsheet size={28} className="mx-auto text-emerald-500 mb-2" />
+                        <p className="font-semibold text-emerald-700 text-sm">{importFile.name}</p>
+                        <p className="text-xs text-emerald-600 mt-0.5">{(importFile.size / 1024).toFixed(1)} KB · Click to change</p>
+                      </>
+                    ) : (
+                      <>
+                        <Upload size={28} className="mx-auto text-gray-300 mb-2" />
+                        <p className="text-sm font-medium text-gray-500">Drop your CSV or Excel file here</p>
+                        <p className="text-xs text-gray-400 mt-1">or click to browse · Max 5 MB · 2000 rows</p>
+                      </>
+                    )}
+                  </div>
+
+                  {/* CSV Preview */}
+                  {importPreview && (
+                    <div className="rounded-xl border overflow-hidden">
+                      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b">
+                        Preview (first 3 rows)
+                      </p>
+                      <div className="overflow-x-auto">
+                        <table className="text-xs w-full">
+                          <thead>
+                            <tr className="border-b bg-gray-50">
+                              {importPreview.headers.map((h, i) => (
+                                <th key={i} className="px-3 py-2 text-left font-semibold text-gray-600 whitespace-nowrap">{h}</th>
+                              ))}
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {importPreview.rows.map((row, i) => (
+                              <tr key={i} className="border-b last:border-0">
+                                {row.map((cell, j) => (
+                                  <td key={j} className="px-3 py-2 text-gray-600 whitespace-nowrap max-w-[120px] truncate">{cell}</td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-[11px] text-gray-400">
+                    Columns detected automatically. Required: <strong>Name</strong>. Also supports: Phone, Email, Source, Stage, Notes, Deal Value, City.
+                  </p>
+
+                  <div className="flex gap-2">
+                    <button onClick={closeImport} className="flex-1 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
+                    <button onClick={handleImport} disabled={!importFile || importing}
+                      className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+                      {importing
+                        ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Importing...</>
+                        : <><Upload size={15} /> Import Leads</>}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>

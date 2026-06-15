@@ -80,6 +80,17 @@ export const whatsappAPI = {
 // ============================================
 // AI
 // ============================================
+// ============================================
+// Lead Import
+// ============================================
+export const leadImportAPI = {
+  import: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/leads/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+};
+
 export const aiAPI = {
   scoreLead: (leadId) => api.post(`/ai/score-lead/${leadId}`),
   scoreBulk: () => api.post('/ai/score-bulk'),
