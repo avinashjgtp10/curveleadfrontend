@@ -71,6 +71,7 @@ const LeadDetailPage = () => {
     next_followup_at: getLocalNow(),
     followup_type: 'call',
     notes: '',
+    meeting_url: '',
   });
   const [savingFollowup, setSavingFollowup] = useState(false);
 
@@ -164,7 +165,7 @@ const LeadDetailPage = () => {
         ...followupForm,
         notes: (followupForm.notes || '').trim() || null,
       });
-      setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '' });
+      setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '', meeting_url: '' });
       setFollowupPage(1);
       loadData();
       loadFollowupHistory();
@@ -444,6 +445,28 @@ const LeadDetailPage = () => {
                 </div>
               </div>
 
+              {followupForm.followup_type === 'demo' && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1 flex items-center gap-1">
+                    <Video size={11} /> Meeting Link (optional)
+                  </label>
+                  <input
+                    type="url"
+                    value={followupForm.meeting_url}
+                    onChange={e => setFollowupForm({ ...followupForm, meeting_url: e.target.value })}
+                    placeholder="https://meet.google.com/..."
+                    className="w-full px-3 py-2 border rounded-lg text-sm border-violet-200 focus:ring-2 focus:ring-violet-300 focus:outline-none" />
+                  {lead?.email && followupForm.meeting_url && (
+                    <p className="text-[11px] text-violet-600 mt-1 flex items-center gap-1">
+                      ✉️ Invite will be sent to {lead.email}
+                    </p>
+                  )}
+                  {!lead?.email && followupForm.meeting_url && (
+                    <p className="text-[11px] text-gray-400 mt-1">No email on file — invite won't be sent</p>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Notes (optional)</label>
                 <input
@@ -455,8 +478,8 @@ const LeadDetailPage = () => {
               </div>
 
               <button onClick={handleScheduleFollowup} disabled={savingFollowup}
-                className="w-full py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-60">
-                {savingFollowup ? 'Saving...' : 'Schedule Follow-up'}
+                className={`w-full py-2 text-white rounded-lg text-sm font-semibold disabled:opacity-60 ${followupForm.followup_type === 'demo' ? 'bg-violet-600 hover:bg-violet-700' : 'bg-brand-600 hover:bg-brand-700'}`}>
+                {savingFollowup ? 'Saving...' : followupForm.followup_type === 'demo' ? '🎥 Schedule Demo' : 'Schedule Follow-up'}
               </button>
             </div>
           </div>
