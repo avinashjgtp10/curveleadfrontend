@@ -232,6 +232,21 @@ export const integrationsAPI = {
 };
 
 // ============================================
+// Recordings
+// ============================================
+export const recordingAPI = {
+  getByLead: (leadId) => api.get(`/recordings/${leadId}`),
+  upload: (leadId, file, title) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    if (title) fd.append('title', title);
+    return api.post(`/recordings/${leadId}`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  getTeam: (params) => api.get('/recordings/team', { params }),
+  delete: (id) => api.delete(`/recordings/${id}`),
+};
+
+// ============================================
 // Notifications
 // ============================================
 export const notificationsAPI = {

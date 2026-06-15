@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
+import LeadRecordings from '../components/lead/LeadRecordings';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video } from 'lucide-react';
 
 const activityConfig = (type) => {
@@ -689,6 +690,9 @@ const LeadDetailPage = () => {
 
           {/* Attachments */}
           <LeadAttachments leadId={id} onActivityAdded={loadData} />
+
+          {/* Recordings */}
+          <LeadRecordings leadId={id} />
 
           {/* Activity Timeline */}
           <div className="bg-white rounded-2xl border p-5">
