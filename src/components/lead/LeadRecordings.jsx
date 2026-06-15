@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, Video, Upload, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, Trash2, AlertCircle } from 'lucide-react';
+import { Mic, Video, Upload, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { recordingAPI } from '../../services/api';
 
 const fmtSize = (bytes) => {
@@ -99,10 +99,18 @@ const AnalysisPanel = ({ analysis }) => {
   );
 };
 
-const RecordingCard = ({ recording, onDelete }) => {
+const RecordingCard = ({ recording, onDelete, onRetry }) => {
   const [expanded, setExpanded] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const hasAnalysis = recording.analysis_status === 'done';
-  const isProcessing = recording.analysis_status === 'processing';
+  const isProcessing = recording.analysis_status === 'processing' || recording.analysis_status === 'pending';
+  const isFailed = recording.analysis_status === 'failed';
+
+  const handleRetry = async () => {
+    setRetrying(true);
+    await onRetry(recording.id);
+    setRetrying(false);
+  };
 
   return (
     <div className="border rounded-xl overflow-hidden">
@@ -127,6 +135,14 @@ const RecordingCard = ({ recording, onDelete }) => {
           </button>
         )}
         {isProcessing && <Loader2 size={14} className="text-blue-400 animate-spin ml-1" />}
+        {isFailed && (
+          <button onClick={handleRetry} disabled={retrying}
+            title="Retry AI analysis"
+            className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-700 border border-amber-300 rounded px-1.5 py-0.5 ml-1 disabled:opacity-50">
+            {retrying ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}
+            Retry
+          </button>
+        )}
         <button onClick={() => onDelete(recording.id)} className="text-gray-300 hover:text-red-400 ml-1">
           <Trash2 size={14} />
         </button>
@@ -221,6 +237,15 @@ export default function LeadRecordings({ leadId }) {
     setRecordings(r => r.filter(x => x.id !== id));
   };
 
+  const handleRetry = async (id) => {
+    try {
+      await recordingAPI.retry(id);
+      setRecordings(r => r.map(x => x.id === id ? { ...x, analysis_status: 'pending', analysis: null, transcription: null } : x));
+    } catch (e) {
+      alert(e.response?.data?.error || 'Retry failed.');
+    }
+  };
+
   return (
     <div className="bg-white rounded-2xl border p-5">
       <div className="flex items-center justify-between mb-4">
@@ -231,8 +256,8 @@ export default function LeadRecordings({ leadId }) {
         >
           <Upload size={13} /> Upload
         </button>
-        <input ref={fileRef} type="file" accept="audio/*,video/*" className="hidden"
-          onChange={e => handleFileSelect(e.target.files[0])} />
+        <input ref={fileRef} type="file" accept="audio/*,video/*,.mp3,.mp4,.m4a,.wav,.ogg,.webm,.flac,.aac,.mov" className="hidden"
+          onChange={e => { handleFileSelect(e.target.files[0]); e.target.value = ''; }} />
       </div>
 
       {/* Upload confirmation panel */}
@@ -296,7 +321,7 @@ export default function LeadRecordings({ leadId }) {
       ) : (
         <div className="space-y-3">
           {recordings.map(r => (
-            <RecordingCard key={r.id} recording={r} onDelete={handleDelete} />
+            <RecordingCard key={r.id} recording={r} onDelete={handleDelete} onRetry={handleRetry} />
           ))}
         </div>
       )}

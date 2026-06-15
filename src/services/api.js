@@ -244,6 +244,7 @@ export const recordingAPI = {
   },
   getTeam: (params) => api.get('/recordings/team', { params }),
   delete: (id) => api.delete(`/recordings/${id}`),
+  retry: (id) => api.post(`/recordings/${id}/retry`),
 };
 
 // ============================================
