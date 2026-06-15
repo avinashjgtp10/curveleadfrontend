@@ -443,6 +443,7 @@ const LeadsPage = () => {
                         </button>
                       </th>
                       <th className="text-left px-3 py-3">Name</th>
+                      <th className="text-left px-3 py-3">Date</th>
                       <th className="text-left px-3 py-3">Phone Number</th>
                       <th className="text-left px-3 py-3">Source</th>
                       <th className="text-left px-3 py-3">Score</th>
@@ -462,6 +463,9 @@ const LeadsPage = () => {
                           </button>
                         </td>
                         <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => navigate(`/leads/${l.id}`)}>{l.name}</td>
+                        <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
+                          {l.created_at ? new Date(l.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
+                        </td>
                         <td className="px-3 py-3 text-gray-700">{l.phone}</td>
                         <td className="px-3 py-3 text-gray-600 capitalize">{l.source?.replace(/_/g, ' ')}</td>
                         <td className="px-3 py-3">
