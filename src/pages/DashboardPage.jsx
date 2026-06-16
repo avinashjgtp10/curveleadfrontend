@@ -12,6 +12,12 @@ import {
 
 const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
 
+const todayISO = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+
 const fmtMoney = (n) => {
   const v = Number(n || 0);
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
@@ -65,6 +71,7 @@ const DashboardPage = () => {
   );
 
   const monthName = new Date().toLocaleString('en-IN', { month: 'long' });
+  const today = todayISO();
   const pipelineTotal = (data?.pipeline || []).reduce((s, p) => s + p.count, 0) || 1;
 
   const trendData = (data?.trend || []).map(t => ({
@@ -131,21 +138,21 @@ const DashboardPage = () => {
             value: data?.leads_today || 0,
             icon: Users,
             cls: 'text-blue-600 bg-blue-50 border-blue-100',
-            to: '/leads',
+            to: `/leads?date_field=created_at&date_from=${today}&date_to=${today}`,
           },
           {
             label: 'Follow-ups Today',
             value: data?.followups_today || 0,
             icon: Calendar,
             cls: 'text-amber-600 bg-amber-50 border-amber-100',
-            to: '/leads',
+            to: `/leads?view=followups&scope=today&category=followup&date_from=${today}&date_to=${today}`,
           },
           {
             label: 'Demos Today',
             value: data?.demos_today || 0,
             icon: Video,
             cls: 'text-violet-600 bg-violet-50 border-violet-100',
-            to: '/appointments',
+            to: '/appointments?scope=today',
           },
           {
             label: 'Overdue',
@@ -154,7 +161,7 @@ const DashboardPage = () => {
             cls: data?.overdue_followups > 0
               ? 'text-red-600 bg-red-50 border-red-200'
               : 'text-gray-400 bg-gray-50 border-gray-100',
-            to: '/leads',
+            to: '/leads?view=followups&scope=overdue',
           },
         ].map(s => (
           <button key={s.label} onClick={() => navigate(s.to)}

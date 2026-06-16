@@ -24,6 +24,7 @@ import FollowupsPage from './pages/FollowupsPage';
 import AppointmentsPage from './pages/AppointmentsPage';
 import StaffPage from './pages/StaffPage';
 import ReportsPage from './pages/ReportsPage';
+import CoachingPage from './pages/CoachingPage';
 import SettingsPage from './pages/SettingsPage';
 import BillingPage from './pages/BillingPage';
 import MarketIntelligencePage from './pages/MarketIntelligencePage';
@@ -77,6 +78,7 @@ const App = () => (
         <Route path="quotations/:id" element={<QuotationViewPage />} />
         <Route path="staff" element={<StaffPage />} />
         <Route path="reports" element={<ReportsPage />} />
+        <Route path="coaching" element={<CoachingPage />} />
         <Route path="billing" element={<BillingPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="integrations" element={<IntegrationsPage />} />

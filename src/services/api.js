@@ -248,6 +248,31 @@ export const recordingAPI = {
 };
 
 // ============================================
+// AI Calling Agent
+// ============================================
+export const aiCallingAPI = {
+  getSettings: () => api.get('/ai-calling/settings'),
+  updateSettings: (data) => api.put('/ai-calling/settings', data),
+  getVoices: () => api.get('/ai-calling/voices'),
+  getAgents: () => api.get('/ai-calling/agents'),
+  createAgent: (data) => api.post('/ai-calling/agents', data),
+  updateAgent: (id, data) => api.put(`/ai-calling/agents/${id}`, data),
+  deleteAgent: (id) => api.delete(`/ai-calling/agents/${id}`),
+  getLeadCalls: (leadId) => api.get(`/ai-calling/leads/${leadId}/calls`),
+  callLead: (leadId, agentId) => api.post(`/ai-calling/leads/${leadId}/call`, { agentId }),
+  getCall: (id) => api.get(`/ai-calling/calls/${id}`),
+};
+
+// ============================================
+// Sales Playbook & Coaching
+// ============================================
+export const playbookAPI = {
+  get: () => api.get('/playbook'),
+  regenerate: () => api.post('/playbook/generate'),
+  getCoaching: () => api.get('/playbook/coaching'),
+};
+
+// ============================================
 // Notifications
 // ============================================
 export const notificationsAPI = {

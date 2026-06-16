@@ -10,21 +10,92 @@ const scoreColors = {
   cold: 'bg-gray-100 text-gray-600',
 };
 
-const EMPTY_FILTERS = { search: '', stage: '', source: '', score: '', assigned_to: '', date_from: '', date_to: '' };
+const EMPTY_FILTERS = { search: '', stage: '', source: '', score: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const EMPTY_FU_FILTERS = { search: '', type: '', date_from: '', date_to: '', scope: '', category: '' };
+
+const getQueryConfig = (search, state = {}) => {
+  const routeState = state || {};
+  const params = new URLSearchParams(search);
+  const view = params.get('view') || routeState.view || 'list';
+  const filters = { ...EMPTY_FILTERS };
+  const fuFilters = { ...EMPTY_FU_FILTERS };
+
+  Object.keys(filters).forEach(key => {
+    const value = params.get(key);
+    if (value !== null) filters[key] = value;
+  });
+  if ((filters.date_from || filters.date_to) && !params.get('date_field')) filters.date_field = 'created_at';
+
+  Object.keys(fuFilters).forEach(key => {
+    const value = params.get(key);
+    if (value !== null) fuFilters[key] = value;
+  });
+
+  return { view, filters, fuFilters };
+};
+
+const isSameLocalDay = (value, day) => {
+  if (!value || !day) return true;
+  const d = new Date(value);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  return local === day;
+};
+
+const filterFollowupsForScope = (items, filters) => {
+  const today = filters.date_from || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+
+  return items.filter(f => {
+    if (filters.scope === 'today' && !isSameLocalDay(f.next_followup_at, today)) return false;
+    if (filters.scope === 'overdue' && new Date(f.next_followup_at) >= new Date()) return false;
+    if (filters.category === 'followup' && f.followup_type === 'demo') return false;
+    return true;
+  });
+};
+
+const getFollowupApiFilters = ({ scope, category, ...apiFilters }) => apiFilters;
+
+const compactParams = (params) => Object.fromEntries(
+  Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
+);
+
+const withoutLeadDateFilters = ({ date_field, date_from, date_to, ...rest }) => rest;
+
+const getLeadDateValue = (lead, dateField) => {
+  if (dateField === 'created_at') return lead.created_at;
+  return lead.lead_date || lead.created_at;
+};
+
+const filterLeadsByDate = (items, activeFilters) => {
+  if (!activeFilters.date_from && !activeFilters.date_to) return items;
+
+  const from = activeFilters.date_from ? new Date(activeFilters.date_from) : null;
+  const to = activeFilters.date_to ? new Date(activeFilters.date_to) : null;
+  if (to) to.setDate(to.getDate() + 1);
+
+  return items.filter(lead => {
+    const value = getLeadDateValue(lead, activeFilters.date_field);
+    if (!value) return false;
+    const leadDate = new Date(value);
+    if (from && leadDate < from) return false;
+    if (to && leadDate >= to) return false;
+    return true;
+  });
+};
 
 const LeadsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const queryConfig = getQueryConfig(location.search, location.state);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [leads, setLeads] = useState([]);
   const [stages, setStages] = useState([]);
   const [staff, setStaff] = useState([]);
-  const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [showFilters, setShowFilters] = useState(false);
-  const [view, setView] = useState(location.state?.view || 'list');
+  const [filters, setFilters] = useState(queryConfig.filters);
+  const [showFilters, setShowFilters] = useState(Object.values(queryConfig.filters).some(Boolean));
+  const [view, setView] = useState(queryConfig.view);
   const [followups, setFollowups] = useState([]);
-  const [fuFilters, setFuFilters] = useState({ search: '', type: '', date_from: '', date_to: '' });
+  const [fuFilters, setFuFilters] = useState(queryConfig.fuFilters);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [page, setPage] = useState(1);
@@ -47,7 +118,16 @@ const LeadsPage = () => {
   const [importResult, setImportResult] = useState(null);
   const [importDragOver, setImportDragOver] = useState(false);
 
-  const activeFilterCount = Object.entries(filters).filter(([k, v]) => k !== 'search' && v).length;
+  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length;
+
+  useEffect(() => {
+    const next = getQueryConfig(location.search, location.state);
+    setView(next.view);
+    setFilters(next.filters);
+    setFuFilters(next.fuFilters);
+    setShowFilters(Object.values(next.filters).some(Boolean));
+    setPage(1);
+  }, [location.search, location.state]);
 
   // Load stages & staff once on mount
   useEffect(() => {
@@ -68,12 +148,33 @@ const LeadsPage = () => {
     setLoading(true);
     try {
       if (view === 'followups') {
-        const res = await leadAPI.getFollowupsToday(fuFilters);
-        setFollowups(res.data.followups || []);
+        const res = await leadAPI.getFollowupsToday(compactParams(getFollowupApiFilters(fuFilters)));
+        setFollowups(filterFollowupsForScope(res.data.followups || [], fuFilters));
       } else {
-        const leadsRes = await leadAPI.getAll({ ...filters, page, limit: view === 'pipeline' ? 500 : PAGE_SIZE });
-        setLeads(leadsRes.data.leads || []);
-        setPagination({ total: leadsRes.data.pagination?.total || 0, pages: leadsRes.data.pagination?.pages || 1 });
+        const limit = view === 'pipeline' ? 500 : PAGE_SIZE;
+        const params = compactParams({ ...filters, page, limit });
+        try {
+          const leadsRes = await leadAPI.getAll(params);
+          setLeads(leadsRes.data.leads || []);
+          setPagination({ total: leadsRes.data.pagination?.total || 0, pages: leadsRes.data.pagination?.pages || 1 });
+        } catch (dateError) {
+          if ((!filters.date_from && !filters.date_to) || dateError.response?.status !== 500) throw dateError;
+
+          const fallbackLimit = view === 'pipeline' ? 500 : 1000;
+          const fallbackParams = compactParams({ ...withoutLeadDateFilters(filters), page: 1, limit: fallbackLimit });
+          const fallbackRes = await leadAPI.getAll(fallbackParams);
+          const filteredLeads = filterLeadsByDate(fallbackRes.data.leads || [], filters);
+          const start = view === 'pipeline' ? 0 : (page - 1) * PAGE_SIZE;
+          const visibleLeads = view === 'pipeline' ? filteredLeads : filteredLeads.slice(start, start + PAGE_SIZE);
+
+          setLeads(visibleLeads);
+          setPagination({
+            total: filteredLeads.length,
+            page,
+            limit,
+            pages: Math.max(1, Math.ceil(filteredLeads.length / limit)),
+          });
+        }
       }
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -91,6 +192,12 @@ const LeadsPage = () => {
     if (page >= t - 3) return [1, '…', t - 4, t - 3, t - 2, t - 1, t];
     return [1, '…', page - 1, page, page + 1, '…', t];
   };
+
+  const followupSummary = fuFilters.scope === 'today'
+    ? "pending follow-up due today"
+    : fuFilters.scope === 'overdue'
+      ? "overdue pending follow-up"
+      : "pending follow-up due today or overdue";
 
   const downloadTemplate = async () => {
     try {
@@ -305,8 +412,8 @@ const LeadsPage = () => {
             <input type="date" value={fuFilters.date_to}
               onChange={e => setFuFilters(f => ({ ...f, date_to: e.target.value }))}
               className="h-10 bg-white border border-gray-200 rounded-lg px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-            {(fuFilters.search || fuFilters.type || fuFilters.date_from || fuFilters.date_to) && (
-              <button onClick={() => setFuFilters({ search: '', type: '', date_from: '', date_to: '' })}
+            {(fuFilters.search || fuFilters.type || fuFilters.date_from || fuFilters.date_to || fuFilters.scope || fuFilters.category) && (
+              <button onClick={() => setFuFilters(EMPTY_FU_FILTERS)}
                 className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
                 <X size={13} /> Clear
               </button>
@@ -398,7 +505,12 @@ const LeadsPage = () => {
 
                   {/* Lead Date Range */}
                   <div className="space-y-1 col-span-2 md:col-span-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Lead Date</label>
+                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Date</label>
+                    <select value={filters.date_field || 'lead_date'} onChange={e => handleFilterChange(f => ({ ...f, date_field: e.target.value }))}
+                      className="mb-1 h-9 w-full appearance-none bg-white border border-gray-200 rounded-lg px-2 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                      <option value="lead_date">Lead date</option>
+                      <option value="created_at">Created date</option>
+                    </select>
                     <div className="flex items-center gap-1.5">
                       <input type="date" value={filters.date_from}
                         onChange={e => handleFilterChange(f => ({ ...f, date_from: e.target.value }))}
@@ -441,8 +553,8 @@ const LeadsPage = () => {
                     )}
                     {(filters.date_from || filters.date_to) && (
                       <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Date: {filters.date_from || '…'} – {filters.date_to || '…'}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, date_from: '', date_to: '' }))}><X size={11} /></button>
+                        {filters.date_field === 'created_at' ? 'Created' : 'Lead'} date: {filters.date_from || '…'} – {filters.date_to || '…'}
+                        <button onClick={() => handleFilterChange(f => ({ ...f, date_field: '', date_from: '', date_to: '' }))}><X size={11} /></button>
                       </span>
                     )}
                   </div>
@@ -655,7 +767,7 @@ const LeadsPage = () => {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <p className="text-xs text-gray-500 mb-3 pt-1">{followups.length} pending follow-up{followups.length !== 1 ? 's' : ''} due today or overdue</p>
+                <p className="text-xs text-gray-500 mb-3 pt-1">{followups.length} {followupSummary}{followups.length !== 1 ? 's' : ''}</p>
                 <table className="w-full text-sm">
                   <thead className="border-y border-gray-200 text-xs uppercase text-gray-500">
                     <tr>
@@ -816,6 +928,16 @@ const LeadsPage = () => {
                           <div className="space-y-1 max-h-32 overflow-y-auto">
                             {importResult.errors.map((e, i) => (
                               <p key={i} className="text-xs text-amber-700">Row {e.row}: {e.name} — {e.error}</p>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {importResult.skip_reasons?.length > 0 && (
+                        <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                          <p className="text-xs font-semibold text-gray-700 mb-2">Skipped rows (first 20):</p>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
+                            {importResult.skip_reasons.map((s, i) => (
+                              <p key={i} className="text-xs text-gray-600">Row {s.row}: {s.name || 'Untitled'} — {s.reason}</p>
                             ))}
                           </div>
                         </div>

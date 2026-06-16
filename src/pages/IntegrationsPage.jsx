@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { integrationsAPI } from '../services/api';
+import { integrationsAPI, aiCallingAPI } from '../services/api';
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw } from 'lucide-react';
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
@@ -95,6 +95,17 @@ const INTEGRATIONS = [
     category: 'Website',
     live: true,
     isConfigured: s => !!s.api_key,
+  },
+  {
+    id: 'ai_calling',
+    label: 'AI Calling Agent',
+    description: 'Have an AI voice agent call leads automatically — pick a voice and persona.',
+    emoji: '🤖',
+    bg: 'bg-violet-50',
+    border: 'border-violet-100',
+    category: 'Calling',
+    live: true,
+    isConfigured: s => s.voice_ai_configured,
   },
   // ── Coming soon
   {
@@ -219,7 +230,7 @@ const INTEGRATIONS = [
   },
 ];
 
-const CATEGORIES = ['All', 'Ads', 'Website', 'Forms', 'Marketplace', 'Automation', 'Messaging', 'Developer'];
+const CATEGORIES = ['All', 'Ads', 'Website', 'Forms', 'Marketplace', 'Automation', 'Messaging', 'Calling', 'Developer'];
 
 // ── Config panels ──────────────────────────────────────────────────────────
 
@@ -491,6 +502,164 @@ const GoogleConfig = ({ settings, form, setForm, saving, handleSave }) => (
   </div>
 );
 
+const emptyAgentForm = () => ({
+  name: '', voice_provider: '', voice_id: '', voice_name: '',
+  language: 'en', system_prompt: '', first_message: '', is_default: false,
+});
+
+const AiCallingConfig = ({ settings, onRefresh }) => {
+  const [form, setForm] = useState({
+    voice_ai_api_key: settings.voice_ai_configured ? '••••••••' : '',
+    voice_ai_phone_number_id: settings.voice_ai_phone_number_id || '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [agents, setAgents] = useState([]);
+  const [voices, setVoices] = useState([]);
+  const [showAgentForm, setShowAgentForm] = useState(false);
+  const [editingAgent, setEditingAgent] = useState(null);
+  const [agentForm, setAgentForm] = useState(emptyAgentForm());
+
+  useEffect(() => {
+    aiCallingAPI.getAgents().then(({ data }) => setAgents(data.agents || [])).catch(() => {});
+    aiCallingAPI.getVoices().then(({ data }) => setVoices(data.voices || [])).catch(() => {});
+  }, []);
+
+  const reloadAgents = () => aiCallingAPI.getAgents().then(({ data }) => setAgents(data.agents || [])).catch(() => {});
+
+  const handleSave = async () => {
+    setSaving(true);
+    try { await aiCallingAPI.updateSettings(form); await onRefresh(); alert('AI Calling settings saved.'); }
+    catch { alert('Failed to save.'); }
+    finally { setSaving(false); }
+  };
+
+  const openNewAgent = () => { setEditingAgent(null); setAgentForm(emptyAgentForm()); setShowAgentForm(true); };
+  const openEditAgent = (a) => { setEditingAgent(a); setAgentForm({ ...emptyAgentForm(), ...a }); setShowAgentForm(true); };
+
+  const handleVoiceChange = (key) => {
+    const v = voices.find(v => v.id === key);
+    if (!v) return;
+    setAgentForm(f => ({ ...f, voice_provider: v.provider, voice_id: v.voiceId, voice_name: v.name }));
+  };
+
+  const handleSaveAgent = async () => {
+    if (!agentForm.name || !agentForm.voice_id || !agentForm.system_prompt) {
+      return alert('Name, voice and system prompt are required.');
+    }
+    try {
+      if (editingAgent) await aiCallingAPI.updateAgent(editingAgent.id, agentForm);
+      else await aiCallingAPI.createAgent(agentForm);
+      setShowAgentForm(false);
+      reloadAgents();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to save agent.'); }
+  };
+
+  const handleDeleteAgent = async (id) => {
+    if (!window.confirm('Delete this AI agent persona?')) return;
+    await aiCallingAPI.deleteAgent(id).catch(() => {});
+    reloadAgents();
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${settings.voice_ai_configured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+        {settings.voice_ai_configured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+        {settings.voice_ai_configured ? 'AI Calling is active.' : 'Not configured — add your Vapi API key and phone number below.'}
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5 space-y-4">
+        <div>
+          <h2 className="font-semibold mb-1">Connect Vapi</h2>
+          <p className="text-xs text-gray-500">
+            Get an API key and a phone number from your{' '}
+            <a href="https://vapi.ai" target="_blank" rel="noopener noreferrer" className="text-brand-600 underline">Vapi dashboard</a>, then paste them here.
+          </p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
+          <input value={form.voice_ai_api_key} onChange={e => setForm({ ...form, voice_ai_api_key: e.target.value })}
+            onFocus={e => { if (e.target.value.startsWith('•')) setForm(f => ({ ...f, voice_ai_api_key: '' })); }}
+            type="password" placeholder="vapi_..."
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Phone Number ID</label>
+          <input value={form.voice_ai_phone_number_id} onChange={e => setForm({ ...form, voice_ai_phone_number_id: e.target.value })}
+            placeholder="The phone number resource ID from Vapi"
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save AI Calling Settings'}
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5 space-y-3">
+        <h2 className="font-semibold">Call Status Webhook</h2>
+        <p className="text-xs text-gray-500">Add this as a Server URL in your Vapi assistant/account settings so call status, transcripts and recordings flow back into CurveLead:</p>
+        <UrlRow label="Webhook URL" url={settings.voice_ai_webhook_url} />
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold">Agent Personas</h2>
+          <button onClick={openNewAgent} className="text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700">+ New Agent</button>
+        </div>
+
+        {agents.length === 0 ? (
+          <p className="text-xs text-gray-500">No agent personas yet. Create one so staff can call leads with it.</p>
+        ) : (
+          <div className="space-y-2">
+            {agents.map(a => (
+              <div key={a.id} className="flex items-center justify-between border rounded-xl px-3 py-2">
+                <div>
+                  <p className="text-sm font-medium flex items-center gap-1.5">
+                    {a.name}
+                    {a.is_default && <span className="text-[10px] bg-brand-100 text-brand-600 px-1.5 py-0.5 rounded-full">Default</span>}
+                  </p>
+                  <p className="text-xs text-gray-400">{a.voice_name || a.voice_id} · {a.language}</p>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => openEditAgent(a)} className="text-xs text-gray-500 hover:text-brand-600">Edit</button>
+                  <button onClick={() => handleDeleteAgent(a.id)} className="text-xs text-red-400 hover:text-red-600">Delete</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {showAgentForm && (
+          <div className="border-2 border-dashed rounded-xl p-4 bg-gray-50 space-y-3">
+            <input value={agentForm.name} onChange={e => setAgentForm({ ...agentForm, name: e.target.value })}
+              placeholder="Agent name (e.g. Demo Booking Agent)" className="w-full px-3 py-2 border rounded-lg text-sm" />
+            <select value={agentForm.voice_id ? voices.find(v => v.voiceId === agentForm.voice_id)?.id || '' : ''}
+              onChange={e => handleVoiceChange(e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <option value="">Select a voice</option>
+              {voices.map(v => <option key={v.id} value={v.id}>{v.name} ({v.language}, {v.gender})</option>)}
+            </select>
+            <textarea value={agentForm.system_prompt} onChange={e => setAgentForm({ ...agentForm, system_prompt: e.target.value })}
+              placeholder="System prompt — describe the agent's goal, tone and script" rows={4}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+            <input value={agentForm.first_message} onChange={e => setAgentForm({ ...agentForm, first_message: e.target.value })}
+              placeholder="Opening line (optional)" className="w-full px-3 py-2 border rounded-lg text-sm" />
+            <label className="flex items-center gap-2 text-xs text-gray-600">
+              <input type="checkbox" checked={agentForm.is_default} onChange={e => setAgentForm({ ...agentForm, is_default: e.target.checked })} />
+              Make this the default agent
+            </label>
+            <div className="flex gap-2">
+              <button onClick={handleSaveAgent} className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">
+                {editingAgent ? 'Save Changes' : 'Create Agent'}
+              </button>
+              <button onClick={() => setShowAgentForm(false)} className="px-4 py-2 border rounded-lg text-sm text-gray-500">Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 // ── Main page ──────────────────────────────────────────────────────────────
 
 const IntegrationsPage = () => {
@@ -501,6 +670,7 @@ const IntegrationsPage = () => {
     api_key: null, api_key_created_at: null,
     webhook_url: '', api_ingest_url: '', google_webhook_url: '',
     meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '',
+    voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -513,8 +683,12 @@ const IntegrationsPage = () => {
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await integrationsAPI.getSettings();
-      setSettings(data);
+      const [{ data }, aiCalling] = await Promise.all([
+        integrationsAPI.getSettings(),
+        aiCallingAPI.getSettings().catch(() => ({ data: {} })),
+      ]);
+      const merged = { ...data, ...aiCalling.data };
+      setSettings(merged);
       setForm({
         meta_page_id: data.meta_page_id || '',
         meta_page_access_token: data.meta_configured ? '••••••••' : '',
@@ -574,6 +748,7 @@ const IntegrationsPage = () => {
         {selected === 'website' && <WebsiteConfig settings={settings} embedScript={embedScript} handleLoadEmbed={handleLoadEmbed} />}
         {selected === 'api' && <ApiKeyConfig settings={settings} newKeyValue={newKeyValue} handleGenerateKey={handleGenerateKey} handleRevokeKey={handleRevokeKey} />}
         {selected === 'google' && <GoogleConfig settings={settings} form={form} setForm={setForm} saving={saving} handleSave={handleSave} />}
+        {selected === 'ai_calling' && <AiCallingConfig settings={settings} onRefresh={load} />}
       </div>
     );
   }

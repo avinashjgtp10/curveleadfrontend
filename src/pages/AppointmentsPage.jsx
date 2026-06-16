@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI } from '../services/api';
 import { Video, Phone, ArrowRight, CheckCircle, Trash2, Calendar, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 
@@ -25,8 +25,21 @@ const getDateGroup = (dt) => {
 
 const GROUP_ORDER = ['Overdue', 'Today', 'Tomorrow', 'This Week', 'Later'];
 
+const localDay = (dt) => {
+  const d = new Date(dt);
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+
+const todayISO = () => {
+  const d = new Date();
+  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+  return d.toISOString().slice(0, 10);
+};
+
 const AppointmentsPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -34,16 +47,27 @@ const AppointmentsPage = () => {
   const [deleting, setDeleting] = useState(null);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState(null);
+  const [scope, setScope] = useState(new URLSearchParams(location.search).get('scope') || 'all');
 
-  useEffect(() => { load(); }, [showCompleted, page]);
+  useEffect(() => {
+    setScope(new URLSearchParams(location.search).get('scope') || 'all');
+    setPage(1);
+  }, [location.search]);
+
+  useEffect(() => { load(); }, [showCompleted, page, scope]);
 
   const load = async () => {
     setLoading(true);
     try {
-      const params = { type: 'demo', page, limit: 20 };
+      const params = { type: 'demo', page, limit: scope === 'today' ? 500 : 20 };
+      if (scope === 'today') {
+        params.date_from = todayISO();
+        params.date_to = todayISO();
+      }
       if (showCompleted) params.status = 'all';
       const { data } = await followupAPI.getAll(params);
-      setAppointments(data.followups || []);
+      const rows = data.followups || [];
+      setAppointments(scope === 'today' ? rows.filter(a => localDay(a.next_followup_at) === todayISO()) : rows);
       setPagination(data.pagination);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -88,7 +112,7 @@ const AppointmentsPage = () => {
           <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <Video size={20} className="text-violet-600" /> Appointments
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">All scheduled demo sessions</p>
+          <p className="text-sm text-gray-500 mt-0.5">{scope === 'today' ? "Today's demo sessions" : 'All scheduled demo sessions'}</p>
         </div>
         <div className="flex items-center gap-2">
           <button onClick={load} className="p-2 hover:bg-gray-100 rounded-lg text-gray-500" title="Refresh">
