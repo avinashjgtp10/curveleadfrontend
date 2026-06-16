@@ -397,11 +397,19 @@ const LandingPage = () => {
       </main>
 
       <footer className="border-t border-gray-200 bg-white px-4 py-10 sm:px-6">
-        <div className="mx-auto flex max-w-7xl flex-col gap-4 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <BrandLogo className="h-9 w-24 p-1" />
+        <div className="mx-auto max-w-7xl">
+          <div className="flex flex-col gap-6 text-sm text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2">
+              <BrandLogo className="h-9 w-24 p-1" />
+            </div>
+            <nav className="flex flex-wrap gap-x-6 gap-y-2">
+              <a href="/privacy-policy" className="hover:text-gray-950 transition-colors">Privacy Policy</a>
+              <a href="/terms-of-service" className="hover:text-gray-950 transition-colors">Terms of Service</a>
+              <a href="/contact" className="hover:text-gray-950 transition-colors">Contact Us</a>
+              <a href="mailto:support@curvelead.com" className="hover:text-gray-950 transition-colors">support@curvelead.com</a>
+            </nav>
           </div>
-          <p>© 2026 CurveLead. Built in Baramati, India.</p>
+          <p className="mt-6 text-sm text-gray-400">© 2026 CurveLead. Built in Baramati, India.</p>
         </div>
       </footer>
     </div>
