@@ -73,7 +73,7 @@ export const campaignAPI = {
 // ============================================
 export const whatsappAPI = {
   getInbox: () => api.get('/whatsapp/inbox'),
-  getConversation: (leadId) => api.get(`/whatsapp/conversations/${leadId}`),
+  getConversation: (leadId) => api.get(`/whatsapp/conversation/${leadId}`),
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
 };
 
