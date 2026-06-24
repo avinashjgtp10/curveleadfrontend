@@ -255,7 +255,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
       integrationsAPI.facebookAuth(authResp.authResponse.accessToken)
         .then(({ data }) => { setPages(data.pages); setConnecting(false); })
         .catch(e => { alert(e.response?.data?.error || 'Facebook auth failed.'); setConnecting(false); });
-    }, { scope: 'leads_retrieval,pages_manage_ads,pages_read_engagement,pages_manage_metadata,business_management' });
+    }, { scope: 'leads_retrieval,pages_manage_ads,pages_read_engagement,business_management' });
   }, []);
 
   const handleSelectPage = async (page) => {

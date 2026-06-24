@@ -137,6 +137,27 @@ const QuotationPublicPage = () => {
             </div>
           )}
 
+          {/* Bank / Payment Details */}
+          {(() => {
+            const bd = typeof data.business_bank_details === 'string'
+              ? JSON.parse(data.business_bank_details || '{}')
+              : (data.business_bank_details || {});
+            const hasBankInfo = bd.bank_name || bd.account_number || bd.upi;
+            if (!hasBankInfo) return null;
+            return (
+              <div className="border-t pt-4 mt-4">
+                <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Payment Details</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-xs text-gray-600">
+                  {bd.account_holder && <p><span className="text-gray-400">Account Name:</span> {bd.account_holder}</p>}
+                  {bd.bank_name      && <p><span className="text-gray-400">Bank:</span> {bd.bank_name}</p>}
+                  {bd.account_number && <p><span className="text-gray-400">Account No:</span> <span className="font-mono">{bd.account_number}</span></p>}
+                  {bd.ifsc           && <p><span className="text-gray-400">IFSC:</span> <span className="font-mono">{bd.ifsc}</span></p>}
+                  {bd.upi            && <p><span className="text-gray-400">UPI:</span> <span className="font-mono">{bd.upi}</span></p>}
+                </div>
+              </div>
+            );
+          })()}
+
           <div className="mt-8 pt-6 border-t text-center text-xs text-gray-400">
             Thank you for choosing {data.business_name}!
           </div>
