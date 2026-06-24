@@ -12,7 +12,11 @@ const SettingsPage = () => {
 
   const [profile, setProfile] = useState({ name: '', email: '', phone: '' });
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
-  const [business, setBusiness] = useState({ name: '', phone: '', address: '' });
+  const [business, setBusiness] = useState({
+    name: '', email: '', phone: '', address: '', city: '', state: '',
+    gst_number: '', pan_number: '', website: '',
+    bank_details: { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
+  });
 
   const [templates, setTemplates] = useState([]);
   const [tmplModal, setTmplModal] = useState(false);
@@ -36,7 +40,19 @@ const SettingsPage = () => {
       const { data } = await settingsAPI.get();
       setSettings(data.settings || {});
       setProfile({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '' });
-      setBusiness({ name: tenant?.name || '', phone: data.settings?.phone || '', address: data.settings?.address || '' });
+      const s = data.settings || {};
+      setBusiness({
+        name: s.name || tenant?.name || '',
+        email: s.email || '',
+        phone: s.phone || '',
+        address: s.address || '',
+        city: s.city || '',
+        state: s.state || '',
+        gst_number: s.gst_number || '',
+        pan_number: s.pan_number || '',
+        website: s.website || '',
+        bank_details: s.bank_details || { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
+      });
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -205,25 +221,112 @@ const SettingsPage = () => {
 
           {tab === 'business' && (
             <>
-              <h2 className="text-lg font-bold mb-4">Business Settings</h2>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Business Name</label>
-                  <input type="text" value={business.name} onChange={e => setBusiness({ ...business, name: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <h2 className="text-lg font-bold mb-1">Business Settings</h2>
+              <p className="text-xs text-gray-400 mb-4">These details appear on your quotations and PDFs</p>
+
+              {/* Basic Info */}
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Basic Info</p>
+              <div className="space-y-3 mb-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
+                    <input type="text" value={business.name} onChange={e => setBusiness({ ...business, name: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Email</label>
+                    <input type="email" value={business.email} onChange={e => setBusiness({ ...business, email: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="billing@yourbusiness.com" />
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
-                  <input type="tel" value={business.phone} onChange={e => setBusiness({ ...business, phone: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                    <input type="tel" value={business.phone} onChange={e => setBusiness({ ...business, phone: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Website</label>
+                    <input type="url" value={business.website} onChange={e => setBusiness({ ...business, website: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="https://yourbusiness.com" />
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
                   <textarea value={business.address} onChange={e => setBusiness({ ...business, address: e.target.value })}
-                    rows={3} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                    rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
                 </div>
-                <button onClick={handleSaveBusiness} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Save Changes</button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
+                    <input type="text" value={business.city} onChange={e => setBusiness({ ...business, city: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
+                    <input type="text" value={business.state} onChange={e => setBusiness({ ...business, state: e.target.value })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  </div>
+                </div>
               </div>
+
+              {/* Tax Info */}
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Tax Details</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">GST Number (GSTIN)</label>
+                  <input type="text" value={business.gst_number} onChange={e => setBusiness({ ...business, gst_number: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="22AAAAA0000A1Z5" maxLength={15} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">PAN Number</label>
+                  <input type="text" value={business.pan_number} onChange={e => setBusiness({ ...business, pan_number: e.target.value.toUpperCase() })}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="AAAAA0000A" maxLength={10} />
+                </div>
+              </div>
+
+              {/* Bank Details */}
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bank / Payment Details</p>
+              <div className="space-y-3 mb-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Account Holder Name</label>
+                    <input type="text" value={business.bank_details.account_holder}
+                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_holder: e.target.value } })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Bank Name</label>
+                    <input type="text" value={business.bank_details.bank_name}
+                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, bank_name: e.target.value } })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Account Number</label>
+                    <input type="text" value={business.bank_details.account_number}
+                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_number: e.target.value } })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1">IFSC Code</label>
+                    <input type="text" value={business.bank_details.ifsc}
+                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, ifsc: e.target.value.toUpperCase() } })}
+                      className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="SBIN0001234" maxLength={11} />
+                  </div>
+                </div>
+                <div className="sm:w-1/2">
+                  <label className="block text-xs font-medium text-gray-500 mb-1">UPI ID</label>
+                  <input type="text" value={business.bank_details.upi}
+                    onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, upi: e.target.value } })}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="yourname@upi" />
+                </div>
+              </div>
+
+              <button onClick={handleSaveBusiness} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">
+                Save Changes
+              </button>
             </>
           )}
 

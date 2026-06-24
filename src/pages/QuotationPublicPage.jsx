@@ -43,9 +43,14 @@ const QuotationPublicPage = () => {
           {/* Header */}
           <div className="flex justify-between items-start mb-8 pb-6 border-b">
             <div>
+              {data.business_logo && <img src={data.business_logo} alt="logo" className="h-12 mb-2 object-contain" />}
               <h1 className="text-2xl font-bold text-blue-600">{data.business_name}</h1>
-              {data.business_address && <p className="text-xs text-gray-500 mt-1">{data.business_address}</p>}
+              {data.business_address && <p className="text-xs text-gray-500 mt-0.5">{data.business_address}</p>}
               {data.business_phone && <p className="text-xs text-gray-500">{data.business_phone}</p>}
+              {data.business_email && <p className="text-xs text-gray-500">{data.business_email}</p>}
+              {data.business_website && <p className="text-xs text-gray-500">{data.business_website}</p>}
+              {data.business_gst && <p className="text-xs text-gray-500 mt-1">GSTIN: <span className="font-mono font-semibold">{data.business_gst}</span></p>}
+              {data.business_pan && <p className="text-xs text-gray-500">PAN: <span className="font-mono font-semibold">{data.business_pan}</span></p>}
             </div>
             <div className="text-right">
               <h2 className="text-2xl font-bold tracking-wide">QUOTATION</h2>
