@@ -108,6 +108,7 @@ const BillingPage = () => {
               billingPeriod,
             });
             await refreshProfile();
+            window.dispatchEvent(new CustomEvent('payment-success'));
             setMessage(verifyResult.data?.message || 'Payment successful. Your plan is active.');
           } catch (err) {
             setError(err.response?.data?.error || 'Payment captured, but verification failed. Contact support with your payment ID.');
@@ -231,7 +232,11 @@ const BillingPage = () => {
 
               <div className="mt-6 flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
                 <Users size={14} />
-                <span>{plan.max_users < 0 ? 'Unlimited users' : `${plan.max_users} user${plan.max_users === 1 ? '' : 's'}`}</span>
+                <span>{
+                  plan.max_users == null ? '—' :
+                  plan.max_users < 0 ? 'Unlimited users' :
+                  `${plan.max_users} user${plan.max_users === 1 ? '' : 's'}`
+                }</span>
               </div>
 
               {plan.checkoutEnabled ? (

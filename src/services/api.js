@@ -12,13 +12,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 (auto logout)
+// Handle 401 (auto logout) and 402 (trial expired)
 api.interceptors.response.use(
   (res) => res,
   (err) => {
     if (err.response?.status === 401 && !window.location.pathname.includes('/login')) {
       localStorage.removeItem('token');
       window.location.href = '/login';
+    }
+    if (err.response?.status === 402) {
+      window.dispatchEvent(new CustomEvent('trial-expired', {
+        detail: { message: err.response.data?.error },
+      }));
     }
     return Promise.reject(err);
   }

@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { quotationsAPI, leadAPI } from '../services/api';
 import { Plus, Trash2, Save, Send, ArrowLeft } from 'lucide-react';
 
 const QuotationEditorPage = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const isNew = !id || id === 'new';
 
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(null);
   const [form, setForm] = useState({
-    lead_id: '',
+    lead_id: isNew ? (searchParams.get('lead_id') || '') : '',
     title: '',
     items: [{ name: '', description: '', quantity: 1, price: 0 }],
     discount_percent: 0,
