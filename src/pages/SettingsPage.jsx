@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
-import { settingsAPI, authAPI, templateAPI, stageAPI } from '../services/api';
+import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X } from 'lucide-react';
+import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
 
 const SettingsPage = () => {
   const { user, tenant } = useAuth();
@@ -26,13 +26,19 @@ const SettingsPage = () => {
   const [stages, setStages] = useState([]);
   const [stageModal, setStageModal] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
-  const [stageForm, setStageForm] = useState({ name: '', color: 'blue' });
+  const [stageForm, setStageForm] = useState({ name: '', color: 'blue', is_won: false, is_lost: false });
+  const [expandedStage, setExpandedStage] = useState(null);
+
+  const [statusModal, setStatusModal] = useState(false);
+  const [editingStatus, setEditingStatus] = useState(null);
+  const [statusForm, setStatusForm] = useState({ name: '', stage_id: '' });
+  const [statusStageId, setStatusStageId] = useState(null);
 
   useEffect(() => { loadSettings(); }, []);
 
   useEffect(() => {
     if (tab === 'templates') loadTemplates();
-    if (tab === 'stages') loadStages();
+    if (tab === 'pipeline') loadStages();
   }, [tab]);
 
   const loadSettings = async () => {
@@ -122,20 +128,26 @@ const SettingsPage = () => {
 
   const loadStages = async () => {
     try {
-      const { data } = await stageAPI.getAll();
+      const { data } = await statusAPI.byStage();
       setStages(data.stages || []);
-    } catch (e) { console.error(e); }
+    } catch {
+      // Fallback: statuses not deployed yet — show stages without statuses
+      try {
+        const { data } = await stageAPI.getAll();
+        setStages((data.stages || []).map(s => ({ ...s, statuses: [] })));
+      } catch (e) { console.error(e); }
+    }
   };
 
   const openCreateStage = () => {
     setEditingStage(null);
-    setStageForm({ name: '', color: 'blue' });
+    setStageForm({ name: '', color: 'blue', is_won: false, is_lost: false });
     setStageModal(true);
   };
 
   const openEditStage = (s) => {
     setEditingStage(s);
-    setStageForm({ name: s.name, color: s.color || 'blue' });
+    setStageForm({ name: s.name, color: s.color || 'blue', is_won: s.is_won || false, is_lost: s.is_lost || false });
     setStageModal(true);
   };
 
@@ -162,6 +174,43 @@ const SettingsPage = () => {
     } catch (e) { alert(e.response?.data?.error || 'Failed to delete'); }
   };
 
+  const openCreateStatus = (stageId) => {
+    setEditingStatus(null);
+    setStatusStageId(stageId);
+    setStatusForm({ name: '', stage_id: stageId });
+    setStatusModal(true);
+  };
+
+  const openEditStatus = (st, stageId) => {
+    setEditingStatus(st);
+    setStatusStageId(stageId);
+    setStatusForm({ name: st.name, stage_id: stageId });
+    setStatusModal(true);
+  };
+
+  const handleSaveStatus = async () => {
+    if (!statusForm.name.trim()) return alert('Status name is required');
+    try {
+      if (editingStatus) {
+        await statusAPI.update(editingStatus.id, { name: statusForm.name });
+      } else {
+        await statusAPI.create({ name: statusForm.name, stage_id: statusStageId });
+      }
+      setStatusModal(false);
+      loadStages();
+      showSaved();
+    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+  };
+
+  const handleDeleteStatus = async (st) => {
+    if (st.is_default) return alert('Default statuses cannot be deleted');
+    if (!confirm(`Delete status "${st.name}"?`)) return;
+    try {
+      await statusAPI.delete(st.id);
+      loadStages();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to delete'); }
+  };
+
   const webhookUrl = `${window.location.origin.replace('www.', '')}/api/webhook/meta/${tenant?.id}`;
 
   const copyToClipboard = (text) => {
@@ -174,7 +223,7 @@ const SettingsPage = () => {
     { id: 'business', label: 'Business', icon: Building },
     { id: 'password', label: 'Password', icon: Lock },
     { id: 'templates', label: 'Templates', icon: MessageSquare },
-    { id: 'stages', label: 'Lead Stages', icon: Layers },
+    { id: 'pipeline', label: 'Pipeline', icon: Layers },
     { id: 'integrations', label: 'Integrations', icon: Webhook },
   ];
 
@@ -445,12 +494,12 @@ const SettingsPage = () => {
             </>
           )}
 
-          {tab === 'stages' && (
+          {tab === 'pipeline' && (
             <>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <h2 className="text-lg font-bold">Lead Stages</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Stages appear as columns in the Kanban board</p>
+                  <h2 className="text-lg font-bold">Pipeline Stages & Statuses</h2>
+                  <p className="text-xs text-gray-400 mt-0.5">Stages = where a lead is · Statuses = what's happening within that stage</p>
                 </div>
                 {user?.role === 'admin' && (
                   <button onClick={openCreateStage}
@@ -461,27 +510,85 @@ const SettingsPage = () => {
               </div>
 
               <div className="space-y-2">
-                {stages.map((s, i) => (
-                  <div key={s.id} className="flex items-center gap-3 border rounded-xl px-4 py-3">
-                    <GripVertical size={14} className="text-gray-300 shrink-0" />
-                    <div className={`w-3 h-3 rounded-full shrink-0 bg-${s.color || 'gray'}-400`} />
-                    <span className="flex-1 text-sm font-medium">{s.name}</span>
-                    {s.is_default && (
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">DEFAULT</span>
-                    )}
-                    {user?.role === 'admin' && (
-                      <div className="flex gap-1">
-                        <button onClick={() => openEditStage(s)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Edit2 size={13} /></button>
-                        <button onClick={() => handleDeleteStage(s)}
-                          className={`p-1.5 rounded-lg ${s.is_default ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-red-50 text-red-500'}`}>
-                          <Trash2 size={13} />
+                {stages.filter(s => s.id).map((s) => {
+                  const isExpanded = expandedStage === s.id;
+                  const stageColor = {
+                    blue: 'bg-blue-400', green: 'bg-green-400', yellow: 'bg-yellow-400',
+                    orange: 'bg-orange-400', red: 'bg-red-400', purple: 'bg-purple-400',
+                    pink: 'bg-pink-400', gray: 'bg-gray-400', cyan: 'bg-cyan-400',
+                    amber: 'bg-amber-400',
+                  }[s.color] || 'bg-gray-400';
+
+                  return (
+                    <div key={s.id} className="border rounded-xl overflow-hidden">
+                      {/* Stage row */}
+                      <div className="flex items-center gap-3 px-4 py-3 bg-white">
+                        <GripVertical size={14} className="text-gray-300 shrink-0" />
+                        <div className={`w-3 h-3 rounded-full shrink-0 ${stageColor}`} />
+                        <button
+                          className="flex items-center gap-1.5 flex-1 text-left"
+                          onClick={() => setExpandedStage(isExpanded ? null : s.id)}
+                        >
+                          <span className="text-sm font-semibold">{s.name}</span>
+                          <span className="text-[10px] text-gray-400 ml-1">({s.statuses?.length || 0} statuses)</span>
+                          {s.is_won && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700">WON</span>}
+                          {s.is_lost && <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700">LOST</span>}
+                          {isExpanded ? <ChevronDown size={13} className="text-gray-400 ml-auto" /> : <ChevronRight size={13} className="text-gray-400 ml-auto" />}
                         </button>
+                        {user?.role === 'admin' && (
+                          <div className="flex gap-1 shrink-0">
+                            <button onClick={() => openCreateStatus(s.id)} className="p-1.5 hover:bg-brand-50 text-brand-600 rounded-lg" title="Add status">
+                              <Tag size={13} />
+                            </button>
+                            <button onClick={() => openEditStage(s)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Edit2 size={13} /></button>
+                            <button onClick={() => handleDeleteStage(s)}
+                              className={`p-1.5 rounded-lg ${s.is_default ? 'text-gray-300 cursor-not-allowed' : 'hover:bg-red-50 text-red-500'}`}>
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
+
+                      {/* Statuses (expanded) */}
+                      {isExpanded && (
+                        <div className="border-t bg-gray-50 px-4 py-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Statuses</p>
+                            {user?.role === 'admin' && (
+                              <button onClick={() => openCreateStatus(s.id)}
+                                className="flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-medium">
+                                <Plus size={11} /> Add Status
+                              </button>
+                            )}
+                          </div>
+                          {(s.statuses || []).length === 0 ? (
+                            <p className="text-xs text-gray-400 py-2">No statuses yet. Add one above.</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-2">
+                              {(s.statuses || []).map(st => (
+                                <div key={st.id} className="flex items-center gap-1.5 bg-white border rounded-lg px-2.5 py-1.5 text-xs">
+                                  <span className="font-medium text-gray-700">{st.name}</span>
+                                  {user?.role === 'admin' && (
+                                    <div className="flex gap-0.5 ml-1">
+                                      <button onClick={() => openEditStatus(st, s.id)} className="text-gray-400 hover:text-gray-600"><Edit2 size={10} /></button>
+                                      <button onClick={() => handleDeleteStatus(st)}
+                                        className={st.is_default ? 'text-gray-200 cursor-not-allowed' : 'text-gray-400 hover:text-red-500'}>
+                                        <X size={10} />
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
+              {/* Stage modal */}
               {stageModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
                   <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
@@ -498,17 +605,52 @@ const SettingsPage = () => {
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-2">Color</label>
                         <div className="flex gap-2 flex-wrap">
-                          {['blue', 'green', 'yellow', 'orange', 'red', 'purple', 'pink', 'gray'].map(c => (
+                          {['blue', 'green', 'yellow', 'orange', 'red', 'purple', 'pink', 'gray', 'cyan', 'amber'].map(c => (
                             <button key={c} onClick={() => setStageForm({ ...stageForm, color: c })}
                               className={`w-7 h-7 rounded-full bg-${c}-400 transition-all ${stageForm.color === c ? 'ring-2 ring-offset-2 ring-brand-500 scale-110' : 'hover:scale-105'}`} />
                           ))}
                         </div>
+                      </div>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={stageForm.is_won} onChange={e => setStageForm({ ...stageForm, is_won: e.target.checked, is_lost: e.target.checked ? false : stageForm.is_lost })}
+                            className="w-4 h-4 rounded" />
+                          <span className="font-medium text-green-700">Mark as Won</span>
+                        </label>
+                        <label className="flex items-center gap-2 text-sm cursor-pointer">
+                          <input type="checkbox" checked={stageForm.is_lost} onChange={e => setStageForm({ ...stageForm, is_lost: e.target.checked, is_won: e.target.checked ? false : stageForm.is_won })}
+                            className="w-4 h-4 rounded" />
+                          <span className="font-medium text-red-700">Mark as Lost</span>
+                        </label>
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                       <button onClick={() => setStageModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
                       <button onClick={handleSaveStage} className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg font-semibold hover:bg-brand-700">
                         {editingStage ? 'Update' : 'Create'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Status modal */}
+              {statusModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+                  <div className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-base">{editingStatus ? 'Edit Status' : 'New Status'}</h3>
+                      <button onClick={() => setStatusModal(false)}><X size={16} className="text-gray-400" /></button>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Status Name *</label>
+                      <input value={statusForm.name} onChange={e => setStatusForm({ ...statusForm, name: e.target.value })}
+                        className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. No Answer" autoFocus />
+                    </div>
+                    <div className="flex justify-end gap-2 mt-4">
+                      <button onClick={() => setStatusModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
+                      <button onClick={handleSaveStatus} className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg font-semibold hover:bg-brand-700">
+                        {editingStatus ? 'Update' : 'Add'}
                       </button>
                     </div>
                   </div>

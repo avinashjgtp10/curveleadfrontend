@@ -155,6 +155,19 @@ export const stageAPI = {
 };
 
 // ============================================
+// Lead Statuses
+// ============================================
+export const statusAPI = {
+  getAll: (params) => api.get('/lead-statuses', { params }),
+  byStage: () => api.get('/lead-statuses/by-stage'),
+  history: (leadId) => api.get(`/lead-statuses/history/${leadId}`),
+  create: (data) => api.post('/lead-statuses', data),
+  update: (id, data) => api.put(`/lead-statuses/${id}`, data),
+  delete: (id) => api.delete(`/lead-statuses/${id}`),
+  reorder: (statuses) => api.put('/lead-statuses/reorder', { statuses }),
+};
+
+// ============================================
 // Templates
 // ============================================
 export const templateAPI = {

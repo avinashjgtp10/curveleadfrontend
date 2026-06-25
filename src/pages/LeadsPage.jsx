@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI } from '../services/api';
+import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download } from 'lucide-react';
 
@@ -10,7 +10,7 @@ const scoreColors = {
   cold: 'bg-gray-100 text-gray-600',
 };
 
-const EMPTY_FILTERS = { search: '', stage: '', source: '', score: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
 const EMPTY_FU_FILTERS = { search: '', type: '', date_from: '', date_to: '', scope: '', category: '' };
 
 const getQueryConfig = (search, state = {}) => {
@@ -90,7 +90,10 @@ const LeadsPage = () => {
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [leads, setLeads] = useState([]);
   const [stages, setStages] = useState([]);
+  const [stageStatuses, setStageStatuses] = useState({}); // { stageName: [status, ...] }
+  const [allStatuses, setAllStatuses] = useState([]);
   const [staff, setStaff] = useState([]);
+  const [editingStatusId, setEditingStatusId] = useState(null);
   const [filters, setFilters] = useState(queryConfig.filters);
   const [showFilters, setShowFilters] = useState(Object.values(queryConfig.filters).some(Boolean));
   const [view, setView] = useState(queryConfig.view);
@@ -129,14 +132,23 @@ const LeadsPage = () => {
     setPage(1);
   }, [location.search, location.state]);
 
-  // Load stages & staff once on mount
+  // Load stages, statuses & staff once on mount
   useEffect(() => {
     Promise.all([
       stageAPI.getAll().catch(() => ({ data: { stages: [] } })),
       staffAPI.getAll().catch(() => ({ data: { staff: [] } })),
-    ]).then(([stagesRes, staffRes]) => {
+      statusAPI.byStage().catch(() => ({ data: { stages: [] } })),
+    ]).then(([stagesRes, staffRes, statusRes]) => {
       setStages(stagesRes.data.stages || []);
       setStaff(staffRes.data.staff || []);
+      const byStage = {};
+      const all = [];
+      for (const s of (statusRes.data.stages || [])) {
+        byStage[s.name?.toLowerCase()] = s.statuses || [];
+        all.push(...(s.statuses || []));
+      }
+      setStageStatuses(byStage);
+      setAllStatuses(all);
     });
   }, []);
 
@@ -280,9 +292,17 @@ const LeadsPage = () => {
   const handleStageChange = async (leadId, newStage) => {
     setEditingStageId(null);
     try {
-      await leadAPI.update(leadId, { stage: newStage });
-      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
+      await leadAPI.update(leadId, { stage: newStage, lead_status: '' });
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage, lead_status: '' } : l));
     } catch (e) { alert('Failed to update stage'); }
+  };
+
+  const handleStatusChange = async (leadId, newStatus) => {
+    setEditingStatusId(null);
+    try {
+      await leadAPI.update(leadId, { lead_status: newStatus });
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, lead_status: newStatus } : l));
+    } catch (e) { alert('Failed to update status'); }
   };
 
   const handleAssignChange = async (leadId, staffId) => {
@@ -461,9 +481,21 @@ const LeadsPage = () => {
                   {/* Stage */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Stage</label>
-                    <select value={filters.stage} onChange={e => handleFilterChange(f => ({ ...f, stage: e.target.value }))} className={selectClass}>
+                    <select value={filters.stage} onChange={e => handleFilterChange(f => ({ ...f, stage: e.target.value, lead_status: '' }))} className={selectClass}>
                       <option value="">All stages</option>
                       {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Status */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Status</label>
+                    <select value={filters.lead_status} onChange={e => handleFilterChange(f => ({ ...f, lead_status: e.target.value }))} className={selectClass}>
+                      <option value="">All statuses</option>
+                      {(filters.stage
+                        ? (stageStatuses[filters.stage?.toLowerCase()] || [])
+                        : allStatuses
+                      ).map(st => <option key={st.id} value={st.name}>{st.name}</option>)}
                     </select>
                   </div>
 
@@ -632,6 +664,7 @@ const LeadsPage = () => {
                       <th className="text-left px-3 py-3">Source</th>
                       <th className="text-left px-3 py-3">Score</th>
                       <th className="text-left px-3 py-3">Stage</th>
+                      <th className="text-left px-3 py-3">Status</th>
                       <th className="text-left px-3 py-3">Assigned To</th>
                       <th className="text-right px-3 py-3">Actions</th>
                     </tr>
@@ -677,6 +710,30 @@ const LeadsPage = () => {
                               title="Click to change stage"
                             >
                               {l.stage || '—'}
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-3 py-3">
+                          {editingStatusId === l.id ? (
+                            <select
+                              autoFocus
+                              defaultValue={l.lead_status || ''}
+                              onBlur={() => setEditingStatusId(null)}
+                              onChange={e => handleStatusChange(l.id, e.target.value)}
+                              className="border border-indigo-400 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            >
+                              <option value="">— No status —</option>
+                              {(stageStatuses[l.stage?.toLowerCase()] || allStatuses).map(st => (
+                                <option key={st.id} value={st.name}>{st.name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <button
+                              onClick={() => setEditingStatusId(l.id)}
+                              className="text-xs text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                              title="Click to change status"
+                            >
+                              {l.lead_status || <span className="text-gray-300">—</span>}
                             </button>
                           )}
                         </td>

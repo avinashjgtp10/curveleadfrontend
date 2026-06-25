@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
+import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
@@ -60,9 +60,11 @@ const LeadDetailPage = () => {
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
 
-  // Stages & Staff
+  // Stages, Statuses & Staff
   const [stages, setStages] = useState([]);
   const [stageSaving, setStageSaving] = useState(false);
+  const [stageStatuses, setStageStatuses] = useState({});
+  const [allStatuses, setAllStatuses] = useState([]);
   const [staff, setStaff] = useState([]);
 
   // Follow-up
@@ -119,8 +121,19 @@ const LeadDetailPage = () => {
 
   const loadStages = async () => {
     try {
-      const { data } = await stageAPI.getAll();
-      setStages(data.stages || []);
+      const { data } = await statusAPI.byStage().catch(() => stageAPI.getAll().then(r => ({ data: { stages: (r.data.stages || []).map(s => ({ ...s, statuses: [] })) } })));
+      const stgs = data.stages || [];
+      setStages(stgs);
+      const byStage = {};
+      const all = [];
+      stgs.forEach(s => {
+        if (s.statuses?.length) {
+          byStage[s.name?.toLowerCase()] = s.statuses;
+          all.push(...s.statuses);
+        }
+      });
+      setStageStatuses(byStage);
+      setAllStatuses(all);
     } catch (e) { console.error(e); }
   };
 
@@ -153,10 +166,17 @@ const LeadDetailPage = () => {
   const handleStageChange = async (newStage) => {
     setStageSaving(true);
     try {
-      await leadAPI.update(id, { stage: newStage });
-      setLead(prev => ({ ...prev, stage: newStage }));
+      await leadAPI.update(id, { stage: newStage, lead_status: '' });
+      setLead(prev => ({ ...prev, stage: newStage, lead_status: '' }));
     } catch (e) { alert('Failed to update stage'); }
     finally { setStageSaving(false); }
+  };
+
+  const handleStatusChange = async (newStatus) => {
+    try {
+      await leadAPI.update(id, { lead_status: newStatus });
+      setLead(prev => ({ ...prev, lead_status: newStatus }));
+    } catch (e) { alert('Failed to update status'); }
   };
 
   const handleScheduleFollowup = async () => {
@@ -379,6 +399,25 @@ const LeadDetailPage = () => {
                   <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
               </div>
+
+              {/* Status Dropdown */}
+              {(stageStatuses[lead.stage?.toLowerCase()]?.length > 0 || allStatuses.length > 0) && (
+                <div>
+                  <p className="text-xs text-gray-500 mb-1">Status</p>
+                  <div className="relative">
+                    <select
+                      value={lead.lead_status || ''}
+                      onChange={e => handleStatusChange(e.target.value)}
+                      className="w-full appearance-none px-3 py-2 border rounded-lg text-sm bg-white pr-8 focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                      <option value="">— No status —</option>
+                      {(stageStatuses[lead.stage?.toLowerCase()] || allStatuses).map(st => (
+                        <option key={st.id} value={st.name}>{st.name}</option>
+                      ))}
+                    </select>
+                    <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                  </div>
+                </div>
+              )}
 
               {lead.score_reason && (
                 <div>

@@ -255,7 +255,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
       integrationsAPI.facebookAuth(authResp.authResponse.accessToken)
         .then(({ data }) => { setPages(data.pages); setConnecting(false); })
         .catch(e => { alert(e.response?.data?.error || 'Facebook auth failed.'); setConnecting(false); });
-    }, { scope: 'leads_retrieval,pages_manage_ads,pages_read_engagement,business_management' });
+    }, { scope: 'leads_retrieval,pages_manage_ads,pages_read_engagement,pages_show_list' });
   }, []);
 
   const handleSelectPage = async (page) => {
@@ -271,7 +271,6 @@ const MetaConfig = ({ settings, onRefresh }) => {
     try {
       const { data } = await integrationsAPI.facebookSyncLeads();
       setSyncResult(data.message);
-      onRefresh();
     } catch (e) { setSyncResult(e.response?.data?.error || 'Sync failed.'); }
     finally { setSyncing(false); }
   };
