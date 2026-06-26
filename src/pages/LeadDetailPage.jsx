@@ -157,9 +157,14 @@ const LeadDetailPage = () => {
 
   const handleSave = async () => {
     try {
-      await leadAPI.update(id, form);
+      const { stage, lead_status, ...updateFields } = form;
+      await leadAPI.update(id, updateFields);
+      const { data } = await leadAPI.getOne(id);
+      setLead(data.lead);
+      setForm(data.lead);
+      setFollowups(data.followups || []);
+      setActivities(data.activities || []);
       setEditing(false);
-      loadData();
     } catch (e) { alert('Failed to save'); }
   };
 

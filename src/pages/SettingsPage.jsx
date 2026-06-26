@@ -33,6 +33,7 @@ const SettingsPage = () => {
   const [editingStatus, setEditingStatus] = useState(null);
   const [statusForm, setStatusForm] = useState({ name: '', stage_id: '' });
   const [statusStageId, setStatusStageId] = useState(null);
+  const [modalError, setModalError] = useState('');
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -152,7 +153,8 @@ const SettingsPage = () => {
   };
 
   const handleSaveStage = async () => {
-    if (!stageForm.name.trim()) return alert('Stage name is required');
+    if (!stageForm.name.trim()) return setModalError('Stage name is required');
+    setModalError('');
     try {
       if (editingStage) {
         await stageAPI.update(editingStage.id, stageForm);
@@ -162,7 +164,7 @@ const SettingsPage = () => {
       setStageModal(false);
       loadStages();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { setModalError(e.response?.data?.error || 'Failed to save stage'); }
   };
 
   const handleDeleteStage = async (stage) => {
@@ -178,6 +180,7 @@ const SettingsPage = () => {
     setEditingStatus(null);
     setStatusStageId(stageId);
     setStatusForm({ name: '', stage_id: stageId });
+    setModalError('');
     setStatusModal(true);
   };
 
@@ -185,11 +188,13 @@ const SettingsPage = () => {
     setEditingStatus(st);
     setStatusStageId(stageId);
     setStatusForm({ name: st.name, stage_id: stageId });
+    setModalError('');
     setStatusModal(true);
   };
 
   const handleSaveStatus = async () => {
-    if (!statusForm.name.trim()) return alert('Status name is required');
+    if (!statusForm.name.trim()) return setModalError('Status name is required');
+    setModalError('');
     try {
       if (editingStatus) {
         await statusAPI.update(editingStatus.id, { name: statusForm.name });
@@ -199,7 +204,7 @@ const SettingsPage = () => {
       setStatusModal(false);
       loadStages();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { setModalError(e.response?.data?.error || 'Failed to save status'); }
   };
 
   const handleDeleteStatus = async (st) => {
@@ -624,6 +629,9 @@ const SettingsPage = () => {
                         </label>
                       </div>
                     </div>
+                    {modalError && (
+                      <div className="mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{modalError}</div>
+                    )}
                     <div className="flex justify-end gap-2 mt-4">
                       <button onClick={() => setStageModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
                       <button onClick={handleSaveStage} className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg font-semibold hover:bg-brand-700">
@@ -647,6 +655,9 @@ const SettingsPage = () => {
                       <input value={statusForm.name} onChange={e => setStatusForm({ ...statusForm, name: e.target.value })}
                         className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. No Answer" autoFocus />
                     </div>
+                    {modalError && (
+                      <div className="mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{modalError}</div>
+                    )}
                     <div className="flex justify-end gap-2 mt-4">
                       <button onClick={() => setStatusModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
                       <button onClick={handleSaveStatus} className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg font-semibold hover:bg-brand-700">

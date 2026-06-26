@@ -107,16 +107,15 @@ const INTEGRATIONS = [
     live: true,
     isConfigured: s => s.voice_ai_configured,
   },
-  // ── Coming soon
   {
-    id: null,
-    label: 'WhatsApp',
-    description: 'Auto-create leads from WhatsApp conversations.',
+    id: 'whatsapp',
+    label: 'WhatsApp Business API',
+    description: 'Auto-send appointment & demo confirmations to leads via WhatsApp.',
     emoji: '💬',
     bg: 'bg-green-50',
     border: 'border-green-100',
     category: 'Messaging',
-    live: false,
+    live: true,
   },
   {
     id: null,
@@ -501,6 +500,88 @@ const GoogleConfig = ({ settings, form, setForm, saving, handleSave }) => (
   </div>
 );
 
+const WhatsAppConfig = ({ settings, onRefresh }) => {
+  const isConfigured = !!(settings.whatsapp_configured || settings.whatsapp_phone_number_id);
+  const [form, setForm] = useState({
+    whatsapp_phone_number_id: settings.whatsapp_phone_number_id || '',
+    whatsapp_access_token: isConfigured ? '••••••••' : '',
+  });
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    if (!form.whatsapp_phone_number_id) return setError('Phone Number ID is required');
+    if (!form.whatsapp_access_token) return setError('Access Token is required');
+    setError('');
+    setSaving(true);
+    try {
+      await integrationsAPI.updateSettings(form);
+      await onRefresh();
+      alert('WhatsApp settings saved.');
+    } catch (e) { setError(e.response?.data?.error || 'Failed to save'); }
+    finally { setSaving(false); }
+  };
+
+  const handleDisconnect = async () => {
+    if (!confirm('Disconnect WhatsApp Business API?')) return;
+    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
+    await onRefresh();
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${isConfigured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
+        {isConfigured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+        {isConfigured ? 'WhatsApp Business API connected — appointment messages will auto-send.' : 'Not configured — paste your Meta WhatsApp API credentials below.'}
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5 space-y-4">
+        <div>
+          <h2 className="font-semibold mb-1">Step 1 — Get credentials from Meta</h2>
+          <p className="text-xs text-gray-500">Go to <strong>Meta Developer Console → Your App → WhatsApp → API Setup</strong>. Copy the <em>Phone Number ID</em> and generate a <em>Permanent Access Token</em>.</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Phone Number ID</label>
+          <input value={form.whatsapp_phone_number_id}
+            onChange={e => setForm(f => ({ ...f, whatsapp_phone_number_id: e.target.value }))}
+            placeholder="e.g. 123456789012345"
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Permanent Access Token</label>
+          <input value={form.whatsapp_access_token}
+            onChange={e => setForm(f => ({ ...f, whatsapp_access_token: e.target.value }))}
+            onFocus={e => { if (e.target.value.startsWith('•')) setForm(f => ({ ...f, whatsapp_access_token: '' })); }}
+            type="password" placeholder="EAAxxxxxxxxxx…"
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+        <div className="flex gap-2">
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+            {saving ? 'Saving…' : 'Save WhatsApp Settings'}
+          </button>
+          {isConfigured && (
+            <button onClick={handleDisconnect} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">
+              Disconnect
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5">
+        <h2 className="font-semibold mb-2">What happens automatically</h2>
+        <ul className="text-xs text-gray-500 space-y-1.5 list-disc list-inside">
+          <li>When an agent books a <strong>Demo</strong> with a lead → WhatsApp confirmation sent instantly</li>
+          <li>When a <strong>Visit / Appointment</strong> is scheduled → WhatsApp reminder sent to lead</li>
+          <li>Message includes date, time, and meeting link (if provided)</li>
+          <li>Messages appear in the lead's WhatsApp conversation thread in CurveLead</li>
+        </ul>
+      </div>
+    </div>
+  );
+};
+
 const emptyAgentForm = () => ({
   name: '', voice_provider: '', voice_id: '', voice_name: '',
   language: 'en', system_prompt: '', first_message: '', is_default: false,
@@ -665,10 +746,11 @@ const IntegrationsPage = () => {
   const [selected, setSelected] = useState(null);
   const [category, setCategory] = useState('All');
   const [settings, setSettings] = useState({
-    meta_configured: false, google_configured: false,
+    meta_configured: false, google_configured: false, whatsapp_configured: false,
     api_key: null, api_key_created_at: null,
     webhook_url: '', api_ingest_url: '', google_webhook_url: '',
     meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '',
+    whatsapp_phone_number_id: '', whatsapp_access_token: '',
     voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
   const [loading, setLoading] = useState(true);
@@ -747,6 +829,7 @@ const IntegrationsPage = () => {
         {selected === 'website' && <WebsiteConfig settings={settings} embedScript={embedScript} handleLoadEmbed={handleLoadEmbed} />}
         {selected === 'api' && <ApiKeyConfig settings={settings} newKeyValue={newKeyValue} handleGenerateKey={handleGenerateKey} handleRevokeKey={handleRevokeKey} />}
         {selected === 'google' && <GoogleConfig settings={settings} form={form} setForm={setForm} saving={saving} handleSave={handleSave} />}
+        {selected === 'whatsapp' && <WhatsAppConfig settings={settings} onRefresh={load} />}
         {selected === 'ai_calling' && <AiCallingConfig settings={settings} onRefresh={load} />}
       </div>
     );
