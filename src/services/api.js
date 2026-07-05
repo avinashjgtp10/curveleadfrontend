@@ -58,6 +58,7 @@ export const leadAPI = {
   getFollowupsToday: (params) => api.get('/leads/followups/today', { params }),
   bulkUpdate: (data) => api.put('/leads/bulk', data),
   bulkDelete: (ids) => api.delete('/leads/bulk', { data: { ids } }),
+  export: (params) => api.get('/leads/export', { params, responseType: 'blob' }),
 };
 
 // ============================================

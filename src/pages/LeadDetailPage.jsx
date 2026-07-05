@@ -63,6 +63,8 @@ const LeadDetailPage = () => {
   // Stages, Statuses & Staff
   const [stages, setStages] = useState([]);
   const [stageSaving, setStageSaving] = useState(false);
+  const [lostReasonModal, setLostReasonModal] = useState({ open: false, newStage: null, reason: '', customReason: '' });
+  const closeLostModal = () => setLostReasonModal({ open: false, newStage: null, reason: '', customReason: '' });
   const [stageStatuses, setStageStatuses] = useState({});
   const [allStatuses, setAllStatuses] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -169,11 +171,31 @@ const LeadDetailPage = () => {
   };
 
   const handleStageChange = async (newStage) => {
+    const stageObj = stages.find(s => s.name.toLowerCase() === newStage.toLowerCase());
+    if (stageObj?.is_lost) {
+      setLostReasonModal({ open: true, newStage, reason: '', customReason: '' });
+      return;
+    }
     setStageSaving(true);
     try {
       await leadAPI.update(id, { stage: newStage, lead_status: '' });
       setLead(prev => ({ ...prev, stage: newStage, lead_status: '' }));
     } catch (e) { alert('Failed to update stage'); }
+    finally { setStageSaving(false); }
+  };
+
+  const confirmLostStage = async () => {
+    const finalReason = lostReasonModal.reason === 'Other'
+      ? (lostReasonModal.customReason || 'Other')
+      : lostReasonModal.reason;
+    if (!finalReason) return;
+    setStageSaving(true);
+    try {
+      await leadAPI.update(id, { stage: lostReasonModal.newStage, lead_status: '', lost_reason: finalReason });
+      setLead(prev => ({ ...prev, stage: lostReasonModal.newStage, lead_status: '' }));
+      closeLostModal();
+      loadData();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to update stage'); }
     finally { setStageSaving(false); }
   };
 
@@ -264,6 +286,9 @@ const LeadDetailPage = () => {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
   if (!lead) return <p>Lead not found</p>;
 
+  const isWon = stages.find(s => s.name.toLowerCase() === (lead.stage || '').toLowerCase())?.is_won;
+  const balanceDue = Math.max(0, Number(lead.deal_value || 0) - Number(lead.advance_received || 0));
+
   return (
     <div className="max-w-5xl mx-auto space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -343,11 +368,19 @@ const LeadDetailPage = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Deal Value (₹)</label>
+                    <label className="text-xs text-gray-500">Quoted Price (₹)</label>
                     <input type="number" min="0" value={form.deal_value || ''} onChange={e => setForm({ ...form, deal_value: e.target.value })}
                       placeholder="0"
                       className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
                   </div>
+                  {isWon && (
+                    <div>
+                      <label className="text-xs text-gray-500">Advance Received (₹)</label>
+                      <input type="number" min="0" value={form.advance_received || ''} onChange={e => setForm({ ...form, advance_received: e.target.value })}
+                        placeholder="0"
+                        className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    </div>
+                  )}
                   <div>
                     <label className="text-xs text-gray-500">Notes</label>
                     <textarea value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })}
@@ -384,6 +417,24 @@ const LeadDetailPage = () => {
                       <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
                     )}
                   </div>
+                  {!!Number(lead.deal_value) && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs text-gray-500">Quoted Price</p>
+                      <p className="font-medium">₹{Number(lead.deal_value).toLocaleString('en-IN')}</p>
+                    </div>
+                  )}
+                  {isWon && (
+                    <>
+                      <div>
+                        <p className="text-xs text-gray-500">Advance Received</p>
+                        <p className="font-medium">₹{Number(lead.advance_received || 0).toLocaleString('en-IN')}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-gray-500">Balance Due</p>
+                        <p className="font-medium">₹{balanceDue.toLocaleString('en-IN')}</p>
+                      </div>
+                    </>
+                  )}
                 </>
               )}
 
@@ -790,6 +841,49 @@ const LeadDetailPage = () => {
         </div>
       </div>
 
+      {/* ── Lost Reason Modal ── */}
+      {lostReasonModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={closeLostModal} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Why is this lead lost?</h2>
+              <button onClick={closeLostModal} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-500">A reason is required to track why deals aren't converting.</p>
+              <select value={lostReasonModal.reason}
+                onChange={e => setLostReasonModal(m => ({ ...m, reason: e.target.value }))}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300">
+                <option value="">— Select a reason —</option>
+                <option value="Not interested">Not interested</option>
+                <option value="Budget constraint">Budget constraint</option>
+                <option value="Chose competitor">Chose competitor</option>
+                <option value="Bad timing">Bad timing</option>
+                <option value="No response">No response</option>
+                <option value="Requirement mismatch">Requirement mismatch</option>
+                <option value="Other">Other</option>
+              </select>
+              {lostReasonModal.reason === 'Other' && (
+                <textarea placeholder="Describe the reason…"
+                  value={lostReasonModal.customReason}
+                  onChange={e => setLostReasonModal(m => ({ ...m, customReason: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-300" />
+              )}
+              <div className="flex gap-2 pt-1">
+                <button onClick={closeLostModal}
+                  className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+                <button onClick={confirmLostStage}
+                  disabled={stageSaving || !lostReasonModal.reason || (lostReasonModal.reason === 'Other' && !lostReasonModal.customReason)}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+                  {stageSaving ? 'Saving…' : 'Mark as Lost'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

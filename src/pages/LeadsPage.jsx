@@ -121,6 +121,10 @@ const LeadsPage = () => {
   const [importResult, setImportResult] = useState(null);
   const [importDragOver, setImportDragOver] = useState(false);
 
+  // Lost reason modal state
+  const [lostReasonModal, setLostReasonModal] = useState({ open: false, leadId: null, newStage: null, reason: '', customReason: '' });
+  const closeLostModal = () => setLostReasonModal({ open: false, leadId: null, newStage: null, reason: '', customReason: '' });
+
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length;
 
   useEffect(() => {
@@ -291,10 +295,62 @@ const LeadsPage = () => {
 
   const handleStageChange = async (leadId, newStage) => {
     setEditingStageId(null);
+    const stageObj = stages.find(s => s.name.toLowerCase() === newStage.toLowerCase());
+    if (stageObj?.is_lost) {
+      setLostReasonModal({ open: true, leadId, newStage, reason: '', customReason: '' });
+      return;
+    }
     try {
       await leadAPI.update(leadId, { stage: newStage, lead_status: '' });
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage, lead_status: '' } : l));
     } catch (e) { alert('Failed to update stage'); }
+  };
+
+  const confirmLostStage = async () => {
+    const finalReason = lostReasonModal.reason === 'Other'
+      ? (lostReasonModal.customReason || 'Other')
+      : lostReasonModal.reason;
+    if (!finalReason) return;
+    try {
+      await leadAPI.update(lostReasonModal.leadId, {
+        stage: lostReasonModal.newStage, lead_status: '', lost_reason: finalReason,
+      });
+      setLeads(prev => prev.map(l => l.id === lostReasonModal.leadId
+        ? { ...l, stage: lostReasonModal.newStage, lead_status: '' }
+        : l
+      ));
+      closeLostModal();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to update stage'); }
+  };
+
+  const handleExport = async () => {
+    try {
+      const params = Object.fromEntries(
+        Object.entries(filters).filter(([, v]) => v)
+      );
+      const response = await leadAPI.export(params);
+      const blob = response.data instanceof Blob
+        ? response.data
+        : new Blob([response.data], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `leads_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Export error:', err);
+      // If server returned an error as blob, read it as text to surface the real message
+      if (err.response?.data instanceof Blob) {
+        const text = await err.response.data.text().catch(() => '');
+        try { const parsed = JSON.parse(text); alert('Export failed: ' + (parsed.error || text)); return; } catch {}
+        alert('Export failed: ' + (text || err.message));
+      } else {
+        alert('Export failed: ' + (err.response?.data?.error || err.message || 'Unknown error'));
+      }
+    }
   };
 
   const handleStatusChange = async (leadId, newStatus) => {
@@ -376,6 +432,10 @@ const LeadsPage = () => {
           <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={handleExport}
+            className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
+            <Download size={16} /> Export
+          </button>
           {isAdmin && (
             <button onClick={() => setShowImport(true)}
               className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
@@ -947,6 +1007,50 @@ const LeadsPage = () => {
       )}
 
       {/* ── Import CSV/Excel Modal ── */}
+      {/* ── Lost Reason Modal ── */}
+      {lostReasonModal.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={closeLostModal} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900">Why is this lead lost?</h2>
+              <button onClick={closeLostModal} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <p className="text-sm text-gray-500">A reason is required to track why deals aren't converting.</p>
+              <select value={lostReasonModal.reason}
+                onChange={e => setLostReasonModal(m => ({ ...m, reason: e.target.value }))}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-red-300">
+                <option value="">— Select a reason —</option>
+                <option value="Not interested">Not interested</option>
+                <option value="Budget constraint">Budget constraint</option>
+                <option value="Chose competitor">Chose competitor</option>
+                <option value="Bad timing">Bad timing</option>
+                <option value="No response">No response</option>
+                <option value="Requirement mismatch">Requirement mismatch</option>
+                <option value="Other">Other</option>
+              </select>
+              {lostReasonModal.reason === 'Other' && (
+                <textarea placeholder="Describe the reason…"
+                  value={lostReasonModal.customReason}
+                  onChange={e => setLostReasonModal(m => ({ ...m, customReason: e.target.value }))}
+                  rows={3}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-red-300" />
+              )}
+              <div className="flex gap-2 pt-1">
+                <button onClick={closeLostModal}
+                  className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
+                <button onClick={confirmLostStage}
+                  disabled={!lostReasonModal.reason || (lostReasonModal.reason === 'Other' && !lostReasonModal.customReason)}
+                  className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50">
+                  Mark as Lost
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeImport}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
@@ -1070,7 +1174,7 @@ const LeadsPage = () => {
                   )}
 
                   <p className="text-[11px] text-gray-400">
-                    Columns detected automatically. Required: <strong>Name</strong>. Also supports: Phone, Email, Source, Stage, Notes, Deal Value, City.
+                    Columns detected automatically. Required: <strong>Name</strong>. Also supports: Phone, Email, Source, Stage, Notes, Quoted Price, City.
                   </p>
 
                   <div className="flex gap-2">

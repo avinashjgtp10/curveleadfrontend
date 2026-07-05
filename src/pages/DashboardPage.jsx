@@ -115,6 +115,20 @@ const DashboardPage = () => {
             icon: TrendingUp,
             iconCls: 'bg-amber-100 text-amber-600',
           },
+          {
+            label: 'Advance Collected',
+            value: fmtMoney(data?.total_advance_collected),
+            sub: 'From won deals',
+            icon: IndianRupee,
+            iconCls: 'bg-cyan-100 text-cyan-600',
+          },
+          {
+            label: 'Balance Due',
+            value: fmtMoney(data?.total_balance_due),
+            sub: 'Pending from won deals',
+            icon: AlertTriangle,
+            iconCls: 'bg-orange-100 text-orange-600',
+          },
         ].map(s => (
           <div key={s.label} className="bg-white rounded-2xl p-5 border">
             <div className="flex items-start justify-between gap-2">
@@ -174,6 +188,21 @@ const DashboardPage = () => {
           </button>
         ))}
       </div>
+
+      {/* ── Unassigned Leads Alert ── */}
+      {(data?.unassigned_leads || 0) > 0 && (
+        <button onClick={() => navigate('/leads?assigned_to=unassigned')}
+          className="w-full flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors text-left">
+          <AlertTriangle size={18} className="text-amber-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-amber-800">
+              {data.unassigned_leads} unassigned lead{data.unassigned_leads !== 1 ? 's' : ''}
+            </p>
+            <p className="text-xs text-amber-600">Assign these leads to your team to avoid missing opportunities.</p>
+          </div>
+          <ChevronRight size={16} className="text-amber-400 shrink-0" />
+        </button>
+      )}
 
       {/* ── Pipeline + Recent Leads ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
