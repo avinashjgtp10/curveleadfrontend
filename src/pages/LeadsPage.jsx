@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -127,16 +127,39 @@ const LeadsPage = () => {
 
   // Lead detail modal state — opened in place so filters/pagination are never lost
   const [openLeadId, setOpenLeadId] = useState(null);
+  const [renderedLeadId, setRenderedLeadId] = useState(null); // stays set during the exit fade
+  const [modalEntered, setModalEntered] = useState(false);     // drives enter/exit transition classes
+  const closeTimerRef = useRef(null);
   const closeLeadModal = () => { setOpenLeadId(null); fetchLeads(); };
 
   useEffect(() => {
-    if (!openLeadId) return;
-    const onKeyDown = (e) => { if (e.key === 'Escape') closeLeadModal(); };
-    window.addEventListener('keydown', onKeyDown);
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { window.removeEventListener('keydown', onKeyDown); document.body.style.overflow = prevOverflow; };
+    if (openLeadId) {
+      clearTimeout(closeTimerRef.current);
+      setRenderedLeadId(openLeadId);
+      const raf = requestAnimationFrame(() => setModalEntered(true));
+      const onKeyDown = (e) => { if (e.key === 'Escape') closeLeadModal(); };
+      window.addEventListener('keydown', onKeyDown);
+      const prevOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        cancelAnimationFrame(raf);
+        window.removeEventListener('keydown', onKeyDown);
+        document.body.style.overflow = prevOverflow;
+      };
+    } else if (renderedLeadId) {
+      setModalEntered(false);
+      closeTimerRef.current = setTimeout(() => setRenderedLeadId(null), 200);
+      return () => clearTimeout(closeTimerRef.current);
+    }
   }, [openLeadId]);
+
+  const openLeadIndex = renderedLeadId != null ? leads.findIndex(l => l.id === renderedLeadId) : -1;
+  const prevLeadId = openLeadIndex > 0 ? leads[openLeadIndex - 1].id : null;
+  const nextLeadId = (openLeadIndex >= 0 && openLeadIndex < leads.length - 1) ? leads[openLeadIndex + 1].id : null;
+  const hasPrev = prevLeadId != null;
+  const hasNext = nextLeadId != null;
+  const goPrevLead = () => { if (prevLeadId) setOpenLeadId(prevLeadId); };
+  const goNextLead = () => { if (nextLeadId) setOpenLeadId(nextLeadId); };
 
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length;
 
@@ -670,8 +693,13 @@ const LeadsPage = () => {
         )}
 
         {view === 'list' ? (
-          <div className="overflow-hidden px-5 pb-5">
-            {loading ? (
+          <div className="overflow-hidden px-5 pb-5 relative">
+            {loading && leads.length > 0 && (
+              <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-start justify-center pt-10 transition-opacity">
+                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
+              </div>
+            )}
+            {loading && leads.length === 0 ? (
               <div className="flex items-center justify-center h-48 gap-3 text-gray-400">
                 <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
                 <span className="text-sm font-medium">Loading leads…</span>
@@ -883,8 +911,13 @@ const LeadsPage = () => {
             )}
           </div>
         ) : view === 'followups' ? (
-          <div className="overflow-hidden px-5 pb-5">
-            {loading ? (
+          <div className="overflow-hidden px-5 pb-5 relative">
+            {loading && followups.length > 0 && (
+              <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-start justify-center pt-10 transition-opacity">
+                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
+              </div>
+            )}
+            {loading && followups.length === 0 ? (
               <div className="flex items-center justify-center h-48 gap-3 text-gray-400">
                 <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
                 <span className="text-sm font-medium">Loading follow-ups…</span>
@@ -1064,19 +1097,35 @@ const LeadsPage = () => {
         </div>
       )}
 
-      {openLeadId && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
-          <div className="fixed inset-0 bg-black/50" onClick={closeLeadModal} />
-          <div className="relative bg-white rounded-2xl w-full max-w-6xl shadow-2xl my-4">
-            <button
-              onClick={closeLeadModal}
-              className="absolute top-4 right-4 z-10 p-2 bg-white/90 hover:bg-gray-100 rounded-full shadow"
-              title="Close"
-            >
-              <X size={18} />
-            </button>
+      {renderedLeadId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+          <div
+            className={`fixed inset-0 bg-black/50 transition-opacity duration-200 ${modalEntered ? 'opacity-100' : 'opacity-0'}`}
+            onClick={closeLeadModal}
+          />
+          <div
+            className={`relative bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto shadow-2xl transition-all duration-200 ${
+              modalEntered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+            }`}
+          >
+            <div className="sticky top-0 z-[60] h-0">
+              <button
+                onClick={closeLeadModal}
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-white hover:bg-gray-100 rounded-full shadow border"
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
             <div className="p-4 sm:p-6">
-              <LeadDetailPage leadId={openLeadId} onClose={closeLeadModal} />
+              <LeadDetailPage
+                leadId={renderedLeadId}
+                onClose={closeLeadModal}
+                onPrev={goPrevLead}
+                onNext={goNextLead}
+                hasPrev={hasPrev}
+                hasNext={hasNext}
+              />
             </div>
           </div>
         </div>

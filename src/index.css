@@ -26,3 +26,11 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
 }
+
+@keyframes fieldFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.field-fade-in {
+  animation: fieldFadeIn 0.18s ease-out;
+}

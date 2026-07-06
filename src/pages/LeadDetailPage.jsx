@@ -41,7 +41,7 @@ const scoreColors = {
   cold: 'bg-gray-100 text-gray-600',
 };
 
-const LeadDetailPage = ({ leadId, onClose } = {}) => {
+const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = {}) => {
   const { id: routeId } = useParams();
   const id = leadId || routeId;
   const navigate = useNavigate();
@@ -60,6 +60,7 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
   const [brochures, setBrochures] = useState([]);
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
+  const [activeTab, setActiveTab] = useState('overview');
 
   // Stages, Statuses & Staff
   const [stages, setStages] = useState([]);
@@ -87,10 +88,30 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
   const [followupPage, setFollowupPage] = useState(1);
   const [followupPagination, setFollowupPagination] = useState({ total: 0, pages: 1 });
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [editingFollowupId, setEditingFollowupId] = useState(null);
+  const [editFollowupForm, setEditFollowupForm] = useState({ next_followup_at: '', followup_type: 'call', notes: '', meeting_url: '' });
+  const [savingFollowupEdit, setSavingFollowupEdit] = useState(false);
   const FOLLOWUP_LIMIT = 5;
 
   useEffect(() => { loadData(); loadStages(); loadTemplatesAndBrochures(); }, [id]);
   useEffect(() => { if (id) loadFollowupHistory(); }, [id, followupPage]);
+
+  // Reset ephemeral UI state when switching leads via Prev/Next — the component
+  // stays mounted across the id change, so nothing here resets on its own.
+  useEffect(() => {
+    setActiveTab('overview');
+    setEditing(false);
+    setShowTmplPicker(false);
+    setShareTab('templates');
+    setFollowupPage(1);
+    setHistoryExpanded(false);
+    setEditingFollowupId(null);
+    setNewMessage('');
+    setStageSaving(false);
+    setLostReasonModal({ open: false, newStage: null, reason: '', customReason: '' });
+    setFollowupForm({ next_followup_at: getLocalNow(), followup_type: 'call', notes: '', meeting_url: '' });
+  }, [id]);
 
   const loadTemplatesAndBrochures = async () => {
     try {
@@ -106,6 +127,7 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
   };
 
   const loadData = async () => {
+    setLoading(true);
     try {
       const [leadRes, msgRes, quoteRes] = await Promise.all([
         leadAPI.getOne(id),
@@ -226,6 +248,40 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
     finally { setSavingFollowup(false); }
   };
 
+  const toLocalInputValue = (isoString) => {
+    const d = new Date(isoString);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  };
+
+  const startEditFollowup = (f) => {
+    setEditingFollowupId(f.id);
+    setEditFollowupForm({
+      next_followup_at: toLocalInputValue(f.next_followup_at),
+      followup_type: f.followup_type || 'call',
+      notes: f.notes || '',
+      meeting_url: f.meeting_url || '',
+    });
+  };
+
+  const cancelEditFollowup = () => setEditingFollowupId(null);
+
+  const saveFollowupEdit = async () => {
+    if (!editFollowupForm.next_followup_at) return alert('Please pick a date and time');
+    setSavingFollowupEdit(true);
+    try {
+      const utcAt = new Date(editFollowupForm.next_followup_at).toISOString();
+      await followupAPI.update(editingFollowupId, {
+        ...editFollowupForm,
+        next_followup_at: utcAt,
+        notes: (editFollowupForm.notes || '').trim() || null,
+      });
+      setEditingFollowupId(null);
+      loadFollowupHistory();
+      loadData();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to update follow-up'); }
+    finally { setSavingFollowupEdit(false); }
+  };
+
   const handleAIScore = async () => {
     try {
       await aiAPI.scoreLead(id);
@@ -284,28 +340,117 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
 
   const nextFollowup = followups.find(f => !f.is_completed && f.next_followup_at);
 
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
+  if (loading && !lead) {
+    return (
+      <div className="max-w-5xl mx-auto animate-pulse">
+        <div className="border-b space-y-3 pb-3 pt-1">
+          <div className="flex items-center justify-between">
+            <div className="h-4 w-24 bg-gray-200 rounded" />
+            <div className="h-8 w-28 bg-gray-200 rounded-lg" />
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="h-5 w-40 bg-gray-200 rounded" />
+            <div className="h-4 w-14 bg-gray-200 rounded-full" />
+          </div>
+          <div className="flex gap-1.5">
+            <div className="h-7 w-20 bg-gray-200 rounded-lg" />
+            <div className="h-7 w-16 bg-gray-200 rounded-lg" />
+            <div className="h-7 w-24 bg-gray-200 rounded-lg" />
+            <div className="h-7 w-20 bg-gray-200 rounded-lg" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
+          <div className="space-y-4">
+            <div className="h-48 bg-gray-100 rounded-2xl border" />
+            <div className="h-32 bg-gray-100 rounded-2xl border" />
+          </div>
+          <div className="space-y-4">
+            <div className="h-40 bg-gray-100 rounded-2xl border" />
+            <div className="h-32 bg-gray-100 rounded-2xl border" />
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!lead) return <p>Lead not found</p>;
 
   const isWon = stages.find(s => s.name.toLowerCase() === (lead.stage || '').toLowerCase())?.is_won;
   const balanceDue = Math.max(0, Number(lead.deal_value || 0) - Number(lead.advance_received || 0));
 
+  const tabs = [
+    { id: 'overview', label: 'Overview' },
+    { id: 'chat', label: 'Chat' },
+    { id: 'notes', label: 'Notes & Files' },
+    { id: 'activity', label: 'Activity' },
+  ];
+
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <button onClick={() => (onClose ? onClose() : navigate(-1))} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
-          <ArrowLeft size={16} /> Back
-        </button>
-        <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
-          className="px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
-          <FileText size={14} /> New Quotation
-        </button>
+    <div className="max-w-5xl mx-auto relative">
+      {loading && (
+        <div className="absolute inset-0 z-30 bg-white/70 backdrop-blur-[1px] flex items-start justify-center pt-20 transition-opacity duration-150">
+          <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+        </div>
+      )}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b space-y-2 pb-3 pt-1">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-1">
+            {!onClose && (
+              <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+                <ArrowLeft size={16} /> Back
+              </button>
+            )}
+            {(onPrev || onNext) && (
+              <div className={`flex items-center gap-1 ${onClose ? '' : 'ml-2 pl-2 border-l'}`}>
+                <button onClick={onPrev} disabled={!hasPrev || loading} title="Previous lead"
+                  className="p-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                  <ChevronLeft size={15} />
+                </button>
+                <button onClick={onNext} disabled={!hasNext || loading} title="Next lead"
+                  className="p-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
+                  <ChevronRight size={15} />
+                </button>
+              </div>
+            )}
+          </div>
+          <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
+            className="px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+            <FileText size={14} /> New Quotation
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <h2 className="text-base font-bold truncate">{lead.name}</h2>
+            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
+              {lead.lead_score?.toUpperCase()}
+            </span>
+            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
+              {lead.stage}
+            </span>
+          </div>
+          <div className="flex gap-1.5 shrink-0">
+            <a href={`tel:${lead.phone}`} title="Call" className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
+            <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
+          </div>
+        </div>
+
+        <div className="flex gap-1 overflow-x-auto">
+          {tabs.map(t => (
+            <button key={t.id} onClick={() => setActiveTab(t.id)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
+                activeTab === t.id ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      {activeTab === 'overview' && (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
+       <div className="space-y-4">
         {/* Lead Info */}
-        <div className="lg:col-span-1 space-y-4">
-          <div className="bg-white rounded-2xl border p-5">
+        <div className="bg-white rounded-2xl border p-5">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0 pr-2">
                 {editing ? (
@@ -331,7 +476,7 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
 
             <div className="space-y-3 text-sm">
               {editing ? (
-                <div className="space-y-2">
+                <div key="edit" className="field-fade-in grid grid-cols-2 gap-2.5">
                   <div>
                     <label className="text-xs text-gray-500">Phone *</label>
                     <input type="tel" value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })}
@@ -382,14 +527,14 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
                         className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
                     </div>
                   )}
-                  <div>
+                  <div className="col-span-2">
                     <label className="text-xs text-gray-500">Notes</label>
                     <textarea value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })}
                       rows={2} className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
                   </div>
                 </div>
               ) : (
-                <>
+                <div key="view" className="field-fade-in space-y-3">
                   <div className="flex items-center gap-2">
                     <Phone size={14} className="text-gray-400 shrink-0" />
                     <a href={`tel:${lead.phone}`} className="hover:text-brand-600">{lead.phone}</a>
@@ -400,12 +545,14 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
                       <a href={`mailto:${lead.email}`} className="hover:text-brand-600 truncate">{lead.email}</a>
                     </div>
                   )}
-                  {lead.location && (
-                    <div className="flex items-center gap-2">
-                      <MapPin size={14} className="text-gray-400 shrink-0" />
+                  <div className="flex items-center gap-2">
+                    <MapPin size={14} className="text-gray-400 shrink-0" />
+                    {lead.location ? (
                       <span>{lead.location}</span>
-                    </div>
-                  )}
+                    ) : (
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add city →</button>
+                    )}
+                  </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Source</p>
                     <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
@@ -418,25 +565,37 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
                       <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
                     )}
                   </div>
-                  {!!Number(lead.deal_value) && (
-                    <div className="pt-2 border-t">
-                      <p className="text-xs text-gray-500">Quoted Price</p>
-                      <p className="font-medium">₹{Number(lead.deal_value).toLocaleString('en-IN')}</p>
+                  <div className="pt-2 border-t">
+                    <p className="text-xs text-gray-500">Notes</p>
+                    {lead.notes ? (
+                      <p className="text-sm whitespace-pre-wrap">{lead.notes}</p>
+                    ) : (
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add notes →</button>
+                    )}
+                  </div>
+                  {(!!Number(lead.deal_value) || isWon) && (
+                    <div className="pt-2 border-t flex flex-wrap gap-2">
+                      {!!Number(lead.deal_value) && (
+                        <div className="flex-1 min-w-[100px] bg-gray-50 rounded-lg px-3 py-2">
+                          <p className="text-[10px] text-gray-500">Quoted Price</p>
+                          <p className="text-sm font-bold">₹{Number(lead.deal_value).toLocaleString('en-IN')}</p>
+                        </div>
+                      )}
+                      {isWon && (
+                        <>
+                          <div className="flex-1 min-w-[100px] bg-green-50 rounded-lg px-3 py-2">
+                            <p className="text-[10px] text-gray-500">Advance Received</p>
+                            <p className="text-sm font-bold text-green-700">₹{Number(lead.advance_received || 0).toLocaleString('en-IN')}</p>
+                          </div>
+                          <div className="flex-1 min-w-[100px] bg-amber-50 rounded-lg px-3 py-2">
+                            <p className="text-[10px] text-gray-500">Balance Due</p>
+                            <p className="text-sm font-bold text-amber-700">₹{balanceDue.toLocaleString('en-IN')}</p>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
-                  {isWon && (
-                    <>
-                      <div>
-                        <p className="text-xs text-gray-500">Advance Received</p>
-                        <p className="font-medium">₹{Number(lead.advance_received || 0).toLocaleString('en-IN')}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Balance Due</p>
-                        <p className="font-medium">₹{balanceDue.toLocaleString('en-IN')}</p>
-                      </div>
-                    </>
-                  )}
-                </>
+                </div>
               )}
 
               {/* Stage Dropdown — always visible */}
@@ -493,7 +652,9 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
               <Zap size={14} /> Re-score with AI
             </button>
           </div>
+       </div>
 
+       <div className="space-y-4">
           {/* Schedule Follow-up */}
           <div className="bg-white rounded-2xl border p-5">
             <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
@@ -588,40 +749,77 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
           {/* Follow-up History */}
           {(followupHistory.length > 0 || historyLoading) && (
             <div className="bg-white rounded-2xl border p-5">
-              <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+              <button onClick={() => setHistoryExpanded(v => !v)} className="w-full flex items-center gap-2 text-sm font-semibold">
                 <Calendar size={16} /> Follow-up History
-                <span className="ml-auto text-xs text-gray-400 font-normal">{followupPagination.total} total</span>
-              </h3>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">{followupPagination.total}</span>
+                <ChevronDown size={14} className={`ml-auto text-gray-400 transition-transform ${historyExpanded ? 'rotate-180' : ''}`} />
+              </button>
 
+              {historyExpanded && (
+              <div className="mt-3">
               {historyLoading ? (
                 <div className="flex justify-center py-4"><div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
               ) : (
                 <div className="space-y-2">
                   {followupHistory.map(f => (
-                    <div key={f.id} className={`p-2.5 rounded-xl border ${f.is_completed ? 'bg-gray-50' : 'bg-white'}`}>
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {f.is_completed
-                            ? <CheckCircle size={13} className="text-green-500 shrink-0" />
-                            : <Calendar size={13} className="text-cyan-500 shrink-0" />
-                          }
-                          <span className={`text-xs font-medium capitalize ${f.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
-                            {f.followup_type}
-                          </span>
+                    editingFollowupId === f.id ? (
+                      <div key={f.id} className="p-2.5 rounded-xl border border-brand-300 bg-brand-50/30 space-y-2">
+                        <input type="datetime-local" value={editFollowupForm.next_followup_at}
+                          onChange={e => setEditFollowupForm({ ...editFollowupForm, next_followup_at: e.target.value })}
+                          className="w-full px-2 py-1.5 border rounded-lg text-xs" />
+                        <div className="flex gap-1">
+                          {['call', 'whatsapp', 'visit', 'demo'].map(t => (
+                            <button key={t} type="button" onClick={() => setEditFollowupForm({ ...editFollowupForm, followup_type: t })}
+                              className={`flex-1 py-1 rounded-md text-[11px] font-medium capitalize border transition-colors ${editFollowupForm.followup_type === t ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                              {t}
+                            </button>
+                          ))}
                         </div>
-                        {!f.is_completed && (
-                          <button
-                            onClick={async () => { await followupAPI.complete(f.id, { outcome: 'Done' }); setFollowupPage(1); loadFollowupHistory(); loadData(); }}
-                            className="shrink-0 text-[10px] px-2 py-0.5 bg-green-50 text-green-600 rounded-md hover:bg-green-100">
-                            Done
-                          </button>
+                        {editFollowupForm.followup_type === 'demo' && (
+                          <input type="url" value={editFollowupForm.meeting_url}
+                            onChange={e => setEditFollowupForm({ ...editFollowupForm, meeting_url: e.target.value })}
+                            placeholder="Meeting link (optional)"
+                            className="w-full px-2 py-1.5 border rounded-lg text-xs" />
                         )}
+                        <input type="text" value={editFollowupForm.notes}
+                          onChange={e => setEditFollowupForm({ ...editFollowupForm, notes: e.target.value })}
+                          placeholder="Notes"
+                          className="w-full px-2 py-1.5 border rounded-lg text-xs" />
+                        <div className="flex gap-2">
+                          <button onClick={cancelEditFollowup} className="flex-1 py-1.5 border rounded-lg text-xs font-medium hover:bg-gray-50">Cancel</button>
+                          <button onClick={saveFollowupEdit} disabled={savingFollowupEdit}
+                            className="flex-1 py-1.5 bg-brand-600 text-white rounded-lg text-xs font-semibold disabled:opacity-60">
+                            {savingFollowupEdit ? 'Saving…' : 'Save'}
+                          </button>
+                        </div>
                       </div>
-                      {f.notes && <p className="text-xs text-gray-500 mt-1 truncate">{f.notes}</p>}
-                      <p className="text-[10px] text-gray-400 mt-1">
-                        {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
+                    ) : (
+                      <div key={f.id} onClick={() => startEditFollowup(f)}
+                        className={`p-2.5 rounded-xl border cursor-pointer hover:border-brand-300 transition-colors ${f.is_completed ? 'bg-gray-50' : 'bg-white'}`}>
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            {f.is_completed
+                              ? <CheckCircle size={13} className="text-green-500 shrink-0" />
+                              : <Calendar size={13} className="text-cyan-500 shrink-0" />
+                            }
+                            <span className={`text-xs font-medium capitalize ${f.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
+                              {f.followup_type}
+                            </span>
+                          </div>
+                          {!f.is_completed && (
+                            <button
+                              onClick={async (e) => { e.stopPropagation(); await followupAPI.complete(f.id, { outcome: 'Done' }); setFollowupPage(1); loadFollowupHistory(); loadData(); }}
+                              className="shrink-0 text-[10px] px-2 py-0.5 bg-green-50 text-green-600 rounded-md hover:bg-green-100">
+                              Done
+                            </button>
+                          )}
+                        </div>
+                        {f.notes && <p className="text-xs text-gray-500 mt-1 truncate">{f.notes}</p>}
+                        <p className="text-[10px] text-gray-400 mt-1">
+                          {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    )
                   ))}
                 </div>
               )}
@@ -640,61 +838,10 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
                   </div>
                 </div>
               )}
-            </div>
-          )}
-
-          {/* Share Materials */}
-          <div className="bg-white rounded-2xl border p-5">
-            <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
-              <Share2 size={16} /> Share Materials
-            </h3>
-            <div className="flex gap-1 mb-3">
-              {['templates', 'brochures'].map(tab => (
-                <button key={tab} onClick={() => setShareTab(tab)}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium border capitalize transition-colors ${shareTab === tab ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            <div className="max-h-52 overflow-y-auto space-y-1.5">
-              {shareTab === 'templates' ? (
-                !tmplsLoaded ? (
-                  <p className="text-xs text-gray-400 text-center py-3">Loading...</p>
-                ) : templates.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-3">No templates. Create them in Settings → Templates.</p>
-                ) : templates.map(t => (
-                  <div key={t.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg border">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{t.name}</p>
-                      <p className="text-[11px] text-gray-400 capitalize">{t.category?.replace(/_/g, ' ')}</p>
-                    </div>
-                    <button onClick={(e) => handleSendTemplateWhatsApp(t, e)}
-                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium flex items-center gap-1">
-                      <MessageCircle size={11} /> Send
-                    </button>
-                  </div>
-                ))
-              ) : (
-                !brochuresLoaded ? (
-                  <p className="text-xs text-gray-400 text-center py-3">Loading...</p>
-                ) : brochures.length === 0 ? (
-                  <p className="text-xs text-gray-400 text-center py-3">No brochures. Upload in Brochures page.</p>
-                ) : brochures.map(b => (
-                  <div key={b.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg border">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{b.name}</p>
-                      <p className="text-[11px] text-gray-400 capitalize">{b.category}</p>
-                    </div>
-                    <button onClick={() => handleShareBrochureWA(b.id)}
-                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium flex items-center gap-1">
-                      <MessageCircle size={11} /> Send
-                    </button>
-                  </div>
-                ))
+              </div>
               )}
             </div>
-          </div>
+          )}
 
           {/* Quotations */}
           {quotations.length > 0 && (
@@ -720,10 +867,12 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
               </div>
             </div>
           )}
-        </div>
+       </div>
+      </div>
+      )}
 
-        {/* Right column */}
-        <div className="lg:col-span-2 space-y-4">
+      {activeTab === 'chat' && (
+      <div className="space-y-4 pt-4">
           {/* WhatsApp Conversation */}
           <div className="bg-white rounded-2xl border p-5">
             <h3 className="font-semibold mb-4 flex items-center gap-2"><MessageCircle size={18} /> WhatsApp Conversation</h3>
@@ -782,6 +931,63 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
             </div>
           </div>
 
+          {/* Share Materials */}
+          <div className="bg-white rounded-2xl border p-5">
+            <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+              <Share2 size={16} /> Share Materials
+            </h3>
+            <div className="flex gap-1 mb-3">
+              {['templates', 'brochures'].map(tab => (
+                <button key={tab} onClick={() => setShareTab(tab)}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-medium border capitalize transition-colors ${shareTab === tab ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
+                  {tab}
+                </button>
+              ))}
+            </div>
+
+            <div className="max-h-52 overflow-y-auto space-y-1.5">
+              {shareTab === 'templates' ? (
+                !tmplsLoaded ? (
+                  <p className="text-xs text-gray-400 text-center py-3">Loading...</p>
+                ) : templates.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-3">No templates. Create them in Settings → Templates.</p>
+                ) : templates.map(t => (
+                  <div key={t.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg border">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{t.name}</p>
+                      <p className="text-[11px] text-gray-400 capitalize">{t.category?.replace(/_/g, ' ')}</p>
+                    </div>
+                    <button onClick={(e) => handleSendTemplateWhatsApp(t, e)}
+                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium flex items-center gap-1">
+                      <MessageCircle size={11} /> Send
+                    </button>
+                  </div>
+                ))
+              ) : (
+                !brochuresLoaded ? (
+                  <p className="text-xs text-gray-400 text-center py-3">Loading...</p>
+                ) : brochures.length === 0 ? (
+                  <p className="text-xs text-gray-400 text-center py-3">No brochures. Upload in Brochures page.</p>
+                ) : brochures.map(b => (
+                  <div key={b.id} className="flex items-center gap-2 p-2 hover:bg-gray-50 rounded-lg border">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium truncate">{b.name}</p>
+                      <p className="text-[11px] text-gray-400 capitalize">{b.category}</p>
+                    </div>
+                    <button onClick={() => handleShareBrochureWA(b.id)}
+                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium flex items-center gap-1">
+                      <MessageCircle size={11} /> Send
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+      </div>
+      )}
+
+      {activeTab === 'notes' && (
+      <div className="space-y-4 pt-4">
           {/* Notes */}
           <LeadNotes leadId={id} onActivityAdded={loadData} />
 
@@ -793,7 +999,11 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
 
           {/* AI Voice Calls */}
           <LeadAiCalls leadId={id} />
+      </div>
+      )}
 
+      {activeTab === 'activity' && (
+      <div className="space-y-4 pt-4">
           {/* Activity Timeline */}
           <div className="bg-white rounded-2xl border p-5">
             <h3 className="font-semibold mb-4">Activity Timeline</h3>
@@ -839,8 +1049,8 @@ const LeadDetailPage = ({ leadId, onClose } = {}) => {
               </div>
             )}
           </div>
-        </div>
       </div>
+      )}
 
       {/* ── Lost Reason Modal ── */}
       {lostReasonModal.open && (
