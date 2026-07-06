@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import LeadDetailPage from './LeadDetailPage';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download } from 'lucide-react';
 
 const scoreColors = {
@@ -83,7 +84,6 @@ const filterLeadsByDate = (items, activeFilters) => {
 };
 
 const LeadsPage = () => {
-  const navigate = useNavigate();
   const location = useLocation();
   const queryConfig = getQueryConfig(location.search, location.state);
   const { user } = useAuth();
@@ -124,6 +124,19 @@ const LeadsPage = () => {
   // Lost reason modal state
   const [lostReasonModal, setLostReasonModal] = useState({ open: false, leadId: null, newStage: null, reason: '', customReason: '' });
   const closeLostModal = () => setLostReasonModal({ open: false, leadId: null, newStage: null, reason: '', customReason: '' });
+
+  // Lead detail modal state — opened in place so filters/pagination are never lost
+  const [openLeadId, setOpenLeadId] = useState(null);
+  const closeLeadModal = () => { setOpenLeadId(null); fetchLeads(); };
+
+  useEffect(() => {
+    if (!openLeadId) return;
+    const onKeyDown = (e) => { if (e.key === 'Escape') closeLeadModal(); };
+    window.addEventListener('keydown', onKeyDown);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { window.removeEventListener('keydown', onKeyDown); document.body.style.overflow = prevOverflow; };
+  }, [openLeadId]);
 
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length;
 
@@ -739,7 +752,7 @@ const LeadsPage = () => {
                               : <Square size={16} />}
                           </button>
                         </td>
-                        <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => navigate(`/leads/${l.id}`)}>{l.name}</td>
+                        <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}>{l.name}</td>
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                           {l.created_at ? new Date(l.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                         </td>
@@ -827,7 +840,7 @@ const LeadsPage = () => {
                             <a href={`tel:${l.phone}`} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                             <a href={`https://wa.me/${l.phone}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
                             <button onClick={() => handleAIScore(l.id)} className="p-1.5 hover:bg-purple-50 rounded text-purple-500" title="AI Score"><Zap size={14} /></button>
-                            <button onClick={() => navigate(`/leads/${l.id}`)} className="p-1.5 hover:bg-gray-100 rounded" title="Edit"><Edit2 size={14} /></button>
+                            <button onClick={() => setOpenLeadId(l.id)} className="p-1.5 hover:bg-gray-100 rounded" title="Edit"><Edit2 size={14} /></button>
                             <button onClick={() => handleDelete(l.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Delete"><Trash2 size={14} /></button>
                           </div>
                         </td>
@@ -902,7 +915,7 @@ const LeadsPage = () => {
                       const isOverdue = new Date(f.next_followup_at) < new Date();
                       return (
                         <tr key={f.id} className="border-b border-gray-200 hover:bg-gray-50">
-                          <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => navigate(`/leads/${f.lead_id}`, { state: { returnView: 'followups' } })}>{f.lead_name}</td>
+                          <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(f.lead_id)}>{f.lead_name}</td>
                           <td className="px-3 py-3 text-gray-700">{f.lead_phone}</td>
                           <td className="px-3 py-3 text-gray-600 capitalize">{f.lead_stage}</td>
                           <td className="px-3 py-3">
@@ -920,7 +933,7 @@ const LeadsPage = () => {
                             <div className="flex justify-end gap-1">
                               <a href={`tel:${f.lead_phone}`} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                               <a href={`https://wa.me/${(f.lead_phone || '').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
-                              <button onClick={() => navigate(`/leads/${f.lead_id}`, { state: { returnView: 'followups' } })} className="p-1.5 hover:bg-gray-100 rounded" title="Open lead"><Edit2 size={14} /></button>
+                              <button onClick={() => setOpenLeadId(f.lead_id)} className="p-1.5 hover:bg-gray-100 rounded" title="Open lead"><Edit2 size={14} /></button>
                             </div>
                           </td>
                         </tr>
@@ -944,7 +957,7 @@ const LeadsPage = () => {
                     </div>
                     <div className="p-2 space-y-1.5 max-h-[600px] overflow-y-auto">
                       {stageLeads.map(lead => (
-                        <button key={lead.id} onClick={() => navigate(`/leads/${lead.id}`)}
+                        <button key={lead.id} onClick={() => setOpenLeadId(lead.id)}
                           className="w-full p-2.5 bg-white rounded-lg hover:shadow-md transition border text-left">
                           <p className="text-sm font-medium truncate">{lead.name}</p>
                           <p className="text-xs text-gray-400">{lead.phone}</p>
@@ -1046,6 +1059,24 @@ const LeadsPage = () => {
                   Mark as Lost
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {openLeadId && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 sm:p-8">
+          <div className="fixed inset-0 bg-black/50" onClick={closeLeadModal} />
+          <div className="relative bg-white rounded-2xl w-full max-w-6xl shadow-2xl my-4">
+            <button
+              onClick={closeLeadModal}
+              className="absolute top-4 right-4 z-10 p-2 bg-white/90 hover:bg-gray-100 rounded-full shadow"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+            <div className="p-4 sm:p-6">
+              <LeadDetailPage leadId={openLeadId} onClose={closeLeadModal} />
             </div>
           </div>
         </div>
