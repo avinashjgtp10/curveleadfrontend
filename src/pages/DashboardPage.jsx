@@ -5,7 +5,7 @@ import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'rec
 import {
   Users, IndianRupee, Target, TrendingUp,
   ArrowUpRight, ArrowDownRight, Minus,
-  Calendar, Video, AlertTriangle, ChevronRight,
+  Calendar, Video, AlertTriangle, ChevronRight, Flame, Clock,
 } from 'lucide-react';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -177,6 +177,31 @@ const DashboardPage = () => {
               : 'text-gray-400 bg-gray-50 border-gray-100',
             to: '/leads?view=followups&scope=overdue',
           },
+          {
+            label: 'Hot Leads',
+            value: data?.hot_leads || 0,
+            icon: Flame,
+            cls: 'text-red-600 bg-red-50 border-red-100',
+            to: '/leads?score=hot',
+          },
+          {
+            label: 'Missed Follow-ups',
+            value: data?.missed_followups || 0,
+            icon: Clock,
+            cls: data?.missed_followups > 0
+              ? 'text-amber-700 bg-amber-50 border-amber-200'
+              : 'text-gray-400 bg-gray-50 border-gray-100',
+            to: '/leads?followup_health=missed',
+          },
+          {
+            label: 'Critical Follow-ups',
+            value: data?.critical_followups || 0,
+            icon: AlertTriangle,
+            cls: data?.critical_followups > 0
+              ? 'text-red-700 bg-red-100 border-red-300'
+              : 'text-gray-400 bg-gray-50 border-gray-100',
+            to: '/leads?followup_health=critical',
+          },
         ].map(s => (
           <button key={s.label} onClick={() => navigate(s.to)}
             className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:opacity-80 transition-opacity text-left w-full`}>
@@ -201,6 +226,21 @@ const DashboardPage = () => {
             <p className="text-xs text-amber-600">Assign these leads to your team to avoid missing opportunities.</p>
           </div>
           <ChevronRight size={16} className="text-amber-400 shrink-0" />
+        </button>
+      )}
+
+      {/* ── Critical Follow-ups Alert ── */}
+      {(data?.critical_followups || 0) > 0 && (
+        <button onClick={() => navigate('/leads?followup_health=critical')}
+          className="w-full flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors text-left">
+          <AlertTriangle size={18} className="text-red-500 shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold text-red-800">
+              {data.critical_followups} lead{data.critical_followups !== 1 ? 's have' : ' has'} critical missed follow-ups — review now
+            </p>
+            <p className="text-xs text-red-600">Overdue more than 5 days. These need manager attention.</p>
+          </div>
+          <ChevronRight size={16} className="text-red-400 shrink-0" />
         </button>
       )}
 

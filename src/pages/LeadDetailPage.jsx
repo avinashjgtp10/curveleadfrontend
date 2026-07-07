@@ -5,7 +5,8 @@ import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video } from 'lucide-react';
+import LeadIntentCard from '../components/lead/LeadIntentCard';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
@@ -31,6 +32,7 @@ const activityConfig = (type) => {
     lead_created:        { Icon: PlusCircle,   bg: 'bg-brand-50',   color: 'text-brand-600' },
     created:             { Icon: PlusCircle,   bg: 'bg-brand-50',   color: 'text-brand-600' },
     ai_scored:           { Icon: Star,         bg: 'bg-yellow-50',  color: 'text-yellow-600' },
+    score_change:        { Icon: Gauge,        bg: 'bg-yellow-50',  color: 'text-yellow-600' },
   };
   return map[type] || { Icon: StickyNote, bg: 'bg-gray-50', color: 'text-gray-400' };
 };
@@ -449,6 +451,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       {activeTab === 'overview' && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
        <div className="space-y-4">
+        {/* Lead Intent */}
+        <LeadIntentCard lead={lead} activities={activities} />
+
         {/* Lead Info */}
         <div className="bg-white rounded-2xl border p-5">
             <div className="flex items-start justify-between mb-4">

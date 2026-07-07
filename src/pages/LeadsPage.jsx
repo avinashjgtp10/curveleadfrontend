@@ -3,7 +3,8 @@ import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake } from 'lucide-react';
+import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
@@ -11,7 +12,9 @@ const scoreColors = {
   cold: 'bg-gray-100 text-gray-600',
 };
 
-const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
+
+const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
 const EMPTY_FU_FILTERS = { search: '', type: '', date_from: '', date_to: '', scope: '', category: '' };
 
 const getQueryConfig = (search, state = {}) => {
@@ -606,6 +609,18 @@ const LeadsPage = () => {
                     </select>
                   </div>
 
+                  {/* Follow-up Health */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Follow-up Health</label>
+                    <select value={filters.followup_health} onChange={e => handleFilterChange(f => ({ ...f, followup_health: e.target.value }))} className={selectClass}>
+                      <option value="">All</option>
+                      <option value="good">🟢 Good</option>
+                      <option value="delayed">🟡 Delayed</option>
+                      <option value="missed">🔴 Missed</option>
+                      <option value="critical">🚨 Critical</option>
+                    </select>
+                  </div>
+
                   {/* Source */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Source</label>
@@ -665,6 +680,12 @@ const LeadsPage = () => {
                       <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
                         Score: {filters.score}
                         <button onClick={() => handleFilterChange(f => ({ ...f, score: '' }))}><X size={11} /></button>
+                      </span>
+                    )}
+                    {filters.followup_health && (
+                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
+                        Follow-up: {FOLLOWUP_HEALTH_STYLES[filters.followup_health]?.label || filters.followup_health}
+                        <button onClick={() => handleFilterChange(f => ({ ...f, followup_health: '' }))}><X size={11} /></button>
                       </span>
                     )}
                     {filters.source && (
@@ -787,9 +808,16 @@ const LeadsPage = () => {
                         <td className="px-3 py-3 text-gray-700">{l.phone}</td>
                         <td className="px-3 py-3 text-gray-600 capitalize">{l.source?.replace(/_/g, ' ')}</td>
                         <td className="px-3 py-3">
-                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[l.lead_score] || 'bg-gray-100 text-gray-600'}`}>
-                            {l.lead_score?.toUpperCase() || 'N/A'}
-                          </span>
+                          {l.lead_score ? (
+                            <span
+                              title={l.score_reason || ''}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[l.lead_score] || 'bg-gray-100 text-gray-600'}`}>
+                              {(() => { const Icon = scoreIcons[l.lead_score]; return Icon ? <Icon size={10} /> : null; })()}
+                              {l.lead_score.toUpperCase()}
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">N/A</span>
+                          )}
                         </td>
                         <td className="px-3 py-3">
                           {editingStageId === l.id ? (
@@ -945,7 +973,8 @@ const LeadsPage = () => {
                   </thead>
                   <tbody>
                     {followups.map(f => {
-                      const isOverdue = new Date(f.next_followup_at) < new Date();
+                      const health = computeFollowupHealth(f.next_followup_at, f.is_completed);
+                      const healthStyle = FOLLOWUP_HEALTH_STYLES[health];
                       return (
                         <tr key={f.id} className="border-b border-gray-200 hover:bg-gray-50">
                           <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(f.lead_id)}>{f.lead_name}</td>
@@ -957,9 +986,14 @@ const LeadsPage = () => {
                             </span>
                           </td>
                           <td className="px-3 py-3">
-                            <span className={`text-xs font-semibold ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
-                              {isOverdue ? '⚠ ' : ''}{new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs font-semibold ${health === 'good' ? 'text-amber-600' : 'text-red-600'}`}>
+                                {health !== 'good' ? '⚠ ' : ''}{new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                              <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${healthStyle.cls}`}>
+                                {healthStyle.label}
+                              </span>
+                            </div>
                           </td>
                           <td className="px-3 py-3 text-gray-500 text-xs max-w-[200px] truncate">{f.notes || '—'}</td>
                           <td className="px-3 py-3 text-right">
