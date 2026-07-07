@@ -654,7 +654,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             </div>
 
             <button onClick={handleAIScore} className="mt-2 w-full py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
-              <Zap size={14} /> Re-score with AI
+              <Zap size={14} /> Recalculate Intent
             </button>
           </div>
        </div>
