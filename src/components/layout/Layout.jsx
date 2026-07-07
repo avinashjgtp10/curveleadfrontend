@@ -20,6 +20,7 @@ const Layout = () => {
     '/billing': 'Billing',
     '/settings': 'Settings',
     '/market-intelligence': 'Market Intelligence',
+    '/help': 'User Guide',
   };
 
   const title = Object.entries(titles).find(([path]) => location.pathname.startsWith(path))?.[1] || 'CurveLead';

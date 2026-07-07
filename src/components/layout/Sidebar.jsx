@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, Megaphone, MessageCircle, Clock, UserCog, BarChart3, Settings, LogOut, X, BookOpen, FileText, CreditCard, Plug, CalendarCheck, Globe, Lightbulb } from 'lucide-react';
+import { LayoutDashboard, Users, Megaphone, MessageCircle, Clock, UserCog, BarChart3, Settings, LogOut, X, BookOpen, FileText, CreditCard, Plug, CalendarCheck, Globe, Lightbulb, HelpCircle } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
 
 const navItems = [
@@ -20,6 +20,7 @@ const navItems = [
   { path: '/integrations', label: 'Integrations', icon: Plug, roles: ['admin'] },
   { path: '/billing', label: 'Billing', icon: CreditCard, roles: ['admin'] },
   { path: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
+  { path: '/help', label: 'User Guide', icon: HelpCircle, roles: ['admin', 'staff'] },
 ];
 
 const Sidebar = ({ isOpen, onClose }) => {
