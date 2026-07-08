@@ -14,7 +14,15 @@ const scoreColors = {
 
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
 
-const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const SLA_STATUS_LABELS = {
+  uncontacted: 'Uncontacted',
+  new: 'New',
+  sla_risk: 'SLA Risk',
+  sla_breached: 'SLA Breached',
+  missed_lead: 'Missed Lead',
+  responded_5min: 'Responded ≤5 min',
+};
 const EMPTY_FU_FILTERS = { search: '', type: '', date_from: '', date_to: '', scope: '', category: '' };
 
 const getQueryConfig = (search, state = {}) => {
@@ -621,6 +629,20 @@ const LeadsPage = () => {
                     </select>
                   </div>
 
+                  {/* Response SLA */}
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Response SLA</label>
+                    <select value={filters.sla_status} onChange={e => handleFilterChange(f => ({ ...f, sla_status: e.target.value }))} className={selectClass}>
+                      <option value="">All</option>
+                      <option value="uncontacted">Uncontacted</option>
+                      <option value="new">🟢 New</option>
+                      <option value="sla_risk">🟡 SLA Risk</option>
+                      <option value="sla_breached">🔴 SLA Breached</option>
+                      <option value="missed_lead">🚨 Missed Lead</option>
+                      <option value="responded_5min">✅ Responded ≤5 min</option>
+                    </select>
+                  </div>
+
                   {/* Source */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Source</label>
@@ -686,6 +708,12 @@ const LeadsPage = () => {
                       <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
                         Follow-up: {FOLLOWUP_HEALTH_STYLES[filters.followup_health]?.label || filters.followup_health}
                         <button onClick={() => handleFilterChange(f => ({ ...f, followup_health: '' }))}><X size={11} /></button>
+                      </span>
+                    )}
+                    {filters.sla_status && (
+                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
+                        Response SLA: {SLA_STATUS_LABELS[filters.sla_status] || filters.sla_status}
+                        <button onClick={() => handleFilterChange(f => ({ ...f, sla_status: '' }))}><X size={11} /></button>
                       </span>
                     )}
                     {filters.source && (
@@ -893,7 +921,7 @@ const LeadsPage = () => {
                         </td>
                         <td className="px-3 py-3 text-right">
                           <div className="flex justify-end gap-1">
-                            <a href={`tel:${l.phone}`} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
+                            <a href={`tel:${l.phone}`} onClick={() => leadAPI.logCall(l.id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                             <a href={`https://wa.me/${l.phone}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
                             <button onClick={() => handleAIScore(l.id)} className="p-1.5 hover:bg-purple-50 rounded text-purple-500" title="Recalculate Intent"><Zap size={14} /></button>
                             <button onClick={() => setOpenLeadId(l.id)} className="p-1.5 hover:bg-gray-100 rounded" title="Edit"><Edit2 size={14} /></button>
@@ -998,7 +1026,7 @@ const LeadsPage = () => {
                           <td className="px-3 py-3 text-gray-500 text-xs max-w-[200px] truncate">{f.notes || '—'}</td>
                           <td className="px-3 py-3 text-right">
                             <div className="flex justify-end gap-1">
-                              <a href={`tel:${f.lead_phone}`} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
+                              <a href={`tel:${f.lead_phone}`} onClick={() => leadAPI.logCall(f.lead_id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                               <a href={`https://wa.me/${(f.lead_phone || '').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
                               <button onClick={() => setOpenLeadId(f.lead_id)} className="p-1.5 hover:bg-gray-100 rounded" title="Open lead"><Edit2 size={14} /></button>
                             </div>

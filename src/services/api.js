@@ -59,6 +59,8 @@ export const leadAPI = {
   bulkUpdate: (data) => api.put('/leads/bulk', data),
   bulkDelete: (ids) => api.delete('/leads/bulk', { data: { ids } }),
   export: (params) => api.get('/leads/export', { params, responseType: 'blob' }),
+  logCall: (id) => api.post(`/leads/${id}/call-click`),
+  markContacted: (id) => api.post(`/leads/${id}/mark-contacted`),
 };
 
 // ============================================

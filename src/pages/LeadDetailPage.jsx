@@ -291,6 +291,13 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     } catch (e) { alert('AI scoring failed'); }
   };
 
+  const handleMarkContacted = async () => {
+    try {
+      await leadAPI.markContacted(id);
+      loadData();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to mark as contacted'); }
+  };
+
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
     try {
@@ -431,7 +438,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             </span>
           </div>
           <div className="flex gap-1.5 shrink-0">
-            <a href={`tel:${lead.phone}`} title="Call" className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
+            <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
             <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
           </div>
         </div>
@@ -542,7 +549,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                 <div key="view" className="field-fade-in space-y-3">
                   <div className="flex items-center gap-2">
                     <Phone size={14} className="text-gray-400 shrink-0" />
-                    <a href={`tel:${lead.phone}`} className="hover:text-brand-600">{lead.phone}</a>
+                    <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} className="hover:text-brand-600">{lead.phone}</a>
                   </div>
                   {lead.email && (
                     <div className="flex items-center gap-2">
@@ -649,9 +656,15 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             </div>
 
             <div className="mt-4 flex gap-2">
-              <a href={`tel:${lead.phone}`} className="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium text-center flex items-center justify-center gap-1"><Phone size={14} /> Call</a>
+              <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} className="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium text-center flex items-center justify-center gap-1"><Phone size={14} /> Call</a>
               <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" className="flex-1 py-2 bg-green-50 text-green-600 rounded-lg text-sm font-medium text-center flex items-center justify-center gap-1"><MessageCircle size={14} /> WhatsApp</a>
             </div>
+
+            {!lead.first_response_at && (
+              <button onClick={handleMarkContacted} className="mt-2 w-full py-2 bg-cyan-50 text-cyan-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
+                <CheckCircle size={14} /> Mark as Contacted
+              </button>
+            )}
 
             <button onClick={handleAIScore} className="mt-2 w-full py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
               <Zap size={14} /> Recalculate Intent

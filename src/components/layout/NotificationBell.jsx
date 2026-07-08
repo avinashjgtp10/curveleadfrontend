@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, CheckCheck, Calendar, Zap, Info, Video } from 'lucide-react';
+import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog } from 'lucide-react';
 import { notificationsAPI } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,6 +7,10 @@ const typeIcon = (type) => {
   if (type === 'demo_due')    return <Video    size={14} className="text-violet-500" />;
   if (type === 'followup_due') return <Calendar size={14} className="text-amber-500" />;
   if (type === 'ai_score')    return <Zap      size={14} className="text-purple-500" />;
+  if (type === 'sla_risk')      return <AlertTriangle size={14} className="text-amber-500" />;
+  if (type === 'sla_escalated') return <AlertTriangle size={14} className="text-red-500" />;
+  if (type === 'sla_missed')    return <AlertTriangle size={14} className="text-red-700" />;
+  if (type === 'sla_reassigned' || type === 'sla_reassigned_away') return <UserCog size={14} className="text-cyan-500" />;
   return <Info size={14} className="text-blue-500" />;
 };
 

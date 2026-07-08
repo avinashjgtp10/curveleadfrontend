@@ -8,7 +8,7 @@ const loadFbSdk = () =>
   new Promise((resolve) => {
     if (window.FB) return resolve(window.FB);
     window.fbAsyncInit = () => {
-      window.FB.init({ appId: FB_APP_ID, version: 'v19.0', xfbml: false, cookie: true });
+      window.FB.init({ appId: FB_APP_ID, version: 'v25.0', xfbml: false, cookie: true });
       resolve(window.FB);
     };
     const s = document.createElement('script');
