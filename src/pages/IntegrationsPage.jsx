@@ -3,6 +3,7 @@ import { integrationsAPI, aiCallingAPI } from '../services/api';
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw } from 'lucide-react';
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
+const FB_LOGIN_CONFIG_ID = import.meta.env.VITE_FACEBOOK_LOGIN_CONFIG_ID || '4416725028596340';
 
 const loadFbSdk = () =>
   new Promise((resolve) => {
@@ -254,7 +255,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
       integrationsAPI.facebookAuth(authResp.authResponse.accessToken)
         .then(({ data }) => { setPages(data.pages); setConnecting(false); })
         .catch(e => { alert(e.response?.data?.error || 'Facebook auth failed.'); setConnecting(false); });
-    }, { scope: 'leads_retrieval,pages_manage_ads,pages_read_engagement,pages_show_list' });
+    }, { config_id: FB_LOGIN_CONFIG_ID });
   }, []);
 
   const handleSelectPage = async (page) => {
