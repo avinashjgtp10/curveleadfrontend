@@ -122,7 +122,7 @@ const LeadsPage = () => {
   const [bulkLoading, setBulkLoading] = useState(false);
   const PAGE_SIZE = 25;
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
+  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
 
   // Import state
   const [showImport, setShowImport] = useState(false);
@@ -323,7 +323,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.create(newLead);
       setShowAddModal(false);
-      setNewLead({ name: '', phone: '', email: '', location: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
+      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
       loadData();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
   };
@@ -1091,8 +1091,12 @@ const LeadsPage = () => {
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <input type="email" placeholder="Email" value={newLead.email} onChange={e => setNewLead({ ...newLead, email: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <input type="text" placeholder="Business Name" value={newLead.business_name} onChange={e => setNewLead({ ...newLead, business_name: e.target.value })}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <input type="text" placeholder="City" value={newLead.location} onChange={e => setNewLead({ ...newLead, location: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <textarea placeholder="Address" value={newLead.address} onChange={e => setNewLead({ ...newLead, address: e.target.value })}
+                rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <select value={newLead.source} onChange={e => setNewLead({ ...newLead, source: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
                 <option value="manual">Manual</option>

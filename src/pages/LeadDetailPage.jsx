@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
@@ -6,7 +7,7 @@ import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
@@ -500,9 +501,19 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
                   </div>
                   <div>
+                    <label className="text-xs text-gray-500">Business Name</label>
+                    <input value={form.business_name || ''} onChange={e => setForm({ ...form, business_name: e.target.value })}
+                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                  </div>
+                  <div>
                     <label className="text-xs text-gray-500">City</label>
                     <input value={form.location || ''} onChange={e => setForm({ ...form, location: e.target.value })}
                       className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-xs text-gray-500">Address</label>
+                    <textarea value={form.address || ''} onChange={e => setForm({ ...form, address: e.target.value })}
+                      rows={2} className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
                   </div>
                   <div>
                     <label className="text-xs text-gray-500">Source</label>
@@ -548,6 +559,14 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               ) : (
                 <div key="view" className="field-fade-in space-y-3">
                   <div className="flex items-center gap-2">
+                    <Building2 size={14} className="text-gray-400 shrink-0" />
+                    {lead.business_name ? (
+                      <span className="truncate">{lead.business_name}</span>
+                    ) : (
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add business name →</button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
                     <Phone size={14} className="text-gray-400 shrink-0" />
                     <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} className="hover:text-brand-600">{lead.phone}</a>
                   </div>
@@ -563,6 +582,14 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       <span>{lead.location}</span>
                     ) : (
                       <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add city →</button>
+                    )}
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <Navigation size={14} className="text-gray-400 shrink-0 mt-0.5" />
+                    {lead.address ? (
+                      <span className="whitespace-pre-wrap">{lead.address}</span>
+                    ) : (
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add address →</button>
                     )}
                   </div>
                   <div className="pt-2 border-t">
@@ -763,6 +790,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               </button>
             </div>
           </div>
+
+          {/* Discussion Notes */}
+          <LeadNotes leadId={id} onActivityAdded={loadData} />
 
           {/* Follow-up History */}
           {(followupHistory.length > 0 || historyLoading) && (
@@ -1071,8 +1101,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       )}
 
       {/* ── Lost Reason Modal ── */}
-      {lostReasonModal.open && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      {/* Portal to document.body: this page can be nested inside the Leads-list modal, whose
+          card has a scale transition (a CSS transform) — that makes it the containing block
+          for any `fixed` descendant, breaking full-viewport overlay positioning unless we escape it. */}
+      {lostReasonModal.open && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={closeLostModal} />
           <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b">
@@ -1111,7 +1144,8 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
