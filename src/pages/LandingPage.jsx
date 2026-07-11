@@ -4,19 +4,21 @@ import { useAuth } from '../context/AuthContext';
 import {
   ArrowRight,
   BarChart3,
-  Bot,
   BookOpen,
   CheckCircle,
   ChevronDown,
   Clock,
   FileText,
+  Gauge,
   IndianRupee,
+  Lightbulb,
   Menu,
   MessageCircle,
   Megaphone,
   Send,
   Sparkles,
   Target,
+  Timer,
   Users,
   X,
   Zap,
@@ -38,10 +40,10 @@ const workflow = [
     desc: 'Facebook and Instagram lead form enquiries can land directly in your pipeline with source, campaign, owner, and stage attached.',
   },
   {
-    icon: Bot,
+    icon: Gauge,
     label: 'Prioritise',
-    title: 'Let AI mark hot, warm, and cold leads',
-    desc: 'CurveLead helps your team focus on the prospects most likely to convert instead of treating every enquiry the same.',
+    title: 'See exactly which leads need attention today',
+    desc: 'Every lead carries a live Intent Score, a Hot/Warm/Cold label, and a follow-up health status built from real call outcomes and response times, not a black-box AI guess, so your team always knows who to call next and why.',
   },
   {
     icon: MessageCircle,
@@ -58,9 +60,12 @@ const workflow = [
 ];
 
 const features = [
-  { icon: MessageCircle, title: 'Shared WhatsApp Inbox', desc: 'Reply, qualify, and keep conversation history tied to the right lead.' },
+  { icon: Gauge, title: 'Lead Intent Index', desc: 'A live 0-100 score, Hot/Warm/Cold label, and follow-up health for every lead, with a plain-language reason and a suggested next action. Fully explainable, never a black box.' },
+  { icon: Timer, title: 'Response Time Tracking', desc: 'See exactly how fast each enquiry gets a first response, and get flagged before you breach your own SLA.' },
   { icon: Clock, title: 'Follow-up Discipline', desc: 'Schedule, complete, and track callbacks so fewer enquiries slip away.' },
+  { icon: MessageCircle, title: 'Shared WhatsApp Inbox', desc: 'Reply, qualify, and keep conversation history tied to the right lead.' },
   { icon: Megaphone, title: 'Campaign ROI', desc: 'Connect ad spend to leads, won deals, CPL, and revenue outcomes.' },
+  { icon: Lightbulb, title: 'AI Sales Coaching', desc: 'An AI-built playbook of best practices and objection handling, generated from your own team’s won and lost calls.' },
   { icon: FileText, title: 'Quotations', desc: 'Create, send, accept, reject, and manage quotations inside the sales flow.' },
   { icon: BookOpen, title: 'Brochures & Files', desc: 'Keep product material ready and share it with leads from the same workspace.' },
   { icon: Users, title: 'Team Workspace', desc: 'Invite staff, assign ownership, monitor activity, and keep customer data separated by tenant.' },
@@ -69,7 +74,7 @@ const features = [
 const plans = [
   { name: 'Free', monthly: '$0', yearly: '$0', sub: 'for getting started', features: ['20 leads', '1 user', 'Pipeline', 'Email support'] },
   { name: 'Starter', monthly: '$9', yearly: '$90', features: ['100 leads', '1 user', 'Meta Ads capture', 'WhatsApp inbox'] },
-  { name: 'Growth', monthly: '$29', yearly: '$290', features: ['Unlimited leads', '5 users', 'AI scoring', 'Campaign ROI', 'Reports'], popular: true },
+  { name: 'Growth', monthly: '$29', yearly: '$290', features: ['Unlimited leads', '5 users', 'Lead Intent Index', 'Campaign ROI', 'Reports'], popular: true },
   { name: 'Pro', price: 'Custom', sub: 'for sales teams', features: ['Everything in Growth', 'Unlimited users', 'Priority support', 'Advanced setup help'] },
 ];
 
@@ -77,12 +82,13 @@ const faqs = [
   { q: 'Who is CurveLead built for?', a: 'Sales teams that receive leads from Meta Ads, websites, forms, and WhatsApp, especially teams that need faster follow-up and campaign visibility.' },
   { q: 'Is CurveLead only for academies?', a: 'No. The current product is a lead engagement CRM for any business that captures, follows up, and closes enquiries.' },
   { q: 'Does it replace WhatsApp?', a: 'No. It helps your team manage lead context, follow-ups, files, and reporting around WhatsApp conversations.' },
+  { q: 'Is the lead scoring AI?', a: 'No, and that is deliberate. Every lead’s Intent Score and follow-up health are calculated from real activity in your account, like response times and call outcomes, so you can always see exactly why a lead is Hot or Cold. We do use AI elsewhere, for the sales coaching playbook, market analysis, and optional AI calling, but never as an unexplainable scoring layer.' },
   { q: 'Can I try it before paying?', a: 'Yes. Start free, test the workflow, and upgrade when your team needs higher lead limits or advanced features.' },
 ];
 
 const productStats = [
   { value: 'Meta', label: 'lead capture ready' },
-  { value: 'AI', label: 'hot/warm/cold scoring' },
+  { value: 'Live', label: 'intent score & follow-up health' },
   { value: 'WhatsApp', label: 'shared sales inbox' },
   { value: 'ROI', label: 'campaign reporting' },
 ];
@@ -185,7 +191,7 @@ const LandingPage = () => {
                   <div className="rounded-lg border border-gray-200 p-4">
                     <p className="text-sm text-gray-500">Hot leads</p>
                     <p className="mt-2 text-3xl font-bold text-gray-950">11</p>
-                    <p className="mt-3 text-xs text-red-600">AI marked urgent follow-up</p>
+                    <p className="mt-3 text-xs text-red-600">Flagged for urgent follow-up</p>
                   </div>
                   <div className="sm:col-span-2 rounded-lg border border-gray-200">
                     {[

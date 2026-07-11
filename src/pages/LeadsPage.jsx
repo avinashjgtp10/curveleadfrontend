@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 
 const scoreColors = {
@@ -31,6 +31,7 @@ const getQueryConfig = (search, state = {}) => {
   const view = params.get('view') || routeState.view || 'list';
   const filters = { ...EMPTY_FILTERS };
   const fuFilters = { ...EMPTY_FU_FILTERS };
+  const sortState = { sort: params.get('sort') || '', dir: params.get('dir') || '' };
 
   Object.keys(filters).forEach(key => {
     const value = params.get(key);
@@ -43,7 +44,7 @@ const getQueryConfig = (search, state = {}) => {
     if (value !== null) fuFilters[key] = value;
   });
 
-  return { view, filters, fuFilters };
+  return { view, filters, fuFilters, sortState };
 };
 
 const isSameLocalDay = (value, day) => {
@@ -94,6 +95,20 @@ const filterLeadsByDate = (items, activeFilters) => {
   });
 };
 
+const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
+  const active = sortState.sort === sortKey;
+  const Icon = active ? (sortState.dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
+  return (
+    <th className={`px-3 py-3 text-${align}`}>
+      <button onClick={() => onSort(sortKey)}
+        className={`inline-flex items-center gap-1 hover:text-gray-900 ${active ? 'text-gray-900 font-semibold' : ''}`}>
+        {label}
+        <Icon size={12} className={active ? 'text-gray-700' : 'text-gray-300'} />
+      </button>
+    </th>
+  );
+};
+
 const LeadsPage = () => {
   const location = useLocation();
   const queryConfig = getQueryConfig(location.search, location.state);
@@ -110,6 +125,7 @@ const LeadsPage = () => {
   const [view, setView] = useState(queryConfig.view);
   const [followups, setFollowups] = useState([]);
   const [fuFilters, setFuFilters] = useState(queryConfig.fuFilters);
+  const [sortState, setSortState] = useState(queryConfig.sortState);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [page, setPage] = useState(1);
@@ -179,6 +195,7 @@ const LeadsPage = () => {
     setView(next.view);
     setFilters(next.filters);
     setFuFilters(next.fuFilters);
+    setSortState(next.sortState);
     setShowFilters(Object.values(next.filters).some(Boolean));
     setPage(1);
   }, [location.search, location.state]);
@@ -203,8 +220,8 @@ const LeadsPage = () => {
     });
   }, []);
 
-  // Reload leads whenever filters, view, page, or fuFilters change
-  useEffect(() => { fetchLeads(); }, [filters, view, page, fuFilters]);
+  // Reload leads whenever filters, view, page, fuFilters, or sortState change
+  useEffect(() => { fetchLeads(); }, [filters, view, page, fuFilters, sortState]);
 
   const fetchLeads = async () => {
     setSelectedIds(new Set());
@@ -215,7 +232,7 @@ const LeadsPage = () => {
         setFollowups(filterFollowupsForScope(res.data.followups || [], fuFilters));
       } else {
         const limit = view === 'pipeline' ? 500 : PAGE_SIZE;
-        const params = compactParams({ ...filters, page, limit });
+        const params = compactParams({ ...filters, ...sortState, page, limit });
         try {
           const leadsRes = await leadAPI.getAll(params);
           setLeads(leadsRes.data.leads || []);
@@ -246,6 +263,12 @@ const LeadsPage = () => {
   const loadData = fetchLeads;
 
   const handleFilterChange = (updater) => { setPage(1); setFilters(updater); };
+  const handleSort = (key) => {
+    setPage(1);
+    setSortState(prev => prev.sort === key
+      ? { sort: key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+      : { sort: key, dir: 'asc' });
+  };
   const clearFilters = () => handleFilterChange(f => ({ ...EMPTY_FILTERS, search: f.search }));
 
   const pageNumbers = () => {
@@ -808,14 +831,14 @@ const LeadsPage = () => {
                             : <Square size={16} />}
                         </button>
                       </th>
-                      <th className="text-left px-3 py-3">Name</th>
-                      <th className="text-left px-3 py-3">Date</th>
-                      <th className="text-left px-3 py-3">Phone Number</th>
-                      <th className="text-left px-3 py-3">Source</th>
-                      <th className="text-left px-3 py-3">Score</th>
-                      <th className="text-left px-3 py-3">Stage</th>
-                      <th className="text-left px-3 py-3">Status</th>
-                      <th className="text-left px-3 py-3">Assigned To</th>
+                      <SortTh sortKey="name" label="Name" sortState={sortState} onSort={handleSort} />
+                      <SortTh sortKey="date" label="Date" sortState={sortState} onSort={handleSort} />
+                      <SortTh sortKey="phone" label="Phone Number" sortState={sortState} onSort={handleSort} />
+                      <SortTh sortKey="source" label="Source" sortState={sortState} onSort={handleSort} />
+                      <SortTh sortKey="score" label="Score" sortState={sortState} onSort={handleSort} />
+                      <SortTh sortKey="stage" label="Stage" sortState={sortState} onSort={handleSort} />
+                      <SortTh sortKey="status" label="Status" sortState={sortState} onSort={handleSort} />
+                      <SortTh sortKey="assigned_to" label="Assigned To" sortState={sortState} onSort={handleSort} />
                       <th className="text-right px-3 py-3">Actions</th>
                     </tr>
                   </thead>
@@ -854,7 +877,7 @@ const LeadsPage = () => {
                               defaultValue={(l.stage || '').toLowerCase()}
                               onBlur={() => setEditingStageId(null)}
                               onChange={e => handleStageChange(l.id, e.target.value)}
-                              className="border border-cyan-400 rounded px-2 py-1 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                              className="border border-cyan-400 rounded px-2 py-1 text-xs font-medium bg-white text-left focus:outline-none focus:ring-2 focus:ring-cyan-500"
                             >
                               {stages.map(s => (
                                 <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>
@@ -877,7 +900,7 @@ const LeadsPage = () => {
                               defaultValue={l.lead_status || ''}
                               onBlur={() => setEditingStatusId(null)}
                               onChange={e => handleStatusChange(l.id, e.target.value)}
-                              className="border border-indigo-400 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                              className="border border-indigo-400 rounded px-2 py-1 text-xs bg-white text-left focus:outline-none focus:ring-2 focus:ring-indigo-500"
                             >
                               <option value="">— No status —</option>
                               {(stageStatuses[l.stage?.toLowerCase()] || allStatuses).map(st => (
@@ -901,7 +924,7 @@ const LeadsPage = () => {
                               defaultValue={l.assigned_to || ''}
                               onBlur={() => setEditingAssignId(null)}
                               onChange={e => handleAssignChange(l.id, e.target.value)}
-                              className="border border-cyan-400 rounded px-2 py-1 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                              className="border border-cyan-400 rounded px-2 py-1 text-xs bg-white text-left focus:outline-none focus:ring-2 focus:ring-cyan-500"
                             >
                               <option value="">Unassigned</option>
                               {staff.map(s => (

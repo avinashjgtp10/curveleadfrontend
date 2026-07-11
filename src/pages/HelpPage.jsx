@@ -146,10 +146,9 @@ const HelpPage = () => {
         </Section>
 
         <Section id="followups" icon={Clock} title="Follow-ups & Appointments">
-          <p>There are three places you might look for follow-ups — they show the same underlying data, filtered differently:</p>
+          <p>Two main places to review follow-ups, filtered differently:</p>
           <ul className="list-disc pl-4 space-y-1">
-            <li><strong>Leads → Follow-ups tab</strong> — every pending follow-up, color-coded by health, alongside the lead's stage.</li>
-            <li><strong>Follow-ups page</strong> (sidebar) — a dedicated Pending / Overdue / Completed list across all follow-up types (call, WhatsApp, visit, demo).</li>
+            <li><strong>Leads → Follow-ups tab</strong> — every pending follow-up across all types (call, WhatsApp, visit, demo), color-coded by health, alongside the lead's stage. This is the primary place to work from.</li>
             <li><strong>Appointments page</strong> (sidebar) — just Demos specifically, grouped by Overdue / Today / Tomorrow / This Week / Later.</li>
           </ul>
           <p>You schedule a follow-up (or a demo) from inside a lead's detail page, not from these list pages — they're for reviewing and completing follow-ups, not creating new ones.</p>
