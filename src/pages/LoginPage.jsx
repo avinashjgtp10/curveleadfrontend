@@ -86,9 +86,9 @@ const LoginPage = () => {
       <div className="grid min-h-screen lg:grid-cols-[1.05fr_0.95fr]">
         <section className="relative hidden overflow-hidden bg-brand-600 px-10 py-10 text-white lg:flex lg:flex-col">
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(167,243,208,0.28),transparent_28%),radial-gradient(circle_at_80%_0%,rgba(255,255,255,0.22),transparent_24%)]" />
-          <div className="relative">
-            <button onClick={() => navigate('/')} className="rounded-2xl bg-white/95 p-3 shadow-lg">
-              <BrandLogo className="h-12" />
+          <div className="relative mb-10">
+            <button onClick={() => navigate('/')}>
+              <BrandLogo variant="white" className="auth-logo" />
             </button>
           </div>
 
@@ -123,7 +123,7 @@ const LoginPage = () => {
           <div className="w-full max-w-md">
             <div className="mb-7 flex justify-center lg:hidden">
               <button onClick={() => navigate('/')}>
-                <BrandLogo className="h-14" />
+                <BrandLogo className="auth-logo" />
               </button>
             </div>
 

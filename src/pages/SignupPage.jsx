@@ -40,8 +40,8 @@ const SignupPage = () => {
     <div className="min-h-screen bg-gradient-to-br from-brand-50 via-white to-purple-50 flex items-center justify-center p-4">
       <div className="w-full max-w-2xl">
         <div className="text-center mb-6">
-          <div className="inline-flex cursor-pointer" onClick={() => navigate('/')}>
-            <BrandLogo className="h-20 w-auto max-w-44 p-2 shadow-sm" />
+          <div className="inline-flex cursor-pointer rounded-2xl bg-white px-6 py-3 shadow-sm" onClick={() => navigate('/')}>
+            <BrandLogo className="w-40 h-auto" />
           </div>
         </div>
 

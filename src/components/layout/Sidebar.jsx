@@ -36,7 +36,7 @@ const Sidebar = ({ isOpen, onClose }) => {
       <aside className={`fixed top-0 left-0 z-50 h-full w-60 bg-white border-r flex flex-col transform transition-transform lg:translate-x-0 lg:static ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="flex items-center justify-between h-14 px-4 border-b">
           <button className="flex items-center" onClick={() => navigate('/dashboard')}>
-            <BrandLogo className="h-10 w-32" />
+            <BrandLogo className="w-32 h-auto" />
           </button>
           <button onClick={onClose} className="lg:hidden p-1"><X size={18} /></button>
         </div>

@@ -6,6 +6,32 @@
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
 
+/* CurveLead brand logo — fixed visible width, intrinsic aspect ratio preserved via the
+   img's width/height attributes (see BrandLogo.jsx), so height is never set explicitly here. */
+.site-logo {
+  display: block;
+  width: 145px;
+  height: auto;
+  object-fit: contain;
+}
+
+.auth-logo {
+  display: block;
+  width: 155px;
+  height: auto;
+  object-fit: contain;
+}
+
+@media (max-width: 640px) {
+  .site-logo {
+    width: 125px;
+  }
+
+  .auth-logo {
+    width: 140px;
+  }
+}
+
 body {
   background: #f9fafb;
   color: #111827;

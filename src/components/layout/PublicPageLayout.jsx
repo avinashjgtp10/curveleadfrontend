@@ -11,7 +11,7 @@ const PublicPageLayout = ({ children }) => {
       <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <Link to="/" className="flex items-center gap-2">
-            <BrandLogo className="h-10 w-24 p-1" />
+            <BrandLogo className="site-logo" />
           </Link>
           <div className="hidden items-center gap-7 md:flex">
             <Link to="/login" className="text-sm font-semibold text-brand-700">Sign In</Link>
@@ -41,7 +41,7 @@ const PublicPageLayout = ({ children }) => {
         <div className="mx-auto max-w-7xl">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
             <Link to="/">
-              <BrandLogo className="h-9 w-24 p-1" />
+              <BrandLogo className="w-28 h-auto" />
             </Link>
             <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-500">
               <Link to="/privacy-policy" className="hover:text-gray-950 transition-colors">Privacy Policy</Link>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI } from '../services/api';
+import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake } from 'lucide-react';
@@ -261,6 +261,11 @@ const LeadsPage = () => {
   };
 
   const loadData = fetchLeads;
+
+  const handleCompleteFollowup = async (id) => {
+    try { await followupAPI.complete(id, { outcome: 'Completed' }); fetchLeads(); }
+    catch (e) { alert('Failed to mark follow-up as done'); }
+  };
 
   const handleFilterChange = (updater) => { setPage(1); setFilters(updater); };
   const handleSort = (key) => {
@@ -1051,6 +1056,7 @@ const LeadsPage = () => {
                             <div className="flex justify-end gap-1">
                               <a href={`tel:${f.lead_phone}`} onClick={() => leadAPI.logCall(f.lead_id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                               <a href={`https://wa.me/${(f.lead_phone || '').replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
+                              <button onClick={() => handleCompleteFollowup(f.id)} className="p-1.5 hover:bg-emerald-50 rounded text-emerald-600" title="Mark as done"><CheckCircle size={14} /></button>
                               <button onClick={() => setOpenLeadId(f.lead_id)} className="p-1.5 hover:bg-gray-100 rounded" title="Open lead"><Edit2 size={14} /></button>
                             </div>
                           </td>
