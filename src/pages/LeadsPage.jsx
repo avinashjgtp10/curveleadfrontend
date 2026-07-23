@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 
 const scoreColors = {
@@ -15,6 +15,24 @@ const scoreColors = {
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
 
 const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const LEADS_COLUMNS = [
+  { key: 'lead_id', label: 'Lead ID' },
+  { key: 'date', label: 'Date' },
+  { key: 'phone', label: 'Phone Number' },
+  { key: 'source', label: 'Source' },
+  { key: 'score', label: 'Score' },
+  { key: 'stage', label: 'Stage' },
+  { key: 'status', label: 'Status' },
+  { key: 'assigned_to', label: 'Assigned To' },
+];
+const LEADS_COLUMNS_STORAGE_KEY = 'leadsTableVisibleColumns';
+const loadVisibleColumns = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LEADS_COLUMNS_STORAGE_KEY));
+    if (saved && typeof saved === 'object') return { ...Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true])), ...saved };
+  } catch { /* ignore invalid/missing value */ }
+  return Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true]));
+};
 const SLA_STATUS_LABELS = {
   uncontacted: 'Uncontacted',
   new: 'New',
@@ -122,6 +140,9 @@ const LeadsPage = () => {
   const [editingStatusId, setEditingStatusId] = useState(null);
   const [filters, setFilters] = useState(queryConfig.filters);
   const [showFilters, setShowFilters] = useState(Object.values(queryConfig.filters).some(Boolean));
+  const [visibleColumns, setVisibleColumns] = useState(loadVisibleColumns);
+  const [showColumnSettings, setShowColumnSettings] = useState(false);
+  const columnSettingsRef = useRef(null);
   const [view, setView] = useState(queryConfig.view);
   const [followups, setFollowups] = useState([]);
   const [fuFilters, setFuFilters] = useState(queryConfig.fuFilters);
@@ -189,6 +210,18 @@ const LeadsPage = () => {
   const goNextLead = () => { if (nextLeadId) setOpenLeadId(nextLeadId); };
 
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length;
+
+  const toggleColumn = (key) => setVisibleColumns(v => ({ ...v, [key]: !v[key] }));
+
+  useEffect(() => {
+    localStorage.setItem(LEADS_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
+  }, [visibleColumns]);
+
+  useEffect(() => {
+    const handler = (e) => { if (columnSettingsRef.current && !columnSettingsRef.current.contains(e.target)) setShowColumnSettings(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   useEffect(() => {
     const next = getQueryConfig(location.search, location.state);
@@ -583,7 +616,7 @@ const LeadsPage = () => {
             <div className="flex items-center gap-3 px-4 py-3">
               <div className="relative flex-1 max-w-sm">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input type="text" placeholder="Search by name or phone..."
+                <input type="text" placeholder="Search by name, phone or lead ID..."
                   value={filters.search} onChange={e => handleFilterChange(f => ({ ...f, search: e.target.value }))}
                   className={`${inputClass} pl-9`} />
               </div>
@@ -605,6 +638,33 @@ const LeadsPage = () => {
                   className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
                   <X size={13} /> Clear filters
                 </button>
+              )}
+              {view === 'list' && (
+              <div className="relative ml-auto" ref={columnSettingsRef}>
+                <button
+                  onClick={() => setShowColumnSettings(v => !v)}
+                  title="Table settings"
+                  className={`inline-flex items-center gap-2 h-10 px-3 rounded-lg border text-sm font-semibold transition-colors ${showColumnSettings ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                >
+                  <Settings size={15} />
+                </button>
+                {showColumnSettings && (
+                  <div className="absolute right-0 top-12 w-56 bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b">
+                      <h3 className="font-semibold text-sm">Table columns</h3>
+                    </div>
+                    <div className="p-2 max-h-80 overflow-y-auto">
+                      {LEADS_COLUMNS.map(col => (
+                        <label key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
+                          <input type="checkbox" checked={visibleColumns[col.key]} onChange={() => toggleColumn(col.key)}
+                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
+                          {col.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
               )}
             </div>
 
@@ -836,14 +896,15 @@ const LeadsPage = () => {
                             : <Square size={16} />}
                         </button>
                       </th>
+                      {visibleColumns.lead_id && <SortTh sortKey="lead_id" label="Lead ID" sortState={sortState} onSort={handleSort} />}
                       <SortTh sortKey="name" label="Name" sortState={sortState} onSort={handleSort} />
-                      <SortTh sortKey="date" label="Date" sortState={sortState} onSort={handleSort} />
-                      <SortTh sortKey="phone" label="Phone Number" sortState={sortState} onSort={handleSort} />
-                      <SortTh sortKey="source" label="Source" sortState={sortState} onSort={handleSort} />
-                      <SortTh sortKey="score" label="Score" sortState={sortState} onSort={handleSort} />
-                      <SortTh sortKey="stage" label="Stage" sortState={sortState} onSort={handleSort} />
-                      <SortTh sortKey="status" label="Status" sortState={sortState} onSort={handleSort} />
-                      <SortTh sortKey="assigned_to" label="Assigned To" sortState={sortState} onSort={handleSort} />
+                      {visibleColumns.date && <SortTh sortKey="date" label="Date" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.phone && <SortTh sortKey="phone" label="Phone Number" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.source && <SortTh sortKey="source" label="Source" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.score && <SortTh sortKey="score" label="Score" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.stage && <SortTh sortKey="stage" label="Stage" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.status && <SortTh sortKey="status" label="Status" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.assigned_to && <SortTh sortKey="assigned_to" label="Assigned To" sortState={sortState} onSort={handleSort} />}
                       <th className="text-right px-3 py-3">Actions</th>
                     </tr>
                   </thead>
@@ -857,12 +918,20 @@ const LeadsPage = () => {
                               : <Square size={16} />}
                           </button>
                         </td>
+                        {visibleColumns.lead_id && (
+                        <td className="px-3 py-3 text-xs font-mono text-gray-500 whitespace-nowrap cursor-pointer" onClick={() => setOpenLeadId(l.id)}>
+                          {l.lead_number || '—'}
+                        </td>
+                        )}
                         <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}>{l.name}</td>
+                        {visibleColumns.date && (
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                           {l.created_at ? new Date(l.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                         </td>
-                        <td className="px-3 py-3 text-gray-700">{l.phone}</td>
-                        <td className="px-3 py-3 text-gray-600 capitalize">{l.source?.replace(/_/g, ' ')}</td>
+                        )}
+                        {visibleColumns.phone && <td className="px-3 py-3 text-gray-700">{l.phone}</td>}
+                        {visibleColumns.source && <td className="px-3 py-3 text-gray-600 capitalize">{l.source?.replace(/_/g, ' ')}</td>}
+                        {visibleColumns.score && (
                         <td className="px-3 py-3">
                           {l.lead_score ? (
                             <span
@@ -875,6 +944,8 @@ const LeadsPage = () => {
                             <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">N/A</span>
                           )}
                         </td>
+                        )}
+                        {visibleColumns.stage && (
                         <td className="px-3 py-3">
                           {editingStageId === l.id ? (
                             <select
@@ -898,6 +969,8 @@ const LeadsPage = () => {
                             </button>
                           )}
                         </td>
+                        )}
+                        {visibleColumns.status && (
                         <td className="px-3 py-3">
                           {editingStatusId === l.id ? (
                             <select
@@ -922,6 +995,8 @@ const LeadsPage = () => {
                             </button>
                           )}
                         </td>
+                        )}
+                        {visibleColumns.assigned_to && (
                         <td className="px-3 py-3 text-xs">
                           {editingAssignId === l.id ? (
                             <select
@@ -947,6 +1022,7 @@ const LeadsPage = () => {
                             </button>
                           )}
                         </td>
+                        )}
                         <td className="px-3 py-3 text-right">
                           <div className="flex justify-end gap-1">
                             <a href={`tel:${l.phone}`} onClick={() => leadAPI.logCall(l.id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>

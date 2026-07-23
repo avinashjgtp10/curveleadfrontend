@@ -430,6 +430,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
 
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2 min-w-0">
+            {lead.lead_number && (
+              <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
+            )}
             <h2 className="text-base font-bold truncate">{lead.name}</h2>
             <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
               {lead.lead_score?.toUpperCase()}
@@ -466,6 +469,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
         <div className="bg-white rounded-2xl border p-5">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1 min-w-0 pr-2">
+                {lead.lead_number && (
+                  <span className="block text-xs font-mono text-gray-400 mb-0.5">{lead.lead_number}</span>
+                )}
                 {editing ? (
                   <input value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })}
                     placeholder="Full name"
