@@ -33,6 +33,8 @@ const loadVisibleColumns = () => {
   } catch { /* ignore invalid/missing value */ }
   return Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true]));
 };
+const LEADS_HIDE_LOST_STORAGE_KEY = 'leadsHideLostLeads';
+const loadHideLostLeads = () => localStorage.getItem(LEADS_HIDE_LOST_STORAGE_KEY) === 'true';
 const SLA_STATUS_LABELS = {
   uncontacted: 'Uncontacted',
   new: 'New',
@@ -141,6 +143,7 @@ const LeadsPage = () => {
   const [filters, setFilters] = useState(queryConfig.filters);
   const [showFilters, setShowFilters] = useState(Object.values(queryConfig.filters).some(Boolean));
   const [visibleColumns, setVisibleColumns] = useState(loadVisibleColumns);
+  const [hideLostLeads, setHideLostLeads] = useState(loadHideLostLeads);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const columnSettingsRef = useRef(null);
   const [view, setView] = useState(queryConfig.view);
@@ -218,6 +221,10 @@ const LeadsPage = () => {
   }, [visibleColumns]);
 
   useEffect(() => {
+    localStorage.setItem(LEADS_HIDE_LOST_STORAGE_KEY, String(hideLostLeads));
+  }, [hideLostLeads]);
+
+  useEffect(() => {
     const handler = (e) => { if (columnSettingsRef.current && !columnSettingsRef.current.contains(e.target)) setShowColumnSettings(false); };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -253,8 +260,8 @@ const LeadsPage = () => {
     });
   }, []);
 
-  // Reload leads whenever filters, view, page, fuFilters, or sortState change
-  useEffect(() => { fetchLeads(); }, [filters, view, page, fuFilters, sortState]);
+  // Reload leads whenever filters, view, page, fuFilters, sortState, or hideLostLeads change
+  useEffect(() => { fetchLeads(); }, [filters, view, page, fuFilters, sortState, hideLostLeads]);
 
   const fetchLeads = async () => {
     setSelectedIds(new Set());
@@ -265,7 +272,7 @@ const LeadsPage = () => {
         setFollowups(filterFollowupsForScope(res.data.followups || [], fuFilters));
       } else {
         const limit = view === 'pipeline' ? 500 : PAGE_SIZE;
-        const params = compactParams({ ...filters, ...sortState, page, limit });
+        const params = compactParams({ ...filters, ...sortState, page, limit, hide_lost: view === 'list' && hideLostLeads ? 'true' : undefined });
         try {
           const leadsRes = await leadAPI.getAll(params);
           setLeads(leadsRes.data.leads || []);
@@ -274,7 +281,7 @@ const LeadsPage = () => {
           if ((!filters.date_from && !filters.date_to) || dateError.response?.status !== 500) throw dateError;
 
           const fallbackLimit = view === 'pipeline' ? 500 : 1000;
-          const fallbackParams = compactParams({ ...withoutLeadDateFilters(filters), page: 1, limit: fallbackLimit });
+          const fallbackParams = compactParams({ ...withoutLeadDateFilters(filters), page: 1, limit: fallbackLimit, hide_lost: view === 'list' && hideLostLeads ? 'true' : undefined });
           const fallbackRes = await leadAPI.getAll(fallbackParams);
           const filteredLeads = filterLeadsByDate(fallbackRes.data.leads || [], filters);
           const start = view === 'pipeline' ? 0 : (page - 1) * PAGE_SIZE;
@@ -643,7 +650,7 @@ const LeadsPage = () => {
               <div className="relative ml-auto" ref={columnSettingsRef}>
                 <button
                   onClick={() => setShowColumnSettings(v => !v)}
-                  title="Table settings"
+                  title="Leads settings"
                   className={`inline-flex items-center gap-2 h-10 px-3 rounded-lg border text-sm font-semibold transition-colors ${showColumnSettings ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
                 >
                   <Settings size={15} />
@@ -661,6 +668,16 @@ const LeadsPage = () => {
                           {col.label}
                         </label>
                       ))}
+                    </div>
+                    <div className="px-4 py-3 border-t bg-gray-50">
+                      <h3 className="font-semibold text-sm">Lead visibility</h3>
+                    </div>
+                    <div className="p-2">
+                      <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
+                        <input type="checkbox" checked={hideLostLeads} onChange={() => setHideLostLeads(v => !v)}
+                          className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
+                        Hide lost leads
+                      </label>
                     </div>
                   </div>
                 )}
