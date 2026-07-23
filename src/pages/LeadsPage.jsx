@@ -33,8 +33,14 @@ const loadVisibleColumns = () => {
   } catch { /* ignore invalid/missing value */ }
   return Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true]));
 };
-const LEADS_HIDE_LOST_STORAGE_KEY = 'leadsHideLostLeads';
-const loadHideLostLeads = () => localStorage.getItem(LEADS_HIDE_LOST_STORAGE_KEY) === 'true';
+const LEADS_HIDDEN_STAGES_STORAGE_KEY = 'leadsHiddenStages';
+const loadHiddenStages = () => {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LEADS_HIDDEN_STAGES_STORAGE_KEY));
+    if (Array.isArray(saved)) return saved;
+  } catch { /* ignore invalid/missing value */ }
+  return [];
+};
 const SLA_STATUS_LABELS = {
   uncontacted: 'Uncontacted',
   new: 'New',
@@ -143,7 +149,7 @@ const LeadsPage = () => {
   const [filters, setFilters] = useState(queryConfig.filters);
   const [showFilters, setShowFilters] = useState(Object.values(queryConfig.filters).some(Boolean));
   const [visibleColumns, setVisibleColumns] = useState(loadVisibleColumns);
-  const [hideLostLeads, setHideLostLeads] = useState(loadHideLostLeads);
+  const [hiddenStages, setHiddenStages] = useState(loadHiddenStages);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const columnSettingsRef = useRef(null);
   const [view, setView] = useState(queryConfig.view);
@@ -215,14 +221,18 @@ const LeadsPage = () => {
   const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length;
 
   const toggleColumn = (key) => setVisibleColumns(v => ({ ...v, [key]: !v[key] }));
+  const toggleHiddenStage = (stageName) => {
+    const key = stageName.toLowerCase();
+    setHiddenStages(prev => prev.includes(key) ? prev.filter(s => s !== key) : [...prev, key]);
+  };
 
   useEffect(() => {
     localStorage.setItem(LEADS_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
   useEffect(() => {
-    localStorage.setItem(LEADS_HIDE_LOST_STORAGE_KEY, String(hideLostLeads));
-  }, [hideLostLeads]);
+    localStorage.setItem(LEADS_HIDDEN_STAGES_STORAGE_KEY, JSON.stringify(hiddenStages));
+  }, [hiddenStages]);
 
   useEffect(() => {
     const handler = (e) => { if (columnSettingsRef.current && !columnSettingsRef.current.contains(e.target)) setShowColumnSettings(false); };
@@ -260,8 +270,8 @@ const LeadsPage = () => {
     });
   }, []);
 
-  // Reload leads whenever filters, view, page, fuFilters, sortState, or hideLostLeads change
-  useEffect(() => { fetchLeads(); }, [filters, view, page, fuFilters, sortState, hideLostLeads]);
+  // Reload leads whenever filters, view, page, fuFilters, sortState, or hiddenStages change
+  useEffect(() => { fetchLeads(); }, [filters, view, page, fuFilters, sortState, hiddenStages]);
 
   const fetchLeads = async () => {
     setSelectedIds(new Set());
@@ -272,7 +282,8 @@ const LeadsPage = () => {
         setFollowups(filterFollowupsForScope(res.data.followups || [], fuFilters));
       } else {
         const limit = view === 'pipeline' ? 500 : PAGE_SIZE;
-        const params = compactParams({ ...filters, ...sortState, page, limit, hide_lost: view === 'list' && hideLostLeads ? 'true' : undefined });
+        const hideStagesParam = view === 'list' && hiddenStages.length ? hiddenStages.join(',') : undefined;
+        const params = compactParams({ ...filters, ...sortState, page, limit, hide_stages: hideStagesParam });
         try {
           const leadsRes = await leadAPI.getAll(params);
           setLeads(leadsRes.data.leads || []);
@@ -281,7 +292,7 @@ const LeadsPage = () => {
           if ((!filters.date_from && !filters.date_to) || dateError.response?.status !== 500) throw dateError;
 
           const fallbackLimit = view === 'pipeline' ? 500 : 1000;
-          const fallbackParams = compactParams({ ...withoutLeadDateFilters(filters), page: 1, limit: fallbackLimit, hide_lost: view === 'list' && hideLostLeads ? 'true' : undefined });
+          const fallbackParams = compactParams({ ...withoutLeadDateFilters(filters), page: 1, limit: fallbackLimit, hide_stages: hideStagesParam });
           const fallbackRes = await leadAPI.getAll(fallbackParams);
           const filteredLeads = filterLeadsByDate(fallbackRes.data.leads || [], filters);
           const start = view === 'pipeline' ? 0 : (page - 1) * PAGE_SIZE;
@@ -670,14 +681,16 @@ const LeadsPage = () => {
                       ))}
                     </div>
                     <div className="px-4 py-3 border-t bg-gray-50">
-                      <h3 className="font-semibold text-sm">Lead visibility</h3>
+                      <h3 className="font-semibold text-sm">Hide stages</h3>
                     </div>
-                    <div className="p-2">
-                      <label className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
-                        <input type="checkbox" checked={hideLostLeads} onChange={() => setHideLostLeads(v => !v)}
-                          className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
-                        Hide lost leads
-                      </label>
+                    <div className="p-2 max-h-60 overflow-y-auto">
+                      {stages.map(s => (
+                        <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
+                          <input type="checkbox" checked={hiddenStages.includes(s.name.toLowerCase())} onChange={() => toggleHiddenStage(s.name)}
+                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
+                          {s.name}
+                        </label>
+                      ))}
                     </div>
                   </div>
                 )}
