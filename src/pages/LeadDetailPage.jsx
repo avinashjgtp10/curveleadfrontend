@@ -603,6 +603,13 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
                   </div>
                   <div className="pt-2 border-t">
+                    <p className="text-xs text-gray-500">Lead Date</p>
+                    <p className="font-medium flex items-center gap-1.5">
+                      <Calendar size={13} className="text-gray-400" />
+                      {new Date(lead.lead_date || lead.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Assigned To</p>
                     {lead.assigned_to_name ? (
                       <p className="font-medium">{lead.assigned_to_name}</p>

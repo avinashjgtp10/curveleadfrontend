@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 
 const scoreColors = {
@@ -177,6 +177,13 @@ const LeadsPage = () => {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [importDragOver, setImportDragOver] = useState(false);
+
+  // Duplicate leads state
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState([]);
+  const [duplicatesLoading, setDuplicatesLoading] = useState(false);
+  const [duplicateKeepChoice, setDuplicateKeepChoice] = useState({}); // { norm_phone: leadId }
+  const [mergingPhone, setMergingPhone] = useState(null);
 
   // Lost reason modal state
   const [lostReasonModal, setLostReasonModal] = useState({ open: false, leadId: null, newStage: null, reason: '', customReason: '' });
@@ -547,6 +554,45 @@ const LeadsPage = () => {
     finally { setBulkLoading(false); }
   };
 
+  const openDuplicates = async () => {
+    setShowDuplicates(true);
+    setDuplicatesLoading(true);
+    try {
+      const { data } = await leadAPI.findDuplicates();
+      setDuplicateGroups(data.groups || []);
+      // Default: keep whichever lead in the group is furthest along the pipeline (not "new"),
+      // falling back to the oldest lead — usually the one that already has history on it.
+      const defaults = {};
+      for (const g of data.groups || []) {
+        const advanced = g.leads.find(l => (l.stage || '').toLowerCase() !== 'new');
+        defaults[g.norm_phone] = (advanced || g.leads[0]).id;
+      }
+      setDuplicateKeepChoice(defaults);
+    } catch (e) {
+      alert(e.response?.data?.error || 'Failed to load duplicate leads.');
+    } finally {
+      setDuplicatesLoading(false);
+    }
+  };
+
+  const handleMergeGroup = async (group) => {
+    const keepId = duplicateKeepChoice[group.norm_phone];
+    const removeIds = group.leads.map(l => l.id).filter(id => id !== keepId);
+    if (!removeIds.length) return;
+    if (!window.confirm(`Merge ${removeIds.length} duplicate lead(s) into the selected one? Notes, calls and follow-ups will be carried over; the duplicate records will be deleted.`)) return;
+
+    setMergingPhone(group.norm_phone);
+    try {
+      await leadAPI.mergeDuplicates(keepId, removeIds);
+      setDuplicateGroups(prev => prev.filter(g => g.norm_phone !== group.norm_phone));
+      loadData();
+    } catch (e) {
+      alert(e.response?.data?.error || 'Failed to merge duplicates.');
+    } finally {
+      setMergingPhone(null);
+    }
+  };
+
   const selectClass = "h-10 w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent";
   const inputClass = "h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent";
 
@@ -566,6 +612,12 @@ const LeadsPage = () => {
             <button onClick={() => setShowImport(true)}
               className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
               <Upload size={16} /> Import CSV
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={openDuplicates}
+              className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
+              <Copy size={16} /> Duplicates
             </button>
           )}
           <button onClick={() => setShowAddModal(true)}
@@ -1468,6 +1520,64 @@ const LeadsPage = () => {
                     </button>
                   </div>
                 </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDuplicates && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setShowDuplicates(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
+              <h2 className="font-bold text-gray-900 flex items-center gap-2">
+                <Copy size={18} className="text-cyan-600" /> Duplicate Leads
+              </h2>
+              <button onClick={() => setShowDuplicates(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
+            </div>
+
+            <div className="p-6 space-y-5 overflow-y-auto">
+              <p className="text-xs text-gray-500">
+                Leads with the same phone number are grouped below, regardless of formatting (e.g. with or without a +91 prefix).
+                Pick which record to keep in each group — its notes, calls, follow-ups and other history stay; the rest are merged in and removed.
+              </p>
+
+              {duplicatesLoading ? (
+                <div className="py-10 flex justify-center">
+                  <span className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : duplicateGroups.length === 0 ? (
+                <div className="py-10 text-center text-sm text-gray-500">
+                  <CheckCircle size={24} className="mx-auto mb-2 text-emerald-500" />
+                  No duplicate leads found.
+                </div>
+              ) : (
+                duplicateGroups.map(group => (
+                  <div key={group.norm_phone} className="border border-gray-200 rounded-xl p-4 space-y-3">
+                    <p className="text-xs font-semibold text-gray-500">Phone match: {group.norm_phone}</p>
+                    <div className="space-y-2">
+                      {group.leads.map(lead => (
+                        <label key={lead.id}
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${duplicateKeepChoice[group.norm_phone] === lead.id ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200'}`}>
+                          <input type="radio" name={`keep-${group.norm_phone}`}
+                            checked={duplicateKeepChoice[group.norm_phone] === lead.id}
+                            onChange={() => setDuplicateKeepChoice(prev => ({ ...prev, [group.norm_phone]: lead.id }))}
+                            className="accent-cyan-600" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-900 truncate">{lead.name} <span className="font-normal text-gray-400">#{lead.lead_number}</span></p>
+                            <p className="text-xs text-gray-500">{lead.phone} · {lead.source} · {lead.stage} · {new Date(lead.created_at).toLocaleDateString()}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    <button onClick={() => handleMergeGroup(group)} disabled={mergingPhone === group.norm_phone}
+                      className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+                      {mergingPhone === group.norm_phone
+                        ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Merging...</>
+                        : `Keep selected, remove ${group.leads.length - 1} duplicate${group.leads.length - 1 > 1 ? 's' : ''}`}
+                    </button>
+                  </div>
+                ))
               )}
             </div>
           </div>
