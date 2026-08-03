@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI } from '../services/api';
+import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy } from 'lucide-react';
@@ -275,6 +275,20 @@ const LeadsPage = () => {
       setStageStatuses(byStage);
       setAllStatuses(all);
     });
+  }, []);
+
+  // Auto-pull Facebook leads whenever this page is opened, so leads show up without
+  // a manual trip to Integrations > Sync Leads. Throttled so switching tabs back and
+  // forth doesn't hammer the Graph API — at most once every 2 minutes.
+  useEffect(() => {
+    const META_SYNC_THROTTLE_MS = 2 * 60 * 1000;
+    const lastSync = Number(localStorage.getItem('meta_leads_last_sync') || 0);
+    if (Date.now() - lastSync < META_SYNC_THROTTLE_MS) return;
+    localStorage.setItem('meta_leads_last_sync', String(Date.now()));
+
+    integrationsAPI.facebookSyncLeads()
+      .then(({ data }) => { if (data?.created) fetchLeads(); })
+      .catch(() => {}); // silently ignore — e.g. no Facebook page connected for this tenant
   }, []);
 
   // Reload leads whenever filters, view, page, fuFilters, sortState, or hiddenStages change
