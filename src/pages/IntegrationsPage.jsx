@@ -593,6 +593,14 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [autoForm, setAutoForm] = useState({
+    whatsapp_auto_responder_enabled: settings.whatsapp_auto_responder_enabled || false,
+    whatsapp_auto_responder_message: settings.whatsapp_auto_responder_message || '',
+    ai_qualification_enabled: settings.ai_qualification_enabled || false,
+    business_description: settings.business_description || '',
+  });
+  const [autoSaving, setAutoSaving] = useState(false);
+
   const handleSave = async () => {
     if (!form.whatsapp_phone_number_id) return setError('Phone Number ID is required');
     if (!form.whatsapp_access_token) return setError('Access Token is required');
@@ -604,6 +612,16 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
       alert('WhatsApp settings saved.');
     } catch (e) { setError(e.response?.data?.error || 'Failed to save'); }
     finally { setSaving(false); }
+  };
+
+  const handleSaveAuto = async () => {
+    setAutoSaving(true);
+    try {
+      await integrationsAPI.updateSettings(autoForm);
+      await onRefresh();
+      alert('Automation settings saved.');
+    } catch (e) { alert(e.response?.data?.error || 'Failed to save'); }
+    finally { setAutoSaving(false); }
   };
 
   const handleDisconnect = async () => {
@@ -652,6 +670,48 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
           )}
         </div>
       </div>
+
+      {isConfigured && (
+        <div className="bg-white rounded-2xl border p-5 space-y-5">
+          <div>
+            <h2 className="font-semibold mb-1">Auto-message new leads</h2>
+            <p className="text-xs text-gray-500 mb-3">Instantly send a WhatsApp message to every new lead received via your integrations (Meta Ads, website, API) — even when you're busy or offline.</p>
+            <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
+              <input type="checkbox" checked={autoForm.whatsapp_auto_responder_enabled}
+                onChange={e => setAutoForm(f => ({ ...f, whatsapp_auto_responder_enabled: e.target.checked }))}
+                className="w-4 h-4 rounded" />
+              <span className="font-medium">Enable auto-responder</span>
+            </label>
+            <textarea value={autoForm.whatsapp_auto_responder_message}
+              onChange={e => setAutoForm(f => ({ ...f, whatsapp_auto_responder_message: e.target.value }))}
+              rows={3} placeholder="Hi {{name}}, thanks for reaching out! We received your enquiry and will get back to you shortly."
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            <p className="text-[11px] text-gray-400 mt-1">Placeholders: <code className="bg-gray-100 px-1 rounded">{'{{name}}'}</code> <code className="bg-gray-100 px-1 rounded">{'{{source}}'}</code></p>
+          </div>
+
+          <div className="pt-4 border-t">
+            <h2 className="font-semibold mb-1">AI Auto-Reply & Qualification</h2>
+            <p className="text-xs text-gray-500 mb-3">When a lead replies on WhatsApp, let AI chat with them, qualify their interest, and automatically update their stage — until a teammate sends a manual reply, which pauses the AI for that lead.</p>
+            <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
+              <input type="checkbox" checked={autoForm.ai_qualification_enabled}
+                onChange={e => setAutoForm(f => ({ ...f, ai_qualification_enabled: e.target.checked }))}
+                className="w-4 h-4 rounded" />
+              <span className="font-medium">Enable AI auto-reply</span>
+            </label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">About your business</label>
+            <textarea value={autoForm.business_description}
+              onChange={e => setAutoForm(f => ({ ...f, business_description: e.target.value }))}
+              rows={2} placeholder="e.g. We sell CRM software for small businesses in India."
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            <p className="text-[11px] text-gray-400 mt-1">Gives the AI context so it can chat naturally about your business.</p>
+          </div>
+
+          <button onClick={handleSaveAuto} disabled={autoSaving}
+            className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+            {autoSaving ? 'Saving…' : 'Save Automation Settings'}
+          </button>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border p-5">
         <h2 className="font-semibold mb-2">What happens automatically</h2>

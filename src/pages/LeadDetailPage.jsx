@@ -952,7 +952,16 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       <div className="space-y-4 pt-4">
           {/* WhatsApp Conversation */}
           <div className="bg-white rounded-2xl border p-5">
-            <h3 className="font-semibold mb-4 flex items-center gap-2"><MessageCircle size={18} /> WhatsApp Conversation</h3>
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <h3 className="font-semibold flex items-center gap-2"><MessageCircle size={18} /> WhatsApp Conversation</h3>
+              {lead.ai_paused && (
+                <button
+                  onClick={async () => { await leadAPI.update(id, { ai_paused: false }); setLead(prev => ({ ...prev, ai_paused: false })); }}
+                  className="flex items-center gap-1.5 text-xs bg-amber-50 text-amber-700 px-2.5 py-1 rounded-full font-medium hover:bg-amber-100">
+                  AI replies paused for this lead · Resume AI
+                </button>
+              )}
+            </div>
             <div className="space-y-2 max-h-80 overflow-y-auto mb-3">
               {messages.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-4">No messages yet</p>
