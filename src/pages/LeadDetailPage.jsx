@@ -38,6 +38,15 @@ const activityConfig = (type) => {
   return map[type] || { Icon: StickyNote, bg: 'bg-gray-50', color: 'text-gray-400' };
 };
 
+const formatDuration = (date) => {
+  const diff = Math.floor((Date.now() - new Date(date)) / 1000);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
+  if (diff < 86400 * 30) return `${Math.floor(diff / 86400)}d`;
+  return `${Math.floor(diff / (86400 * 30))}mo`;
+};
+
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
   warm: 'bg-amber-100 text-amber-700',
@@ -386,6 +395,8 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
 
   const isWon = stages.find(s => s.name.toLowerCase() === (lead.stage || '').toLowerCase())?.is_won;
   const balanceDue = Math.max(0, Number(lead.deal_value || 0) - Number(lead.advance_received || 0));
+  const lastStageChange = activities.find(a => a.activity_type === 'stage_change');
+  const stageSince = lastStageChange?.created_at || lead.created_at;
 
   const tabs = [
     { id: 'overview', label: 'Overview' },
@@ -666,6 +677,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   </select>
                   <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 </div>
+                {stageSince && (
+                  <p className="text-[10px] text-gray-400 mt-1" title={new Date(stageSince).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}>
+                    In this stage for {formatDuration(stageSince)}
+                  </p>
+                )}
               </div>
 
               {/* Status Dropdown */}

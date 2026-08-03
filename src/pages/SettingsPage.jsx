@@ -26,7 +26,7 @@ const SettingsPage = () => {
   const [stages, setStages] = useState([]);
   const [stageModal, setStageModal] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
-  const [stageForm, setStageForm] = useState({ name: '', color: 'blue', is_won: false, is_lost: false });
+  const [stageForm, setStageForm] = useState({ name: '', color: 'blue', is_won: false, is_lost: false, meta_event_name: '' });
   const [expandedStage, setExpandedStage] = useState(null);
 
   const [statusModal, setStatusModal] = useState(false);
@@ -142,13 +142,13 @@ const SettingsPage = () => {
 
   const openCreateStage = () => {
     setEditingStage(null);
-    setStageForm({ name: '', color: 'blue', is_won: false, is_lost: false });
+    setStageForm({ name: '', color: 'blue', is_won: false, is_lost: false, meta_event_name: '' });
     setStageModal(true);
   };
 
   const openEditStage = (s) => {
     setEditingStage(s);
-    setStageForm({ name: s.name, color: s.color || 'blue', is_won: s.is_won || false, is_lost: s.is_lost || false });
+    setStageForm({ name: s.name, color: s.color || 'blue', is_won: s.is_won || false, is_lost: s.is_lost || false, meta_event_name: s.meta_event_name || '' });
     setStageModal(true);
   };
 
@@ -627,6 +627,22 @@ const SettingsPage = () => {
                             className="w-4 h-4 rounded" />
                           <span className="font-medium text-red-700">Mark as Lost</span>
                         </label>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Meta Conversion Event</label>
+                        <select value={stageForm.meta_event_name} onChange={e => setStageForm({ ...stageForm, meta_event_name: e.target.value })}
+                          className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                          <option value="">— Don't send —</option>
+                          <option value="Lead">Lead</option>
+                          <option value="Contact">Contact</option>
+                          <option value="Schedule">Schedule</option>
+                          <option value="SubmitApplication">SubmitApplication</option>
+                          <option value="Subscribe">Subscribe</option>
+                          <option value="StartTrial">StartTrial</option>
+                          <option value="CompleteRegistration">CompleteRegistration</option>
+                          <option value="Purchase">Purchase</option>
+                        </select>
+                        <p className="text-[11px] text-gray-400 mt-1">When a Meta-sourced lead moves into this stage, this event is sent to Meta's Conversions API to help optimise your ad campaigns.</p>
                       </div>
                     </div>
                     {modalError && (

@@ -241,11 +241,35 @@ const MetaConfig = ({ settings, onRefresh }) => {
   const [syncResult, setSyncResult] = useState(null);
   const [disconnecting, setDisconnecting] = useState(false);
   const [fbReady, setFbReady] = useState(false);
+  const [capiForm, setCapiForm] = useState({
+    meta_dataset_id: settings.meta_dataset_id || '',
+    meta_capi_access_token: settings.meta_capi_configured ? '••••••••' : '',
+  });
+  const [capiSaving, setCapiSaving] = useState(false);
+  const [capiError, setCapiError] = useState('');
+  const [capiStats, setCapiStats] = useState(null);
 
   // Load SDK on mount so FB.login() can be called synchronously on click
   useEffect(() => {
     loadFbSdk().then(() => setFbReady(true)).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    integrationsAPI.getCapiStats().then(({ data }) => setCapiStats(data)).catch(() => {});
+  }, []);
+
+  const handleSaveCapi = async () => {
+    if (!capiForm.meta_dataset_id) return setCapiError('Dataset ID is required');
+    if (!capiForm.meta_capi_access_token) return setCapiError('Access Token is required');
+    setCapiError('');
+    setCapiSaving(true);
+    try {
+      await integrationsAPI.updateSettings(capiForm);
+      await onRefresh();
+      alert('Meta Conversions API settings saved.');
+    } catch (e) { setCapiError(e.response?.data?.error || 'Failed to save'); }
+    finally { setCapiSaving(false); }
+  };
 
   const handleFbLogin = useCallback(() => {
     if (!window.FB) return alert('Facebook SDK not loaded yet. Please wait a moment and try again.');
@@ -364,6 +388,65 @@ const MetaConfig = ({ settings, onRefresh }) => {
             {syncing ? 'Syncing leads…' : 'Sync Leads Now'}
           </button>
         </div>
+      )}
+
+      {/* Meta Conversions API */}
+      {settings.meta_configured && (
+        <>
+          {capiStats && capiStats.total_meta_leads > 0 && (
+            <div className="bg-white rounded-2xl border p-5 space-y-3">
+              <div>
+                <h2 className="font-semibold">Meta Conversions API</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Optimise your Facebook Lead Ad campaigns by sending lead stage updates back to Meta, to improve lead quality and reduce cost per qualified lead.</p>
+              </div>
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="font-medium text-gray-600">Leads with stage</span>
+                  <span className="text-gray-400">{capiStats.percent}% of {capiStats.total_meta_leads} leads received</span>
+                </div>
+                <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-500" style={{ width: `${capiStats.percent}%` }} />
+                </div>
+              </div>
+              {capiStats.leads_with_stage < capiStats.total_meta_leads && (
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <p className="text-xs text-amber-800">
+                    <strong>Action:</strong> You have {capiStats.total_meta_leads - capiStats.leads_with_stage} lead(s) that don't have a lead stage set.
+                    For the best results, update their stage (e.g. Meeting Booked, Closed - Won) so Meta can optimise your campaigns.
+                  </p>
+                  <a href="/leads" className="text-xs font-medium text-amber-900 underline mt-1 inline-block">View leads →</a>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="bg-white rounded-2xl border p-5 space-y-4">
+            <div>
+              <h2 className="font-semibold mb-1">Send conversion events to Meta</h2>
+              <p className="text-xs text-gray-500">In Meta Events Manager, go to <strong>Data Sources → your Lead dataset → Settings</strong>, then copy the Dataset ID and generate a Conversions API Access Token. Map which pipeline stages send an event under <strong>Settings → Pipeline Stages</strong>.</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Dataset ID (Pixel ID)</label>
+              <input value={capiForm.meta_dataset_id}
+                onChange={e => setCapiForm(f => ({ ...f, meta_dataset_id: e.target.value }))}
+                placeholder="e.g. 123456789012345"
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Conversions API Access Token</label>
+              <input value={capiForm.meta_capi_access_token}
+                onChange={e => setCapiForm(f => ({ ...f, meta_capi_access_token: e.target.value }))}
+                onFocus={e => { if (e.target.value.startsWith('•')) setCapiForm(f => ({ ...f, meta_capi_access_token: '' })); }}
+                type="password" placeholder="EAAxxxxxxxxxx…"
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            </div>
+            {capiError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{capiError}</p>}
+            <button onClick={handleSaveCapi} disabled={capiSaving}
+              className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+              {capiSaving ? 'Saving…' : 'Save Conversions API Settings'}
+            </button>
+          </div>
+        </>
       )}
 
       {/* Webhook info */}
