@@ -185,6 +185,20 @@ export const templateAPI = {
 };
 
 // ============================================
+// Automations (sequences + trigger rules)
+// ============================================
+export const automationAPI = {
+  getSequences: () => api.get('/automations/sequences'),
+  createSequence: (data) => api.post('/automations/sequences', data),
+  updateSequence: (id, data) => api.put(`/automations/sequences/${id}`, data),
+  deleteSequence: (id) => api.delete(`/automations/sequences/${id}`),
+  getRules: () => api.get('/automations/rules'),
+  createRule: (data) => api.post('/automations/rules', data),
+  updateRule: (id, data) => api.put(`/automations/rules/${id}`, data),
+  deleteRule: (id) => api.delete(`/automations/rules/${id}`),
+};
+
+// ============================================
 // Payments
 // ============================================
 export const paymentAPI = {
