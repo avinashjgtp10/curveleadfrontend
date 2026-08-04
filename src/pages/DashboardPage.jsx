@@ -6,6 +6,7 @@ import {
   Users, IndianRupee, Target, TrendingUp,
   ArrowUpRight, ArrowDownRight, Minus,
   Calendar, Video, AlertTriangle, ChevronRight, Flame, Clock,
+  Zap, Sparkles, CheckCircle2, Megaphone,
 } from 'lucide-react';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -212,6 +213,52 @@ const DashboardPage = () => {
             </div>
           </button>
         ))}
+      </div>
+
+      {/* ── Automation & AI Activity ── */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-500 mb-2">Automation & AI</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {[
+            {
+              label: 'Active in Sequence',
+              value: data?.active_enrollments || 0,
+              icon: Zap,
+              cls: 'text-cyan-600 bg-cyan-50 border-cyan-100',
+              to: '/settings',
+            },
+            {
+              label: 'Completed This Month',
+              value: data?.completed_this_month || 0,
+              icon: CheckCircle2,
+              cls: 'text-emerald-600 bg-emerald-50 border-emerald-100',
+              to: '/settings',
+            },
+            {
+              label: 'AI Replies This Week',
+              value: data?.ai_replies_this_week || 0,
+              icon: Sparkles,
+              cls: 'text-violet-600 bg-violet-50 border-violet-100',
+              to: '/whatsapp',
+            },
+            {
+              label: 'Meta Leads Today',
+              value: data?.meta_leads_today || 0,
+              icon: Megaphone,
+              cls: 'text-blue-600 bg-blue-50 border-blue-100',
+              to: `/leads?source=meta_ads&date_field=created_at&date_from=${today}&date_to=${today}`,
+            },
+          ].map(s => (
+            <button key={s.label} onClick={() => navigate(s.to)}
+              className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:opacity-80 transition-opacity text-left w-full`}>
+              <s.icon size={18} className="shrink-0" />
+              <div>
+                <p className="text-xl font-bold leading-none">{s.value}</p>
+                <p className="text-[11px] mt-0.5 opacity-70 font-medium">{s.label}</p>
+              </div>
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Unassigned Leads Alert ── */}
