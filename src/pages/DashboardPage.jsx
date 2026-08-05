@@ -36,20 +36,26 @@ const STAGE_COLOR = {
 const Trend = ({ change }) => {
   if (change > 0) return (
     <span className="flex items-center gap-0.5 text-emerald-600 text-xs font-semibold">
-      <ArrowUpRight size={13} />{change}% vs last month
+      <ArrowUpRight size={13} />{change}% vs previous period
     </span>
   );
   if (change < 0) return (
     <span className="flex items-center gap-0.5 text-red-500 text-xs font-semibold">
-      <ArrowDownRight size={13} />{Math.abs(change)}% vs last month
+      <ArrowDownRight size={13} />{Math.abs(change)}% vs previous period
     </span>
   );
   return (
     <span className="flex items-center gap-0.5 text-gray-400 text-xs">
-      <Minus size={13} />Same as last month
+      <Minus size={13} />Same as previous period
     </span>
   );
 };
+
+const PERIOD_OPTIONS = [
+  { id: 'this_month', label: 'This Month' },
+  { id: 'last_month', label: 'Last Month' },
+  { id: 'custom', label: 'Custom' },
+];
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -57,21 +63,31 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [period, setPeriod] = useState('this_month');
+  const [customFrom, setCustomFrom] = useState(todayISO());
+  const [customTo, setCustomTo] = useState(todayISO());
 
   useEffect(() => {
-    reportsAPI.dashboard()
+    if (period === 'custom' && (!customFrom || !customTo)) return;
+    setLoading(true);
+    const params = period === 'custom' ? { period, date_from: customFrom, date_to: customTo } : { period };
+    reportsAPI.dashboard(params)
       .then(({ data }) => setData(data))
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, []);
+  }, [period, customFrom, customTo]);
 
-  if (loading) return (
+  if (loading && !data) return (
     <div className="flex items-center justify-center h-64">
       <div className="animate-spin w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full" />
     </div>
   );
 
-  const monthName = new Date().toLocaleString('en-IN', { month: 'long' });
+  const periodLabel = period === 'this_month'
+    ? new Date().toLocaleString('en-IN', { month: 'long' })
+    : period === 'last_month'
+    ? new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-IN', { month: 'long' })
+    : `${customFrom} to ${customTo}`;
   const today = todayISO();
   const pipelineTotal = (data?.pipeline || []).reduce((s, p) => s + p.count, 0) || 1;
 
@@ -83,20 +99,44 @@ const DashboardPage = () => {
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
 
+      {/* ── Period Selector ── */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
+          {PERIOD_OPTIONS.map(opt => (
+            <button key={opt.id} onClick={() => setPeriod(opt.id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
+                period === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {period === 'custom' && (
+          <div className="flex items-center gap-2">
+            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+              className="px-2.5 py-1.5 border rounded-lg text-xs" />
+            <span className="text-xs text-gray-400">to</span>
+            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+              className="px-2.5 py-1.5 border rounded-lg text-xs" />
+          </div>
+        )}
+        {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-brand-600 border-t-transparent rounded-full" />}
+      </div>
+
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
-            label: `Leads in ${monthName}`,
-            value: fmt(data?.leads_this_month),
+            label: `Leads in ${periodLabel}`,
+            value: fmt(data?.leads_in_period),
             sub: `${fmt(data?.total_leads)} total`,
             trend: data?.leads_change,
             icon: Users,
             iconCls: 'bg-blue-100 text-blue-600',
           },
           {
-            label: `Revenue in ${monthName}`,
-            value: fmtMoney(data?.revenue_this_month),
+            label: `Revenue in ${periodLabel}`,
+            value: fmtMoney(data?.revenue_in_period),
             sub: `${fmtMoney(data?.total_revenue)} total`,
             trend: data?.revenue_change,
             icon: IndianRupee,
@@ -105,28 +145,28 @@ const DashboardPage = () => {
           {
             label: 'Conversion Rate',
             value: `${data?.conversion_rate || '0.0'}%`,
-            sub: `${fmt(data?.won_this_month)} won this month`,
+            sub: `${fmt(data?.won_in_period)} won in period`,
             icon: Target,
             iconCls: 'bg-violet-100 text-violet-600',
           },
           {
             label: 'Avg Deal Value',
             value: fmtMoney(data?.avg_deal_value),
-            sub: `${fmt(data?.total_won)} deals closed`,
+            sub: `${fmt(data?.won_in_period)} deals closed`,
             icon: TrendingUp,
             iconCls: 'bg-amber-100 text-amber-600',
           },
           {
             label: 'Advance Collected',
-            value: fmtMoney(data?.total_advance_collected),
-            sub: 'From won deals',
+            value: fmtMoney(data?.advance_collected_in_period),
+            sub: 'From won deals in period',
             icon: IndianRupee,
             iconCls: 'bg-cyan-100 text-cyan-600',
           },
           {
             label: 'Balance Due',
-            value: fmtMoney(data?.total_balance_due),
-            sub: 'Pending from won deals',
+            value: fmtMoney(data?.balance_due_in_period),
+            sub: 'Pending from won deals in period',
             icon: AlertTriangle,
             iconCls: 'bg-orange-100 text-orange-600',
           },
@@ -447,10 +487,10 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* ── 14-Day Lead Trend ── */}
+      {/* ── Lead Trend ── */}
       {trendData.length > 1 && (
         <div className="bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold text-gray-900 mb-4">Lead Trend — Last 14 Days</h3>
+          <h3 className="font-semibold text-gray-900 mb-4">Lead Trend — {periodLabel}</h3>
           <ResponsiveContainer width="100%" height={160}>
             <AreaChart data={trendData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
               <defs>

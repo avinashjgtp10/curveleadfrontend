@@ -138,7 +138,7 @@ export const reportsAPI = {
   bySource: (params) => api.get('/reports/by-source', { params }),
   byStaff: (params) => api.get('/reports/by-staff', { params }),
   byCampaign: (params) => api.get('/reports/by-campaign', { params }),
-  dashboard: () => api.get('/reports/summary'),
+  dashboard: (params) => api.get('/reports/summary', { params }),
 };
 
 // ============================================
