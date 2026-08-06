@@ -70,7 +70,7 @@ export const leadAPI = {
 // ============================================
 export const campaignAPI = {
   getAll: (params) => api.get('/campaigns', { params }),
-  getOne: (id) => api.get(`/campaigns/${id}`),
+  getOne: (id, params) => api.get(`/campaigns/${id}`, { params }),
   create: (data) => api.post('/campaigns', data),
   update: (id, data) => api.put(`/campaigns/${id}`, data),
   delete: (id) => api.delete(`/campaigns/${id}`),
