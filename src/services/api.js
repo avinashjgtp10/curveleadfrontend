@@ -74,8 +74,6 @@ export const campaignAPI = {
   create: (data) => api.post('/campaigns', data),
   update: (id, data) => api.put(`/campaigns/${id}`, data),
   delete: (id) => api.delete(`/campaigns/${id}`),
-  getROI: (id) => api.get(`/campaigns/${id}/roi`),
-  getLeads: (id) => api.get(`/campaigns/${id}/leads`),
 };
 
 // ============================================

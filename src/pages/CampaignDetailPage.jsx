@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { campaignAPI } from '../services/api';
-import { ArrowLeft, IndianRupee, Users, TrendingUp, Target } from 'lucide-react';
+import { ArrowLeft, IndianRupee, Users, TrendingUp, Target, Eye, MousePointerClick } from 'lucide-react';
 
 const CampaignDetailPage = () => {
   const { id } = useParams();
@@ -14,12 +14,9 @@ const CampaignDetailPage = () => {
 
   const loadData = async () => {
     try {
-      const [roiRes, leadsRes] = await Promise.all([
-        campaignAPI.getROI(id),
-        campaignAPI.getLeads(id),
-      ]);
-      setData(roiRes.data);
-      setLeads(leadsRes.data.leads || []);
+      const { data } = await campaignAPI.getOne(id);
+      setData(data.campaign);
+      setLeads(data.recentLeads || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -31,7 +28,11 @@ const CampaignDetailPage = () => {
     { label: 'Budget', value: `₹${parseFloat(data.budget || 0).toLocaleString('en-IN')}`, icon: IndianRupee, color: 'bg-blue-100 text-blue-600' },
     { label: 'Spent', value: `₹${parseFloat(data.actual_spend || 0).toLocaleString('en-IN')}`, icon: TrendingUp, color: 'bg-amber-100 text-amber-600' },
     { label: 'Leads', value: data.total_leads || 0, icon: Users, color: 'bg-green-100 text-green-600' },
-    { label: 'CPL', value: `₹${data.cpl?.toFixed(0) || 0}`, icon: Target, color: 'bg-purple-100 text-purple-600' },
+    { label: 'CPL', value: `₹${parseFloat(data.cpl || 0).toFixed(0)}`, icon: Target, color: 'bg-purple-100 text-purple-600' },
+    ...(data.meta_campaign_id ? [
+      { label: 'Impressions', value: Number(data.impressions || 0).toLocaleString('en-IN'), icon: Eye, color: 'bg-cyan-100 text-cyan-600' },
+      { label: 'Clicks', value: Number(data.clicks || 0).toLocaleString('en-IN'), icon: MousePointerClick, color: 'bg-indigo-100 text-indigo-600' },
+    ] : []),
   ];
 
   return (
@@ -41,7 +42,12 @@ const CampaignDetailPage = () => {
       </button>
 
       <div className="bg-white rounded-2xl border p-5">
-        <h2 className="text-xl font-bold">{data.name}</h2>
+        <div className="flex items-center gap-2 flex-wrap">
+          <h2 className="text-xl font-bold">{data.name}</h2>
+          {data.meta_campaign_id && (
+            <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600">Meta Synced</span>
+          )}
+        </div>
         <p className="text-sm text-gray-500 capitalize">{data.source?.replace(/_/g, ' ')}</p>
       </div>
 
