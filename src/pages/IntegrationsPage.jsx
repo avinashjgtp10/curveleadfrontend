@@ -322,6 +322,14 @@ const MetaConfig = ({ settings, onRefresh }) => {
     } catch (e) { alert(e.response?.data?.error || 'Failed to save ad account.'); }
   };
 
+  const handleChangeAdAccount = async () => {
+    try {
+      await integrationsAPI.updateSettings({ meta_ad_account_id: '' });
+      await onRefresh();
+      handleLoadAdAccounts();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to disconnect ad account.'); }
+  };
+
   const handleSyncInsights = async () => {
     setInsightsSyncing(true); setInsightsSyncResult(null);
     try {
@@ -432,9 +440,14 @@ const MetaConfig = ({ settings, onRefresh }) => {
 
           {settings.meta_ads_configured ? (
             <>
-              <div className="flex items-center gap-2 bg-green-50 rounded-xl px-3 py-2">
-                <CheckCircle size={14} className="text-green-500 shrink-0" />
-                <p className="text-xs text-green-700">Ad account connected: {settings.meta_ad_account_id}</p>
+              <div className="flex items-center justify-between gap-2 bg-green-50 rounded-xl px-3 py-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle size={14} className="text-green-500 shrink-0" />
+                  <p className="text-xs text-green-700">Ad account connected: {settings.meta_ad_account_id}</p>
+                </div>
+                <button onClick={handleChangeAdAccount} className="text-xs text-green-700 hover:text-green-900 font-medium underline shrink-0">
+                  Change
+                </button>
               </div>
               {insightsSyncResult && (
                 <div className="flex items-start gap-2 bg-blue-50 rounded-xl px-3 py-2">
