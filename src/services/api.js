@@ -268,6 +268,8 @@ export const integrationsAPI = {
   facebookConnectPage: (data) => api.post('/integrations/facebook/connect-page', data),
   facebookSyncLeads: () => api.post('/integrations/facebook/sync-leads'),
   getCapiStats: () => api.get('/integrations/meta/capi-stats'),
+  getAdAccounts: () => api.get('/integrations/facebook/ad-accounts'),
+  syncAdInsights: () => api.post('/integrations/facebook/sync-ad-insights'),
 };
 
 // ============================================

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { campaignAPI } from '../services/api';
-import { Plus, Megaphone, IndianRupee, Users, TrendingUp, X, Edit2, Trash2 } from 'lucide-react';
+import { campaignAPI, integrationsAPI } from '../services/api';
+import { Plus, Megaphone, IndianRupee, Users, TrendingUp, X, Edit2, Trash2, RotateCcw, Eye, MousePointerClick } from 'lucide-react';
 
 const statusColors = {
   active: 'bg-green-100 text-green-700',
@@ -19,8 +19,19 @@ const CampaignsPage = () => {
   const [form, setForm] = useState({
     name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active',
   });
+  const [syncingInsights, setSyncingInsights] = useState(false);
 
   useEffect(() => { loadData(); }, []);
+
+  const handleSyncInsights = async () => {
+    setSyncingInsights(true);
+    try {
+      const { data } = await integrationsAPI.syncAdInsights();
+      alert(data.message);
+      loadData();
+    } catch (e) { alert(e.response?.data?.error || 'Sync failed. Connect an ad account in Integrations first.'); }
+    finally { setSyncingInsights(false); }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -68,10 +79,16 @@ const CampaignsPage = () => {
     <div className="max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">Track ad spend and ROI for your marketing campaigns</p>
-        <button onClick={() => { setEditing(null); setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' }); setShowModal(true); }}
-          className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
-          <Plus size={16} /> New Campaign
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={handleSyncInsights} disabled={syncingInsights}
+            className="px-4 py-2 border rounded-lg text-sm font-semibold hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50">
+            <RotateCcw size={14} className={syncingInsights ? 'animate-spin' : ''} /> {syncingInsights ? 'Syncing…' : 'Sync Ad Insights'}
+          </button>
+          <button onClick={() => { setEditing(null); setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' }); setShowModal(true); }}
+            className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
+            <Plus size={16} /> New Campaign
+          </button>
+        </div>
       </div>
 
       {loading ? (
@@ -89,7 +106,12 @@ const CampaignsPage = () => {
               <div key={c.id} className="bg-white rounded-2xl border p-5 hover:shadow-lg transition cursor-pointer" onClick={() => navigate(`/campaigns/${c.id}`)}>
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h3 className="font-semibold">{c.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h3 className="font-semibold">{c.name}</h3>
+                      {c.meta_campaign_id && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600">Meta Synced</span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 capitalize">{c.source?.replace(/_/g, ' ')}</p>
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
@@ -97,6 +119,12 @@ const CampaignsPage = () => {
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500">Budget</span><span className="font-medium">₹{parseFloat(c.budget || 0).toLocaleString('en-IN')}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Spent</span><span className="font-medium">₹{parseFloat(c.actual_spend || 0).toLocaleString('en-IN')}</span></div>
+                  {c.meta_campaign_id && (c.impressions != null || c.clicks != null) && (
+                    <>
+                      <div className="flex justify-between"><span className="text-gray-500 flex items-center gap-1"><Eye size={11} /> Impressions</span><span className="font-medium">{Number(c.impressions || 0).toLocaleString('en-IN')}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-500 flex items-center gap-1"><MousePointerClick size={11} /> Clicks</span><span className="font-medium">{Number(c.clicks || 0).toLocaleString('en-IN')}</span></div>
+                    </>
+                  )}
                   <div className="flex justify-between"><span className="text-gray-500">Leads</span><span className="font-medium">{c.leads_count || 0}</span></div>
                   <div className="flex justify-between border-t pt-2"><span className="text-gray-500">CPL</span><span className="font-bold text-brand-600">₹{cpl}</span></div>
                 </div>
