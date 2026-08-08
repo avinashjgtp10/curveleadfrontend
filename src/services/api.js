@@ -130,6 +130,16 @@ export const staffAPI = {
 };
 
 // ============================================
+// Teams
+// ============================================
+export const teamAPI = {
+  getAll: () => api.get('/teams'),
+  create: (data) => api.post('/teams', data),
+  update: (id, data) => api.put(`/teams/${id}`, data),
+  delete: (id) => api.delete(`/teams/${id}`),
+};
+
+// ============================================
 // Reports
 // ============================================
 export const reportsAPI = {

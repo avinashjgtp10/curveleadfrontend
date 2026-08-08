@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { staffAPI } from '../services/api';
-import { Plus, UserCog, X, Trash2 } from 'lucide-react';
+import { staffAPI, teamAPI } from '../services/api';
+import { Plus, UserCog, X, Trash2, Users, Edit2 } from 'lucide-react';
 
 const StaffPage = () => {
   const [staff, setStaff] = useState([]);
@@ -8,7 +8,12 @@ const StaffPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', password: '' });
 
-  useEffect(() => { loadData(); }, []);
+  const [teams, setTeams] = useState([]);
+  const [teamModal, setTeamModal] = useState(false);
+  const [editingTeam, setEditingTeam] = useState(null);
+  const [teamForm, setTeamForm] = useState({ name: '' });
+
+  useEffect(() => { loadData(); loadTeams(); }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -17,6 +22,38 @@ const StaffPage = () => {
       setStaff(data.staff || []);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
+  };
+
+  const loadTeams = async () => {
+    try {
+      const { data } = await teamAPI.getAll();
+      setTeams(data.teams || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const openCreateTeam = () => { setEditingTeam(null); setTeamForm({ name: '' }); setTeamModal(true); };
+  const openEditTeam = (t) => { setEditingTeam(t); setTeamForm({ name: t.name }); setTeamModal(true); };
+
+  const handleSaveTeam = async () => {
+    if (!teamForm.name.trim()) return alert('Team name is required');
+    try {
+      if (editingTeam) await teamAPI.update(editingTeam.id, teamForm);
+      else await teamAPI.create(teamForm);
+      setTeamModal(false);
+      loadTeams();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to save team'); }
+  };
+
+  const handleDeleteTeam = async (id) => {
+    if (!window.confirm('Delete this team? Members will be unassigned, not removed.')) return;
+    try { await teamAPI.delete(id); loadTeams(); loadData(); } catch (e) { alert('Failed to delete'); }
+  };
+
+  const handleAssignTeam = async (staffId, teamId) => {
+    try {
+      await staffAPI.update(staffId, { team_id: teamId });
+      loadData();
+    } catch (e) { alert(e.response?.data?.error || 'Failed to assign team'); }
   };
 
   const handleInvite = async () => {
@@ -44,6 +81,33 @@ const StaffPage = () => {
         </button>
       </div>
 
+      <div className="bg-white rounded-2xl border p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold flex items-center gap-2"><Users size={16} /> Teams</h2>
+          <button onClick={openCreateTeam} className="flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700">
+            <Plus size={13} /> New Team
+          </button>
+        </div>
+        {teams.length === 0 ? (
+          <p className="text-xs text-gray-400">No teams yet — group staff by branch, location, or specialty.</p>
+        ) : (
+          <div className="space-y-1.5">
+            {teams.map(t => (
+              <div key={t.id} className="flex items-center justify-between px-3 py-2 border rounded-lg">
+                <div>
+                  <span className="text-sm font-medium">{t.name}</span>
+                  <span className="text-xs text-gray-400 ml-2">{t.member_count} member{t.member_count === '1' ? '' : 's'}</span>
+                </div>
+                <div className="flex gap-1">
+                  <button onClick={() => openEditTeam(t)} className="p-1 hover:bg-gray-100 rounded"><Edit2 size={12} /></button>
+                  <button onClick={() => handleDeleteTeam(t.id)} className="p-1 hover:bg-red-50 rounded text-red-500"><Trash2 size={12} /></button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {loading ? (
         <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
       ) : staff.length === 0 ? (
@@ -63,6 +127,11 @@ const StaffPage = () => {
                 <p className="text-xs text-gray-500">{s.email}</p>
               </div>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 capitalize">{s.role}</span>
+              <select value={s.team_id || ''} onChange={e => handleAssignTeam(s.id, e.target.value)}
+                className="text-xs border rounded-lg px-2 py-1.5 bg-white text-gray-600 max-w-[140px]">
+                <option value="">No team</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
               {s.role !== 'admin' && (
                 <button onClick={() => handleDelete(s.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500"><Trash2 size={14} /></button>
               )}
@@ -96,6 +165,29 @@ const StaffPage = () => {
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
                 <button onClick={handleInvite} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Add</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {teamModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setTeamModal(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold">{editingTeam ? 'Rename Team' : 'New Team'}</h2>
+              <button onClick={() => setTeamModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <input type="text" placeholder="Team name (e.g. Baramati Branch)" value={teamForm.name}
+                onChange={e => setTeamForm({ name: e.target.value })}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setTeamModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={handleSaveTeam} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">
+                  {editingTeam ? 'Save' : 'Create'}
+                </button>
               </div>
             </div>
           </div>
