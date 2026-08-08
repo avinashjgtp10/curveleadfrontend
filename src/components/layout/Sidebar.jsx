@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, Megaphone, MessageCircle, UserCog, BarChart3, Settings, LogOut, X, BookOpen, FileText, CreditCard, Plug, CalendarCheck, Globe, Lightbulb, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Megaphone, MessageCircle, UserCog, BarChart3, Settings, LogOut, X, BookOpen, CreditCard, Plug, CalendarCheck, Globe, Lightbulb, HelpCircle } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
   { path: '/leads', label: 'Leads', icon: Users, roles: ['admin', 'staff'] },
-  { path: '/quotations', label: 'Quotations', icon: FileText, roles: ['admin', 'staff'] },
   { path: '/brochures', label: 'Brochures', icon: BookOpen, roles: ['admin', 'staff'] },
   { path: '/campaigns', label: 'Campaigns', icon: Megaphone, roles: ['admin'] },
   { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
