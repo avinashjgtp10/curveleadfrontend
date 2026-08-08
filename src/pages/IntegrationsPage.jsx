@@ -498,6 +498,37 @@ const MetaConfig = ({ settings, onRefresh }) => {
       {/* Meta Conversions API */}
       {settings.meta_configured && (
         <>
+          <div className="bg-white rounded-2xl border p-5 space-y-4">
+            <div>
+              <h2 className="font-semibold">How Meta Conversions API works</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Send lead-quality signals back to Meta so your ad campaigns get smarter over time.</p>
+            </div>
+            {[
+              {
+                title: 'Get higher quality leads',
+                body: "Optimise your Facebook Lead Ad campaigns to get higher quality leads at a lower cost. CurveLead integrates with Meta's Conversions API to automatically improve ad performance based on your lead signals.",
+              },
+              {
+                title: 'Update the lead stage',
+                body: 'When viewing a lead in CurveLead, update its Stage (e.g. Qualified, Won). This sends lead quality signals back to Meta, training their ad algorithms on which leads are good for your business — so your campaigns can perform better.',
+              },
+              {
+                title: 'Optimise your ad sets',
+                body: "To run conversion-optimised ads, go to Meta Ads Manager and create a new Ad Set with the Performance Goal set to 'Maximise number of conversion leads'.",
+              },
+            ].map((step, i) => (
+              <div key={step.title} className="flex gap-3">
+                <div className="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center shrink-0">
+                  {i + 1}
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">{step.title}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{step.body}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+
           {capiStats && capiStats.total_meta_leads > 0 && (
             <div className="bg-white rounded-2xl border p-5 space-y-3">
               <div>
