@@ -51,6 +51,14 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  const acceptInvite = async (payload) => {
+    const { data } = await authAPI.acceptInvite(payload);
+    localStorage.setItem('token', data.token);
+    setUser(data.user);
+    setTenant(data.tenant);
+    return data;
+  };
+
   const logout = () => {
     localStorage.removeItem('token');
     setUser(null);
@@ -58,7 +66,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, signup, logout, refreshProfile }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, signup, acceptInvite, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );

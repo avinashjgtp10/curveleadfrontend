@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
 import { staffAPI, teamAPI } from '../services/api';
-import { Plus, UserCog, X, Trash2, Users, Edit2 } from 'lucide-react';
+import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, RotateCcw } from 'lucide-react';
 
 const StaffPage = () => {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', password: '' });
+  const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
 
   const [teams, setTeams] = useState([]);
   const [teamModal, setTeamModal] = useState(false);
   const [editingTeam, setEditingTeam] = useState(null);
   const [teamForm, setTeamForm] = useState({ name: '' });
 
-  useEffect(() => { loadData(); loadTeams(); }, []);
+  const [invitations, setInvitations] = useState([]);
+
+  useEffect(() => { loadData(); loadTeams(); loadInvitations(); }, []);
 
   const loadData = async () => {
     setLoading(true);
@@ -56,14 +58,32 @@ const StaffPage = () => {
     } catch (e) { alert(e.response?.data?.error || 'Failed to assign team'); }
   };
 
-  const handleInvite = async () => {
-    if (!form.name || !form.email || !form.password) return alert('All fields required');
+  const loadInvitations = async () => {
     try {
-      await staffAPI.invite(form);
+      const { data } = await staffAPI.getInvitations();
+      setInvitations(data.invitations || []);
+    } catch (e) { console.error(e); }
+  };
+
+  const handleInvite = async () => {
+    if (!form.name || !form.email) return alert('Name and email are required');
+    try {
+      await staffAPI.invite({ ...form, team_id: form.team_id || undefined });
       setShowModal(false);
-      setForm({ name: '', email: '', phone: '', role: 'staff', password: '' });
-      loadData();
+      setForm({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
+      loadInvitations();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+  };
+
+  const handleResendInvite = async (id) => {
+    try { await staffAPI.resendInvitation(id); loadInvitations(); alert('Invite resent.'); }
+    catch (e) { alert(e.response?.data?.error || 'Failed to resend'); }
+  };
+
+  const handleRevokeInvite = async (id) => {
+    if (!window.confirm('Revoke this invitation?')) return;
+    try { await staffAPI.revokeInvitation(id); loadInvitations(); }
+    catch (e) { alert('Failed to revoke'); }
   };
 
   const handleDelete = async (id) => {
@@ -108,6 +128,24 @@ const StaffPage = () => {
         )}
       </div>
 
+      {invitations.length > 0 && (
+        <div className="bg-white rounded-2xl border p-5 space-y-2">
+          <h2 className="font-semibold flex items-center gap-2"><Mail size={16} /> Pending Invitations</h2>
+          {invitations.map(inv => (
+            <div key={inv.id} className="flex items-center justify-between px-3 py-2 border rounded-lg">
+              <div>
+                <p className="text-sm font-medium">{inv.name || inv.email}</p>
+                <p className="text-xs text-gray-400">{inv.email} · {inv.role}{inv.team_name ? ` · ${inv.team_name}` : ''} · expires {new Date(inv.expires_at).toLocaleDateString('en-IN')}</p>
+              </div>
+              <div className="flex gap-1">
+                <button onClick={() => handleResendInvite(inv.id)} className="p-1.5 hover:bg-gray-100 rounded" title="Resend"><RotateCcw size={13} /></button>
+                <button onClick={() => handleRevokeInvite(inv.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Revoke"><Trash2 size={13} /></button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
       ) : staff.length === 0 ? (
@@ -145,26 +183,30 @@ const StaffPage = () => {
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowModal(false)} />
           <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="text-lg font-bold">Add Team Member</h2>
+              <h2 className="text-lg font-bold">Invite Team Member</h2>
               <button onClick={() => setShowModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3">
+              <p className="text-xs text-gray-500 -mt-1">They'll get an email with a link to set their own password.</p>
               <input type="text" placeholder="Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <input type="email" placeholder="Email *" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <input type="tel" placeholder="Phone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <input type="password" placeholder="Initial Password *" value={form.password} onChange={e => setForm({ ...form, password: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
                 <option value="staff">Staff</option>
                 <option value="admin">Admin</option>
               </select>
+              <select value={form.team_id} onChange={e => setForm({ ...form, team_id: e.target.value })}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                <option value="">No team</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
-                <button onClick={handleInvite} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Add</button>
+                <button onClick={handleInvite} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Send Invite</button>
               </div>
             </div>
           </div>

@@ -41,6 +41,8 @@ export const authAPI = {
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (data) => api.post('/auth/reset-password', data),
   changePassword: (data) => api.post('/auth/change-password', data),
+  getInviteInfo: (token) => api.get(`/auth/invite/${token}`),
+  acceptInvite: (data) => api.post('/auth/accept-invite', data),
 };
 
 // ============================================
@@ -124,7 +126,11 @@ export const followupAPI = {
 // ============================================
 export const staffAPI = {
   getAll: () => api.get('/staff'),
+  create: (data) => api.post('/staff', data),
   invite: (data) => api.post('/staff/invite', data),
+  getInvitations: () => api.get('/staff/invitations'),
+  resendInvitation: (id) => api.post(`/staff/invitations/${id}/resend`),
+  revokeInvitation: (id) => api.delete(`/staff/invitations/${id}`),
   update: (id, data) => api.put(`/staff/${id}`, data),
   delete: (id) => api.delete(`/staff/${id}`),
 };
