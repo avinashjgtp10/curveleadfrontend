@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { campaignAPI, stageAPI } from '../services/api';
-import { ArrowLeft, IndianRupee, Users, TrendingUp, Target, Eye, MousePointerClick, X } from 'lucide-react';
+import { ArrowLeft, IndianRupee, Users, TrendingUp, Target, Eye, MousePointerClick, X, Megaphone } from 'lucide-react';
 
 const CampaignDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
   const [leads, setLeads] = useState([]);
+  const [ads, setAds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState([]);
   const [filters, setFilters] = useState({ stage: '', lead_score: '', search: '' });
   const [searchInput, setSearchInput] = useState('');
 
   useEffect(() => { stageAPI.getAll().then(({ data }) => setStages(data.stages || [])).catch(() => {}); }, []);
+
+  useEffect(() => {
+    campaignAPI.getAds(id).then(({ data }) => setAds(data.ads || [])).catch(() => {});
+  }, [id]);
 
   // Debounce the search box so it doesn't refetch on every keystroke
   useEffect(() => {
@@ -79,6 +84,38 @@ const CampaignDetailPage = () => {
           </div>
         ))}
       </div>
+
+      {ads.length > 0 && (
+        <div className="bg-white rounded-2xl border p-5">
+          <h3 className="font-semibold mb-4 flex items-center gap-2"><Megaphone size={16} /> Ads in this Campaign</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
+                  <th className="text-left pb-2 font-semibold">Ad</th>
+                  <th className="text-right pb-2 font-semibold">Spend</th>
+                  <th className="text-right pb-2 font-semibold">Impressions</th>
+                  <th className="text-right pb-2 font-semibold">Clicks</th>
+                  <th className="text-right pb-2 font-semibold">Leads</th>
+                  <th className="text-right pb-2 font-semibold">CPL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ads.map(a => (
+                  <tr key={a.id} className="border-b last:border-0">
+                    <td className="py-2.5 font-medium text-gray-700 max-w-[220px] truncate" title={a.name}>{a.name || a.meta_ad_id}</td>
+                    <td className="py-2.5 text-right">₹{parseFloat(a.spend || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 text-right text-gray-500">{Number(a.impressions || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 text-right text-gray-500">{Number(a.clicks || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 text-right font-semibold text-emerald-600">{a.total_leads}</td>
+                    <td className="py-2.5 text-right font-bold text-brand-600">₹{a.cpl}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <div className="bg-white rounded-2xl border p-5">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
