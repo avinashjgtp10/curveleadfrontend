@@ -133,6 +133,12 @@ export const staffAPI = {
   revokeInvitation: (id) => api.delete(`/staff/invitations/${id}`),
   update: (id, data) => api.put(`/staff/${id}`, data),
   delete: (id) => api.delete(`/staff/${id}`),
+  getPermissions: (id) => api.get(`/staff/${id}/permissions`),
+  updatePermissions: (id, permissions) => api.put(`/staff/${id}/permissions`, { permissions }),
+  getMyWhatsAppNumber: () => api.get('/staff/me/whatsapp-number'),
+  updateMyWhatsAppNumber: (data) => api.put('/staff/me/whatsapp-number', data),
+  getWhatsAppNumber: (id) => api.get(`/staff/${id}/whatsapp-number`),
+  updateWhatsAppNumber: (id, data) => api.put(`/staff/${id}/whatsapp-number`, data),
 };
 
 // ============================================
@@ -211,6 +217,17 @@ export const automationAPI = {
   createRule: (data) => api.post('/automations/rules', data),
   updateRule: (id, data) => api.put(`/automations/rules/${id}`, data),
   deleteRule: (id) => api.delete(`/automations/rules/${id}`),
+};
+
+// ============================================
+// Lead Assignment Rules
+// ============================================
+export const assignmentRuleAPI = {
+  getAll: () => api.get('/automations/assignment-rules'),
+  create: (data) => api.post('/automations/assignment-rules', data),
+  update: (id, data) => api.put(`/automations/assignment-rules/${id}`, data),
+  delete: (id) => api.delete(`/automations/assignment-rules/${id}`),
+  reorder: (ids) => api.put('/automations/assignment-rules/reorder', { ids }),
 };
 
 // ============================================

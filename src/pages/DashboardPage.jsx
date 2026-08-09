@@ -19,6 +19,14 @@ const todayISO = () => {
   return d.toISOString().slice(0, 10);
 };
 
+const fmtDuration = (seconds) => {
+  if (seconds === null || seconds === undefined) return '—';
+  const s = Number(seconds);
+  if (s < 60) return `${Math.round(s)}s`;
+  if (s < 3600) return `${Math.round(s / 60)}m`;
+  return `${(s / 3600).toFixed(1)}h`;
+};
+
 const fmtMoney = (n) => {
   const v = Number(n || 0);
   if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
@@ -463,6 +471,8 @@ const DashboardPage = () => {
                   <th className="text-right pb-2 font-semibold">Leads</th>
                   <th className="text-right pb-2 font-semibold">Won</th>
                   <th className="text-right pb-2 font-semibold">Revenue</th>
+                  <th className="text-right pb-2 font-semibold">Avg Response</th>
+                  <th className="text-right pb-2 font-semibold">Follow-ups Done</th>
                 </tr>
               </thead>
               <tbody>
@@ -477,6 +487,8 @@ const DashboardPage = () => {
                     <td className="py-2.5 text-right text-gray-500">{t.total_leads}</td>
                     <td className="py-2.5 text-right font-semibold text-emerald-600">{t.won}</td>
                     <td className="py-2.5 text-right font-semibold text-gray-700">{fmtMoney(t.revenue)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{fmtDuration(t.avg_response_seconds)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{t.completed_followups}</td>
                   </tr>
                 ))}
               </tbody>
