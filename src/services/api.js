@@ -115,7 +115,6 @@ export const aiAPI = {
 // ============================================
 export const followupAPI = {
   getAll: (params) => api.get('/followups', { params }),
-  create: (data) => api.post('/followups', data),
   update: (id, data) => api.put(`/followups/${id}`, data),
   complete: (id, data) => api.put(`/followups/${id}/complete`, data),
   delete: (id) => api.delete(`/followups/${id}`),
