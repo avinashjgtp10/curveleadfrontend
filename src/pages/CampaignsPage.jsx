@@ -1,13 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { campaignAPI, integrationsAPI } from '../services/api';
-import { Plus, Megaphone, IndianRupee, Users, TrendingUp, X, Edit2, Trash2, RotateCcw, Eye, MousePointerClick } from 'lucide-react';
+import { Plus, Megaphone, IndianRupee, Users, TrendingUp, X, Edit2, Trash2, RotateCcw, Eye, MousePointerClick, Target } from 'lucide-react';
 
 const statusColors = {
   active: 'bg-green-100 text-green-700',
   paused: 'bg-amber-100 text-amber-700',
   completed: 'bg-gray-100 text-gray-600',
   draft: 'bg-blue-100 text-blue-700',
+};
+
+const verdictColors = {
+  high_quality: 'bg-emerald-100 text-emerald-700',
+  high_volume_low_quality: 'bg-amber-100 text-amber-700',
+  underperforming: 'bg-gray-100 text-gray-500',
+  average: 'bg-gray-100 text-gray-600',
+  too_early: 'bg-blue-50 text-blue-600',
+  no_leads: 'bg-gray-50 text-gray-400',
 };
 
 const CampaignsPage = () => {
@@ -91,6 +100,35 @@ const CampaignsPage = () => {
         </div>
       </div>
 
+      {!loading && campaigns.length > 0 && (() => {
+        const focus = campaigns.filter(c => c.verdict === 'high_quality');
+        const watch = campaigns.filter(c => c.verdict === 'high_volume_low_quality');
+        if (!focus.length && !watch.length) return null;
+        return (
+          <div className="bg-white rounded-2xl border p-5 space-y-3">
+            <h2 className="font-semibold flex items-center gap-2"><Target size={16} /> Where to focus</h2>
+            {focus.map(c => (
+              <div key={c.id} className="flex items-start gap-2.5 px-3 py-2 rounded-lg bg-emerald-50 cursor-pointer" onClick={() => navigate(`/campaigns/${c.id}`)}>
+                <span className="text-sm mt-0.5">🎯</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-emerald-800 truncate">{c.name}</p>
+                  <p className="text-xs text-emerald-700">{c.verdict_reason}</p>
+                </div>
+              </div>
+            ))}
+            {watch.map(c => (
+              <div key={c.id} className="flex items-start gap-2.5 px-3 py-2 rounded-lg bg-amber-50 cursor-pointer" onClick={() => navigate(`/campaigns/${c.id}`)}>
+                <span className="text-sm mt-0.5">⚠️</span>
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-amber-800 truncate">{c.name}</p>
+                  <p className="text-xs text-amber-700">{c.verdict_reason}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {loading ? (
         <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
       ) : campaigns.length === 0 ? (
@@ -101,7 +139,6 @@ const CampaignsPage = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {campaigns.map(c => {
-            const cpl = c.leads_count > 0 ? (parseFloat(c.actual_spend) / c.leads_count).toFixed(0) : 0;
             return (
               <div key={c.id} className="bg-white rounded-2xl border p-5 hover:shadow-lg transition cursor-pointer" onClick={() => navigate(`/campaigns/${c.id}`)}>
                 <div className="flex items-start justify-between mb-3">
@@ -116,6 +153,11 @@ const CampaignsPage = () => {
                   </div>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
                 </div>
+                {c.verdict_label && (
+                  <div className={`mb-3 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${verdictColors[c.verdict] || 'bg-gray-100 text-gray-600'}`} title={c.verdict_reason}>
+                    {c.verdict_label}
+                  </div>
+                )}
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-gray-500">Budget</span><span className="font-medium">₹{parseFloat(c.budget || 0).toLocaleString('en-IN')}</span></div>
                   <div className="flex justify-between"><span className="text-gray-500">Spent</span><span className="font-medium">₹{parseFloat(c.actual_spend || 0).toLocaleString('en-IN')}</span></div>
@@ -125,8 +167,11 @@ const CampaignsPage = () => {
                       <div className="flex justify-between"><span className="text-gray-500 flex items-center gap-1"><MousePointerClick size={11} /> Clicks</span><span className="font-medium">{Number(c.clicks || 0).toLocaleString('en-IN')}</span></div>
                     </>
                   )}
-                  <div className="flex justify-between"><span className="text-gray-500">Leads</span><span className="font-medium">{c.leads_count || 0}</span></div>
-                  <div className="flex justify-between border-t pt-2"><span className="text-gray-500">CPL</span><span className="font-bold text-brand-600">₹{cpl}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Leads</span><span className="font-medium">{c.total_leads || 0}</span></div>
+                  {c.total_leads > 0 && (
+                    <div className="flex justify-between"><span className="text-gray-500">Won / Disqualified</span><span className="font-medium">{c.won_leads || 0} / {c.lost_leads || 0}</span></div>
+                  )}
+                  <div className="flex justify-between border-t pt-2"><span className="text-gray-500">CPL</span><span className="font-bold text-brand-600">₹{Math.round(parseFloat(c.cpl) || 0)}</span></div>
                 </div>
                 <div className="flex gap-1 mt-3 pt-3 border-t">
                   <button onClick={(e) => { e.stopPropagation(); handleEdit(c); }} className="flex-1 py-1.5 hover:bg-gray-50 rounded text-xs flex items-center justify-center gap-1"><Edit2 size={12} /> Edit</button>
