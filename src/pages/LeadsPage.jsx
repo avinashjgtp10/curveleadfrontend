@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI } from '../services/api';
+import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy } from 'lucide-react';
@@ -168,7 +168,8 @@ const LeadsPage = () => {
   const [bulkLoading, setBulkLoading] = useState(false);
   const PAGE_SIZE = 25;
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
+  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+  const [campaigns, setCampaigns] = useState([]);
 
   // Import state
   const [showImport, setShowImport] = useState(false);
@@ -263,9 +264,11 @@ const LeadsPage = () => {
       stageAPI.getAll().catch(() => ({ data: { stages: [] } })),
       staffAPI.getAll().catch(() => ({ data: { staff: [] } })),
       statusAPI.byStage().catch(() => ({ data: { stages: [] } })),
-    ]).then(([stagesRes, staffRes, statusRes]) => {
+      campaignAPI.getAll().catch(() => ({ data: { campaigns: [] } })),
+    ]).then(([stagesRes, staffRes, statusRes, campaignsRes]) => {
       setStages(stagesRes.data.stages || []);
       setStaff(staffRes.data.staff || []);
+      setCampaigns(campaignsRes.data.campaigns || []);
       const byStage = {};
       const all = [];
       for (const s of (statusRes.data.stages || [])) {
@@ -423,7 +426,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.create(newLead);
       setShowAddModal(false);
-      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', notes: '', lead_date: getDefaultDate() });
+      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
       loadData();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
   };
@@ -1308,6 +1311,13 @@ const LeadsPage = () => {
                 <option value="website">Website</option>
                 <option value="walkin">Walk-in</option>
               </select>
+              {campaigns.length > 0 && (
+                <select value={newLead.campaign_id} onChange={e => setNewLead({ ...newLead, campaign_id: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                  <option value="">No campaign</option>
+                  {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              )}
               <textarea placeholder="Notes" value={newLead.notes} onChange={e => setNewLead({ ...newLead, notes: e.target.value })}
                 rows={3} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <div className="flex gap-2 pt-2">
