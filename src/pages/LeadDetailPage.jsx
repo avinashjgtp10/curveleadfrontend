@@ -613,6 +613,19 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     <p className="text-xs text-gray-500">Source</p>
                     <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
                   </div>
+                  {(lead.campaign_name || lead.source_detail) && (
+                    <div className="pt-2 border-t">
+                      <p className="text-xs text-gray-500">Campaign</p>
+                      {lead.campaign_name ? (
+                        <button onClick={() => navigate(`/campaigns/${lead.campaign_id}`)} className="font-medium text-cyan-600 hover:underline text-left">
+                          {lead.campaign_name}
+                        </button>
+                      ) : (
+                        <p className="font-medium">—</p>
+                      )}
+                      {lead.source_detail && <p className="text-xs text-gray-500 mt-0.5">Ad: {lead.source_detail}</p>}
+                    </div>
+                  )}
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Lead Date</p>
                     <p className="font-medium flex items-center gap-1.5">
