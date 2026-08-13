@@ -58,6 +58,8 @@ const getQueryConfig = (search, state = {}) => {
   const filters = { ...EMPTY_FILTERS };
   const fuFilters = { ...EMPTY_FU_FILTERS };
   const sortState = { sort: params.get('sort') || '', dir: params.get('dir') || '' };
+  const openLeadId = routeState.openLeadId || params.get('open') || null;
+  const leadSequence = routeState.leadSequence || null;
 
   Object.keys(filters).forEach(key => {
     const value = params.get(key);
@@ -70,7 +72,7 @@ const getQueryConfig = (search, state = {}) => {
     if (value !== null) fuFilters[key] = value;
   });
 
-  return { view, filters, fuFilters, sortState };
+  return { view, filters, fuFilters, sortState, openLeadId, leadSequence };
 };
 
 const isSameLocalDay = (value, day) => {
@@ -190,12 +192,17 @@ const LeadsPage = () => {
   const [lostReasonModal, setLostReasonModal] = useState({ open: false, leadId: null, newStage: null, reason: '', customReason: '' });
   const closeLostModal = () => setLostReasonModal({ open: false, leadId: null, newStage: null, reason: '', customReason: '' });
 
-  // Lead detail modal state — opened in place so filters/pagination are never lost
-  const [openLeadId, setOpenLeadId] = useState(null);
+  // Lead detail modal state — opened in place so filters/pagination are never lost.
+  // Other pages (e.g. Campaign Detail) can deep-link into it via
+  // navigate('/leads', { state: { openLeadId, leadSequence } }) — leadSequence is the
+  // ordered list of lead IDs from that page's own list, so Prev/Next in the modal walks
+  // through the same set the user clicked in from, not this page's unrelated table.
+  const [openLeadId, setOpenLeadId] = useState(queryConfig.openLeadId || null);
   const [renderedLeadId, setRenderedLeadId] = useState(null); // stays set during the exit fade
   const [modalEntered, setModalEntered] = useState(false);     // drives enter/exit transition classes
+  const [externalSequence, setExternalSequence] = useState(queryConfig.leadSequence || null);
   const closeTimerRef = useRef(null);
-  const closeLeadModal = () => { setOpenLeadId(null); fetchLeads(); };
+  const closeLeadModal = () => { setOpenLeadId(null); setExternalSequence(null); fetchLeads(); };
 
   useEffect(() => {
     if (openLeadId) {
@@ -218,9 +225,10 @@ const LeadsPage = () => {
     }
   }, [openLeadId]);
 
-  const openLeadIndex = renderedLeadId != null ? leads.findIndex(l => l.id === renderedLeadId) : -1;
-  const prevLeadId = openLeadIndex > 0 ? leads[openLeadIndex - 1].id : null;
-  const nextLeadId = (openLeadIndex >= 0 && openLeadIndex < leads.length - 1) ? leads[openLeadIndex + 1].id : null;
+  const leadSequenceIds = externalSequence || leads.map(l => l.id);
+  const openLeadIndex = renderedLeadId != null ? leadSequenceIds.indexOf(renderedLeadId) : -1;
+  const prevLeadId = openLeadIndex > 0 ? leadSequenceIds[openLeadIndex - 1] : null;
+  const nextLeadId = (openLeadIndex >= 0 && openLeadIndex < leadSequenceIds.length - 1) ? leadSequenceIds[openLeadIndex + 1] : null;
   const hasPrev = prevLeadId != null;
   const hasNext = nextLeadId != null;
   const goPrevLead = () => { if (prevLeadId) setOpenLeadId(prevLeadId); };
@@ -256,6 +264,10 @@ const LeadsPage = () => {
     setSortState(next.sortState);
     setShowFilters(Object.values(next.filters).some(Boolean));
     setPage(1);
+    if (next.openLeadId) {
+      setOpenLeadId(next.openLeadId);
+      setExternalSequence(next.leadSequence || null);
+    }
   }, [location.search, location.state]);
 
   // Load stages, statuses & staff once on mount

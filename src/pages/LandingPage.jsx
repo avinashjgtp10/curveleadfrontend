@@ -10,16 +10,19 @@ import {
   Clock,
   FileText,
   Gauge,
-  IndianRupee,
   Lightbulb,
   Menu,
   MessageCircle,
   Megaphone,
+  PhoneCall,
   Send,
+  Shuffle,
   Sparkles,
   Target,
   Timer,
   Users,
+  Wallet,
+  Workflow,
   X,
   Zap,
 } from 'lucide-react';
@@ -36,8 +39,8 @@ const workflow = [
   {
     icon: Zap,
     label: 'Capture',
-    title: 'Pull Meta Ads leads into one workspace',
-    desc: 'Facebook and Instagram lead form enquiries can land directly in your pipeline with source, campaign, owner, and stage attached.',
+    title: 'Pull leads from Meta & Google Ads into one workspace',
+    desc: 'Facebook, Instagram, and Google lead form enquiries land directly in your pipeline with source, campaign, owner, and stage attached — or push leads in from any other system via API.',
   },
   {
     icon: Gauge,
@@ -69,6 +72,9 @@ const features = [
   { icon: FileText, title: 'Quotations', desc: 'Create, send, accept, reject, and manage quotations inside the sales flow.' },
   { icon: BookOpen, title: 'Brochures & Files', desc: 'Keep product material ready and share it with leads from the same workspace.' },
   { icon: Users, title: 'Team Workspace', desc: 'Invite staff, assign ownership, monitor activity, and keep customer data separated by tenant.' },
+  { icon: Shuffle, title: 'Smart Lead Routing', desc: 'Auto-assign new leads to the right person, or round-robin across a team, based on source, campaign, or location — nothing sits unclaimed.' },
+  { icon: Workflow, title: 'Automation Sequences', desc: 'Auto-enroll matched leads into a scripted follow-up sequence the moment they land, so early nurture never depends on someone remembering.' },
+  { icon: PhoneCall, title: 'AI Calling Agent', desc: 'A configurable AI voice agent that calls new leads automatically — pick the voice, persona, and opening line.' },
 ];
 
 const plans = [
@@ -79,7 +85,7 @@ const plans = [
 ];
 
 const faqs = [
-  { q: 'Who is CurveLead built for?', a: 'Sales teams that receive leads from Meta Ads, websites, forms, and WhatsApp, especially teams that need faster follow-up and campaign visibility.' },
+  { q: 'Who is CurveLead built for?', a: 'Sales teams that receive leads from Meta Ads, Google Ads, websites, forms, and WhatsApp, especially teams that need faster follow-up and campaign visibility.' },
   { q: 'Is CurveLead only for academies?', a: 'No. The current product is a lead engagement CRM for any business that captures, follows up, and closes enquiries.' },
   { q: 'Does it replace WhatsApp?', a: 'No. It helps your team manage lead context, follow-ups, files, and reporting around WhatsApp conversations.' },
   { q: 'Is the lead scoring AI?', a: 'No, and that is deliberate. Every lead’s Intent Score and follow-up health are calculated from real activity in your account, like response times and call outcomes, so you can always see exactly why a lead is Hot or Cold. We do use AI elsewhere, for the sales coaching playbook, market analysis, and optional AI calling, but never as an unexplainable scoring layer.' },
@@ -87,7 +93,7 @@ const faqs = [
 ];
 
 const productStats = [
-  { value: 'Meta', label: 'lead capture ready' },
+  { value: 'Meta + Google', label: 'lead capture ready' },
   { value: 'Live', label: 'intent score & follow-up health' },
   { value: 'WhatsApp', label: 'shared sales inbox' },
   { value: 'ROI', label: 'campaign reporting' },
@@ -147,13 +153,13 @@ const LandingPage = () => {
           <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1fr_0.92fr]">
             <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-brand-100 bg-brand-50 px-4 py-1.5 text-sm font-semibold text-brand-700">
-                <Sparkles size={15} /> Built for Meta Ads, WhatsApp, and fast follow-up
+                <Sparkles size={15} /> Built for Meta & Google Ads, WhatsApp, and fast follow-up
               </div>
               <h1 className="max-w-3xl text-4xl font-extrabold leading-tight tracking-normal sm:text-5xl lg:text-6xl">
-                Turn Meta Ads leads into WhatsApp conversations before they go cold.
+                Turn ad leads into WhatsApp conversations before they go cold.
               </h1>
               <p className="mt-6 max-w-2xl text-lg leading-8 text-gray-600">
-                CurveLead captures enquiries, scores them with AI, keeps follow-ups on track, and shows which campaigns and salespeople are actually closing.
+                CurveLead captures enquiries, scores them from real activity — not a black box — keeps follow-ups on track, and shows which campaigns and salespeople are actually closing.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a href="/signup" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-brand-100 hover:bg-brand-700">
@@ -217,7 +223,7 @@ const LandingPage = () => {
                   </div>
                   <div className="rounded-lg border border-gray-200 p-4">
                     <div className="mb-3 flex items-center gap-2">
-                      <IndianRupee size={16} className="text-brand-600" />
+                      <Wallet size={16} className="text-brand-600" />
                       <p className="text-sm font-semibold">Revenue view</p>
                     </div>
                     <p className="text-xs leading-5 text-gray-500">Track campaign spend, won deals, and team conversion performance.</p>
@@ -289,7 +295,7 @@ const LandingPage = () => {
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1fr_0.9fr] lg:items-center">
             <div>
               <p className="text-sm font-bold uppercase tracking-wider text-brand-600">Visibility for owners</p>
-              <h2 className="mt-3 text-3xl font-bold sm:text-4xl">Know where every rupee of ad spend is going.</h2>
+              <h2 className="mt-3 text-3xl font-bold sm:text-4xl">Know exactly where every dollar of ad spend is going.</h2>
               <p className="mt-5 leading-7 text-gray-600">
                 Track leads by campaign, stage, staff member, source, revenue, and follow-up activity. Owners get the control they need without chasing every salesperson for updates.
               </p>
@@ -298,7 +304,7 @@ const LandingPage = () => {
               <div className="mb-5 flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">June Campaign ROI</p>
-                  <p className="text-2xl font-bold">₹8.4L revenue</p>
+                  <p className="text-2xl font-bold">$84,000 revenue</p>
                 </div>
                 <Target className="text-brand-600" size={28} />
               </div>

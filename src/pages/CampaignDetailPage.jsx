@@ -149,7 +149,7 @@ const CampaignDetailPage = () => {
         ) : (
           <div className="space-y-2">
             {leads.map(l => (
-              <button key={l.id} onClick={() => navigate(`/leads/${l.id}`)}
+              <button key={l.id} onClick={() => navigate('/leads', { state: { openLeadId: l.id, leadSequence: leads.map(x => x.id) } })}
                 className="w-full flex items-center justify-between p-3 hover:bg-gray-50 rounded-lg text-left">
                 <div>
                   <p className="font-medium text-sm">{l.name}</p>
