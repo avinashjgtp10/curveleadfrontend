@@ -586,10 +586,10 @@ const SettingsPage = () => {
                         <label className="block text-xs font-medium text-gray-500 mb-1">Message *</label>
                         <textarea value={tmplForm.message} onChange={e => setTmplForm({ ...tmplForm, message: e.target.value })}
                           rows={5} className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono"
-                          placeholder={'Hi {name}, thanks for your interest in {course} at {academy}...'} />
+                          placeholder={'Hi {name}, thanks for your interest in {course} at {business}...'} />
                         <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
                           Variables:{' '}
-                          {['{name}', '{phone}', '{course}', '{course_fee}', '{course_duration}', '{academy}', '{academy_phone}'].map(v => (
+                          {['{name}', '{phone}', '{course}', '{course_fee}', '{course_duration}', '{business}', '{business_phone}'].map(v => (
                             <code key={v} className="bg-gray-100 px-1 rounded mr-1">{v}</code>
                           ))}
                         </p>

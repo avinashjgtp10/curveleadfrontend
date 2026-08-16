@@ -50,7 +50,7 @@ const PublicPageLayout = ({ children }) => {
               <a href="mailto:support@curvelead.com" className="hover:text-gray-950 transition-colors">support@curvelead.com</a>
             </nav>
           </div>
-          <p className="mt-6 text-sm text-gray-400">© 2026 CurveLead. Built in Baramati, India.</p>
+          <p className="mt-6 text-sm text-gray-400">© 2026 CurveLead. Built in India.</p>
         </div>
       </footer>
     </div>

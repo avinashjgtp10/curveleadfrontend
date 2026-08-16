@@ -159,6 +159,10 @@ export const reportsAPI = {
   byStaff: (params) => api.get('/reports/by-staff', { params }),
   byCampaign: (params) => api.get('/reports/by-campaign', { params }),
   dashboard: (params) => api.get('/reports/summary', { params }),
+  timeline: (params) => api.get('/reports/timeline', { params }),
+  funnel: (params) => api.get('/reports/funnel', { params }),
+  timeInStage: (params) => api.get('/reports/time-in-stage', { params }),
+  followupTrend: (params) => api.get('/reports/followup-trend', { params }),
 };
 
 // ============================================

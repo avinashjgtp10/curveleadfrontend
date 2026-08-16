@@ -384,7 +384,7 @@ const StaffPage = () => {
               <button onClick={() => setTeamModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3">
-              <input type="text" placeholder="Team name (e.g. Baramati Branch)" value={teamForm.name}
+              <input type="text" placeholder="Team name (e.g. Downtown Branch)" value={teamForm.name}
                 onChange={e => setTeamForm({ name: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <div className="flex gap-2 pt-2">
@@ -455,7 +455,7 @@ const StaffPage = () => {
                 </select>
               )}
 
-              <input type="text" placeholder="Location contains (e.g. Baramati)" value={ruleForm.location_contains}
+              <input type="text" placeholder="Location contains (e.g. Downtown)" value={ruleForm.location_contains}
                 onChange={e => setRuleForm({ ...ruleForm, location_contains: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
 
