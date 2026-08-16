@@ -16,6 +16,9 @@ const SettingsPage = () => {
     name: '', email: '', phone: '', address: '', city: '', state: '',
     gst_number: '', pan_number: '', website: '',
     bank_details: { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
+    daily_report_enabled: false,
+    daily_report_time: '08:00',
+    email_reply_to: '',
   });
 
   const [templates, setTemplates] = useState([]);
@@ -71,6 +74,9 @@ const SettingsPage = () => {
         pan_number: s.pan_number || '',
         website: s.website || '',
         bank_details: s.bank_details || { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
+        daily_report_enabled: !!s.daily_report_enabled,
+        daily_report_time: s.daily_report_time || '08:00',
+        email_reply_to: s.email_reply_to || '',
       });
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -484,6 +490,35 @@ const SettingsPage = () => {
                     onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, upi: e.target.value } })}
                     className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="yourname@upi" />
                 </div>
+              </div>
+
+              {/* Email */}
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Email</p>
+              <div className="mb-5 sm:w-1/2">
+                <label className="block text-xs font-medium text-gray-500 mb-1">Reply-to email</label>
+                <input type="email" value={business.email_reply_to} onChange={e => setBusiness({ ...business, email_reply_to: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder={business.email || 'billing@yourbusiness.com'} />
+                <p className="text-xs text-gray-400 mt-1">Emails sent to leads (demo invites, follow-up sequences) and reports come from CurveLead, but show your business name and route replies here. Leave blank to use your Business Email above.</p>
+              </div>
+
+              {/* Reports */}
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Reports</p>
+              <div className="mb-5">
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={business.daily_report_enabled}
+                    onChange={e => setBusiness({ ...business, daily_report_enabled: e.target.checked })}
+                    className="w-4 h-4 rounded" />
+                  <span className="font-medium">Email me a daily report</span>
+                </label>
+                <p className="text-xs text-gray-400 mt-1 ml-6">Sent once a day to the business email above — new leads, hot leads, follow-ups due/overdue, SLA breaches, deals won, and active campaign spend. Each staff member gets their own version scoped to their assigned leads.</p>
+                {business.daily_report_enabled && (
+                  <div className="mt-3 ml-6">
+                    <label className="block text-xs font-medium text-gray-500 mb-1">Send time (IST)</label>
+                    <input type="time" value={business.daily_report_time}
+                      onChange={e => setBusiness({ ...business, daily_report_time: e.target.value })}
+                      className="px-3 py-2 border rounded-lg text-sm" />
+                  </div>
+                )}
               </div>
 
               <button onClick={handleSaveBusiness} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">
