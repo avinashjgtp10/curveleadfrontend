@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
-import { integrationsAPI, aiCallingAPI } from '../services/api';
-import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI } from '../services/api';
+import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff } from 'lucide-react';
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
 const FB_LOGIN_CONFIG_ID = import.meta.env.VITE_FACEBOOK_LOGIN_CONFIG_ID || '4416725028596340';
@@ -73,7 +73,7 @@ const INTEGRATIONS = [
     border: 'border-green-100',
     category: 'Ads',
     live: true,
-    isConfigured: s => s.google_configured,
+    isConfigured: s => s.google_ads_configured,
   },
   {
     id: 'api',
@@ -682,43 +682,324 @@ const ApiKeyConfig = ({ settings, newKeyValue, handleGenerateKey, handleRevokeKe
   </div>
 );
 
-const GoogleConfig = ({ settings, form, setForm, saving, handleSave }) => (
-  <div className="space-y-5">
-    <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${settings.google_configured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-      {settings.google_configured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-      {settings.google_configured ? 'Google Ads integration is active.' : 'Not configured — set a webhook secret below.'}
-    </div>
-    <div className="bg-white rounded-2xl border p-5 space-y-4">
-      <div>
-        <h2 className="font-semibold mb-1">Step 1 — Configure Webhook in Google Ads</h2>
-        <p className="text-xs text-gray-500 mb-3">In Google Ads → Lead Form Assets → Webhook → paste this URL and your secret key:</p>
-        <UrlRow label="Webhook URL" url={settings.google_webhook_url} />
+const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefresh, showAddButton, onAdd }) => {
+  const [form, setForm] = useState({
+    name: integration.name,
+    is_active: integration.is_active,
+    default_group: integration.default_group || '',
+    default_stage: integration.default_stage || '',
+    assigned_user_id: integration.assigned_user_id || '',
+    assigned_team_id: integration.assigned_team_id || '',
+    product: integration.product || '',
+    test_lead_behavior: integration.test_lead_behavior,
+  });
+  const [saving, setSaving] = useState(false);
+  const [revealedKey, setRevealedKey] = useState(null);
+  const [revealing, setRevealing] = useState(false);
+  const [newKeyValue, setNewKeyValue] = useState(null);
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState(null);
+  const [deletingTestLeads, setDeletingTestLeads] = useState(false);
+  const pollRef = useRef(null);
+
+  useEffect(() => () => clearInterval(pollRef.current), []);
+
+  const handleSave = async () => {
+    setSaving(true);
+    try { await googleAdsIntegrationsAPI.update(integration.id, form); await onRefresh(); }
+    catch (e) { alert(e.response?.data?.error || 'Failed to save.'); }
+    finally { setSaving(false); }
+  };
+
+  const handleToggleActive = async () => {
+    const next = !form.is_active;
+    setForm(f => ({ ...f, is_active: next }));
+    try { await googleAdsIntegrationsAPI.update(integration.id, { ...form, is_active: next }); await onRefresh(); }
+    catch { alert('Failed to update status.'); }
+  };
+
+  const handleShowKey = async () => {
+    if (revealedKey) { setRevealedKey(null); return; }
+    setRevealing(true);
+    try { const { data } = await googleAdsIntegrationsAPI.revealKey(integration.id); setRevealedKey(data.webhook_key); }
+    catch { alert('Failed to reveal key.'); }
+    finally { setRevealing(false); }
+  };
+
+  const handleRegenerate = async () => {
+    if (!window.confirm('Regenerate the webhook key? The current key will stop working immediately — you\'ll need to update it in Google Ads too.')) return;
+    try {
+      const { data } = await googleAdsIntegrationsAPI.regenerateKey(integration.id);
+      setNewKeyValue(data.webhook_key);
+      setRevealedKey(null);
+      await onRefresh();
+    } catch { alert('Failed to regenerate key.'); }
+  };
+
+  const handleCheckConnection = () => {
+    setChecking(true);
+    setCheckResult(null);
+    const baseline = integration.last_test_received_at;
+    let elapsed = 0;
+    pollRef.current = setInterval(async () => {
+      elapsed += 3000;
+      try {
+        const { data } = await googleAdsIntegrationsAPI.get(integration.id);
+        if (data.last_test_received_at && data.last_test_received_at !== baseline) {
+          clearInterval(pollRef.current);
+          setChecking(false);
+          setCheckResult('received');
+          onRefresh();
+          return;
+        }
+      } catch { /* keep polling */ }
+      if (elapsed >= 60000) {
+        clearInterval(pollRef.current);
+        setChecking(false);
+        setCheckResult('timeout');
+      }
+    }, 3000);
+  };
+
+  const handleDeleteTestLeads = async () => {
+    if (!window.confirm('Delete all test leads created by this integration?')) return;
+    setDeletingTestLeads(true);
+    try { const { data } = await googleAdsIntegrationsAPI.deleteTestLeads(integration.id); alert(data.message); }
+    catch { alert('Failed to delete test leads.'); }
+    finally { setDeletingTestLeads(false); }
+  };
+
+  return (
+    <div className="space-y-5">
+      <div className={`flex items-center justify-between gap-2 px-4 py-3 rounded-xl text-sm ${form.is_active ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+        <div className="flex items-center gap-2">
+          {form.is_active ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
+          {form.is_active ? 'Active — ready to receive leads.' : 'Inactive — incoming leads will be rejected.'}
+        </div>
+        <label className="flex items-center gap-2 text-xs cursor-pointer shrink-0">
+          <input type="checkbox" checked={form.is_active} onChange={handleToggleActive} className="w-4 h-4 rounded" />
+          {form.is_active ? 'Enabled' : 'Disabled'}
+        </label>
       </div>
-      <div>
-        <h2 className="font-semibold mb-1">Step 2 — Set Webhook Secret</h2>
-        <p className="text-xs text-gray-500 mb-3">Create any secret string. Enter it in both Google Ads and here to verify webhook requests.</p>
-        <label className="block text-xs font-medium text-gray-600 mb-1">Webhook Secret Key</label>
-        <input value={form.google_webhook_secret} onChange={e => setForm({ ...form, google_webhook_secret: e.target.value })}
-          onFocus={e => { if (e.target.value.startsWith('•')) setForm(f => ({ ...f, google_webhook_secret: '' })); }}
-          type="password" placeholder="e.g. my-secret-key-123"
-          className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+
+      <div className="bg-white rounded-2xl border p-5 space-y-4">
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Integration Name</label>
+          <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Webhook URL</label>
+          <UrlRow label="URL" url={integration.webhook_url} />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Webhook Key</label>
+          <div className="flex items-center gap-2 bg-gray-50 rounded-lg px-3 py-2">
+            <Key size={14} className="text-gray-400 shrink-0" />
+            <code className="text-xs font-mono flex-1 truncate text-gray-700">{revealedKey || integration.webhook_key_masked}</code>
+            <button onClick={handleShowKey} disabled={revealing} className="p-1.5 hover:bg-gray-100 rounded text-gray-500 shrink-0" title={revealedKey ? 'Hide' : 'Show'}>
+              {revealedKey ? <EyeOff size={14} /> : <Eye size={14} />}
+            </button>
+            <CopyButton text={revealedKey || integration.webhook_key_masked} />
+          </div>
+          {newKeyValue && (
+            <div className="mt-2 bg-green-50 border border-green-200 rounded-xl p-3">
+              <p className="text-xs font-semibold text-green-700 mb-1">⚠ New key generated — copy it now:</p>
+              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 border border-green-300">
+                <code className="text-xs font-mono flex-1 break-all text-gray-800">{newKeyValue}</code>
+                <CopyButton text={newKeyValue} />
+              </div>
+            </div>
+          )}
+          <button onClick={handleRegenerate} className="mt-2 flex items-center gap-1.5 text-xs text-gray-500 hover:text-brand-600">
+            <RefreshCw size={12} /> Regenerate Key
+          </button>
+        </div>
       </div>
-      <button onClick={handleSave} disabled={saving}
-        className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-        {saving ? 'Saving…' : 'Save Google Settings'}
-      </button>
+
+      <div className="bg-white rounded-2xl border p-5 space-y-4">
+        <h2 className="font-semibold">Lead Defaults</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Default Group / Tag</label>
+            <input value={form.default_group} onChange={e => setForm(f => ({ ...f, default_group: e.target.value }))}
+              placeholder="e.g. Google Ads — Salonox"
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Default Stage</label>
+            <select value={form.default_stage} onChange={e => setForm(f => ({ ...f, default_stage: e.target.value }))}
+              className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <option value="">Tenant default</option>
+              {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Assign Lead To</label>
+            <select
+              value={form.assigned_user_id ? `user:${form.assigned_user_id}` : form.assigned_team_id ? `team:${form.assigned_team_id}` : ''}
+              onChange={e => {
+                const [kind, id] = e.target.value.split(':');
+                setForm(f => ({ ...f, assigned_user_id: kind === 'user' ? id : '', assigned_team_id: kind === 'team' ? id : '' }));
+              }}
+              className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              <option value="">Auto (assignment rules)</option>
+              <optgroup label="Staff">
+                {staff.map(s => <option key={s.id} value={`user:${s.id}`}>{s.name}</option>)}
+              </optgroup>
+              <optgroup label="Teams">
+                {teams.map(t => <option key={t.id} value={`team:${t.id}`}>{t.name}</option>)}
+              </optgroup>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Product / Brand</label>
+            <input value={form.product} onChange={e => setForm(f => ({ ...f, product: e.target.value }))}
+              placeholder="e.g. Salonox"
+              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Test Lead Behaviour</label>
+          <select value={form.test_lead_behavior} onChange={e => setForm(f => ({ ...f, test_lead_behavior: e.target.value }))}
+            className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+            <option value="create_labeled_lead">Create a clearly labelled test lead</option>
+            <option value="log_only">Log only — don't create a lead</option>
+          </select>
+        </div>
+        <button onClick={handleSave} disabled={saving}
+          className="w-full py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+          {saving ? 'Saving…' : 'Save Settings'}
+        </button>
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5 space-y-3">
+        <h2 className="font-semibold">Connection Status</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-500">
+          <div>Last test received: <span className="text-gray-800 font-medium">{integration.last_test_received_at ? new Date(integration.last_test_received_at).toLocaleString('en-IN') : 'Never'}</span></div>
+          <div>Last live lead received: <span className="text-gray-800 font-medium">{integration.last_live_lead_received_at ? new Date(integration.last_live_lead_received_at).toLocaleString('en-IN') : 'Never'}</span></div>
+        </div>
+        {checking && (
+          <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2 text-xs text-blue-700">
+            <RefreshCw size={12} className="animate-spin" /> Waiting for test lead…
+          </div>
+        )}
+        {checkResult === 'received' && (
+          <div className="flex items-center gap-2 bg-green-50 rounded-xl px-3 py-2 text-xs text-green-700">
+            <CheckCircle size={14} /> Test received successfully
+          </div>
+        )}
+        {checkResult === 'timeout' && (
+          <div className="flex items-center gap-2 bg-amber-50 rounded-xl px-3 py-2 text-xs text-amber-700">
+            <AlertCircle size={14} /> Still waiting — send a test from Google Ads, then check again.
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button onClick={handleCheckConnection} disabled={checking}
+            className="flex-1 py-2 border rounded-xl text-sm text-gray-600 hover:bg-gray-50 disabled:opacity-50">
+            {checking ? 'Checking…' : 'Check Connection'}
+          </button>
+          {integration.last_test_received_at && (
+            <button onClick={handleDeleteTestLeads} disabled={deletingTestLeads}
+              className="flex-1 flex items-center justify-center gap-1.5 py-2 border border-red-200 rounded-xl text-sm text-red-500 hover:bg-red-50">
+              <Trash2 size={14} /> Delete Test Leads
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border p-5">
+        <h2 className="font-semibold mb-2">Setup Instructions</h2>
+        <ol className="text-xs text-gray-500 space-y-1.5 list-decimal list-inside">
+          <li>Open Google Ads.</li>
+          <li>Go to the required Lead Form Asset.</li>
+          <li>Scroll to "Export leads from Google Ads."</li>
+          <li>Open "Other data integration options."</li>
+          <li>Paste the CurveLead webhook URL and webhook key above.</li>
+          <li>Click "Send test data."</li>
+          <li>Return to CurveLead and click "Check Connection" to verify the test lead.</li>
+        </ol>
+      </div>
+
+      {showAddButton && (
+        <button onClick={onAdd} className="text-xs text-gray-400 hover:text-brand-600 flex items-center gap-1">
+          <Plus size={12} /> Add another Google Ads Lead Form integration
+        </button>
+      )}
     </div>
-    <div className="bg-white rounded-2xl border p-5">
-      <h2 className="font-semibold mb-2">How it works</h2>
-      <ol className="text-xs text-gray-500 space-y-1 list-decimal list-inside">
-        <li>Someone submits your Google Lead Form Asset ad.</li>
-        <li>Google sends the lead data to your webhook URL in real-time.</li>
-        <li>CurveLead matches the secret key and creates the lead with source = <code className="bg-gray-100 px-1 rounded">google_ads</code>.</li>
-        <li>Captured fields: Full Name, Phone Number, Email.</li>
-      </ol>
+  );
+};
+
+const GoogleAdsConfig = () => {
+  const [integrations, setIntegrations] = useState(null);
+  const [activeId, setActiveId] = useState(null);
+  const [staff, setStaff] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [stages, setStages] = useState([]);
+
+  useEffect(() => {
+    loadIntegrations();
+    staffAPI.getAll().then(({ data }) => setStaff(data.staff || [])).catch(() => {});
+    teamAPI.getAll().then(({ data }) => setTeams(data.teams || [])).catch(() => {});
+    leadAPI.getStages().then(({ data }) => setStages(data.stages || [])).catch(() => {});
+  }, []);
+
+  const loadIntegrations = async () => {
+    try {
+      const { data } = await googleAdsIntegrationsAPI.list();
+      setIntegrations(data.integrations || []);
+      setActiveId(prev => prev || data.integrations?.[0]?.id || null);
+    } catch { setIntegrations([]); }
+  };
+
+  const handleCreate = async () => {
+    try {
+      const { data } = await googleAdsIntegrationsAPI.create({ name: 'Google Ads Lead Form' });
+      await loadIntegrations();
+      setActiveId(data.id);
+    } catch (e) { alert(e.response?.data?.error || 'Failed to create integration.'); }
+  };
+
+  if (integrations === null) return <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>;
+
+  if (integrations.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border p-8 text-center space-y-3">
+        <p className="text-sm text-gray-500">No Google Ads Lead Form integration yet.</p>
+        <button onClick={handleCreate} className="px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700">
+          Create Google Ads Lead Form Integration
+        </button>
+      </div>
+    );
+  }
+
+  const active = integrations.find(i => i.id === activeId) || integrations[0];
+
+  return (
+    <div className="space-y-5">
+      {integrations.length > 1 && (
+        <div className="flex gap-2 flex-wrap">
+          {integrations.map(i => (
+            <button key={i.id} onClick={() => setActiveId(i.id)}
+              className={`px-3 py-1.5 rounded-full text-xs font-medium ${i.id === active.id ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>
+              {i.name}
+            </button>
+          ))}
+        </div>
+      )}
+      <GoogleAdsIntegrationDetail
+        key={active.id}
+        integration={active}
+        staff={staff} teams={teams} stages={stages}
+        onRefresh={loadIntegrations}
+        showAddButton={integrations.length === 1}
+        onAdd={handleCreate}
+      />
     </div>
-  </div>
-);
+  );
+};
 
 const WhatsAppConfig = ({ settings, onRefresh }) => {
   const isConfigured = !!(settings.whatsapp_configured || settings.whatsapp_phone_number_id);
@@ -1034,38 +1315,28 @@ const IntegrationsPage = () => {
     voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [newKeyValue, setNewKeyValue] = useState(null);
   const [embedScript, setEmbedScript] = useState('');
-  const [form, setForm] = useState({ meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '' });
 
   useEffect(() => { load(); }, []);
 
   const load = async () => {
     setLoading(true);
     try {
-      const [{ data }, aiCalling] = await Promise.all([
+      const [{ data }, aiCalling, googleAds] = await Promise.all([
         integrationsAPI.getSettings(),
         aiCallingAPI.getSettings().catch(() => ({ data: {} })),
+        googleAdsIntegrationsAPI.list().catch(() => ({ data: { integrations: [] } })),
       ]);
-      const merged = { ...data, ...aiCalling.data };
+      const merged = {
+        ...data, ...aiCalling.data,
+        google_ads_configured: (googleAds.data.integrations || []).some(i => i.is_active),
+      };
       setSettings(merged);
-      setForm({
-        meta_page_id: data.meta_page_id || '',
-        meta_page_access_token: data.meta_configured ? '••••••••' : '',
-        google_webhook_secret: data.google_configured ? '••••••••' : '',
-      });
     } catch (e) {
       console.error('integrations settings:', e.message);
       // silently fall back to defaults — gallery still shows, errors surface on configure
     } finally { setLoading(false); }
-  };
-
-  const handleSave = async () => {
-    setSaving(true);
-    try { await integrationsAPI.updateSettings(form); await load(); alert('Settings saved.'); }
-    catch { alert('Failed to save.'); }
-    finally { setSaving(false); }
   };
 
   const handleGenerateKey = async () => {
@@ -1108,7 +1379,7 @@ const IntegrationsPage = () => {
         {selected === 'meta' && <MetaConfig settings={settings} onRefresh={load} />}
         {selected === 'website' && <WebsiteConfig settings={settings} embedScript={embedScript} handleLoadEmbed={handleLoadEmbed} />}
         {selected === 'api' && <ApiKeyConfig settings={settings} newKeyValue={newKeyValue} handleGenerateKey={handleGenerateKey} handleRevokeKey={handleRevokeKey} />}
-        {selected === 'google' && <GoogleConfig settings={settings} form={form} setForm={setForm} saving={saving} handleSave={handleSave} />}
+        {selected === 'google' && <GoogleAdsConfig />}
         {selected === 'whatsapp' && <WhatsAppConfig settings={settings} onRefresh={load} />}
         {selected === 'ai_calling' && <AiCallingConfig settings={settings} onRefresh={load} />}
       </div>

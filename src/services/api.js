@@ -308,6 +308,20 @@ export const integrationsAPI = {
 };
 
 // ============================================
+// Google Ads Lead Form Integrations
+// ============================================
+export const googleAdsIntegrationsAPI = {
+  list: () => api.get('/integrations/google-ads'),
+  get: (id) => api.get(`/integrations/google-ads/${id}`),
+  create: (data) => api.post('/integrations/google-ads', data),
+  update: (id, data) => api.put(`/integrations/google-ads/${id}`, data),
+  regenerateKey: (id) => api.post(`/integrations/google-ads/${id}/regenerate-key`),
+  revealKey: (id) => api.get(`/integrations/google-ads/${id}/reveal-key`),
+  deleteTestLeads: (id) => api.delete(`/integrations/google-ads/${id}/test-leads`),
+  delete: (id) => api.delete(`/integrations/google-ads/${id}`),
+};
+
+// ============================================
 // Recordings
 // ============================================
 export const recordingAPI = {

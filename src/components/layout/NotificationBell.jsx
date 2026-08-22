@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog } from 'lucide-react';
+import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog, UserPlus } from 'lucide-react';
 import { notificationsAPI } from '../../services/api';
 import { useNavigate } from 'react-router-dom';
 
 const typeIcon = (type) => {
+  if (type === 'new_lead')    return <UserPlus size={14} className="text-green-500" />;
   if (type === 'demo_due')    return <Video    size={14} className="text-violet-500" />;
   if (type === 'followup_due') return <Calendar size={14} className="text-amber-500" />;
   if (type === 'ai_score')    return <Zap      size={14} className="text-purple-500" />;
@@ -12,6 +13,14 @@ const typeIcon = (type) => {
   if (type === 'sla_missed')    return <AlertTriangle size={14} className="text-red-700" />;
   if (type === 'sla_reassigned' || type === 'sla_reassigned_away') return <UserCog size={14} className="text-cyan-500" />;
   return <Info size={14} className="text-blue-500" />;
+};
+
+// Fires a real OS-level desktop notification (separate from the in-app bell dropdown).
+// No-ops silently if the browser doesn't support it or the user hasn't granted permission.
+const showBrowserNotification = (n, onClick) => {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const popup = new Notification(n.title, { body: n.message || '', tag: n.id });
+  popup.onclick = () => { window.focus(); onClick(n); popup.close(); };
 };
 
 const timeAgo = (date) => {
@@ -29,13 +38,7 @@ const NotificationBell = () => {
   const [loading, setLoading] = useState(false);
   const ref = useRef();
   const navigate = useNavigate();
-
-  const fetchCount = async () => {
-    try {
-      const { data } = await notificationsAPI.getCount();
-      setUnread(data.count || 0);
-    } catch { }
-  };
+  const seenIdsRef = useRef(null); // null until the first poll completes
 
   const fetchAll = async () => {
     setLoading(true);
@@ -47,10 +50,31 @@ const NotificationBell = () => {
     finally { setLoading(false); }
   };
 
-  // Poll unread count every 30 seconds
+  // Poll every 30 seconds; fire a real desktop notification for anything new
+  // since the last poll (skipped on the very first poll, so existing unread
+  // items don't all pop up at once on page load).
+  const pollNotifications = async () => {
+    try {
+      const { data } = await notificationsAPI.getAll();
+      const list = data.notifications || [];
+      setUnread(data.unreadCount || 0);
+
+      if (seenIdsRef.current) {
+        list
+          .filter(n => !n.is_read && !seenIdsRef.current.has(n.id))
+          .forEach(n => showBrowserNotification(n, handleMarkRead));
+      }
+      seenIdsRef.current = new Set(list.map(n => n.id));
+      if (open) setNotifications(list);
+    } catch { }
+  };
+
   useEffect(() => {
-    fetchCount();
-    const interval = setInterval(fetchCount, 30000);
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+    pollNotifications();
+    const interval = setInterval(pollNotifications, 30000);
     return () => clearInterval(interval);
   }, []);
 
