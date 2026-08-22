@@ -696,6 +696,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
   const [saving, setSaving] = useState(false);
   const [revealedKey, setRevealedKey] = useState(null);
   const [revealing, setRevealing] = useState(false);
+  const [keyCopied, setKeyCopied] = useState(false);
   const [newKeyValue, setNewKeyValue] = useState(null);
   const [checking, setChecking] = useState(false);
   const [checkResult, setCheckResult] = useState(null);
@@ -724,6 +725,22 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
     try { const { data } = await googleAdsIntegrationsAPI.revealKey(integration.id); setRevealedKey(data.webhook_key); }
     catch { alert('Failed to reveal key.'); }
     finally { setRevealing(false); }
+  };
+
+  // Copy must always act on the real key, never the masked placeholder (bullet
+  // characters) — reveal it first if the admin hasn't clicked "Show" yet.
+  const handleCopyKey = async () => {
+    let key = revealedKey;
+    if (!key) {
+      setRevealing(true);
+      try {
+        const { data } = await googleAdsIntegrationsAPI.revealKey(integration.id);
+        key = data.webhook_key;
+        setRevealedKey(key);
+      } catch { alert('Failed to copy key.'); return; }
+      finally { setRevealing(false); }
+    }
+    navigator.clipboard.writeText(key);
   };
 
   const handleRegenerate = async () => {
@@ -802,7 +819,10 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
             <button onClick={handleShowKey} disabled={revealing} className="p-1.5 hover:bg-gray-100 rounded text-gray-500 shrink-0" title={revealedKey ? 'Hide' : 'Show'}>
               {revealedKey ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
-            <CopyButton text={revealedKey || integration.webhook_key_masked} />
+            <button onClick={async () => { await handleCopyKey(); setKeyCopied(true); setTimeout(() => setKeyCopied(false), 2000); }}
+              disabled={revealing} className="p-1.5 hover:bg-gray-100 rounded text-gray-500 shrink-0" title="Copy">
+              {keyCopied ? <Check size={14} className="text-green-500" /> : <Copy size={14} />}
+            </button>
           </div>
           {newKeyValue && (
             <div className="mt-2 bg-green-50 border border-green-200 rounded-xl p-3">
