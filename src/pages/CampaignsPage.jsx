@@ -29,6 +29,7 @@ const CampaignsPage = () => {
     name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active',
   });
   const [syncingInsights, setSyncingInsights] = useState(false);
+  const [tab, setTab] = useState('active');
 
   useEffect(() => { loadData(); }, []);
 
@@ -129,16 +130,40 @@ const CampaignsPage = () => {
         );
       })()}
 
-      {loading ? (
-        <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
-      ) : campaigns.length === 0 ? (
-        <div className="bg-white rounded-2xl border p-12 text-center">
-          <Megaphone size={40} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">No campaigns yet. Create your first campaign to track ROI.</p>
-        </div>
-      ) : (
+      {!loading && campaigns.length > 0 && (() => {
+        const activeCount = campaigns.filter(c => c.status === 'active').length;
+        const inactiveCount = campaigns.length - activeCount;
+        return (
+          <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+            <button onClick={() => setTab('active')}
+              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${tab === 'active' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+              Active ({activeCount})
+            </button>
+            <button onClick={() => setTab('inactive')}
+              className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${tab === 'inactive' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
+              Inactive ({inactiveCount})
+            </button>
+          </div>
+        );
+      })()}
+
+      {(() => {
+        const visible = campaigns.filter(c => tab === 'active' ? c.status === 'active' : c.status !== 'active');
+        return loading ? (
+          <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+        ) : campaigns.length === 0 ? (
+          <div className="bg-white rounded-2xl border p-12 text-center">
+            <Megaphone size={40} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500">No campaigns yet. Create your first campaign to track ROI.</p>
+          </div>
+        ) : visible.length === 0 ? (
+          <div className="bg-white rounded-2xl border p-12 text-center">
+            <Megaphone size={40} className="mx-auto text-gray-300 mb-3" />
+            <p className="text-gray-500">No {tab} campaigns.</p>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {campaigns.map(c => {
+          {visible.map(c => {
             return (
               <div key={c.id} className="bg-white rounded-2xl border p-5 hover:shadow-lg transition cursor-pointer" onClick={() => navigate(`/campaigns/${c.id}`)}>
                 <div className="flex items-start justify-between mb-3">
@@ -181,7 +206,8 @@ const CampaignsPage = () => {
             );
           })}
         </div>
-      )}
+        );
+      })()}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
