@@ -8,6 +8,7 @@ const BrochuresPage = () => {
   const [showUpload, setShowUpload] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({ name: '', description: '', category: 'products' });
+  const [errors, setErrors] = useState({});
   const [filter, setFilter] = useState('');
   const fileRef = useRef();
 
@@ -23,9 +24,12 @@ const BrochuresPage = () => {
   };
 
   const handleUpload = async () => {
-    if (!form.name) return alert('Name required');
     const file = fileRef.current?.files[0];
-    if (!file) return alert('Please select a file');
+    const newErrors = {};
+    if (!form.name.trim()) newErrors.name = 'Brochure name is required';
+    if (!file) newErrors.file = 'Please select a file';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length) return;
 
     setUploading(true);
     try {
@@ -37,6 +41,7 @@ const BrochuresPage = () => {
       await brochuresAPI.upload(fd);
       setShowUpload(false);
       setForm({ name: '', description: '', category: 'products' });
+      setErrors({});
       load();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
     finally { setUploading(false); }
@@ -58,7 +63,7 @@ const BrochuresPage = () => {
         <div>
           <p className="text-sm text-gray-500">Upload brochures, catalogs, price lists to share with leads</p>
         </div>
-        <button onClick={() => setShowUpload(true)}
+        <button onClick={() => { setErrors({}); setShowUpload(true); }}
           className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
           <Plus size={16} /> Upload Brochure
         </button>
@@ -129,20 +134,36 @@ const BrochuresPage = () => {
               <button onClick={() => setShowUpload(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3">
-              <input type="text" placeholder="Brochure name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <textarea placeholder="Description" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
-                rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                <option value="products">Products</option>
-                <option value="services">Services</option>
-                <option value="pricing">Pricing</option>
-                <option value="company">Company Info</option>
-                <option value="general">General</option>
-              </select>
-              <input ref={fileRef} type="file" accept="application/pdf,image/*"
-                className="w-full text-sm" />
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Brochure name <span className="text-red-500">*</span></label>
+                <input type="text" value={form.name}
+                  onChange={e => { setForm({ ...form, name: e.target.value }); if (errors.name) setErrors(er => ({ ...er, name: undefined })); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${errors.name ? 'border-red-500' : ''}`} />
+                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
+                <textarea placeholder="Optional" value={form.description} onChange={e => setForm({ ...form, description: e.target.value })}
+                  rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Category</label>
+                <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                  <option value="products">Products</option>
+                  <option value="services">Services</option>
+                  <option value="pricing">Pricing</option>
+                  <option value="company">Company Info</option>
+                  <option value="general">General</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">File <span className="text-red-500">*</span></label>
+                <input ref={fileRef} type="file" accept="application/pdf,image/*"
+                  onChange={() => { if (errors.file) setErrors(er => ({ ...er, file: undefined })); }}
+                  className={`w-full text-sm ${errors.file ? 'border border-red-500 rounded-lg p-1.5' : ''}`} />
+                {errors.file && <p className="text-xs text-red-500 mt-1">{errors.file}</p>}
+              </div>
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setShowUpload(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
                 <button onClick={handleUpload} disabled={uploading}
