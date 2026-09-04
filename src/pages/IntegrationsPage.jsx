@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI } from '../services/api';
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff } from 'lucide-react';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
 const FB_LOGIN_CONFIG_ID = import.meta.env.VITE_FACEBOOK_LOGIN_CONFIG_ID || '4416725028596340';
@@ -683,6 +684,7 @@ const ApiKeyConfig = ({ settings, newKeyValue, handleGenerateKey, handleRevokeKe
 );
 
 const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefresh, showAddButton, onAdd }) => {
+  const confirm = useConfirmDialog();
   const [form, setForm] = useState({
     name: integration.name,
     is_active: integration.is_active,
@@ -779,7 +781,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
   };
 
   const handleDeleteTestLeads = async () => {
-    if (!window.confirm('Delete all test leads created by this integration?')) return;
+    if (!await confirm({ title: 'Delete all test leads?', message: 'This will delete all test leads created by this integration.' })) return;
     setDeletingTestLeads(true);
     try { const { data } = await googleAdsIntegrationsAPI.deleteTestLeads(integration.id); alert(data.message); }
     catch { alert('Failed to delete test leads.'); }
@@ -1169,6 +1171,7 @@ const emptyAgentForm = () => ({
 });
 
 const AiCallingConfig = ({ settings, onRefresh }) => {
+  const confirm = useConfirmDialog();
   const [form, setForm] = useState({
     voice_ai_api_key: settings.voice_ai_configured ? '••••••••' : '',
     voice_ai_phone_number_id: settings.voice_ai_phone_number_id || '',
@@ -1216,7 +1219,7 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
   };
 
   const handleDeleteAgent = async (id) => {
-    if (!window.confirm('Delete this AI agent persona?')) return;
+    if (!await confirm({ title: 'Delete this AI agent persona?' })) return;
     await aiCallingAPI.deleteAgent(id).catch(() => {});
     reloadAgents();
   };

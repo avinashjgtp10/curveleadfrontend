@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Mic, Video, Upload, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { recordingAPI } from '../../services/api';
+import { useConfirmDialog } from '../ui/ConfirmDialog';
 
 const fmtSize = (bytes) => {
   if (!bytes) return '';
@@ -176,6 +177,7 @@ const RecordingCard = ({ recording, onDelete, onRetry }) => {
 };
 
 export default function LeadRecordings({ leadId }) {
+  const confirm = useConfirmDialog();
   const [recordings, setRecordings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -232,7 +234,7 @@ export default function LeadRecordings({ leadId }) {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Delete this recording?')) return;
+    if (!await confirm({ title: 'Delete this recording?' })) return;
     await recordingAPI.delete(id).catch(() => {});
     setRecordings(r => r.filter(x => x.id !== id));
   };

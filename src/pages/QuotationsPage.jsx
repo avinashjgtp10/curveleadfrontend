@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { quotationsAPI } from '../services/api';
 import { Plus, FileText, Send, Eye, Trash2, MessageCircle } from 'lucide-react';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const statusColors = {
   draft: 'bg-gray-100 text-gray-700',
@@ -13,6 +14,7 @@ const statusColors = {
 
 const QuotationsPage = () => {
   const navigate = useNavigate();
+  const confirm = useConfirmDialog();
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -48,7 +50,7 @@ const QuotationsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this draft quotation?')) return;
+    if (!await confirm({ title: 'Delete this draft quotation?' })) return;
     try { await quotationsAPI.delete(id); load(); } catch (e) { alert(e.response?.data?.error || 'Failed'); }
   };
 

@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
@@ -139,6 +140,7 @@ const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
 
 const LeadsPage = () => {
   const location = useLocation();
+  const confirm = useConfirmDialog();
   const queryConfig = getQueryConfig(location.search, location.state);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
@@ -444,7 +446,8 @@ const LeadsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this lead?')) return;
+    const ok = await confirm({ title: 'Delete this lead?' });
+    if (!ok) return;
     try { await leadAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
   };
 
@@ -573,7 +576,8 @@ const LeadsPage = () => {
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`Delete ${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''}? This cannot be undone.`)) return;
+    const ok = await confirm({ title: `Delete ${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''}?` });
+    if (!ok) return;
     setBulkLoading(true);
     try {
       await leadAPI.bulkDelete([...selectedIds]);
@@ -608,7 +612,12 @@ const LeadsPage = () => {
     const keepId = duplicateKeepChoice[group.norm_phone];
     const removeIds = group.leads.map(l => l.id).filter(id => id !== keepId);
     if (!removeIds.length) return;
-    if (!window.confirm(`Merge ${removeIds.length} duplicate lead(s) into the selected one? Notes, calls and follow-ups will be carried over; the duplicate records will be deleted.`)) return;
+    const ok = await confirm({
+      title: `Merge ${removeIds.length} duplicate lead${removeIds.length > 1 ? 's' : ''}?`,
+      message: 'Notes, calls and follow-ups will be carried over; duplicate records will be deleted.',
+      confirmText: 'Merge',
+    });
+    if (!ok) return;
 
     setMergingPhone(group.norm_phone);
     try {

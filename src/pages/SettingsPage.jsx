@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, automationAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag, Zap, Clock } from 'lucide-react';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const SettingsPage = () => {
+  const confirm = useConfirmDialog();
   const { user, tenant } = useAuth();
   const [tab, setTab] = useState('profile');
   const [settings, setSettings] = useState({});
@@ -138,7 +140,7 @@ const SettingsPage = () => {
   };
 
   const handleDeleteTmpl = async (id) => {
-    if (!confirm('Delete this template?')) return;
+    if (!await confirm({ title: 'Delete this template?' })) return;
     try {
       await templateAPI.delete(id);
       loadTemplates();
@@ -196,7 +198,7 @@ const SettingsPage = () => {
   };
 
   const handleDeleteSeq = async (id) => {
-    if (!confirm('Delete this sequence? Rules pointing to it will also be deleted.')) return;
+    if (!await confirm({ title: 'Delete this sequence?', message: 'Rules pointing to it will also be deleted.' })) return;
     try {
       await automationAPI.deleteSequence(id);
       loadSequences();
@@ -233,7 +235,7 @@ const SettingsPage = () => {
   };
 
   const handleDeleteRule = async (id) => {
-    if (!confirm('Delete this rule?')) return;
+    if (!await confirm({ title: 'Delete this rule?' })) return;
     try {
       await automationAPI.deleteRule(id);
       loadRules();
@@ -282,7 +284,7 @@ const SettingsPage = () => {
 
   const handleDeleteStage = async (stage) => {
     if (stage.is_default) return alert('Default stages cannot be deleted');
-    if (!confirm(`Delete stage "${stage.name}"? Leads in this stage will keep the stage label.`)) return;
+    if (!await confirm({ title: `Delete stage "${stage.name}"?`, message: 'Leads in this stage will keep the stage label.' })) return;
     try {
       await stageAPI.delete(stage.id);
       loadStages();
@@ -322,7 +324,7 @@ const SettingsPage = () => {
 
   const handleDeleteStatus = async (st) => {
     if (st.is_default) return alert('Default statuses cannot be deleted');
-    if (!confirm(`Delete status "${st.name}"?`)) return;
+    if (!await confirm({ title: `Delete status "${st.name}"?` })) return;
     try {
       await statusAPI.delete(st.id);
       loadStages();

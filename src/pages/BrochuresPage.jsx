@@ -1,8 +1,10 @@
 import { useEffect, useState, useRef } from 'react';
 import { brochuresAPI } from '../services/api';
 import { Plus, FileText, Image as ImageIcon, Trash2, BookOpen, X, MessageCircle } from 'lucide-react';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const BrochuresPage = () => {
+  const confirm = useConfirmDialog();
   const [brochures, setBrochures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showUpload, setShowUpload] = useState(false);
@@ -48,7 +50,7 @@ const BrochuresPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this brochure?')) return;
+    if (!await confirm({ title: 'Delete this brochure?' })) return;
     try { await brochuresAPI.delete(id); load(); } catch (e) { alert('Failed'); }
   };
 

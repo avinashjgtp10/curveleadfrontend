@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { attachmentsAPI } from '../../services/api';
 import { Paperclip, Upload, FileText, Image as ImageIcon, FileAudio, FileVideo, File as FileIcon, Download, Trash2, Send, X, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
+import { useConfirmDialog } from '../ui/ConfirmDialog';
 
 const fileTypeIcons = {
   image: ImageIcon,
@@ -94,6 +95,7 @@ const Lightbox = ({ images, index, onClose }) => {
 };
 
 const LeadAttachments = ({ leadId, onActivityAdded }) => {
+  const confirm = useConfirmDialog();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -137,7 +139,7 @@ const LeadAttachments = ({ leadId, onActivityAdded }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this file?')) return;
+    if (!await confirm({ title: 'Delete this file?' })) return;
     try { await attachmentsAPI.delete(leadId, id); load(); } catch (e) { alert('Failed'); }
   };
 

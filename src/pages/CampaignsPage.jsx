@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { campaignAPI, integrationsAPI } from '../services/api';
 import { Plus, Megaphone, IndianRupee, Users, TrendingUp, X, Edit2, Trash2, RotateCcw, Eye, MousePointerClick, Target } from 'lucide-react';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const statusColors = {
   active: 'bg-green-100 text-green-700',
@@ -21,6 +22,7 @@ const verdictColors = {
 
 const CampaignsPage = () => {
   const navigate = useNavigate();
+  const confirm = useConfirmDialog();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -88,7 +90,7 @@ const CampaignsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this campaign?')) return;
+    if (!await confirm({ title: 'Delete this campaign?' })) return;
     try { await campaignAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
   };
 
