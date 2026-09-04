@@ -166,9 +166,15 @@ const BillingPage = () => {
               </button>
             ))}
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-            <p className="text-xs font-medium text-gray-500">Current status</p>
-            <p className="mt-1 text-sm font-bold capitalize text-gray-950">{subscriptionStatus}</p>
+          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+            <p className="text-xs font-medium text-gray-500">Status</p>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${
+              subscriptionStatus === 'trial' ? 'bg-amber-100 text-amber-700'
+              : subscriptionStatus === 'active' ? 'bg-green-100 text-green-700'
+              : 'bg-gray-100 text-gray-600'
+            }`}>
+              {subscriptionStatus}
+            </span>
           </div>
         </div>
       </div>
