@@ -45,6 +45,7 @@ const SettingsPage = () => {
   const [seqModal, setSeqModal] = useState(false);
   const [editingSeq, setEditingSeq] = useState(null);
   const [seqForm, setSeqForm] = useState({ name: '', description: '', steps: [emptyStep()] });
+  const [seqErrors, setSeqErrors] = useState({});
 
   const [rules, setRules] = useState([]);
   const [ruleModal, setRuleModal] = useState(false);
@@ -164,6 +165,7 @@ const SettingsPage = () => {
   const openCreateSeq = () => {
     setEditingSeq(null);
     setSeqForm({ name: '', description: '', steps: [emptyStep()] });
+    setSeqErrors({});
     setSeqModal(true);
   };
 
@@ -173,18 +175,23 @@ const SettingsPage = () => {
       name: s.name, description: s.description || '',
       steps: s.steps?.length ? s.steps.map(st => ({ ...st, email_subject: st.email_subject || '' })) : [emptyStep()],
     });
+    setSeqErrors({});
     setSeqModal(true);
   };
 
   const updateStep = (idx, patch) => {
     setSeqForm(f => ({ ...f, steps: f.steps.map((s, i) => i === idx ? { ...s, ...patch } : s) }));
+    if (patch.message?.trim() && seqErrors.steps) setSeqErrors(er => ({ ...er, steps: undefined }));
   };
   const addStep = () => setSeqForm(f => ({ ...f, steps: [...f.steps, emptyStep()] }));
   const removeStep = (idx) => setSeqForm(f => ({ ...f, steps: f.steps.filter((_, i) => i !== idx) }));
 
   const handleSaveSeq = async () => {
-    if (!seqForm.name.trim()) return alert('Sequence name is required');
-    if (!seqForm.steps.some(s => s.message.trim())) return alert('At least one step needs a message');
+    const errors = {};
+    if (!seqForm.name.trim()) errors.name = 'Sequence name is required';
+    if (!seqForm.steps.some(s => s.message.trim())) errors.steps = 'At least one step needs a message';
+    setSeqErrors(errors);
+    if (Object.keys(errors).length) return;
     try {
       if (editingSeq) {
         await automationAPI.updateSequence(editingSeq.id, seqForm);
@@ -653,7 +660,7 @@ const SettingsPage = () => {
                 </div>
                 {user?.role === 'admin' && (
                   <button onClick={openCreateSeq}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">
+                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 whitespace-nowrap">
                     <Plus size={14} /> New Sequence
                   </button>
                 )}
@@ -736,9 +743,10 @@ const SettingsPage = () => {
                     <h3 className="font-bold text-base mb-4">{editingSeq ? 'Edit Sequence' : 'New Sequence'}</h3>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-                        <input value={seqForm.name} onChange={e => setSeqForm({ ...seqForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. New Lead Intro Sequence" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                        <input value={seqForm.name} onChange={e => { setSeqForm({ ...seqForm, name: e.target.value }); if (seqErrors.name) setSeqErrors(er => ({ ...er, name: undefined })); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${seqErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. New Lead Intro Sequence" />
+                        {seqErrors.name && <p className="text-xs text-red-500 mt-1">{seqErrors.name}</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
@@ -786,6 +794,7 @@ const SettingsPage = () => {
                         <button onClick={addStep} className="mt-2 flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700">
                           <Plus size={13} /> Add Step
                         </button>
+                        {seqErrors.steps && <p className="text-xs text-red-500 mt-2">{seqErrors.steps}</p>}
                         <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
                           Variables:{' '}
                           {['{{name}}', '{{phone}}', '{{email}}', '{{city}}', '{{source}}'].map(v => (
