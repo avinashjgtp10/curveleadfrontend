@@ -28,6 +28,7 @@ const CampaignsPage = () => {
   const [form, setForm] = useState({
     name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active',
   });
+  const [errors, setErrors] = useState({});
   const [syncingInsights, setSyncingInsights] = useState(false);
   const [tab, setTab] = useState('active');
 
@@ -53,7 +54,11 @@ const CampaignsPage = () => {
   };
 
   const handleSave = async () => {
-    if (!form.name) return alert('Campaign name required');
+    const newErrors = {};
+    if (!form.name.trim()) newErrors.name = 'Campaign name is required';
+    if (form.start_date && form.end_date && form.end_date < form.start_date) newErrors.end_date = 'End date must be after start date';
+    setErrors(newErrors);
+    if (Object.keys(newErrors).length) return;
     try {
       if (editing) {
         await campaignAPI.update(editing, form);
@@ -63,6 +68,7 @@ const CampaignsPage = () => {
       setShowModal(false);
       setEditing(null);
       setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' });
+      setErrors({});
       loadData();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
   };
@@ -77,6 +83,7 @@ const CampaignsPage = () => {
       end_date: c.end_date?.split('T')[0] || '',
       status: c.status,
     });
+    setErrors({});
     setShowModal(true);
   };
 
@@ -94,7 +101,7 @@ const CampaignsPage = () => {
             className="px-4 py-2 border rounded-lg text-sm font-semibold hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50">
             <RotateCcw size={14} className={syncingInsights ? 'animate-spin' : ''} /> {syncingInsights ? 'Syncing…' : 'Sync Ad Insights'}
           </button>
-          <button onClick={() => { setEditing(null); setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' }); setShowModal(true); }}
+          <button onClick={() => { setEditing(null); setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' }); setErrors({}); setShowModal(true); }}
             className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
             <Plus size={16} /> New Campaign
           </button>
@@ -218,33 +225,55 @@ const CampaignsPage = () => {
               <button onClick={() => setShowModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3">
-              <input type="text" placeholder="Campaign Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                <option value="meta_ads">Meta Ads</option>
-                <option value="google_ads">Google Ads</option>
-                <option value="instagram">Instagram</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="organic">Organic</option>
-                <option value="referral">Referral</option>
-                <option value="other">Other</option>
-              </select>
-              <input type="number" placeholder="Budget (₹)" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <div className="grid grid-cols-2 gap-2">
-                <input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })}
-                  className="px-3 py-2.5 border rounded-lg text-sm" />
-                <input type="date" value={form.end_date} onChange={e => setForm({ ...form, end_date: e.target.value })}
-                  className="px-3 py-2.5 border rounded-lg text-sm" />
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Campaign Name <span className="text-red-500">*</span></label>
+                <input type="text" value={form.name}
+                  onChange={e => { setForm({ ...form, name: e.target.value }); if (errors.name) setErrors(er => ({ ...er, name: undefined })); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${errors.name ? 'border-red-500' : ''}`} />
+                {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
               </div>
-              <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                <option value="draft">Draft</option>
-                <option value="active">Active</option>
-                <option value="paused">Paused</option>
-                <option value="completed">Completed</option>
-              </select>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
+                <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                  <option value="meta_ads">Meta Ads</option>
+                  <option value="google_ads">Google Ads</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="organic">Organic</option>
+                  <option value="referral">Referral</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Budget (₹)</label>
+                <input type="number" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
+                  <input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
+                  <input type="date" value={form.end_date}
+                    onChange={e => { setForm({ ...form, end_date: e.target.value }); if (errors.end_date) setErrors(er => ({ ...er, end_date: undefined })); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm ${errors.end_date ? 'border-red-500' : ''}`} />
+                  {errors.end_date && <p className="text-xs text-red-500 mt-1">{errors.end_date}</p>}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                  <option value="draft">Draft</option>
+                  <option value="active">Active</option>
+                  <option value="paused">Paused</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
                 <button onClick={handleSave} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Save</button>
