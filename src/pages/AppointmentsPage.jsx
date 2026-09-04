@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI } from '../services/api';
 import { Video, Phone, ArrowRight, CheckCircle, Trash2, Calendar, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const formatTime = (dt) =>
   new Date(dt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -40,6 +41,7 @@ const todayISO = () => {
 const AppointmentsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const confirm = useConfirmDialog();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -83,7 +85,7 @@ const AppointmentsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Cancel this demo appointment?')) return;
+    if (!await confirm({ title: 'Cancel this demo appointment?', confirmText: 'Cancel Demo' })) return;
     setDeleting(id);
     try {
       await followupAPI.delete(id);

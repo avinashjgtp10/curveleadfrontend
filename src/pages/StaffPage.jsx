@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { staffAPI, teamAPI, campaignAPI, automationAPI, assignmentRuleAPI } from '../services/api';
 import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, RotateCcw, MessageCircle, ArrowUp, ArrowDown, Shuffle } from 'lucide-react';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const SOURCE_OPTIONS = ['meta_ads', 'google_ads', 'whatsapp', 'referral', 'manual', 'website', 'walkin'];
 
 const StaffPage = () => {
+  const confirm = useConfirmDialog();
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -100,7 +102,7 @@ const StaffPage = () => {
   };
 
   const handleDeleteRule = async (id) => {
-    if (!window.confirm('Delete this assignment rule?')) return;
+    if (!await confirm({ title: 'Delete this assignment rule?' })) return;
     try { await assignmentRuleAPI.delete(id); loadRules(); } catch (e) { alert('Failed to delete'); }
   };
 
@@ -153,7 +155,7 @@ const StaffPage = () => {
   };
 
   const handleDeleteTeam = async (id) => {
-    if (!window.confirm('Delete this team? Members will be unassigned, not removed.')) return;
+    if (!await confirm({ title: 'Delete this team?', message: 'Members will be unassigned, not removed.' })) return;
     try { await teamAPI.delete(id); loadTeams(); loadData(); } catch (e) { alert('Failed to delete'); }
   };
 
@@ -187,13 +189,13 @@ const StaffPage = () => {
   };
 
   const handleRevokeInvite = async (id) => {
-    if (!window.confirm('Revoke this invitation?')) return;
+    if (!await confirm({ title: 'Revoke this invitation?', confirmText: 'Revoke' })) return;
     try { await staffAPI.revokeInvitation(id); loadInvitations(); }
     catch (e) { alert('Failed to revoke'); }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Remove this team member?')) return;
+    if (!await confirm({ title: 'Remove this team member?', confirmText: 'Remove' })) return;
     try { await staffAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
   };
 

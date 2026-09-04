@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { notesAPI } from '../../services/api';
 import { Plus, Edit2, Trash2, X, MessageSquare, Phone, Calendar, FileText } from 'lucide-react';
+import { useConfirmDialog } from '../ui/ConfirmDialog';
 
 const noteTypeIcons = {
   meeting: <Calendar size={14} />,
@@ -17,6 +18,7 @@ const noteTypeColors = {
 };
 
 const LeadNotes = ({ leadId, onActivityAdded }) => {
+  const confirm = useConfirmDialog();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -57,7 +59,7 @@ const LeadNotes = ({ leadId, onActivityAdded }) => {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this note?')) return;
+    if (!await confirm({ title: 'Delete this note?' })) return;
     try { await notesAPI.delete(leadId, id); load(); } catch (e) { alert('Failed'); }
   };
 
