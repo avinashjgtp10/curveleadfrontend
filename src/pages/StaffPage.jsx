@@ -9,6 +9,7 @@ const StaffPage = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
+  const [inviteErrors, setInviteErrors] = useState({});
 
   const [teams, setTeams] = useState([]);
   const [teamModal, setTeamModal] = useState(false);
@@ -172,11 +173,17 @@ const StaffPage = () => {
   };
 
   const handleInvite = async () => {
-    if (!form.name || !form.email) return alert('Name and email are required');
+    const newErrors = {};
+    if (!form.name.trim()) newErrors.name = 'Name is required';
+    if (!form.email.trim()) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) newErrors.email = 'Enter a valid email address';
+    setInviteErrors(newErrors);
+    if (Object.keys(newErrors).length) return;
     try {
       await staffAPI.invite({ ...form, team_id: form.team_id || undefined });
       setShowModal(false);
       setForm({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
+      setInviteErrors({});
       loadInvitations();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
   };
@@ -201,7 +208,7 @@ const StaffPage = () => {
     <div className="max-w-3xl mx-auto space-y-4">
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">Manage your team members</p>
-        <button onClick={() => setShowModal(true)}
+        <button onClick={() => { setInviteErrors({}); setShowModal(true); }}
           className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
           <Plus size={16} /> Add Member
         </button>
@@ -350,22 +357,41 @@ const StaffPage = () => {
             </div>
             <div className="p-5 space-y-3">
               <p className="text-xs text-gray-500 -mt-1">They'll get an email with a link to set their own password.</p>
-              <input type="text" placeholder="Name *" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <input type="email" placeholder="Email *" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <input type="tel" placeholder="Phone" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                <option value="staff">Staff</option>
-                <option value="admin">Admin</option>
-              </select>
-              <select value={form.team_id} onChange={e => setForm({ ...form, team_id: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                <option value="">No team</option>
-                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                <input type="text" value={form.name}
+                  onChange={e => { setForm({ ...form, name: e.target.value }); if (inviteErrors.name) setInviteErrors(er => ({ ...er, name: undefined })); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${inviteErrors.name ? 'border-red-500' : ''}`} />
+                {inviteErrors.name && <p className="text-xs text-red-500 mt-1">{inviteErrors.name}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Email <span className="text-red-500">*</span></label>
+                <input type="email" value={form.email}
+                  onChange={e => { setForm({ ...form, email: e.target.value }); if (inviteErrors.email) setInviteErrors(er => ({ ...er, email: undefined })); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${inviteErrors.email ? 'border-red-500' : ''}`} />
+                {inviteErrors.email && <p className="text-xs text-red-500 mt-1">{inviteErrors.email}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                <select value={form.role} onChange={e => setForm({ ...form, role: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Team</label>
+                <select value={form.team_id} onChange={e => setForm({ ...form, team_id: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                  <option value="">No team</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
                 <button onClick={handleInvite} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Send Invite</button>
