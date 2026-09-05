@@ -212,7 +212,7 @@ const AppointmentsPage = () => {
 
                     {/* Actions */}
                     <div className="shrink-0 flex flex-col gap-1.5">
-                      <button onClick={() => navigate(`/leads/${apt.lead_id}`)}
+                      <button onClick={() => navigate('/leads', { state: { openLeadId: apt.lead_id } })}
                         className="px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg text-xs font-medium flex items-center gap-1 border">
                         View <ArrowRight size={11} />
                       </button>

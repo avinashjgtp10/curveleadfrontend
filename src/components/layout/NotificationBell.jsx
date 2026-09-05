@@ -98,7 +98,7 @@ const NotificationBell = () => {
     }
     if (n.reference_type === 'lead' && n.reference_id) {
       setOpen(false);
-      navigate(`/leads/${n.reference_id}`);
+      navigate('/leads', { state: { openLeadId: n.reference_id } });
     }
   };
 
