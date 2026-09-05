@@ -23,6 +23,22 @@ const planCopy = {
   },
 };
 
+const statusBadgeStyles = {
+  trial: 'bg-amber-100 text-amber-700',
+  active: 'bg-green-100 text-green-700',
+};
+
+const billingPeriods = [
+  { id: 'monthly', label: 'Monthly' },
+  { id: 'yearly', label: 'Yearly' },
+];
+
+const formatMaxUsers = (maxUsers) => {
+  if (maxUsers == null) return '—';
+  if (maxUsers < 0) return 'Unlimited users';
+  return `${maxUsers} user${maxUsers === 1 ? '' : 's'}`;
+};
+
 const loadRazorpay = () => new Promise((resolve, reject) => {
   if (window.Razorpay) return resolve(true);
 
@@ -153,10 +169,7 @@ const BillingPage = () => {
         </div>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
-            {[
-              { id: 'monthly', label: 'Monthly' },
-              { id: 'yearly', label: 'Yearly' },
-            ].map((period) => (
+            {billingPeriods.map((period) => (
               <button
                 key={period.id}
                 onClick={() => setBillingPeriod(period.id)}
@@ -166,9 +179,11 @@ const BillingPage = () => {
               </button>
             ))}
           </div>
-          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-            <p className="text-xs font-medium text-gray-500">Current status</p>
-            <p className="mt-1 text-sm font-bold capitalize text-gray-950">{subscriptionStatus}</p>
+          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
+            <p className="text-xs font-medium text-gray-500">Status</p>
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${statusBadgeStyles[subscriptionStatus] || 'bg-gray-100 text-gray-600'}`}>
+              {subscriptionStatus}
+            </span>
           </div>
         </div>
       </div>
@@ -232,11 +247,7 @@ const BillingPage = () => {
 
               <div className="mt-6 flex items-center gap-2 rounded-lg bg-gray-50 px-3 py-2 text-xs text-gray-500">
                 <Users size={14} />
-                <span>{
-                  plan.max_users == null ? '—' :
-                  plan.max_users < 0 ? 'Unlimited users' :
-                  `${plan.max_users} user${plan.max_users === 1 ? '' : 's'}`
-                }</span>
+                <span>{formatMaxUsers(plan.max_users)}</span>
               </div>
 
               {plan.checkoutEnabled ? (
