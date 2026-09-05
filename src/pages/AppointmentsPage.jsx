@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI, leadAPI, staffAPI } from '../services/api';
 import { Video, Phone, MessageCircle, Users2, Calendar, Clock, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Plus, ChevronDown, Search, SlidersHorizontal, MoreVertical, Eye, CalendarClock, CheckCircle, XCircle, X } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { AVATAR_COLORS } from '../utils/constants';
 
 const TYPE_META = {
   call:     { label: 'Follow-up',    Icon: Phone,         color: 'text-amber-500' },
@@ -26,7 +27,6 @@ const TABS = [
   { id: 'completed', label: 'Completed' },
 ];
 
-const AVATAR_COLORS = ['bg-blue-100 text-blue-700', 'bg-amber-100 text-amber-700', 'bg-red-100 text-red-700', 'bg-emerald-100 text-emerald-700', 'bg-violet-100 text-violet-700', 'bg-cyan-100 text-cyan-700'];
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
