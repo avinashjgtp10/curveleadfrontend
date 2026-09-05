@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI, leadAPI, staffAPI } from '../services/api';
 import { Video, Phone, MessageCircle, Users2, Calendar, Clock, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Plus, ChevronDown, Search, SlidersHorizontal, MoreVertical, Eye, CalendarClock, CheckCircle, XCircle, X } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
-import { AVATAR_COLORS } from '../utils/constants';
+import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM } from '../utils/constants';
 
 const TYPE_META = {
   call:     { label: 'Follow-up',    Icon: Phone,         color: 'text-amber-500' },
@@ -59,7 +59,6 @@ const AppointmentsPage = () => {
   const [hideCompleted, setHideCompleted] = useState(false);
   const [showAllMenuOpen, setShowAllMenuOpen] = useState(false);
 
-  const EMPTY_APPT_FILTERS = { type: '', assigned_to: '', date_from: '', date_to: '' };
   const [showFilters, setShowFilters] = useState(false);
   const [apptFilters, setApptFilters] = useState(EMPTY_APPT_FILTERS);
   const [filterStaff, setFilterStaff] = useState([]);
@@ -68,8 +67,7 @@ const AppointmentsPage = () => {
   const [leadOptions, setLeadOptions] = useState([]);
   const [leadSearch, setLeadSearch] = useState('');
   const [leadSearchLoading, setLeadSearchLoading] = useState(false);
-  const emptyNewForm = { lead_id: '', lead_name: '', next_followup_at: '', followup_type: 'call', reminder_minutes: '15', notes: '' };
-  const [newForm, setNewForm] = useState(emptyNewForm);
+  const [newForm, setNewForm] = useState(EMPTY_NEW_APPOINTMENT_FORM);
   const [newErrors, setNewErrors] = useState({});
 
   useEffect(() => { load(); }, []);
@@ -117,7 +115,7 @@ const AppointmentsPage = () => {
   };
 
   const openNewModal = () => {
-    setNewForm(emptyNewForm);
+    setNewForm(EMPTY_NEW_APPOINTMENT_FORM);
     setLeadSearch('');
     setLeadOptions([]);
     setNewErrors({});
