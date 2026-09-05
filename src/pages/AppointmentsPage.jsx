@@ -330,7 +330,7 @@ const AppointmentsPage = () => {
         </div>
 
         {showFilters && (
-          <div className="px-4 pb-4">
+          <div className="px-4 pt-3 pb-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 bg-gray-50 rounded-xl p-4 border">
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Type</label>
@@ -536,22 +536,20 @@ const AppointmentsPage = () => {
                       onChange={e => { setLeadSearch(e.target.value); if (newErrors.lead_id) setNewErrors(er => ({ ...er, lead_id: undefined })); }}
                       placeholder="Search leads by name or phone..."
                       className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newErrors.lead_id ? 'border-red-500' : ''}`} />
-                    {leadSearch.trim() && (
-                      <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                        {leadSearchLoading ? (
-                          <p className="px-3 py-2 text-xs text-gray-400">Searching...</p>
-                        ) : leadOptions.length === 0 ? (
-                          <p className="px-3 py-2 text-xs text-gray-400">No leads found</p>
-                        ) : leadOptions.map(l => (
-                          <button key={l.id} type="button"
-                            onClick={() => { setNewForm(f => ({ ...f, lead_id: l.id, lead_name: l.name })); setLeadSearch(''); setNewErrors(er => ({ ...er, lead_id: undefined })); }}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2">
-                            <span className="font-medium truncate">{l.name}</span>
-                            <span className="text-xs text-gray-400 shrink-0">{l.phone}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {leadSearchLoading ? (
+                        <p className="px-3 py-2 text-xs text-gray-400">Searching...</p>
+                      ) : leadOptions.length === 0 ? (
+                        <p className="px-3 py-2 text-xs text-gray-400">No leads found</p>
+                      ) : leadOptions.map(l => (
+                        <button key={l.id} type="button"
+                          onClick={() => { setNewForm(f => ({ ...f, lead_id: l.id, lead_name: l.name })); setLeadSearch(''); setNewErrors(er => ({ ...er, lead_id: undefined })); }}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2">
+                          <span className="font-medium truncate">{l.name}</span>
+                          <span className="text-xs text-gray-400 shrink-0">{l.phone}</span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 )}
                 {newErrors.lead_id && <p className="text-xs text-red-500 mt-1">{newErrors.lead_id}</p>}
