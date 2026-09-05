@@ -45,7 +45,7 @@ const WhatsAppInboxPage = () => {
       ) : (
         <div className="bg-white rounded-2xl border divide-y">
           {filtered.map(c => (
-            <button key={c.lead_id} onClick={() => navigate(`/leads/${c.lead_id}`)}
+            <button key={c.lead_id} onClick={() => navigate('/leads', { state: { openLeadId: c.lead_id } })}
               className="w-full p-4 hover:bg-gray-50 text-left flex items-start gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
                 <MessageCircle size={18} className="text-green-600" />
