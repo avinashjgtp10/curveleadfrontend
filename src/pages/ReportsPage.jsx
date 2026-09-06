@@ -5,7 +5,7 @@ import {
   AreaChart, Area, LineChart, Line,
 } from 'recharts';
 import {
-  TrendingUp, Users, Target, Megaphone, Paperclip, ChevronLeft, ChevronRight, AlertTriangle,
+  TrendingUp, Users, Target, Megaphone, ChevronLeft, ChevronRight, AlertTriangle,
   Search, SlidersHorizontal, ChevronDown, X,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
@@ -107,7 +107,6 @@ const ReportsPage = () => {
   const [showGridFilters, setShowGridFilters] = useState(false);
   const [gridStage, setGridStage] = useState('');
   const [gridScore, setGridScore] = useState('');
-  const [gridAttachment, setGridAttachment] = useState('');
   const [gridStalled, setGridStalled] = useState(false);
   const [gridPage, setGridPage] = useState(1);
   const [gridPageSize, setGridPageSize] = useState(20);
@@ -122,7 +121,7 @@ const ReportsPage = () => {
   useEffect(() => { loadOverview(); }, [period]);
   useEffect(() => { loadFunnel(); }, [period]);
   useEffect(() => { loadTrends(); }, [trendDays]);
-  useEffect(() => { loadGrid(); }, [gridSearch, gridStage, gridScore, gridAttachment, gridStalled, gridPage, gridPageSize]);
+  useEffect(() => { loadGrid(); }, [gridSearch, gridStage, gridScore, gridStalled, gridPage, gridPageSize]);
 
   useEffect(() => {
     const t = setTimeout(() => { setGridPage(1); setGridSearch(gridSearchInput); }, 400);
@@ -181,7 +180,6 @@ const ReportsPage = () => {
       if (gridSearch) params.search = gridSearch;
       if (gridStage) params.stage = gridStage;
       if (gridScore) params.score = gridScore;
-      if (gridAttachment) params.has_attachment = gridAttachment;
       if (gridStalled) params.stalled = true;
       const res = await leadAPI.getAll(params);
       setGridLeads(res.data.leads || []);
@@ -521,11 +519,11 @@ const ReportsPage = () => {
       {activeTab === 'leads' && (
         <div className="bg-white rounded-2xl border p-5">
           {(() => {
-            const gridActiveFilterCount = [gridSearchInput, gridStage, gridScore, gridAttachment, gridStalled].filter(Boolean).length;
+            const gridActiveFilterCount = [gridSearchInput, gridStage, gridScore, gridStalled].filter(Boolean).length;
             const clearGridFilters = () => {
               setGridPage(1);
               setGridSearchInput(''); setGridSearch('');
-              setGridStage(''); setGridScore(''); setGridAttachment(''); setGridStalled(false);
+              setGridStage(''); setGridScore(''); setGridStalled(false);
             };
             return (
               <>
@@ -562,7 +560,7 @@ const ReportsPage = () => {
                 </div>
 
                 {showGridFilters && (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
                     <FilterDropdown
                       label="Stage"
                       value={gridStage}
@@ -578,16 +576,6 @@ const ReportsPage = () => {
                         { value: 'hot', label: '🔥 Hot' },
                         { value: 'warm', label: '🌤 Warm' },
                         { value: 'cold', label: '❄️ Cold' },
-                      ]}
-                    />
-                    <FilterDropdown
-                      label="Attachment Status"
-                      value={gridAttachment}
-                      onChange={v => { setGridPage(1); setGridAttachment(v); }}
-                      options={[
-                        { value: '', label: 'Any Attachment Status' },
-                        { value: 'yes', label: 'File Attached' },
-                        { value: 'no', label: 'No File Attached' },
                       ]}
                     />
                     <div className="space-y-1">
@@ -617,7 +605,6 @@ const ReportsPage = () => {
                     <th className="text-left py-2">Phone</th>
                     <th className="text-left py-2">Stage</th>
                     <th className="text-left py-2">Assigned To</th>
-                    <th className="text-center py-2">Attachment</th>
                     <th className="text-right py-2">Created</th>
                   </tr>
                 </thead>
@@ -629,15 +616,6 @@ const ReportsPage = () => {
                       <td>{l.phone}</td>
                       <td className="capitalize">{l.stage}</td>
                       <td>{l.assigned_to_name || '—'}</td>
-                      <td className="text-center">
-                        {l.attachment_count > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-green-600 font-medium">
-                            <Paperclip size={13} />{l.attachment_count}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">No file</span>
-                        )}
-                      </td>
                       <td className="text-right text-gray-500">{new Date(l.created_at).toLocaleDateString('en-IN')}</td>
                     </tr>
                   ))}
