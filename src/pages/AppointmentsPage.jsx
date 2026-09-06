@@ -2,30 +2,9 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI, leadAPI, staffAPI } from '../services/api';
-import { Video, Phone, MessageCircle, Users2, Calendar, Clock, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Plus, ChevronDown, Search, SlidersHorizontal, MoreVertical, Eye, CalendarClock, CheckCircle, XCircle, X } from 'lucide-react';
+import { Calendar, Clock, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Plus, ChevronDown, Search, SlidersHorizontal, MoreVertical, Eye, CalendarClock, CheckCircle, XCircle, X } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
-import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM } from '../utils/constants';
-
-const TYPE_META = {
-  call:     { label: 'Follow-up',    Icon: Phone,         color: 'text-amber-500' },
-  whatsapp: { label: 'WhatsApp',     Icon: MessageCircle, color: 'text-green-500' },
-  visit:    { label: 'Consultation', Icon: Users2,        color: 'text-emerald-500' },
-  demo:     { label: 'Product Demo', Icon: Video,         color: 'text-violet-500' },
-};
-
-const STATUS_META = {
-  upcoming: { label: 'Upcoming',  cls: 'bg-green-50 text-green-700' },
-  overdue:  { label: 'Overdue',   cls: 'bg-red-50 text-red-600' },
-  completed:{ label: 'Completed', cls: 'bg-blue-50 text-blue-600' },
-};
-
-const TABS = [
-  { id: 'all', label: 'All Appointments' },
-  { id: 'upcoming', label: 'Upcoming' },
-  { id: 'today', label: 'Today' },
-  { id: 'overdue', label: 'Overdue' },
-  { id: 'completed', label: 'Completed' },
-];
+import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM, TYPE_META, STATUS_META, APPOINTMENT_TABS, APPOINTMENTS_PAGE_LIMIT } from '../utils/constants';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
@@ -38,8 +17,6 @@ const getStatus = (a) => {
   if (new Date(a.next_followup_at) < new Date()) return 'overdue';
   return 'upcoming';
 };
-
-const PAGE_LIMIT = 5;
 
 const AppointmentsPage = () => {
   const navigate = useNavigate();
@@ -203,7 +180,7 @@ const AppointmentsPage = () => {
     })
     .filter(a => (hideCompleted ? !a.is_completed : true))
     .filter(a => (apptFilters.type ? a.followup_type === apptFilters.type : true))
-    .filter(a => (apptFilters.assigned_to ? a.assigned_to_name === apptFilters.assigned_to : true))
+    .filter(a => (apptFilters.assigned_to ? a.assigned_to === apptFilters.assigned_to : true))
     .filter(a => (apptFilters.date_from ? localDay(a.next_followup_at) >= apptFilters.date_from : true))
     .filter(a => (apptFilters.date_to ? localDay(a.next_followup_at) <= apptFilters.date_to : true))
     .filter(a => {
@@ -215,8 +192,13 @@ const AppointmentsPage = () => {
 
   const activeFilterCount = Object.values(apptFilters).filter(Boolean).length;
 
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_LIMIT));
-  const pageRows = filtered.slice((page - 1) * PAGE_LIMIT, page * PAGE_LIMIT);
+  const pages = Math.max(1, Math.ceil(filtered.length / APPOINTMENTS_PAGE_LIMIT));
+  const currentPage = Math.min(page, pages);
+  const pageRows = filtered.slice((currentPage - 1) * APPOINTMENTS_PAGE_LIMIT, currentPage * APPOINTMENTS_PAGE_LIMIT);
+
+  useEffect(() => {
+    if (page > pages) setPage(pages);
+  }, [page, pages]);
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -290,7 +272,7 @@ const AppointmentsPage = () => {
       <div className="bg-white border rounded-2xl overflow-hidden">
         <div className="flex items-center justify-between flex-wrap gap-3 px-4 pt-4">
           <div className="flex gap-1 flex-wrap">
-            {TABS.map(t => (
+            {APPOINTMENT_TABS.map(t => (
               <button key={t.id} onClick={() => { setTab(t.id); setPage(1); }}
                 className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-500 hover:text-gray-700'
@@ -343,7 +325,7 @@ const AppointmentsPage = () => {
                 <select value={apptFilters.assigned_to} onChange={e => { setApptFilters(f => ({ ...f, assigned_to: e.target.value })); setPage(1); }}
                   className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white">
                   <option value="">All sales people</option>
-                  {filterStaff.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
+                  {filterStaff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
@@ -474,19 +456,19 @@ const AppointmentsPage = () => {
 
         {filtered.length > 0 && (
           <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-500">
-            <span>Showing {(page - 1) * PAGE_LIMIT + 1} to {Math.min(page * PAGE_LIMIT, filtered.length)} of {filtered.length} appointments</span>
+            <span>Showing {(currentPage - 1) * APPOINTMENTS_PAGE_LIMIT + 1} to {Math.min(currentPage * APPOINTMENTS_PAGE_LIMIT, filtered.length)} of {filtered.length} appointments</span>
             <div className="flex items-center gap-1.5">
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
                 className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40">
                 <ChevronLeft size={15} />
               </button>
               {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
                 <button key={p} onClick={() => setPage(p)}
-                  className={`w-8 h-8 rounded-lg border text-sm font-medium ${p === page ? 'border-brand-600 text-brand-600' : 'hover:bg-gray-50 text-gray-600'}`}>
+                  className={`w-8 h-8 rounded-lg border text-sm font-medium ${p === currentPage ? 'border-brand-600 text-brand-600' : 'hover:bg-gray-50 text-gray-600'}`}>
                   {p}
                 </button>
               ))}
-              <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={page === pages}
+              <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={currentPage === pages}
                 className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40">
                 <ChevronRight size={15} />
               </button>
