@@ -7,6 +7,7 @@ import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
+import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
 
 const activityConfig = (type) => {
@@ -73,6 +74,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [brochures, setBrochures] = useState([]);
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
+  const [showShareBrochure, setShowShareBrochure] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Stages, Statuses & Staff
@@ -442,10 +444,16 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               </div>
             )}
           </div>
-          <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
-            className="shrink-0 whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
-            <FileText size={14} /> New Quotation
-          </button>
+          <div className="flex gap-1.5 shrink-0">
+            <button onClick={() => setShowShareBrochure(true)}
+              className="whitespace-nowrap px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <Share2 size={14} /> Share Brochure
+            </button>
+            <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
+              className="whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <FileText size={14} /> New Quotation
+            </button>
+          </div>
         </div>
 
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -1209,6 +1217,15 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             </div>
           </div>
         </div>,
+        document.body
+      )}
+
+      {showShareBrochure && createPortal(
+        <ShareBrochureModal
+          leadId={id}
+          onClose={() => setShowShareBrochure(false)}
+          onShared={loadData}
+        />,
         document.body
       )}
     </div>
