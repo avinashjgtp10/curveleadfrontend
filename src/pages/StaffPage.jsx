@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { staffAPI, teamAPI, campaignAPI, automationAPI, assignmentRuleAPI } from '../services/api';
-import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, RotateCcw, MessageCircle, ArrowUp, ArrowDown, Shuffle } from 'lucide-react';
+import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, RotateCcw, MessageCircle, ArrowUp, ArrowDown, Shuffle, KeyRound, ShieldCheck } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const SOURCE_OPTIONS = ['meta_ads', 'google_ads', 'whatsapp', 'referral', 'manual', 'website', 'walkin'];
@@ -25,10 +25,18 @@ const StaffPage = () => {
   const [waModalStaff, setWaModalStaff] = useState(null); // { id, name } — admin editing someone else's number
   const [waForm, setWaForm] = useState({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
 
+  const [pwModalStaff, setPwModalStaff] = useState(null); // { id, name }
+  const [pwForm, setPwForm] = useState({ password: '', confirm: '' });
+
+  const [permModalStaff, setPermModalStaff] = useState(null); // { id, name }
+  const [permissions, setPermissions] = useState([]);
+  const [permsLoading, setPermsLoading] = useState(false);
+
   const [rules, setRules] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [sequences, setSequences] = useState([]);
   const [ruleModal, setRuleModal] = useState(false);
+  const [editingRule, setEditingRule] = useState(null);
   const emptyRuleForm = { name: '', sources: [], campaign_ids: [], location_contains: '', target_type: 'user', assign_to_user_id: '', assign_to_team_id: '', sequence_id: '' };
   const [ruleForm, setRuleForm] = useState(emptyRuleForm);
 
@@ -66,6 +74,44 @@ const StaffPage = () => {
     } catch (e) { alert(e.response?.data?.error || 'Failed to save WhatsApp number'); }
   };
 
+  const handleToggleActive = async (s) => {
+    try { await staffAPI.update(s.id, { is_active: !s.is_active }); loadData(); }
+    catch (e) { alert(e.response?.data?.error || 'Failed to update status'); }
+  };
+
+  const openPasswordModal = (s) => { setPwModalStaff(s); setPwForm({ password: '', confirm: '' }); };
+
+  const handleSetPassword = async () => {
+    if (!pwForm.password || pwForm.password.length < 6) return alert('Password must be at least 6 characters');
+    if (pwForm.password !== pwForm.confirm) return alert('Passwords do not match');
+    try {
+      await staffAPI.setPassword(pwModalStaff.id, pwForm.password);
+      setPwModalStaff(null);
+    } catch (e) { alert(e.response?.data?.error || 'Failed to update password'); }
+  };
+
+  const openPermissionsModal = async (s) => {
+    setPermModalStaff(s);
+    setPermsLoading(true);
+    try {
+      const { data } = await staffAPI.getPermissions(s.id);
+      setPermissions(data.permissions || []);
+    } catch (e) { alert('Failed to load permissions'); setPermModalStaff(null); }
+    finally { setPermsLoading(false); }
+  };
+
+  const togglePermission = (key) => {
+    setPermissions(prev => prev.map(p => p.key === key ? { ...p, granted: !p.granted } : p));
+  };
+
+  const handleSavePermissions = async () => {
+    try {
+      const permsObj = Object.fromEntries(permissions.map(p => [p.key, p.granted]));
+      await staffAPI.updatePermissions(permModalStaff.id, permsObj);
+      setPermModalStaff(null);
+    } catch (e) { alert(e.response?.data?.error || 'Failed to save permissions'); }
+  };
+
   const loadRules = async () => {
     try { const { data } = await assignmentRuleAPI.getAll(); setRules(data.rules || []); }
     catch (e) { console.error(e); }
@@ -81,23 +127,41 @@ const StaffPage = () => {
     catch (e) { console.error(e); }
   };
 
-  const openCreateRule = () => { setRuleForm(emptyRuleForm); setRuleModal(true); };
+  const openCreateRule = () => { setEditingRule(null); setRuleForm(emptyRuleForm); setRuleModal(true); };
+
+  const openEditRule = (r) => {
+    setEditingRule(r);
+    setRuleForm({
+      name: r.name,
+      sources: r.sources || [],
+      campaign_ids: r.campaign_ids || [],
+      location_contains: r.location_contains || '',
+      target_type: r.assign_to_team_id ? 'team' : 'user',
+      assign_to_user_id: r.assign_to_user_id || '',
+      assign_to_team_id: r.assign_to_team_id || '',
+      sequence_id: r.sequence_id || '',
+    });
+    setRuleModal(true);
+  };
 
   const handleSaveRule = async () => {
     if (!ruleForm.name.trim()) return alert('Rule name is required');
     if (ruleForm.target_type === 'user' && !ruleForm.assign_to_user_id) return alert('Pick a team member to assign to');
     if (ruleForm.target_type === 'team' && !ruleForm.assign_to_team_id) return alert('Pick a team to assign to');
+    const payload = {
+      name: ruleForm.name,
+      sources: ruleForm.sources,
+      campaign_ids: ruleForm.campaign_ids,
+      location_contains: ruleForm.location_contains || undefined,
+      assign_to_user_id: ruleForm.target_type === 'user' ? ruleForm.assign_to_user_id : undefined,
+      assign_to_team_id: ruleForm.target_type === 'team' ? ruleForm.assign_to_team_id : undefined,
+      sequence_id: ruleForm.sequence_id || undefined,
+    };
     try {
-      await assignmentRuleAPI.create({
-        name: ruleForm.name,
-        sources: ruleForm.sources,
-        campaign_ids: ruleForm.campaign_ids,
-        location_contains: ruleForm.location_contains || undefined,
-        assign_to_user_id: ruleForm.target_type === 'user' ? ruleForm.assign_to_user_id : undefined,
-        assign_to_team_id: ruleForm.target_type === 'team' ? ruleForm.assign_to_team_id : undefined,
-        sequence_id: ruleForm.sequence_id || undefined,
-      });
+      if (editingRule) await assignmentRuleAPI.update(editingRule.id, payload);
+      else await assignmentRuleAPI.create(payload);
       setRuleModal(false);
+      setEditingRule(null);
       loadRules();
     } catch (e) { alert(e.response?.data?.error || 'Failed to save rule'); }
   };
@@ -299,12 +363,20 @@ const StaffPage = () => {
                 <p className="text-xs text-gray-500">{s.email}</p>
               </div>
               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 capitalize">{s.role}</span>
+              <button onClick={() => handleToggleActive(s)}
+                className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${s.is_active !== false ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
+                {s.is_active !== false ? 'Active' : 'Inactive'}
+              </button>
               <select value={s.team_id || ''} onChange={e => handleAssignTeam(s.id, e.target.value)}
                 className="text-xs border rounded-lg px-2 py-1.5 bg-white text-gray-600 max-w-[140px]">
                 <option value="">No team</option>
                 {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
               <button onClick={() => openStaffWhatsApp(s)} className="p-1.5 hover:bg-gray-100 rounded text-gray-500" title="WhatsApp number"><MessageCircle size={14} /></button>
+              {s.role !== 'admin' && (
+                <button onClick={() => openPermissionsModal(s)} className="p-1.5 hover:bg-gray-100 rounded text-gray-500" title="Permissions"><ShieldCheck size={14} /></button>
+              )}
+              <button onClick={() => openPasswordModal(s)} className="p-1.5 hover:bg-gray-100 rounded text-gray-500" title="Change password"><KeyRound size={14} /></button>
               {s.role !== 'admin' && (
                 <button onClick={() => handleDelete(s.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500"><Trash2 size={14} /></button>
               )}
@@ -341,6 +413,7 @@ const StaffPage = () => {
                   <button onClick={() => handleToggleRule(r)} className="text-[10px] font-semibold px-2 py-1 rounded-full border">
                     {r.is_active ? 'Active' : 'Paused'}
                   </button>
+                  <button onClick={() => openEditRule(r)} className="p-1 hover:bg-gray-100 rounded"><Edit2 size={12} /></button>
                   <button onClick={() => handleDeleteRule(r.id)} className="p-1 hover:bg-red-50 rounded text-red-500"><Trash2 size={12} /></button>
                 </div>
               </div>
@@ -450,13 +523,65 @@ const StaffPage = () => {
         </div>
       )}
 
+      {pwModalStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setPwModalStaff(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold">Change {pwModalStaff.name}'s Password</h2>
+              <button onClick={() => setPwModalStaff(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <input type="password" placeholder="New password" value={pwForm.password}
+                onChange={e => setPwForm({ ...pwForm, password: e.target.value })}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <input type="password" placeholder="Confirm password" value={pwForm.confirm}
+                onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
+                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setPwModalStaff(null)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={handleSetPassword} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {permModalStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setPermModalStaff(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold">{permModalStaff.name}'s Permissions</h2>
+              <button onClick={() => setPermModalStaff(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-2">
+              {permsLoading ? (
+                <div className="flex justify-center py-6"><div className="w-5 h-5 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+              ) : (
+                permissions.map(p => (
+                  <label key={p.key} className="flex items-center justify-between gap-2 px-3 py-2 border rounded-lg cursor-pointer">
+                    <span className="text-sm">{p.label}</span>
+                    <input type="checkbox" checked={p.granted} onChange={() => togglePermission(p.key)} className="w-4 h-4" />
+                  </label>
+                ))
+              )}
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setPermModalStaff(null)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={handleSavePermissions} disabled={permsLoading} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold disabled:opacity-60">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {ruleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setRuleModal(false)} />
+          <div className="fixed inset-0 bg-black/50" onClick={() => { setRuleModal(false); setEditingRule(null); }} />
           <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between p-5 border-b">
-              <h2 className="text-lg font-bold">New Assignment Rule</h2>
-              <button onClick={() => setRuleModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+              <h2 className="text-lg font-bold">{editingRule ? 'Edit Assignment Rule' : 'New Assignment Rule'}</h2>
+              <button onClick={() => { setRuleModal(false); setEditingRule(null); }} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3">
               <input type="text" placeholder="Rule name (e.g. Meta leads → Priya)" value={ruleForm.name}
@@ -517,8 +642,8 @@ const StaffPage = () => {
               )}
 
               <div className="flex gap-2 pt-2">
-                <button onClick={() => setRuleModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
-                <button onClick={handleSaveRule} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Create</button>
+                <button onClick={() => { setRuleModal(false); setEditingRule(null); }} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={handleSaveRule} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">{editingRule ? 'Save' : 'Create'}</button>
               </div>
             </div>
           </div>
