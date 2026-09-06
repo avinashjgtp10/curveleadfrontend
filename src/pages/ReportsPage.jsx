@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { reportsAPI, leadAPI, stageAPI } from '../services/api';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
   AreaChart, Area, LineChart, Line,
 } from 'recharts';
 import {
-  TrendingUp, Users, Target, Megaphone, Paperclip, ChevronLeft, ChevronRight, AlertTriangle,
+  TrendingUp, Users, Target, Megaphone, ChevronLeft, ChevronRight, AlertTriangle,
+  Search, SlidersHorizontal, ChevronDown, X,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
@@ -35,6 +36,47 @@ const Spinner = () => (
   </div>
 );
 
+// A button-triggered dropdown, anchored and positioned entirely with CSS,
+// so it always opens directly below its trigger instead of relying on the
+// browser's native <select> popup placement (which can render detached from
+// the field and overlap unrelated page content).
+const FilterDropdown = ({ label, value, options, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const current = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div className="space-y-1" ref={ref}>
+      <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">{label}</label>
+      <div className="relative">
+        <button type="button" onClick={() => setOpen(v => !v)}
+          className="h-10 w-full flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent">
+          <span className="truncate">{current?.label}</span>
+          <ChevronDown size={14} className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto py-1">
+            {options.map(o => (
+              <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-cyan-50 ${o.value === value ? 'bg-cyan-50 text-cyan-700 font-semibold' : 'text-gray-700'}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const ReportsPage = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [period, setPeriod] = useState('this_month');
@@ -60,8 +102,11 @@ const ReportsPage = () => {
 
   // Lead Detail tab
   const [stages, setStages] = useState([]);
+  const [gridSearchInput, setGridSearchInput] = useState('');
+  const [gridSearch, setGridSearch] = useState('');
+  const [showGridFilters, setShowGridFilters] = useState(false);
   const [gridStage, setGridStage] = useState('');
-  const [gridAttachment, setGridAttachment] = useState('');
+  const [gridScore, setGridScore] = useState('');
   const [gridStalled, setGridStalled] = useState(false);
   const [gridPage, setGridPage] = useState(1);
   const [gridPageSize, setGridPageSize] = useState(20);
@@ -76,7 +121,12 @@ const ReportsPage = () => {
   useEffect(() => { loadOverview(); }, [period]);
   useEffect(() => { loadFunnel(); }, [period]);
   useEffect(() => { loadTrends(); }, [trendDays]);
-  useEffect(() => { loadGrid(); }, [gridStage, gridAttachment, gridStalled, gridPage, gridPageSize]);
+  useEffect(() => { loadGrid(); }, [gridSearch, gridStage, gridScore, gridStalled, gridPage, gridPageSize]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setGridPage(1); setGridSearch(gridSearchInput); }, 400);
+    return () => clearTimeout(t);
+  }, [gridSearchInput]);
 
   const loadOverview = async () => {
     setLoading(true);
@@ -127,8 +177,9 @@ const ReportsPage = () => {
     setGridLoading(true);
     try {
       const params = { page: gridPage, limit: gridPageSize };
+      if (gridSearch) params.search = gridSearch;
       if (gridStage) params.stage = gridStage;
-      if (gridAttachment) params.has_attachment = gridAttachment;
+      if (gridScore) params.score = gridScore;
       if (gridStalled) params.stalled = true;
       const res = await leadAPI.getAll(params);
       setGridLeads(res.data.leads || []);
@@ -145,7 +196,6 @@ const ReportsPage = () => {
     return [1, '…', gridPage - 1, gridPage, gridPage + 1, '…', t];
   };
 
-  const handleGridFilterChange = (setter) => (e) => { setGridPage(1); setter(e.target.value); };
 
   const conversionRate = conversion?.total_leads > 0
     ? ((conversion.won / conversion.total_leads) * 100).toFixed(1)
@@ -468,27 +518,79 @@ const ReportsPage = () => {
 
       {activeTab === 'leads' && (
         <div className="bg-white rounded-2xl border p-5">
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-            <h3 className="font-semibold">Lead Detail Report</h3>
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={gridStage} onChange={handleGridFilterChange(setGridStage)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-                <option value="">All Stages</option>
-                {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
-              <select value={gridAttachment} onChange={handleGridFilterChange(setGridAttachment)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-                <option value="">Any Attachment Status</option>
-                <option value="yes">File Attached</option>
-                <option value="no">No File Attached</option>
-              </select>
-              <label className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer">
-                <input type="checkbox" checked={gridStalled}
-                  onChange={e => { setGridPage(1); setGridStalled(e.target.checked); }} />
-                Stalled only
-              </label>
-            </div>
-          </div>
+          {(() => {
+            const gridActiveFilterCount = [gridSearchInput, gridStage, gridScore, gridStalled].filter(Boolean).length;
+            const clearGridFilters = () => {
+              setGridPage(1);
+              setGridSearchInput(''); setGridSearch('');
+              setGridStage(''); setGridScore(''); setGridStalled(false);
+            };
+            return (
+              <>
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                  <h3 className="font-semibold">Lead Detail Report</h3>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap mb-4">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input type="text" placeholder="Search by name or phone..."
+                      value={gridSearchInput} onChange={e => setGridSearchInput(e.target.value)}
+                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
+                  </div>
+                  <button
+                    onClick={() => setShowGridFilters(v => !v)}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showGridFilters || gridActiveFilterCount > 0 ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                  >
+                    <SlidersHorizontal size={15} />
+                    Filters
+                    {gridActiveFilterCount > 0 && (
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showGridFilters ? 'bg-white text-cyan-600' : 'bg-cyan-600 text-white'}`}>
+                        {gridActiveFilterCount}
+                      </span>
+                    )}
+                    <ChevronDown size={14} className={`transition-transform ${showGridFilters ? 'rotate-180' : ''}`} />
+                  </button>
+                  {gridActiveFilterCount > 0 && (
+                    <button onClick={clearGridFilters}
+                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                      <X size={13} /> Clear filters
+                    </button>
+                  )}
+                </div>
+
+                {showGridFilters && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                    <FilterDropdown
+                      label="Stage"
+                      value={gridStage}
+                      onChange={v => { setGridPage(1); setGridStage(v); }}
+                      options={[{ value: '', label: 'All Stages' }, ...stages.map(s => ({ value: s.name, label: s.name }))]}
+                    />
+                    <FilterDropdown
+                      label="Score"
+                      value={gridScore}
+                      onChange={v => { setGridPage(1); setGridScore(v); }}
+                      options={[
+                        { value: '', label: 'All Scores' },
+                        { value: 'hot', label: '🔥 Hot' },
+                        { value: 'warm', label: '🌤 Warm' },
+                        { value: 'cold', label: '❄️ Cold' },
+                      ]}
+                    />
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Stalled</label>
+                      <label className="h-10 flex items-center gap-1.5 px-3 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer">
+                        <input type="checkbox" checked={gridStalled}
+                          onChange={e => { setGridPage(1); setGridStalled(e.target.checked); }} />
+                        Stalled only
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           {gridLoading ? (
             <div className="flex items-center justify-center py-10"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
           ) : gridLeads.length === 0 ? (
@@ -503,7 +605,6 @@ const ReportsPage = () => {
                     <th className="text-left py-2">Phone</th>
                     <th className="text-left py-2">Stage</th>
                     <th className="text-left py-2">Assigned To</th>
-                    <th className="text-center py-2">Attachment</th>
                     <th className="text-right py-2">Created</th>
                   </tr>
                 </thead>
@@ -515,15 +616,6 @@ const ReportsPage = () => {
                       <td>{l.phone}</td>
                       <td className="capitalize">{l.stage}</td>
                       <td>{l.assigned_to_name || '—'}</td>
-                      <td className="text-center">
-                        {l.attachment_count > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-green-600 font-medium">
-                            <Paperclip size={13} />{l.attachment_count}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">No file</span>
-                        )}
-                      </td>
                       <td className="text-right text-gray-500">{new Date(l.created_at).toLocaleDateString('en-IN')}</td>
                     </tr>
                   ))}
