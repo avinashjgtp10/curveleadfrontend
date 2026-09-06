@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PageLoader from './components/ui/PageLoader';
 import { ConfirmDialogProvider } from './components/ui/ConfirmDialog';
@@ -18,6 +18,7 @@ import ContactUsPage from './pages/ContactUsPage';
 import Layout from './components/layout/Layout';
 import DashboardPage from './pages/DashboardPage';
 import LeadsPage from './pages/LeadsPage';
+import LeadDetailPage from './pages/LeadDetailPage';
 import CampaignsPage from './pages/CampaignsPage';
 import CampaignDetailPage from './pages/CampaignDetailPage';
 import WhatsAppInboxPage from './pages/WhatsAppInboxPage';
@@ -38,11 +39,6 @@ import QuotationsPage from './pages/QuotationsPage';
 import QuotationEditorPage from './pages/QuotationEditorPage';
 import QuotationViewPage from './pages/QuotationViewPage';
 import QuotationPublicPage from './pages/QuotationPublicPage';
-
-const LeadDetailRedirect = () => {
-  const { id } = useParams();
-  return <Navigate to="/leads" state={{ openLeadId: id }} replace />;
-};
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -74,7 +70,7 @@ const App = () => (
         <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="leads" element={<LeadsPage />} />
-          <Route path="leads/:id" element={<LeadDetailRedirect />} />
+          <Route path="leads/:id" element={<LeadDetailPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="campaigns/:id" element={<CampaignDetailPage />} />
           <Route path="whatsapp" element={<WhatsAppInboxPage />} />
