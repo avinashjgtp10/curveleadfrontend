@@ -1,6 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PageLoader from './components/ui/PageLoader';
+import { ConfirmDialogProvider } from './components/ui/ConfirmDialog';
 
 // Public
 import LandingPage from './pages/LandingPage';
@@ -17,7 +18,6 @@ import ContactUsPage from './pages/ContactUsPage';
 import Layout from './components/layout/Layout';
 import DashboardPage from './pages/DashboardPage';
 import LeadsPage from './pages/LeadsPage';
-import LeadDetailPage from './pages/LeadDetailPage';
 import CampaignsPage from './pages/CampaignsPage';
 import CampaignDetailPage from './pages/CampaignDetailPage';
 import WhatsAppInboxPage from './pages/WhatsAppInboxPage';
@@ -39,6 +39,11 @@ import QuotationEditorPage from './pages/QuotationEditorPage';
 import QuotationViewPage from './pages/QuotationViewPage';
 import QuotationPublicPage from './pages/QuotationPublicPage';
 
+const LeadDetailRedirect = () => {
+  const { id } = useParams();
+  return <Navigate to="/leads" state={{ openLeadId: id }} replace />;
+};
+
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <PageLoader message="Checking your session..." minHeight="h-screen" />;
@@ -53,42 +58,44 @@ const GuestRoute = ({ children }) => {
 
 const App = () => (
   <AuthProvider>
-    <Routes>
-      <Route path="/" element={<LandingPage />} />
-      <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
-      <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
-      <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
-      <Route path="/reset-password" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
-      <Route path="/accept-invite" element={<GuestRoute><AcceptInvitePage /></GuestRoute>} />
-      <Route path="/q/:id" element={<QuotationPublicPage />} />
-      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
-      <Route path="/terms-of-service" element={<TermsOfServicePage />} />
-      <Route path="/contact" element={<ContactUsPage />} />
+    <ConfirmDialogProvider>
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
+        <Route path="/signup" element={<GuestRoute><SignupPage /></GuestRoute>} />
+        <Route path="/forgot-password" element={<GuestRoute><ForgotPasswordPage /></GuestRoute>} />
+        <Route path="/reset-password" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
+        <Route path="/accept-invite" element={<GuestRoute><AcceptInvitePage /></GuestRoute>} />
+        <Route path="/q/:id" element={<QuotationPublicPage />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms-of-service" element={<TermsOfServicePage />} />
+        <Route path="/contact" element={<ContactUsPage />} />
 
-      <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="leads" element={<LeadsPage />} />
-        <Route path="leads/:id" element={<LeadDetailPage />} />
-        <Route path="campaigns" element={<CampaignsPage />} />
-        <Route path="campaigns/:id" element={<CampaignDetailPage />} />
-        <Route path="whatsapp" element={<WhatsAppInboxPage />} />
-        <Route path="followups" element={<FollowupsPage />} />
-        <Route path="appointments" element={<AppointmentsPage />} />
-        <Route path="brochures" element={<BrochuresPage />} />
-        <Route path="quotations" element={<QuotationsPage />} />
-        <Route path="quotations/new" element={<QuotationEditorPage />} />
-        <Route path="quotations/:id/edit" element={<QuotationEditorPage />} />
-        <Route path="quotations/:id" element={<QuotationViewPage />} />
-        <Route path="staff" element={<StaffPage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="coaching" element={<CoachingPage />} />
-        <Route path="billing" element={<BillingPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="integrations" element={<IntegrationsPage />} />
-        <Route path="market-intelligence" element={<MarketIntelligencePage />} />
-        <Route path="help" element={<HelpPage />} />
-      </Route>
-    </Routes>
+        <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+          <Route path="dashboard" element={<DashboardPage />} />
+          <Route path="leads" element={<LeadsPage />} />
+          <Route path="leads/:id" element={<LeadDetailRedirect />} />
+          <Route path="campaigns" element={<CampaignsPage />} />
+          <Route path="campaigns/:id" element={<CampaignDetailPage />} />
+          <Route path="whatsapp" element={<WhatsAppInboxPage />} />
+          <Route path="followups" element={<FollowupsPage />} />
+          <Route path="appointments" element={<AppointmentsPage />} />
+          <Route path="brochures" element={<BrochuresPage />} />
+          <Route path="quotations" element={<QuotationsPage />} />
+          <Route path="quotations/new" element={<QuotationEditorPage />} />
+          <Route path="quotations/:id/edit" element={<QuotationEditorPage />} />
+          <Route path="quotations/:id" element={<QuotationViewPage />} />
+          <Route path="staff" element={<StaffPage />} />
+          <Route path="reports" element={<ReportsPage />} />
+          <Route path="coaching" element={<CoachingPage />} />
+          <Route path="billing" element={<BillingPage />} />
+          <Route path="settings" element={<SettingsPage />} />
+          <Route path="integrations" element={<IntegrationsPage />} />
+          <Route path="market-intelligence" element={<MarketIntelligencePage />} />
+          <Route path="help" element={<HelpPage />} />
+        </Route>
+      </Routes>
+    </ConfirmDialogProvider>
   </AuthProvider>
 );
 

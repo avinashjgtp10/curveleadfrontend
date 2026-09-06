@@ -181,7 +181,7 @@ const LoginPage = () => {
                         required
                         value={form.password}
                         onChange={e => updateForm('password', e.target.value)}
-                        className="w-full rounded-xl border border-gray-300 px-4 py-3 pr-10 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500"
+                        className="w-full rounded-xl border border-gray-300 px-4 py-3 pr-10 text-sm focus:border-transparent focus:outline-none focus:ring-2 focus:ring-brand-500 [&::-ms-reveal]:hidden [&::-ms-clear]:hidden"
                         placeholder="Enter your password"
                       />
                       <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">

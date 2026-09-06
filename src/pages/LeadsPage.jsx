@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
@@ -139,6 +140,7 @@ const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
 
 const LeadsPage = () => {
   const location = useLocation();
+  const confirm = useConfirmDialog();
   const queryConfig = getQueryConfig(location.search, location.state);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
@@ -171,6 +173,9 @@ const LeadsPage = () => {
   const PAGE_SIZE = 25;
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+  const [newLeadErrors, setNewLeadErrors] = useState({});
+  const newLeadNameRef = useRef(null);
+  const newLeadPhoneRef = useRef(null);
   const [campaigns, setCampaigns] = useState([]);
 
   // Import state
@@ -434,17 +439,29 @@ const LeadsPage = () => {
   };
 
   const handleAdd = async () => {
-    if (!newLead.name || !newLead.phone) return alert('Name and phone required');
+    const errors = {};
+    if (!newLead.name) errors.name = 'Name is required';
+    if (!newLead.phone) errors.phone = 'Phone is required';
+    else if (newLead.phone.length < 3) errors.phone = 'Phone number must be at least 3 digits';
+    setNewLeadErrors(errors);
+    if (Object.keys(errors).length > 0) {
+      const ref = errors.name ? newLeadNameRef : newLeadPhoneRef;
+      ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      ref.current?.focus();
+      return;
+    }
     try {
       await leadAPI.create(newLead);
       setShowAddModal(false);
       setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+      setNewLeadErrors({});
       loadData();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this lead?')) return;
+    const ok = await confirm({ title: 'Delete this lead?' });
+    if (!ok) return;
     try { await leadAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
   };
 
@@ -573,7 +590,8 @@ const LeadsPage = () => {
   };
 
   const handleBulkDelete = async () => {
-    if (!window.confirm(`Delete ${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''}? This cannot be undone.`)) return;
+    const ok = await confirm({ title: `Delete ${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''}?` });
+    if (!ok) return;
     setBulkLoading(true);
     try {
       await leadAPI.bulkDelete([...selectedIds]);
@@ -608,7 +626,12 @@ const LeadsPage = () => {
     const keepId = duplicateKeepChoice[group.norm_phone];
     const removeIds = group.leads.map(l => l.id).filter(id => id !== keepId);
     if (!removeIds.length) return;
-    if (!window.confirm(`Merge ${removeIds.length} duplicate lead(s) into the selected one? Notes, calls and follow-ups will be carried over; the duplicate records will be deleted.`)) return;
+    const ok = await confirm({
+      title: `Merge ${removeIds.length} duplicate lead${removeIds.length > 1 ? 's' : ''}?`,
+      message: 'Notes, calls and follow-ups will be carried over; duplicate records will be deleted.',
+      confirmText: 'Merge',
+    });
+    if (!ok) return;
 
     setMergingPhone(group.norm_phone);
     try {
@@ -649,7 +672,7 @@ const LeadsPage = () => {
               <Copy size={16} /> Duplicates
             </button>
           )}
-          <button onClick={() => setShowAddModal(true)}
+          <button onClick={() => { setShowAddModal(true); setNewLeadErrors({}); }}
             className="inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 text-sm font-extrabold uppercase text-white shadow-sm hover:bg-cyan-700">
             <Plus size={18} /> Add New Lead
           </button>
@@ -1288,52 +1311,83 @@ const LeadsPage = () => {
       {/* Add Lead Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setShowAddModal(false)} />
-          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b">
+          <div className="fixed inset-0 bg-black/50" onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b shrink-0">
               <h2 className="text-lg font-bold">Add New Lead</h2>
-              <button onClick={() => setShowAddModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+              <button onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
-            <div className="p-5 space-y-3">
+            <div className="p-5 space-y-3 overflow-y-auto">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Lead Date & Time</label>
                 <input type="datetime-local" value={newLead.lead_date}
                   onChange={e => setNewLead({ ...newLead, lead_date: e.target.value })}
                   className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               </div>
-              <input type="text" placeholder="Name *" value={newLead.name} onChange={e => setNewLead({ ...newLead, name: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <input type="tel" placeholder="Phone *" value={newLead.phone} onChange={e => setNewLead({ ...newLead, phone: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <input type="email" placeholder="Email" value={newLead.email} onChange={e => setNewLead({ ...newLead, email: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <input type="text" placeholder="Business Name" value={newLead.business_name} onChange={e => setNewLead({ ...newLead, business_name: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <input type="text" placeholder="City" value={newLead.location} onChange={e => setNewLead({ ...newLead, location: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <textarea placeholder="Address" value={newLead.address} onChange={e => setNewLead({ ...newLead, address: e.target.value })}
-                rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <select value={newLead.source} onChange={e => setNewLead({ ...newLead, source: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                <option value="manual">Manual</option>
-                <option value="meta_ads">Meta Ads</option>
-                <option value="google_ads">Google Ads</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="referral">Referral</option>
-                <option value="website">Website</option>
-                <option value="walkin">Walk-in</option>
-              </select>
-              {campaigns.length > 0 && (
-                <select value={newLead.campaign_id} onChange={e => setNewLead({ ...newLead, campaign_id: e.target.value })}
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                <input ref={newLeadNameRef} type="text" placeholder="Name" value={newLead.name}
+                  onChange={e => { setNewLead({ ...newLead, name: e.target.value.replace(/[^a-zA-Z ]/g, '') }); setNewLeadErrors(er => ({ ...er, name: undefined })); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.name ? 'border-red-400' : ''}`} />
+                {newLeadErrors.name && <p className="text-xs text-red-500 mt-1">{newLeadErrors.name}</p>}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
+                <input ref={newLeadPhoneRef} type="tel" placeholder="Phone" value={newLead.phone}
+                  onChange={e => { setNewLead({ ...newLead, phone: e.target.value.replace(/[^0-9]/g, '') }); setNewLeadErrors(er => ({ ...er, phone: undefined })); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.phone ? 'border-red-400' : ''}`} />
+                {newLeadErrors.phone && <p className="text-xs text-red-500 mt-1">{newLeadErrors.phone}</p>}
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Email</label>
+                <input type="email" placeholder="Email" value={newLead.email} onChange={e => setNewLead({ ...newLead, email: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Business Name</label>
+                <input type="text" placeholder="Business Name" value={newLead.business_name} onChange={e => setNewLead({ ...newLead, business_name: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">City</label>
+                <input type="text" placeholder="City" value={newLead.location} onChange={e => setNewLead({ ...newLead, location: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Address</label>
+                <textarea placeholder="Address" value={newLead.address} onChange={e => setNewLead({ ...newLead, address: e.target.value })}
+                  rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Source</label>
+                <select value={newLead.source} onChange={e => setNewLead({ ...newLead, source: e.target.value })}
                   className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                  <option value="">No campaign</option>
-                  {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  <option value="manual">Manual</option>
+                  <option value="meta_ads">Meta Ads</option>
+                  <option value="google_ads">Google Ads</option>
+                  <option value="whatsapp">WhatsApp</option>
+                  <option value="referral">Referral</option>
+                  <option value="website">Website</option>
+                  <option value="walkin">Walk-in</option>
                 </select>
+              </div>
+              {campaigns.length > 0 && (
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Campaign</label>
+                  <select value={newLead.campaign_id} onChange={e => setNewLead({ ...newLead, campaign_id: e.target.value })}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                    <option value="">No campaign</option>
+                    {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
               )}
-              <textarea placeholder="Notes" value={newLead.notes} onChange={e => setNewLead({ ...newLead, notes: e.target.value })}
-                rows={3} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Notes</label>
+                <textarea placeholder="Notes" value={newLead.notes} onChange={e => setNewLead({ ...newLead, notes: e.target.value })}
+                  rows={3} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
               <div className="flex gap-2 pt-2">
-                <button onClick={() => setShowAddModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
                 <button onClick={handleAdd} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Add Lead</button>
               </div>
             </div>

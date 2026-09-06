@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI } from '../services/api';
 import { Video, Phone, ArrowRight, CheckCircle, Trash2, Calendar, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const formatTime = (dt) =>
   new Date(dt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
@@ -40,6 +41,7 @@ const todayISO = () => {
 const AppointmentsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const confirm = useConfirmDialog();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showCompleted, setShowCompleted] = useState(false);
@@ -83,7 +85,7 @@ const AppointmentsPage = () => {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm('Cancel this demo appointment?')) return;
+    if (!await confirm({ title: 'Cancel this demo appointment?', confirmText: 'Cancel Demo' })) return;
     setDeleting(id);
     try {
       await followupAPI.delete(id);
@@ -210,7 +212,7 @@ const AppointmentsPage = () => {
 
                     {/* Actions */}
                     <div className="shrink-0 flex flex-col gap-1.5">
-                      <button onClick={() => navigate(`/leads/${apt.lead_id}`)}
+                      <button onClick={() => navigate('/leads', { state: { openLeadId: apt.lead_id } })}
                         className="px-2.5 py-1.5 bg-gray-50 hover:bg-gray-100 text-gray-600 rounded-lg text-xs font-medium flex items-center gap-1 border">
                         View <ArrowRight size={11} />
                       </button>

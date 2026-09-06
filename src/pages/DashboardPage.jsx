@@ -399,7 +399,7 @@ const DashboardPage = () => {
           </div>
           <div className="space-y-1">
             {(data?.recentLeads || []).map(l => (
-              <button key={l.id} onClick={() => navigate(`/leads/${l.id}`)}
+              <button key={l.id} onClick={() => navigate('/leads', { state: { openLeadId: l.id } })}
                 className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 text-left group transition-colors">
                 <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0 group-hover:bg-brand-50 group-hover:text-brand-700 transition-colors">
                   {l.name?.charAt(0)?.toUpperCase()}

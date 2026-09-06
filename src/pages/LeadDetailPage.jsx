@@ -7,7 +7,7 @@ import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
@@ -64,6 +64,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState(false);
+  const [leadFormErrors, setLeadFormErrors] = useState({});
   const [form, setForm] = useState({});
   const [newMessage, setNewMessage] = useState('');
   const [templates, setTemplates] = useState([]);
@@ -193,6 +194,13 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   };
 
   const handleSave = async () => {
+    const errors = {};
+    const phoneDigits = (form.phone || '').replace(/\D/g, '');
+    if (!form.phone?.trim()) errors.phone = 'Phone number is required';
+    else if (phoneDigits.length < 3) errors.phone = 'Enter a valid phone number (at least 3 digits)';
+    if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Enter a valid email address';
+    setLeadFormErrors(errors);
+    if (Object.keys(errors).length) return;
     try {
       const { stage, lead_status, ...updateFields } = form;
       await leadAPI.update(id, updateFields);
@@ -202,6 +210,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setFollowups(data.followups || []);
       setActivities(data.activities || []);
       setEditing(false);
+      setLeadFormErrors({});
     } catch (e) { alert('Failed to save'); }
   };
 
@@ -412,11 +421,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           <div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
         </div>
       )}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b space-y-2 pb-3 pt-1">
+      <div className="sticky -top-4 sm:-top-6 z-20 -mx-4 sm:-mx-6 px-4 sm:px-6 bg-white border-b space-y-2 pb-3 pt-5 sm:pt-7">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-1">
             {!onClose && (
-              <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+              <button onClick={() => navigate(-1)} className="shrink-0 whitespace-nowrap flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
                 <ArrowLeft size={16} /> Back
               </button>
             )}
@@ -434,7 +443,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             )}
           </div>
           <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
-            className="px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+            className="shrink-0 whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
             <FileText size={14} /> New Quotation
           </button>
         </div>
@@ -458,7 +467,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           </div>
         </div>
 
-        <div className="flex gap-1 overflow-x-auto">
+        <div className="flex flex-wrap gap-1">
           {tabs.map(t => (
             <button key={t.id} onClick={() => setActiveTab(t.id)}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
@@ -494,12 +503,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               </div>
               <div className="flex gap-1 shrink-0">
                 {editing && (
-                  <button onClick={() => { setEditing(false); setForm(lead); }} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400" title="Cancel">
+                  <button onClick={() => { setEditing(false); setForm(lead); setLeadFormErrors({}); }} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400" title="Cancel">
                     <X size={16} />
                   </button>
                 )}
-                <button onClick={() => editing ? handleSave() : (setEditing(true), loadStaff())} className="p-2 hover:bg-gray-100 rounded-lg" title={editing ? 'Save' : 'Edit'}>
-                  {editing ? <Save size={16} className="text-brand-600" /> : <Edit2 size={16} />}
+                <button onClick={() => editing ? handleSave() : (setEditing(true), loadStaff(), setLeadFormErrors({}))} className="p-2 hover:bg-gray-100 rounded-lg" title={editing ? 'Save' : 'Edit'}>
+                  {editing ? <Check size={16} className="text-brand-600" /> : <Edit2 size={16} />}
                 </button>
               </div>
             </div>
@@ -508,14 +517,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               {editing ? (
                 <div key="edit" className="field-fade-in grid grid-cols-2 gap-2.5">
                   <div>
-                    <label className="text-xs text-gray-500">Phone *</label>
-                    <input type="tel" value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })}
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    <label className="text-xs text-gray-500">Phone <span className="text-red-500">*</span></label>
+                    <input type="tel" value={form.phone || ''}
+                      onChange={e => { setForm({ ...form, phone: e.target.value }); if (leadFormErrors.phone) setLeadFormErrors(er => ({ ...er, phone: undefined })); }}
+                      className={`w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 ${leadFormErrors.phone ? 'border-red-500' : ''}`} />
+                    {leadFormErrors.phone && <p className="text-xs text-red-500 mt-1">{leadFormErrors.phone}</p>}
                   </div>
                   <div>
                     <label className="text-xs text-gray-500">Email</label>
-                    <input type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })}
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    <input type="email" value={form.email || ''}
+                      onChange={e => { setForm({ ...form, email: e.target.value }); if (leadFormErrors.email) setLeadFormErrors(er => ({ ...er, email: undefined })); }}
+                      className={`w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 ${leadFormErrors.email ? 'border-red-500' : ''}`} />
+                    {leadFormErrors.email && <p className="text-xs text-red-500 mt-1">{leadFormErrors.email}</p>}
                   </div>
                   <div>
                     <label className="text-xs text-gray-500">Business Name</label>

@@ -77,7 +77,7 @@ const FollowupsPage = () => {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <button onClick={() => navigate(`/leads/${f.lead_id}`)} className="font-medium text-sm hover:text-brand-600 text-left">
+                      <button onClick={() => navigate('/leads', { state: { openLeadId: f.lead_id } })} className="font-medium text-sm hover:text-brand-600 text-left">
                         {f.lead_name}
                       </button>
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold capitalize ${
