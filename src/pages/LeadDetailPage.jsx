@@ -7,7 +7,7 @@ import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Save, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
@@ -63,11 +63,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [messages, setMessages] = useState([]);
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({});
+  const [editingField, setEditingField] = useState(null);
+  const [fieldDraft, setFieldDraft] = useState('');
   const [newMessage, setNewMessage] = useState('');
   const [templates, setTemplates] = useState([]);
   const [showTmplPicker, setShowTmplPicker] = useState(false);
+  const [showQuickResponse, setShowQuickResponse] = useState(false);
   const [tmplsLoaded, setTmplsLoaded] = useState(false);
   const [brochures, setBrochures] = useState([]);
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
@@ -113,8 +114,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   // stays mounted across the id change, so nothing here resets on its own.
   useEffect(() => {
     setActiveTab('overview');
-    setEditing(false);
+    setEditingField(null);
     setShowTmplPicker(false);
+    setShowQuickResponse(false);
     setShareTab('templates');
     setFollowupPage(1);
     setHistoryExpanded(false);
@@ -151,7 +153,6 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setActivities(leadRes.data.activities || []);
       setMessages(msgRes.data.messages || []);
       setQuotations(quoteRes.data.quotations || []);
-      setForm(leadRes.data.lead);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -192,17 +193,27 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     finally { setHistoryLoading(false); }
   };
 
-  const handleSave = async () => {
+  const startFieldEdit = (field, currentValue) => {
+    if (field === 'assigned_to') loadStaff();
+    setFieldDraft(currentValue ?? '');
+    setEditingField(field);
+  };
+
+  const cancelFieldEdit = () => { setEditingField(null); setFieldDraft(''); };
+
+  const saveField = async (field, valueOverride) => {
+    const raw = valueOverride !== undefined ? valueOverride : fieldDraft;
+    const value = raw === '' ? null : raw;
+    setEditingField(null);
     try {
-      const { stage, lead_status, ...updateFields } = form;
-      await leadAPI.update(id, updateFields);
-      const { data } = await leadAPI.getOne(id);
-      setLead(data.lead);
-      setForm(data.lead);
-      setFollowups(data.followups || []);
-      setActivities(data.activities || []);
-      setEditing(false);
-    } catch (e) { alert('Failed to save'); }
+      await leadAPI.update(id, { [field]: value });
+      if (field === 'assigned_to') {
+        const staffMember = staff.find(s => s.id === value);
+        setLead(prev => ({ ...prev, assigned_to: value, assigned_to_name: staffMember?.name || null }));
+      } else {
+        setLead(prev => ({ ...prev, [field]: value }));
+      }
+    } catch (e) { alert('Failed to save'); loadData(); }
   };
 
   const handleStageChange = async (newStage) => {
@@ -317,6 +328,17 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     } catch (e) { alert(e.response?.data?.error || 'Failed to send'); }
   };
 
+  const handleOpenQuickResponse = async () => {
+    if (!tmplsLoaded) {
+      try {
+        const { data } = await templateAPI.getAll();
+        setTemplates(data.templates || []);
+        setTmplsLoaded(true);
+      } catch (e) { console.error(e); }
+    }
+    setShowQuickResponse(v => !v);
+  };
+
   const handleOpenTmplPicker = async () => {
     if (!tmplsLoaded) {
       try {
@@ -337,7 +359,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   };
 
   const handleSendTemplateWhatsApp = async (tmpl, e) => {
-    e.stopPropagation();
+    e?.stopPropagation();
     try {
       const { data } = await templateAPI.generate(tmpl.id, { lead_id: id });
       if (data.whatsappUrl) {
@@ -455,6 +477,39 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           <div className="flex gap-1.5 shrink-0">
             <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
             <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
+            <div className="relative">
+              <button onClick={handleOpenQuickResponse} title="Quick Response"
+                className={`p-2 rounded-lg ${showQuickResponse ? 'bg-brand-100 text-brand-700' : 'bg-brand-50 text-brand-600'}`}>
+                <Zap size={14} />
+              </button>
+              {showQuickResponse && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowQuickResponse(false)} />
+                  <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl border shadow-lg z-40 overflow-hidden">
+                    <div className="px-3 py-2 border-b bg-gray-50">
+                      <p className="text-xs font-semibold text-gray-600">Quick Response · Send via WhatsApp</p>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto divide-y">
+                      {!tmplsLoaded ? (
+                        <p className="text-xs text-gray-400 text-center py-4">Loading...</p>
+                      ) : templates.length === 0 ? (
+                        <p className="text-xs text-gray-400 text-center py-4">No templates yet. Create them in Settings → Templates.</p>
+                      ) : templates.map(t => (
+                        <button key={t.id}
+                          onClick={() => { handleSendTemplateWhatsApp(t); setShowQuickResponse(false); }}
+                          className="w-full text-left px-3 py-2.5 hover:bg-gray-50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">{t.name}</span>
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">{t.category?.replace(/_/g, ' ')}</span>
+                          </div>
+                          <p className="text-xs text-gray-400 truncate mt-0.5">{t.message}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -483,135 +538,120 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                 {lead.lead_number && (
                   <span className="block text-xs font-mono text-gray-400 mb-0.5">{lead.lead_number}</span>
                 )}
-                {editing ? (
-                  <input value={form.name || ''} onChange={e => setForm({ ...form, name: e.target.value })}
+                {editingField === 'name' ? (
+                  <input autoFocus value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                    onBlur={() => saveField('name')}
+                    onKeyDown={e => { if (e.key === 'Enter') saveField('name'); if (e.key === 'Escape') cancelFieldEdit(); }}
                     placeholder="Full name"
                     className="text-xl font-bold w-full border-b focus:outline-none focus:border-brand-500" />
-                ) : <h2 className="text-xl font-bold truncate">{lead.name}</h2>}
+                ) : (
+                  <h2 onClick={() => startFieldEdit('name', lead.name)} title="Click to edit"
+                    className="text-xl font-bold truncate cursor-text hover:bg-gray-50 rounded px-0.5 -mx-0.5">
+                    {lead.name}
+                  </h2>
+                )}
                 <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
                   {lead.lead_score?.toUpperCase()}
                 </span>
               </div>
-              <div className="flex gap-1 shrink-0">
-                {editing && (
-                  <button onClick={() => { setEditing(false); setForm(lead); }} className="p-2 hover:bg-gray-100 rounded-lg text-gray-400" title="Cancel">
-                    <X size={16} />
-                  </button>
-                )}
-                <button onClick={() => editing ? handleSave() : (setEditing(true), loadStaff())} className="p-2 hover:bg-gray-100 rounded-lg" title={editing ? 'Save' : 'Edit'}>
-                  {editing ? <Save size={16} className="text-brand-600" /> : <Edit2 size={16} />}
-                </button>
-              </div>
             </div>
 
             <div className="space-y-3 text-sm">
-              {editing ? (
-                <div key="edit" className="field-fade-in grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="text-xs text-gray-500">Phone *</label>
-                    <input type="tel" value={form.phone || ''} onChange={e => setForm({ ...form, phone: e.target.value })}
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Email</label>
-                    <input type="email" value={form.email || ''} onChange={e => setForm({ ...form, email: e.target.value })}
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Business Name</label>
-                    <input value={form.business_name || ''} onChange={e => setForm({ ...form, business_name: e.target.value })}
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">City</label>
-                    <input value={form.location || ''} onChange={e => setForm({ ...form, location: e.target.value })}
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                  </div>
-                  <div className="col-span-2">
-                    <label className="text-xs text-gray-500">Address</label>
-                    <textarea value={form.address || ''} onChange={e => setForm({ ...form, address: e.target.value })}
-                      rows={2} className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Source</label>
-                    <select value={form.source || 'manual'} onChange={e => setForm({ ...form, source: e.target.value })}
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300">
-                      <option value="manual">Manual</option>
-                      <option value="meta_ads">Meta Ads</option>
-                      <option value="google_ads">Google Ads</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="referral">Referral</option>
-                      <option value="website">Website</option>
-                      <option value="walkin">Walk-in</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Assign To</label>
-                    <select value={form.assigned_to || ''} onChange={e => setForm({ ...form, assigned_to: e.target.value || null })}
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300">
-                      <option value="">Unassigned</option>
-                      {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-500">Quoted Price (₹)</label>
-                    <input type="number" min="0" value={form.deal_value || ''} onChange={e => setForm({ ...form, deal_value: e.target.value })}
-                      placeholder="0"
-                      className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                  </div>
-                  {isWon && (
-                    <div>
-                      <label className="text-xs text-gray-500">Advance Received (₹)</label>
-                      <input type="number" min="0" value={form.advance_received || ''} onChange={e => setForm({ ...form, advance_received: e.target.value })}
-                        placeholder="0"
-                        className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                    </div>
-                  )}
-                  <div className="col-span-2">
-                    <label className="text-xs text-gray-500">Notes</label>
-                    <textarea value={form.notes || ''} onChange={e => setForm({ ...form, notes: e.target.value })}
-                      rows={2} className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                  </div>
-                </div>
-              ) : (
-                <div key="view" className="field-fade-in space-y-3">
+                <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Building2 size={14} className="text-gray-400 shrink-0" />
-                    {lead.business_name ? (
-                      <span className="truncate">{lead.business_name}</span>
+                    {editingField === 'business_name' ? (
+                      <input autoFocus value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                        onBlur={() => saveField('business_name')}
+                        onKeyDown={e => { if (e.key === 'Enter') saveField('business_name'); if (e.key === 'Escape') cancelFieldEdit(); }}
+                        placeholder="Business name"
+                        className="flex-1 px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    ) : lead.business_name ? (
+                      <span onClick={() => startFieldEdit('business_name', lead.business_name)} title="Click to edit"
+                        className="truncate cursor-text hover:bg-gray-50 rounded px-0.5 -mx-0.5">{lead.business_name}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add business name →</button>
+                      <button onClick={() => startFieldEdit('business_name', '')} className="text-xs text-cyan-600 hover:underline">Add business name →</button>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
                     <Phone size={14} className="text-gray-400 shrink-0" />
-                    <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} className="hover:text-brand-600">{lead.phone}</a>
+                    {editingField === 'phone' ? (
+                      <input autoFocus type="tel" value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                        onBlur={() => saveField('phone')}
+                        onKeyDown={e => { if (e.key === 'Enter') saveField('phone'); if (e.key === 'Escape') cancelFieldEdit(); }}
+                        className="flex-1 px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    ) : (
+                      <>
+                        <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} className="hover:text-brand-600">{lead.phone}</a>
+                        <button onClick={() => startFieldEdit('phone', lead.phone)} title="Edit phone" className="text-gray-300 hover:text-brand-600"><Edit2 size={11} /></button>
+                      </>
+                    )}
                   </div>
-                  {lead.email && (
-                    <div className="flex items-center gap-2">
-                      <Mail size={14} className="text-gray-400 shrink-0" />
-                      <a href={`mailto:${lead.email}`} className="hover:text-brand-600 truncate">{lead.email}</a>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <Mail size={14} className="text-gray-400 shrink-0" />
+                    {editingField === 'email' ? (
+                      <input autoFocus type="email" value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                        onBlur={() => saveField('email')}
+                        onKeyDown={e => { if (e.key === 'Enter') saveField('email'); if (e.key === 'Escape') cancelFieldEdit(); }}
+                        placeholder="Email"
+                        className="flex-1 px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    ) : lead.email ? (
+                      <>
+                        <a href={`mailto:${lead.email}`} className="hover:text-brand-600 truncate">{lead.email}</a>
+                        <button onClick={() => startFieldEdit('email', lead.email)} title="Edit email" className="text-gray-300 hover:text-brand-600"><Edit2 size={11} /></button>
+                      </>
+                    ) : (
+                      <button onClick={() => startFieldEdit('email', '')} className="text-xs text-cyan-600 hover:underline">Add email →</button>
+                    )}
+                  </div>
                   <div className="flex items-center gap-2">
                     <MapPin size={14} className="text-gray-400 shrink-0" />
-                    {lead.location ? (
-                      <span>{lead.location}</span>
+                    {editingField === 'location' ? (
+                      <input autoFocus value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                        onBlur={() => saveField('location')}
+                        onKeyDown={e => { if (e.key === 'Enter') saveField('location'); if (e.key === 'Escape') cancelFieldEdit(); }}
+                        placeholder="City"
+                        className="flex-1 px-2 py-1 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    ) : lead.location ? (
+                      <span onClick={() => startFieldEdit('location', lead.location)} title="Click to edit"
+                        className="cursor-text hover:bg-gray-50 rounded px-0.5 -mx-0.5">{lead.location}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add city →</button>
+                      <button onClick={() => startFieldEdit('location', '')} className="text-xs text-cyan-600 hover:underline">Add city →</button>
                     )}
                   </div>
                   <div className="flex items-start gap-2">
                     <Navigation size={14} className="text-gray-400 shrink-0 mt-0.5" />
-                    {lead.address ? (
-                      <span className="whitespace-pre-wrap">{lead.address}</span>
+                    {editingField === 'address' ? (
+                      <textarea autoFocus value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                        onBlur={() => saveField('address')}
+                        onKeyDown={e => { if (e.key === 'Escape') cancelFieldEdit(); }}
+                        rows={2} placeholder="Address"
+                        className="flex-1 px-2 py-1 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    ) : lead.address ? (
+                      <span onClick={() => startFieldEdit('address', lead.address)} title="Click to edit"
+                        className="whitespace-pre-wrap cursor-text hover:bg-gray-50 rounded px-0.5 -mx-0.5">{lead.address}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add address →</button>
+                      <button onClick={() => startFieldEdit('address', '')} className="text-xs text-cyan-600 hover:underline">Add address →</button>
                     )}
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Source</p>
-                    <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
+                    {editingField === 'source' ? (
+                      <select autoFocus value={fieldDraft} onChange={e => saveField('source', e.target.value)}
+                        onBlur={cancelFieldEdit}
+                        className="w-full mt-0.5 px-2 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300">
+                        <option value="manual">Manual</option>
+                        <option value="meta_ads">Meta Ads</option>
+                        <option value="google_ads">Google Ads</option>
+                        <option value="whatsapp">WhatsApp</option>
+                        <option value="referral">Referral</option>
+                        <option value="website">Website</option>
+                        <option value="walkin">Walk-in</option>
+                      </select>
+                    ) : (
+                      <p onClick={() => startFieldEdit('source', lead.source || 'manual')} title="Click to edit"
+                        className="capitalize font-medium cursor-text hover:bg-gray-50 rounded px-0.5 -mx-0.5 inline-block">{lead.source?.replace(/_/g, ' ')}</p>
+                    )}
                   </div>
                   {(lead.campaign_name || lead.source_detail) && (
                     <div className="pt-2 border-t">
@@ -635,47 +675,77 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Assigned To</p>
-                    {lead.assigned_to_name ? (
-                      <p className="font-medium">{lead.assigned_to_name}</p>
+                    {editingField === 'assigned_to' ? (
+                      <select autoFocus value={fieldDraft || ''} onChange={e => saveField('assigned_to', e.target.value || null)}
+                        onBlur={cancelFieldEdit}
+                        className="w-full mt-0.5 px-2 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-300">
+                        <option value="">Unassigned</option>
+                        {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                      </select>
+                    ) : lead.assigned_to_name ? (
+                      <p onClick={() => startFieldEdit('assigned_to', lead.assigned_to)} title="Click to edit"
+                        className="font-medium cursor-text hover:bg-gray-50 rounded px-0.5 -mx-0.5 inline-block">{lead.assigned_to_name}</p>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
+                      <button onClick={() => startFieldEdit('assigned_to', '')} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
                     )}
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Notes</p>
-                    {lead.notes ? (
-                      <p className="text-sm whitespace-pre-wrap">{lead.notes}</p>
+                    {editingField === 'notes' ? (
+                      <textarea autoFocus value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                        onBlur={() => saveField('notes')}
+                        onKeyDown={e => { if (e.key === 'Escape') cancelFieldEdit(); }}
+                        rows={2} placeholder="Notes"
+                        className="w-full mt-0.5 px-2 py-1.5 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                    ) : lead.notes ? (
+                      <p onClick={() => startFieldEdit('notes', lead.notes)} title="Click to edit"
+                        className="text-sm whitespace-pre-wrap cursor-text hover:bg-gray-50 rounded px-0.5 -mx-0.5">{lead.notes}</p>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add notes →</button>
+                      <button onClick={() => startFieldEdit('notes', '')} className="text-xs text-cyan-600 hover:underline">Add notes →</button>
                     )}
                   </div>
-                  {(!!Number(lead.deal_value) || isWon) && (
-                    <div className="pt-2 border-t flex flex-wrap gap-2">
-                      {!!Number(lead.deal_value) && (
-                        <div className="flex-1 min-w-[100px] bg-gray-50 rounded-lg px-3 py-2">
-                          <p className="text-[10px] text-gray-500">Quoted Price</p>
-                          <p className="text-sm font-bold">₹{Number(lead.deal_value).toLocaleString('en-IN')}</p>
-                        </div>
-                      )}
-                      {isWon && (
-                        <>
-                          <div className="flex-1 min-w-[100px] bg-green-50 rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-gray-500">Advance Received</p>
-                            <p className="text-sm font-bold text-green-700">₹{Number(lead.advance_received || 0).toLocaleString('en-IN')}</p>
-                          </div>
-                          <div className="flex-1 min-w-[100px] bg-amber-50 rounded-lg px-3 py-2">
-                            <p className="text-[10px] text-gray-500">Balance Due</p>
-                            <p className="text-sm font-bold text-amber-700">₹{balanceDue.toLocaleString('en-IN')}</p>
-                          </div>
-                        </>
+                  <div className="pt-2 border-t flex flex-wrap gap-2">
+                    <div className="flex-1 min-w-[100px] bg-gray-50 rounded-lg px-3 py-2">
+                      <p className="text-[10px] text-gray-500">Quoted Price</p>
+                      {editingField === 'deal_value' ? (
+                        <input autoFocus type="number" min="0" value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                          onBlur={() => saveField('deal_value')}
+                          onKeyDown={e => { if (e.key === 'Enter') saveField('deal_value'); if (e.key === 'Escape') cancelFieldEdit(); }}
+                          placeholder="0"
+                          className="w-full px-1.5 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                      ) : Number(lead.deal_value) ? (
+                        <p onClick={() => startFieldEdit('deal_value', lead.deal_value)} title="Click to edit"
+                          className="text-sm font-bold cursor-text hover:bg-gray-100 rounded px-0.5 -mx-0.5">₹{Number(lead.deal_value).toLocaleString('en-IN')}</p>
+                      ) : (
+                        <button onClick={() => startFieldEdit('deal_value', '')} className="text-xs text-cyan-600 hover:underline">Add price →</button>
                       )}
                     </div>
-                  )}
+                    {isWon && (
+                      <>
+                        <div className="flex-1 min-w-[100px] bg-green-50 rounded-lg px-3 py-2">
+                          <p className="text-[10px] text-gray-500">Advance Received</p>
+                          {editingField === 'advance_received' ? (
+                            <input autoFocus type="number" min="0" value={fieldDraft} onChange={e => setFieldDraft(e.target.value)}
+                              onBlur={() => saveField('advance_received')}
+                              onKeyDown={e => { if (e.key === 'Enter') saveField('advance_received'); if (e.key === 'Escape') cancelFieldEdit(); }}
+                              placeholder="0"
+                              className="w-full px-1.5 py-1 border rounded text-sm focus:outline-none focus:ring-2 focus:ring-green-300" />
+                          ) : (
+                            <p onClick={() => startFieldEdit('advance_received', lead.advance_received)} title="Click to edit"
+                              className="text-sm font-bold text-green-700 cursor-text hover:bg-green-100 rounded px-0.5 -mx-0.5">₹{Number(lead.advance_received || 0).toLocaleString('en-IN')}</p>
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-[100px] bg-amber-50 rounded-lg px-3 py-2">
+                          <p className="text-[10px] text-gray-500">Balance Due</p>
+                          <p className="text-sm font-bold text-amber-700">₹{balanceDue.toLocaleString('en-IN')}</p>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
-              )}
 
               {/* Stage Dropdown — always visible */}
-              <div className={editing ? '' : 'pt-2 border-t'}>
+              <div className="pt-2 border-t">
                 <p className="text-xs text-gray-500 mb-1">Stage</p>
                 <div className="relative">
                   <select
