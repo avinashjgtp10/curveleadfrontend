@@ -364,8 +364,24 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       const { data } = await brochuresAPI.shareWithLead(brochureId, id);
       window.open(data.whatsapp_url, '_blank');
-      loadData();
+      const shared = brochures.find(b => b.id === brochureId);
+      await handleBrochureShared(shared);
     } catch (e) { alert(e.response?.data?.error || 'Failed to share brochure'); }
+  };
+
+  const handleBrochureShared = async (brochure) => {
+    await loadData();
+    setActivities(prev => {
+      const alreadyLogged = prev.some(a => a.activity_type === 'share_material' && brochure?.name && a.description?.includes(brochure.name));
+      if (alreadyLogged) return prev;
+      return [{
+        id: `local-share-${Date.now()}`,
+        activity_type: 'share_material',
+        title: 'Brochure shared',
+        description: brochure?.name ? `Shared "${brochure.name}" via WhatsApp` : 'Shared a brochure via WhatsApp',
+        created_at: new Date().toISOString(),
+      }, ...prev];
+    });
   };
 
   const nextFollowup = followups.find(f => !f.is_completed && f.next_followup_at);
@@ -456,23 +472,19 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           </div>
         </div>
 
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {lead.lead_number && (
-              <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
-            )}
-            <h2 className="text-base font-bold truncate">{lead.name}</h2>
-            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
-              {lead.lead_score?.toUpperCase()}
-            </span>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
-              {lead.stage}
-            </span>
-          </div>
-          <div className="flex gap-1.5 shrink-0">
-            <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
-            <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
-          </div>
+        <div className="flex items-center flex-wrap gap-2">
+          {lead.lead_number && (
+            <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
+          )}
+          <h2 className="text-base font-bold truncate">{lead.name}</h2>
+          <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
+            {lead.lead_score?.toUpperCase()}
+          </span>
+          <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
+            {lead.stage}
+          </span>
+          <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="shrink-0 p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
+          <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="shrink-0 p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
         </div>
 
         <div className="flex flex-wrap gap-1">
@@ -1224,7 +1236,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
         <ShareBrochureModal
           leadId={id}
           onClose={() => setShowShareBrochure(false)}
-          onShared={loadData}
+          onShared={handleBrochureShared}
         />,
         document.body
       )}
