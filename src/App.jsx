@@ -40,6 +40,22 @@ import QuotationEditorPage from './pages/QuotationEditorPage';
 import QuotationViewPage from './pages/QuotationViewPage';
 import QuotationPublicPage from './pages/QuotationPublicPage';
 
+// ⭐ Super Admin mock console (frontend-only demo, see src/superadmin)
+import SuperAdminLayout from './superadmin/SuperAdminLayout';
+import SuperAdminDashboardPage from './superadmin/pages/SuperAdminDashboardPage';
+import SuperAdminLeadsPage from './superadmin/pages/SuperAdminLeadsPage';
+import SuperAdminAutomationsPage from './superadmin/pages/SuperAdminAutomationsPage';
+import SuperAdminBookingsPage from './superadmin/pages/SuperAdminBookingsPage';
+import SuperAdminCustomersPage from './superadmin/pages/SuperAdminCustomersPage';
+import SuperAdminSalonsPage from './superadmin/pages/SuperAdminSalonsPage';
+import SuperAdminSettingsPage from './superadmin/pages/SuperAdminSettingsPage';
+import { MOCK_SESSION_KEY } from './superadmin/mockData';
+
+const SuperAdminProtectedRoute = ({ children }) => {
+  const isMockSuperAdmin = localStorage.getItem(MOCK_SESSION_KEY) === 'true';
+  return isMockSuperAdmin ? children : <Navigate to="/login" replace />;
+};
+
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <PageLoader message="Checking your session..." minHeight="h-screen" />;
@@ -89,6 +105,17 @@ const App = () => (
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="market-intelligence" element={<MarketIntelligencePage />} />
           <Route path="help" element={<HelpPage />} />
+        </Route>
+
+        <Route path="/super-admin" element={<SuperAdminProtectedRoute><SuperAdminLayout /></SuperAdminProtectedRoute>}>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<SuperAdminDashboardPage />} />
+          <Route path="leads" element={<SuperAdminLeadsPage />} />
+          <Route path="automations" element={<SuperAdminAutomationsPage />} />
+          <Route path="bookings" element={<SuperAdminBookingsPage />} />
+          <Route path="customers" element={<SuperAdminCustomersPage />} />
+          <Route path="salons" element={<SuperAdminSalonsPage />} />
+          <Route path="settings" element={<SuperAdminSettingsPage />} />
         </Route>
       </Routes>
     </ConfirmDialogProvider>

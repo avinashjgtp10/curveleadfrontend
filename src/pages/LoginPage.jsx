@@ -4,6 +4,7 @@ import { authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { ArrowRight, BarChart3, CheckCircle, Eye, EyeOff, Globe2, MessageCircle, ShieldCheck, Sparkles } from 'lucide-react';
 import BrandLogo from '../components/ui/BrandLogo';
+import { MOCK_SUPERADMIN_CREDENTIALS, MOCK_SESSION_KEY } from '../superadmin/mockData';
 
 const loginHighlights = [
   { icon: Globe2, title: 'Global lead capture', text: 'Track enquiries from ads, website forms, WhatsApp, referrals, and manual uploads.' },
@@ -30,8 +31,16 @@ const LoginPage = () => {
 
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    // Demo-only Super Admin console: bypasses the real API entirely.
+    if (form.email === MOCK_SUPERADMIN_CREDENTIALS.email && form.password === MOCK_SUPERADMIN_CREDENTIALS.password) {
+      localStorage.setItem(MOCK_SESSION_KEY, 'true');
+      navigate('/super-admin/dashboard');
+      return;
+    }
+
+    setLoading(true);
     try {
       await login({ email: form.email, password: form.password });
       navigate('/dashboard');
