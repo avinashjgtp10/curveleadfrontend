@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, Megaphone, MessageCircle, UserCog, BarChart3, Settings, LogOut, X, BookOpen, CreditCard, Plug, CalendarCheck, Globe, Lightbulb, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Users, Megaphone, MessageCircle, UserCog, BarChart3, Settings, LogOut, X, BookOpen, CreditCard, Plug, CalendarCheck, Globe, Lightbulb, HelpCircle, Workflow } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
 
 const navItems = [
@@ -11,6 +11,7 @@ const navItems = [
   { path: '/campaigns', label: 'Campaigns', icon: Megaphone, roles: ['admin'] },
   { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
   { path: '/appointments', label: 'Appointments', icon: CalendarCheck, roles: ['admin', 'staff'] },
+  { path: '/lead-automation', label: 'Lead Automation', icon: Workflow, roles: ['admin', 'staff'] },
   { path: '/staff', label: 'Team', icon: UserCog, roles: ['admin'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
   { path: '/coaching', label: 'Sales Coaching', icon: Lightbulb, roles: ['admin'] },
