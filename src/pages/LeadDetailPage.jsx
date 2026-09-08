@@ -7,6 +7,7 @@ import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
+import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
 
 const activityConfig = (type) => {
@@ -73,6 +74,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [brochures, setBrochures] = useState([]);
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
+  const [showShareBrochure, setShowShareBrochure] = useState(false);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Stages, Statuses & Staff
@@ -362,8 +364,24 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       const { data } = await brochuresAPI.shareWithLead(brochureId, id);
       window.open(data.whatsapp_url, '_blank');
-      loadData();
+      const shared = brochures.find(b => b.id === brochureId);
+      await handleBrochureShared(shared);
     } catch (e) { alert(e.response?.data?.error || 'Failed to share brochure'); }
+  };
+
+  const handleBrochureShared = async (brochure) => {
+    await loadData();
+    setActivities(prev => {
+      const alreadyLogged = prev.some(a => a.activity_type === 'share_material' && brochure?.name && a.description?.includes(brochure.name));
+      if (alreadyLogged) return prev;
+      return [{
+        id: `local-share-${Date.now()}`,
+        activity_type: 'share_material',
+        title: 'Brochure shared',
+        description: brochure?.name ? `Shared "${brochure.name}" via WhatsApp` : 'Shared a brochure via WhatsApp',
+        created_at: new Date().toISOString(),
+      }, ...prev];
+    });
   };
 
   const nextFollowup = followups.find(f => !f.is_completed && f.next_followup_at);
@@ -442,29 +460,31 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               </div>
             )}
           </div>
-          <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
-            className="shrink-0 whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
-            <FileText size={14} /> New Quotation
-          </button>
+          <div className="flex gap-1.5 shrink-0">
+            <button onClick={() => setShowShareBrochure(true)}
+              className="whitespace-nowrap px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <Share2 size={14} /> Share Brochure
+            </button>
+            <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
+              className="whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <FileText size={14} /> New Quotation
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {lead.lead_number && (
-              <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
-            )}
-            <h2 className="text-base font-bold truncate">{lead.name}</h2>
-            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
-              {lead.lead_score?.toUpperCase()}
-            </span>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
-              {lead.stage}
-            </span>
-          </div>
-          <div className="flex gap-1.5 shrink-0">
-            <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
-            <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
-          </div>
+        <div className="flex items-center flex-wrap gap-2">
+          {lead.lead_number && (
+            <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
+          )}
+          <h2 className="text-base font-bold truncate">{lead.name}</h2>
+          <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
+            {lead.lead_score?.toUpperCase()}
+          </span>
+          <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
+            {lead.stage}
+          </span>
+          <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="shrink-0 p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
+          <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="shrink-0 p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
         </div>
 
         <div className="flex flex-wrap gap-1">
@@ -1209,6 +1229,15 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             </div>
           </div>
         </div>,
+        document.body
+      )}
+
+      {showShareBrochure && createPortal(
+        <ShareBrochureModal
+          leadId={id}
+          onClose={() => setShowShareBrochure(false)}
+          onShared={handleBrochureShared}
+        />,
         document.body
       )}
     </div>

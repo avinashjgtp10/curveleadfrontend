@@ -17,11 +17,11 @@ const ShareBrochureModal = ({ leadId, onClose, onShared }) => {
     finally { setLoading(false); }
   };
 
-  const handleShare = async (brochureId) => {
+  const handleShare = async (brochure) => {
     try {
-      const { data } = await brochuresAPI.shareWithLead(brochureId, leadId);
+      const { data } = await brochuresAPI.shareWithLead(brochure.id, leadId);
       window.open(data.whatsapp_url, '_blank');
-      onShared?.();
+      onShared?.(brochure);
       onClose();
     } catch (e) { alert(e.response?.data?.error || 'Failed'); }
   };
@@ -61,7 +61,7 @@ const ShareBrochureModal = ({ leadId, onClose, onShared }) => {
                     <p className="font-medium text-sm truncate">{b.name}</p>
                     <p className="text-xs text-gray-500 capitalize">{b.category}</p>
                   </div>
-                  <button onClick={() => handleShare(b.id)}
+                  <button onClick={() => handleShare(b)}
                     className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 flex items-center gap-1">
                     <Send size={12} /> Share
                   </button>
