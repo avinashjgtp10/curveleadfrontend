@@ -9,7 +9,16 @@ import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { useToast } from '../components/ui/Toast';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+
+// Mirrors WhatsApp's own delivery ticks for an outbound message.
+const MessageStatus = ({ status }) => {
+  if (status === 'failed') return <AlertCircle size={11} className="text-red-300" title="Failed to send" />;
+  if (status === 'read') return <CheckCheck size={13} className="text-sky-300" title="Read" />;
+  if (status === 'delivered') return <CheckCheck size={13} title="Delivered" />;
+  if (status === 'sent') return <Check size={13} title="Sent" />;
+  return <Clock size={11} title="Sending…" />;
+};
 
 const activityConfig = (type) => {
   const map = {
@@ -1025,8 +1034,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                 <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm ${m.direction === 'outbound' ? 'bg-brand-600 text-white' : 'bg-gray-100'}`}>
                     <p>{m.message}</p>
-                    <p className={`text-[10px] mt-1 ${m.direction === 'outbound' ? 'text-white/70' : 'text-gray-400'}`}>
+                    <p className={`text-[10px] mt-1 flex items-center gap-1 ${m.direction === 'outbound' ? 'text-white/70 justify-end' : 'text-gray-400'}`}>
                       {new Date(m.sent_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      {m.direction === 'outbound' && <MessageStatus status={m.status} />}
                     </p>
                   </div>
                 </div>
