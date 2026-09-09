@@ -196,6 +196,13 @@ const AppointmentsPage = () => {
   const currentPage = Math.min(page, pages);
   const pageRows = filtered.slice((currentPage - 1) * APPOINTMENTS_PAGE_LIMIT, currentPage * APPOINTMENTS_PAGE_LIMIT);
 
+  const pageNumbers = () => {
+    if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+    if (currentPage <= 4) return [1, 2, 3, 4, 5, '…', pages];
+    if (currentPage >= pages - 3) return [1, '…', pages - 4, pages - 3, pages - 2, pages - 1, pages];
+    return [1, '…', currentPage - 1, currentPage, currentPage + 1, '…', pages];
+  };
+
   useEffect(() => {
     if (page > pages) setPage(pages);
   }, [page, pages]);
@@ -459,18 +466,22 @@ const AppointmentsPage = () => {
             <span>Showing {(currentPage - 1) * APPOINTMENTS_PAGE_LIMIT + 1} to {Math.min(currentPage * APPOINTMENTS_PAGE_LIMIT, filtered.length)} of {filtered.length} appointments</span>
             <div className="flex items-center gap-1.5">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40">
-                <ChevronLeft size={15} />
+                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronLeft size={16} />
               </button>
-              {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPage(p)}
-                  className={`w-8 h-8 rounded-lg border text-sm font-medium ${p === currentPage ? 'border-brand-600 text-brand-600' : 'hover:bg-gray-50 text-gray-600'}`}>
-                  {p}
-                </button>
-              ))}
+              {pageNumbers().map((p, i) =>
+                p === '…' ? (
+                  <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+                ) : (
+                  <button key={p} onClick={() => setPage(p)}
+                    className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${p === currentPage ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                    {p}
+                  </button>
+                )
+              )}
               <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={currentPage === pages}
-                className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40">
-                <ChevronRight size={15} />
+                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronRight size={16} />
               </button>
             </div>
           </div>
