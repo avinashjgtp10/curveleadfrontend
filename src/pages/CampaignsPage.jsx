@@ -175,17 +175,17 @@ const CampaignsPage = () => {
           {visible.map(c => {
             return (
               <div key={c.id} className="bg-white rounded-2xl border p-5 hover:shadow-lg transition cursor-pointer" onClick={() => navigate(`/campaigns/${c.id}`)}>
-                <div className="flex items-start justify-between mb-3">
-                  <div>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="font-semibold">{c.name}</h3>
+                      <h3 className="font-semibold break-words">{c.name}</h3>
                       {c.meta_campaign_id && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600">Meta Synced</span>
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600">Meta Synced</span>
                       )}
                     </div>
                     <p className="text-xs text-gray-500 capitalize">{c.source?.replace(/_/g, ' ')}</p>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
+                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
                 </div>
                 {c.verdict_label && (
                   <div className={`mb-3 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${verdictColors[c.verdict] || 'bg-gray-100 text-gray-600'}`} title={c.verdict_reason}>

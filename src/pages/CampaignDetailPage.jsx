@@ -155,10 +155,15 @@ const CampaignDetailPage = () => {
                   <p className="font-medium text-sm">{l.name}</p>
                   <p className="text-xs text-gray-500">{l.phone} • {l.stage}</p>
                 </div>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-                  l.lead_score === 'hot' ? 'bg-red-100 text-red-700' :
-                  l.lead_score === 'warm' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
-                }`}>{l.lead_score?.toUpperCase()}</span>
+                <div className="flex items-center gap-3 shrink-0">
+                  <span className="text-xs text-gray-400">
+                    {l.created_at ? new Date(l.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                    l.lead_score === 'hot' ? 'bg-red-100 text-red-700' :
+                    l.lead_score === 'warm' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                  }`}>{l.lead_score?.toUpperCase()}</span>
+                </div>
               </button>
             ))}
           </div>
