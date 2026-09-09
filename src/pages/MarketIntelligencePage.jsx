@@ -97,14 +97,19 @@ const MarketIntelligencePage = () => {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState({});
 
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }));
+    if (fieldErrors[k]) setFieldErrors(er => ({ ...er, [k]: undefined }));
+  };
 
   const handleAnalyze = async () => {
-    if (!form.industry || !form.product_service) {
-      setError('Please fill in Industry and Product/Service.');
-      return;
-    }
+    const errs = {};
+    if (!form.industry) errs.industry = 'Industry is required';
+    if (!form.product_service.trim()) errs.product_service = 'Product/Service is required';
+    setFieldErrors(errs);
+    if (Object.keys(errs).length) return;
     setError('');
     setLoading(true);
     setResult(null);
@@ -158,24 +163,26 @@ const MarketIntelligencePage = () => {
             </div>
 
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Industry <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Industry <span className="text-red-500">*</span></label>
               <select
                 value={form.industry}
                 onChange={e => set('industry', e.target.value)}
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none bg-white">
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none bg-white ${fieldErrors.industry ? 'border-red-500' : ''}`}>
                 <option value="">Select industry...</option>
                 {INDUSTRIES.map(i => <option key={i}>{i}</option>)}
               </select>
+              {fieldErrors.industry && <p className="text-xs text-red-500 mt-1">{fieldErrors.industry}</p>}
             </div>
 
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-500 mb-1">Product / Service <span className="text-red-400">*</span></label>
+              <label className="block text-xs font-medium text-gray-500 mb-1">Product / Service <span className="text-red-500">*</span></label>
               <input
                 value={form.product_service}
                 onChange={e => set('product_service', e.target.value)}
                 placeholder="e.g. Lead management CRM for small businesses with AI scoring and WhatsApp integration"
-                className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none"
+                className={`w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-indigo-300 focus:outline-none ${fieldErrors.product_service ? 'border-red-500' : ''}`}
               />
+              {fieldErrors.product_service && <p className="text-xs text-red-500 mt-1">{fieldErrors.product_service}</p>}
             </div>
 
             <div>
