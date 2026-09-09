@@ -3,9 +3,11 @@ import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, automationAPI }
 import { useAuth } from '../context/AuthContext';
 import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag, Zap, Clock } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const SettingsPage = () => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const { user, tenant } = useAuth();
   const [tab, setTab] = useState('profile');
   const [settings, setSettings] = useState({});
@@ -22,16 +24,20 @@ const SettingsPage = () => {
     daily_report_time: '08:00',
     email_reply_to: '',
   });
+  const [businessOriginal, setBusinessOriginal] = useState(null);
+  const [editingBusiness, setEditingBusiness] = useState(false);
 
   const [templates, setTemplates] = useState([]);
   const [tmplModal, setTmplModal] = useState(false);
   const [editingTmpl, setEditingTmpl] = useState(null);
   const [tmplForm, setTmplForm] = useState({ name: '', category: 'follow_up', channel: 'whatsapp', message: '' });
+  const [tmplErrors, setTmplErrors] = useState({});
 
   const [stages, setStages] = useState([]);
   const [stageModal, setStageModal] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
   const [stageForm, setStageForm] = useState({ name: '', color: 'blue', is_won: false, is_lost: false, meta_event_name: '' });
+  const [stageErrors, setStageErrors] = useState({});
   const [expandedStage, setExpandedStage] = useState(null);
 
   const [statusModal, setStatusModal] = useState(false);
@@ -66,7 +72,7 @@ const SettingsPage = () => {
       setSettings(data.settings || {});
       setProfile({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '' });
       const s = data.settings || {};
-      setBusiness({
+      const loadedBusiness = {
         name: s.name || tenant?.name || '',
         email: s.email || '',
         phone: s.phone || '',
@@ -80,7 +86,9 @@ const SettingsPage = () => {
         daily_report_enabled: !!s.daily_report_enabled,
         daily_report_time: s.daily_report_time || '08:00',
         email_reply_to: s.email_reply_to || '',
-      });
+      };
+      setBusiness(loadedBusiness);
+      setBusinessOriginal(loadedBusiness);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -98,36 +106,50 @@ const SettingsPage = () => {
   };
 
   const handleSaveBusiness = async () => {
+    if (!business.name.trim()) return toast.error('Business Name is required');
     try {
       await settingsAPI.update({ ...settings, ...business });
+      setBusinessOriginal(business);
+      setEditingBusiness(false);
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+  };
+
+  const handleCancelBusiness = () => {
+    if (businessOriginal) setBusiness(businessOriginal);
+    setEditingBusiness(false);
   };
 
   const handleChangePassword = async () => {
-    if (pwForm.newPassword !== pwForm.confirm) return alert('Passwords do not match');
-    if (pwForm.newPassword.length < 6) return alert('Password must be at least 6 characters');
+    if (pwForm.newPassword !== pwForm.confirm) return toast.error('Passwords do not match');
+    if (pwForm.newPassword.length < 6) return toast.error('Password must be at least 6 characters');
     try {
       await authAPI.changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword });
       setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const openCreateTmpl = () => {
     setEditingTmpl(null);
     setTmplForm({ name: '', category: 'follow_up', channel: 'whatsapp', message: '' });
+    setTmplErrors({});
     setTmplModal(true);
   };
 
   const openEditTmpl = (t) => {
     setEditingTmpl(t);
     setTmplForm({ name: t.name, category: t.category, channel: t.channel, message: t.message });
+    setTmplErrors({});
     setTmplModal(true);
   };
 
   const handleSaveTmpl = async () => {
-    if (!tmplForm.name || !tmplForm.message) return alert('Name and message are required');
+    const errs = {};
+    if (!tmplForm.name.trim()) errs.name = 'Template name is required';
+    if (!tmplForm.message.trim()) errs.message = 'Message is required';
+    setTmplErrors(errs);
+    if (Object.keys(errs).length) return;
     try {
       if (editingTmpl) {
         await templateAPI.update(editingTmpl.id, tmplForm);
@@ -137,7 +159,7 @@ const SettingsPage = () => {
       setTmplModal(false);
       loadTemplates();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const handleDeleteTmpl = async (id) => {
@@ -145,7 +167,7 @@ const SettingsPage = () => {
     try {
       await templateAPI.delete(id);
       loadTemplates();
-    } catch (e) { alert('Failed to delete'); }
+    } catch (e) { toast.error('Failed to delete'); }
   };
 
   const loadSequences = async () => {
@@ -201,7 +223,7 @@ const SettingsPage = () => {
       setSeqModal(false);
       loadSequences();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save sequence'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save sequence'); }
   };
 
   const handleDeleteSeq = async (id) => {
@@ -210,7 +232,7 @@ const SettingsPage = () => {
       await automationAPI.deleteSequence(id);
       loadSequences();
       loadRules();
-    } catch (e) { alert('Failed to delete'); }
+    } catch (e) { toast.error('Failed to delete'); }
   };
 
   const openCreateRule = () => {
@@ -226,9 +248,9 @@ const SettingsPage = () => {
   };
 
   const handleSaveRule = async () => {
-    if (!ruleForm.name.trim()) return alert('Rule name is required');
-    if (!ruleForm.sequence_id) return alert('Pick a sequence for this rule to enroll leads into');
-    if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) return alert('Pick which stage triggers this rule');
+    if (!ruleForm.name.trim()) return toast.error('Rule name is required');
+    if (!ruleForm.sequence_id) return toast.error('Pick a sequence for this rule to enroll leads into');
+    if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) return toast.error('Pick which stage triggers this rule');
     try {
       if (editingRule) {
         await automationAPI.updateRule(editingRule.id, ruleForm);
@@ -238,7 +260,7 @@ const SettingsPage = () => {
       setRuleModal(false);
       loadRules();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save rule'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save rule'); }
   };
 
   const handleDeleteRule = async (id) => {
@@ -246,7 +268,7 @@ const SettingsPage = () => {
     try {
       await automationAPI.deleteRule(id);
       loadRules();
-    } catch (e) { alert('Failed to delete'); }
+    } catch (e) { toast.error('Failed to delete'); }
   };
 
   const loadStages = async () => {
@@ -265,17 +287,20 @@ const SettingsPage = () => {
   const openCreateStage = () => {
     setEditingStage(null);
     setStageForm({ name: '', color: 'blue', is_won: false, is_lost: false, meta_event_name: '' });
+    setStageErrors({});
     setStageModal(true);
   };
 
   const openEditStage = (s) => {
     setEditingStage(s);
     setStageForm({ name: s.name, color: s.color || 'blue', is_won: s.is_won || false, is_lost: s.is_lost || false, meta_event_name: s.meta_event_name || '' });
+    setStageErrors({});
     setStageModal(true);
   };
 
   const handleSaveStage = async () => {
-    if (!stageForm.name.trim()) return setModalError('Stage name is required');
+    if (!stageForm.name.trim()) { setStageErrors({ name: 'Stage name is required' }); return; }
+    setStageErrors({});
     setModalError('');
     try {
       if (editingStage) {
@@ -290,12 +315,12 @@ const SettingsPage = () => {
   };
 
   const handleDeleteStage = async (stage) => {
-    if (stage.is_default) return alert('Default stages cannot be deleted');
+    if (stage.is_default) return toast.error('Default stages cannot be deleted');
     if (!await confirm({ title: `Delete stage "${stage.name}"?`, message: 'Leads in this stage will keep the stage label.' })) return;
     try {
       await stageAPI.delete(stage.id);
       loadStages();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to delete'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete'); }
   };
 
   const openCreateStatus = (stageId) => {
@@ -330,12 +355,12 @@ const SettingsPage = () => {
   };
 
   const handleDeleteStatus = async (st) => {
-    if (st.is_default) return alert('Default statuses cannot be deleted');
+    if (st.is_default) return toast.error('Default statuses cannot be deleted');
     if (!await confirm({ title: `Delete status "${st.name}"?` })) return;
     try {
       await statusAPI.delete(st.id);
       loadStages();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to delete'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete'); }
   };
 
   const webhookUrl = `${window.location.origin.replace('www.', '')}/api/webhook/meta/${tenant?.id}`;
@@ -398,141 +423,166 @@ const SettingsPage = () => {
 
           {tab === 'business' && (
             <>
-              <h2 className="text-lg font-bold mb-1">Business Settings</h2>
-              <p className="text-xs text-gray-400 mb-4">These details appear on your quotations and PDFs</p>
-
-              {/* Basic Info */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Basic Info</p>
-              <div className="space-y-3 mb-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
-                    <input type="text" value={business.name} onChange={e => setBusiness({ ...business, name: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Email</label>
-                    <input type="email" value={business.email} onChange={e => setBusiness({ ...business, email: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="billing@yourbusiness.com" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
-                    <input type="tel" value={business.phone} onChange={e => setBusiness({ ...business, phone: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Website</label>
-                    <input type="url" value={business.website} onChange={e => setBusiness({ ...business, website: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="https://yourbusiness.com" />
-                  </div>
-                </div>
+              <div className="flex items-start justify-between mb-1 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
-                  <textarea value={business.address} onChange={e => setBusiness({ ...business, address: e.target.value })}
-                    rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  <h2 className="text-lg font-bold mb-1">Business Settings</h2>
+                  <p className="text-xs text-gray-400 mb-4">These details appear on your quotations and PDFs</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
-                    <input type="text" value={business.city} onChange={e => setBusiness({ ...business, city: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
-                    <input type="text" value={business.state} onChange={e => setBusiness({ ...business, state: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Tax Info */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Tax Details</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">GST Number (GSTIN)</label>
-                  <input type="text" value={business.gst_number} onChange={e => setBusiness({ ...business, gst_number: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="22AAAAA0000A1Z5" maxLength={15} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">PAN Number</label>
-                  <input type="text" value={business.pan_number} onChange={e => setBusiness({ ...business, pan_number: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="AAAAA0000A" maxLength={10} />
-                </div>
-              </div>
-
-              {/* Bank Details */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bank / Payment Details</p>
-              <div className="space-y-3 mb-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Account Holder Name</label>
-                    <input type="text" value={business.bank_details.account_holder}
-                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_holder: e.target.value } })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Bank Name</label>
-                    <input type="text" value={business.bank_details.bank_name}
-                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, bank_name: e.target.value } })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Account Number</label>
-                    <input type="text" value={business.bank_details.account_number}
-                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_number: e.target.value } })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">IFSC Code</label>
-                    <input type="text" value={business.bank_details.ifsc}
-                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, ifsc: e.target.value.toUpperCase() } })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="SBIN0001234" maxLength={11} />
-                  </div>
-                </div>
-                <div className="sm:w-1/2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">UPI ID</label>
-                  <input type="text" value={business.bank_details.upi}
-                    onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, upi: e.target.value } })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="yourname@upi" />
-                </div>
-              </div>
-
-              {/* Email */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Email</p>
-              <div className="mb-5 sm:w-1/2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Reply-to email</label>
-                <input type="email" value={business.email_reply_to} onChange={e => setBusiness({ ...business, email_reply_to: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder={business.email || 'billing@yourbusiness.com'} />
-                <p className="text-xs text-gray-400 mt-1">Emails sent to leads (demo invites, follow-up sequences) and reports come from CurveLead, but show your business name and route replies here. Leave blank to use your Business Email above.</p>
-              </div>
-
-              {/* Reports */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Reports</p>
-              <div className="mb-5">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={business.daily_report_enabled}
-                    onChange={e => setBusiness({ ...business, daily_report_enabled: e.target.checked })}
-                    className="w-4 h-4 rounded" />
-                  <span className="font-medium">Email me a daily report</span>
-                </label>
-                <p className="text-xs text-gray-400 mt-1 ml-6">Sent once a day to the business email above — new leads, hot leads, follow-ups due/overdue, SLA breaches, deals won, and active campaign spend. Each staff member gets their own version scoped to their assigned leads.</p>
-                {business.daily_report_enabled && (
-                  <div className="mt-3 ml-6">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Send time (IST)</label>
-                    <input type="time" value={business.daily_report_time}
-                      onChange={e => setBusiness({ ...business, daily_report_time: e.target.value })}
-                      className="px-3 py-2 border rounded-lg text-sm" />
-                  </div>
+                {!editingBusiness && (
+                  <button onClick={() => setEditingBusiness(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 shrink-0">
+                    <Edit2 size={14} /> Edit
+                  </button>
                 )}
               </div>
 
-              <button onClick={handleSaveBusiness} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">
-                Save Changes
-              </button>
+              {(() => {
+                const inputCls = `w-full px-3 py-2.5 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`;
+                const monoCls = `w-full px-3 py-2.5 border rounded-lg text-sm font-mono ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`;
+                return (
+                  <>
+                    {/* Basic Info */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Basic Info</p>
+                    <div className="space-y-3 mb-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
+                          <input type="text" disabled={!editingBusiness} value={business.name} onChange={e => setBusiness({ ...business, name: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Business Email</label>
+                          <input type="email" disabled={!editingBusiness} value={business.email} onChange={e => setBusiness({ ...business, email: e.target.value })}
+                            className={inputCls} placeholder="billing@yourbusiness.com" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                          <input type="tel" disabled={!editingBusiness} value={business.phone} onChange={e => setBusiness({ ...business, phone: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Website</label>
+                          <input type="url" disabled={!editingBusiness} value={business.website} onChange={e => setBusiness({ ...business, website: e.target.value })}
+                            className={inputCls} placeholder="https://yourbusiness.com" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
+                        <textarea disabled={!editingBusiness} value={business.address} onChange={e => setBusiness({ ...business, address: e.target.value })}
+                          rows={2} className={inputCls} />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
+                          <input type="text" disabled={!editingBusiness} value={business.city} onChange={e => setBusiness({ ...business, city: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
+                          <input type="text" disabled={!editingBusiness} value={business.state} onChange={e => setBusiness({ ...business, state: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Tax Info */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Tax Details</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">GST Number (GSTIN)</label>
+                        <input type="text" disabled={!editingBusiness} value={business.gst_number} onChange={e => setBusiness({ ...business, gst_number: e.target.value.toUpperCase() })}
+                          className={monoCls} placeholder="22AAAAA0000A1Z5" maxLength={15} />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">PAN Number</label>
+                        <input type="text" disabled={!editingBusiness} value={business.pan_number} onChange={e => setBusiness({ ...business, pan_number: e.target.value.toUpperCase() })}
+                          className={monoCls} placeholder="AAAAA0000A" maxLength={10} />
+                      </div>
+                    </div>
+
+                    {/* Bank Details */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bank / Payment Details</p>
+                    <div className="space-y-3 mb-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Account Holder Name</label>
+                          <input type="text" disabled={!editingBusiness} value={business.bank_details.account_holder}
+                            onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_holder: e.target.value } })}
+                            className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Bank Name</label>
+                          <input type="text" disabled={!editingBusiness} value={business.bank_details.bank_name}
+                            onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, bank_name: e.target.value } })}
+                            className={inputCls} />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Account Number</label>
+                          <input type="text" disabled={!editingBusiness} value={business.bank_details.account_number}
+                            onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_number: e.target.value } })}
+                            className={monoCls} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">IFSC Code</label>
+                          <input type="text" disabled={!editingBusiness} value={business.bank_details.ifsc}
+                            onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, ifsc: e.target.value.toUpperCase() } })}
+                            className={monoCls} placeholder="SBIN0001234" maxLength={11} />
+                        </div>
+                      </div>
+                      <div className="sm:w-1/2">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">UPI ID</label>
+                        <input type="text" disabled={!editingBusiness} value={business.bank_details.upi}
+                          onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, upi: e.target.value } })}
+                          className={inputCls} placeholder="yourname@upi" />
+                      </div>
+                    </div>
+
+                    {/* Email */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Email</p>
+                    <div className="mb-5 sm:w-1/2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Reply-to email</label>
+                      <input type="email" disabled={!editingBusiness} value={business.email_reply_to} onChange={e => setBusiness({ ...business, email_reply_to: e.target.value })}
+                        className={inputCls} placeholder={business.email || 'billing@yourbusiness.com'} />
+                      <p className="text-xs text-gray-400 mt-1">Emails sent to leads (demo invites, follow-up sequences) and reports come from CurveLead, but show your business name and route replies here. Leave blank to use your Business Email above.</p>
+                    </div>
+
+                    {/* Reports */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Reports</p>
+                    <div className="mb-5">
+                      <label className={`flex items-center gap-2 text-sm ${editingBusiness ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input type="checkbox" disabled={!editingBusiness} checked={business.daily_report_enabled}
+                          onChange={e => setBusiness({ ...business, daily_report_enabled: e.target.checked })}
+                          className="w-4 h-4 rounded" />
+                        <span className="font-medium">Email me a daily report</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1 ml-6">Sent once a day to the business email above — new leads, hot leads, follow-ups due/overdue, SLA breaches, deals won, and active campaign spend. Each staff member gets their own version scoped to their assigned leads.</p>
+                      {business.daily_report_enabled && (
+                        <div className="mt-3 ml-6">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Send time (IST)</label>
+                          <input type="time" disabled={!editingBusiness} value={business.daily_report_time}
+                            onChange={e => setBusiness({ ...business, daily_report_time: e.target.value })}
+                            className={`px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              {editingBusiness && (
+                <div className="flex items-center gap-2">
+                  <button onClick={handleSaveBusiness} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">
+                    Save Changes
+                  </button>
+                  <button onClick={handleCancelBusiness} className="px-4 py-2 border rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                    Cancel
+                  </button>
+                </div>
+              )}
             </>
           )}
 
@@ -600,9 +650,11 @@ const SettingsPage = () => {
                     <h3 className="font-bold text-base mb-4">{editingTmpl ? 'Edit Template' : 'New Template'}</h3>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-                        <input value={tmplForm.name} onChange={e => setTmplForm({ ...tmplForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. Welcome Message" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                        <input value={tmplForm.name}
+                          onChange={e => { setTmplForm({ ...tmplForm, name: e.target.value }); if (tmplErrors.name) setTmplErrors(er => ({ ...er, name: undefined })); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${tmplErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Welcome Message" />
+                        {tmplErrors.name && <p className="text-xs text-red-500 mt-1">{tmplErrors.name}</p>}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -627,10 +679,12 @@ const SettingsPage = () => {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Message *</label>
-                        <textarea value={tmplForm.message} onChange={e => setTmplForm({ ...tmplForm, message: e.target.value })}
-                          rows={5} className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono"
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Message <span className="text-red-500">*</span></label>
+                        <textarea value={tmplForm.message}
+                          onChange={e => { setTmplForm({ ...tmplForm, message: e.target.value }); if (tmplErrors.message) setTmplErrors(er => ({ ...er, message: undefined })); }}
+                          rows={5} className={`w-full px-3 py-2.5 border rounded-lg text-sm font-mono ${tmplErrors.message ? 'border-red-500' : ''}`}
                           placeholder={'Hi {name}, thanks for your interest in {course} at {business}...'} />
+                        {tmplErrors.message && <p className="text-xs text-red-500 mt-1">{tmplErrors.message}</p>}
                         <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
                           Variables:{' '}
                           {['{name}', '{phone}', '{course}', '{course_fee}', '{course_duration}', '{business}', '{business_phone}'].map(v => (
@@ -966,9 +1020,11 @@ const SettingsPage = () => {
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Stage Name *</label>
-                        <input value={stageForm.name} onChange={e => setStageForm({ ...stageForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. Negotiation" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Stage Name <span className="text-red-500">*</span></label>
+                        <input value={stageForm.name}
+                          onChange={e => { setStageForm({ ...stageForm, name: e.target.value }); if (stageErrors.name) setStageErrors({}); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${stageErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Negotiation" />
+                        {stageErrors.name && <p className="text-xs text-red-500 mt-1">{stageErrors.name}</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-2">Color</label>

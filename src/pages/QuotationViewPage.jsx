@@ -2,8 +2,10 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { quotationsAPI } from '../services/api';
 import { ArrowLeft, Send, CheckCircle, XCircle, Printer } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
 
 const QuotationViewPage = () => {
+  const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -24,17 +26,17 @@ const QuotationViewPage = () => {
       const { data: res } = await quotationsAPI.send(id);
       window.open(res.whatsapp_url, '_blank');
       load();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
   };
 
   const handleAccept = async () => {
     if (!window.confirm('Mark this quotation as accepted? This will move the lead to Won.')) return;
-    try { await quotationsAPI.accept(id); load(); } catch (e) { alert('Failed'); }
+    try { await quotationsAPI.accept(id); load(); } catch (e) { toast.error('Failed'); }
   };
 
   const handleReject = async () => {
     const reason = prompt('Reason for rejection (optional):');
-    try { await quotationsAPI.reject(id, reason); load(); } catch (e) { alert('Failed'); }
+    try { await quotationsAPI.reject(id, reason); load(); } catch (e) { toast.error('Failed'); }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;

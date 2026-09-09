@@ -1,11 +1,14 @@
 import { useEffect, useState } from 'react';
 import { brochuresAPI } from '../../services/api';
 import { X, Search, FileText, Send } from 'lucide-react';
+import { useToast } from '../ui/Toast';
 
 const ShareBrochureModal = ({ leadId, onClose, onShared }) => {
+  const toast = useToast();
   const [brochures, setBrochures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sharingId, setSharingId] = useState(null);
 
   useEffect(() => { load(); }, []);
 
@@ -17,13 +20,15 @@ const ShareBrochureModal = ({ leadId, onClose, onShared }) => {
     finally { setLoading(false); }
   };
 
-  const handleShare = async (brochureId) => {
+  const handleShare = async (brochure) => {
+    if (sharingId) return;
+    setSharingId(brochure.id);
     try {
-      const { data } = await brochuresAPI.shareWithLead(brochureId, leadId);
+      const { data } = await brochuresAPI.shareWithLead(brochure.id, leadId);
       window.open(data.whatsapp_url, '_blank');
-      onShared?.();
+      onShared?.(brochure);
       onClose();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); setSharingId(null); }
   };
 
   const filtered = brochures.filter(b => b.name.toLowerCase().includes(search.toLowerCase()));
@@ -61,9 +66,9 @@ const ShareBrochureModal = ({ leadId, onClose, onShared }) => {
                     <p className="font-medium text-sm truncate">{b.name}</p>
                     <p className="text-xs text-gray-500 capitalize">{b.category}</p>
                   </div>
-                  <button onClick={() => handleShare(b.id)}
-                    className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 flex items-center gap-1">
-                    <Send size={12} /> Share
+                  <button onClick={() => handleShare(b)} disabled={sharingId === b.id}
+                    className="px-3 py-1.5 bg-green-500 text-white rounded-lg text-xs font-semibold hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1">
+                    <Send size={12} /> {sharingId === b.id ? 'Sharing...' : 'Share'}
                   </button>
                 </div>
               ))}

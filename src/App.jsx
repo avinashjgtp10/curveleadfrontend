@@ -1,7 +1,8 @@
-import { Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PageLoader from './components/ui/PageLoader';
 import { ConfirmDialogProvider } from './components/ui/ConfirmDialog';
+import { ToastProvider } from './components/ui/Toast';
 
 // Public
 import LandingPage from './pages/LandingPage';
@@ -18,6 +19,7 @@ import ContactUsPage from './pages/ContactUsPage';
 import Layout from './components/layout/Layout';
 import DashboardPage from './pages/DashboardPage';
 import LeadsPage from './pages/LeadsPage';
+import LeadDetailPage from './pages/LeadDetailPage';
 import CampaignsPage from './pages/CampaignsPage';
 import CampaignDetailPage from './pages/CampaignDetailPage';
 import WhatsAppInboxPage from './pages/WhatsAppInboxPage';
@@ -39,11 +41,6 @@ import QuotationEditorPage from './pages/QuotationEditorPage';
 import QuotationViewPage from './pages/QuotationViewPage';
 import QuotationPublicPage from './pages/QuotationPublicPage';
 
-const LeadDetailRedirect = () => {
-  const { id } = useParams();
-  return <Navigate to="/leads" state={{ openLeadId: id }} replace />;
-};
-
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
   if (loading) return <PageLoader message="Checking your session..." minHeight="h-screen" />;
@@ -58,6 +55,7 @@ const GuestRoute = ({ children }) => {
 
 const App = () => (
   <AuthProvider>
+    <ToastProvider>
     <ConfirmDialogProvider>
       <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -74,7 +72,7 @@ const App = () => (
         <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="leads" element={<LeadsPage />} />
-          <Route path="leads/:id" element={<LeadDetailRedirect />} />
+          <Route path="leads/:id" element={<LeadDetailPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="campaigns/:id" element={<CampaignDetailPage />} />
           <Route path="whatsapp" element={<WhatsAppInboxPage />} />
@@ -96,6 +94,7 @@ const App = () => (
         </Route>
       </Routes>
     </ConfirmDialogProvider>
+    </ToastProvider>
   </AuthProvider>
 );
 

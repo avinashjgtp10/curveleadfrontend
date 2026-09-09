@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
@@ -7,6 +7,8 @@ import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
+import ShareBrochureModal from '../components/lead/ShareBrochureModal';
+import { useToast } from '../components/ui/Toast';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
 
 const activityConfig = (type) => {
@@ -54,6 +56,7 @@ const scoreColors = {
 };
 
 const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = {}) => {
+  const toast = useToast();
   const { id: routeId } = useParams();
   const id = leadId || routeId;
   const navigate = useNavigate();
@@ -73,6 +76,8 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [brochures, setBrochures] = useState([]);
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
+  const [showShareBrochure, setShowShareBrochure] = useState(false);
+  const [sharingBrochureId, setSharingBrochureId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Stages, Statuses & Staff
@@ -107,7 +112,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [savingFollowupEdit, setSavingFollowupEdit] = useState(false);
   const FOLLOWUP_LIMIT = 5;
 
-  useEffect(() => { loadData(); loadStages(); loadTemplatesAndBrochures(); }, [id]);
+  const loadedForId = useRef(null);
+  useEffect(() => {
+    if (loadedForId.current === id) return; // StrictMode dev double-invoke guard
+    loadedForId.current = id;
+    loadData(); loadStages(); loadTemplatesAndBrochures();
+  }, [id]);
   useEffect(() => { if (id) loadFollowupHistory(); }, [id, followupPage]);
 
   // Reset ephemeral UI state when switching leads via Prev/Next — the component
@@ -211,7 +221,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setActivities(data.activities || []);
       setEditing(false);
       setLeadFormErrors({});
-    } catch (e) { alert('Failed to save'); }
+    } catch (e) { toast.error('Failed to save'); }
   };
 
   const handleStageChange = async (newStage) => {
@@ -224,7 +234,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await leadAPI.update(id, { stage: newStage, lead_status: '' });
       setLead(prev => ({ ...prev, stage: newStage, lead_status: '' }));
-    } catch (e) { alert('Failed to update stage'); }
+    } catch (e) { toast.error('Failed to update stage'); }
     finally { setStageSaving(false); }
   };
 
@@ -239,7 +249,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setLead(prev => ({ ...prev, stage: lostReasonModal.newStage, lead_status: '' }));
       closeLostModal();
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to update stage'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update stage'); }
     finally { setStageSaving(false); }
   };
 
@@ -247,11 +257,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await leadAPI.update(id, { lead_status: newStatus });
       setLead(prev => ({ ...prev, lead_status: newStatus }));
-    } catch (e) { alert('Failed to update status'); }
+    } catch (e) { toast.error('Failed to update status'); }
   };
 
   const handleScheduleFollowup = async () => {
-    if (!followupForm.next_followup_at) return alert('Please pick a date and time');
+    if (!followupForm.next_followup_at) return toast.error('Please pick a date and time');
     setSavingFollowup(true);
     try {
       // Convert local datetime string to UTC ISO so the server (UTC) stores it correctly
@@ -265,7 +275,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setFollowupPage(1);
       loadData();
       loadFollowupHistory();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to schedule follow-up'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to schedule follow-up'); }
     finally { setSavingFollowup(false); }
   };
 
@@ -287,7 +297,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const cancelEditFollowup = () => setEditingFollowupId(null);
 
   const saveFollowupEdit = async () => {
-    if (!editFollowupForm.next_followup_at) return alert('Please pick a date and time');
+    if (!editFollowupForm.next_followup_at) return toast.error('Please pick a date and time');
     setSavingFollowupEdit(true);
     try {
       const utcAt = new Date(editFollowupForm.next_followup_at).toISOString();
@@ -299,7 +309,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setEditingFollowupId(null);
       loadFollowupHistory();
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to update follow-up'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update follow-up'); }
     finally { setSavingFollowupEdit(false); }
   };
 
@@ -307,14 +317,14 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await aiAPI.scoreLead(id);
       loadData();
-    } catch (e) { alert('AI scoring failed'); }
+    } catch (e) { toast.error('AI scoring failed'); }
   };
 
   const handleMarkContacted = async () => {
     try {
       await leadAPI.markContacted(id);
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to mark as contacted'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to mark as contacted'); }
   };
 
   const handleSendMessage = async () => {
@@ -323,7 +333,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       await whatsappAPI.send(id, newMessage);
       setNewMessage('');
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to send'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to send'); }
   };
 
   const handleOpenTmplPicker = async () => {
@@ -342,7 +352,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       const { data } = await templateAPI.generate(tmpl.id, { lead_id: id });
       setNewMessage(data.message);
       setShowTmplPicker(false);
-    } catch (e) { alert('Failed to generate message'); }
+    } catch (e) { toast.error('Failed to generate message'); }
   };
 
   const handleSendTemplateWhatsApp = async (tmpl, e) => {
@@ -353,17 +363,36 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
         window.open(data.whatsappUrl, '_blank');
         setShowTmplPicker(false);
       } else {
-        alert('No phone number found for this lead');
+        toast.error('No phone number found for this lead');
       }
-    } catch (e) { alert('Failed to generate message'); }
+    } catch (e) { toast.error('Failed to generate message'); }
   };
 
   const handleShareBrochureWA = async (brochureId) => {
+    if (sharingBrochureId) return;
+    setSharingBrochureId(brochureId);
     try {
       const { data } = await brochuresAPI.shareWithLead(brochureId, id);
       window.open(data.whatsapp_url, '_blank');
-      loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to share brochure'); }
+      const shared = brochures.find(b => b.id === brochureId);
+      await handleBrochureShared(shared);
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to share brochure'); }
+    finally { setSharingBrochureId(null); }
+  };
+
+  const handleBrochureShared = async (brochure) => {
+    await loadData();
+    setActivities(prev => {
+      const alreadyLogged = prev.some(a => a.activity_type === 'share_material' && brochure?.name && a.description?.includes(brochure.name));
+      if (alreadyLogged) return prev;
+      return [{
+        id: `local-share-${Date.now()}`,
+        activity_type: 'share_material',
+        title: 'Brochure shared',
+        description: brochure?.name ? `Shared "${brochure.name}" via WhatsApp` : 'Shared a brochure via WhatsApp',
+        created_at: new Date().toISOString(),
+      }, ...prev];
+    });
   };
 
   const nextFollowup = followups.find(f => !f.is_completed && f.next_followup_at);
@@ -442,29 +471,31 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               </div>
             )}
           </div>
-          <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
-            className="shrink-0 whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
-            <FileText size={14} /> New Quotation
-          </button>
+          <div className="flex gap-1.5 shrink-0">
+            <button onClick={() => setShowShareBrochure(true)}
+              className="whitespace-nowrap px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <Share2 size={14} /> Share Brochure
+            </button>
+            <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
+              className="whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <FileText size={14} /> New Quotation
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {lead.lead_number && (
-              <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
-            )}
-            <h2 className="text-base font-bold truncate">{lead.name}</h2>
-            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
-              {lead.lead_score?.toUpperCase()}
-            </span>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
-              {lead.stage}
-            </span>
-          </div>
-          <div className="flex gap-1.5 shrink-0">
-            <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
-            <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
-          </div>
+        <div className="flex items-center flex-wrap gap-2">
+          {lead.lead_number && (
+            <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
+          )}
+          <h2 className="text-base font-bold truncate">{lead.name}</h2>
+          <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
+            {lead.lead_score?.toUpperCase()}
+          </span>
+          <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
+            {lead.stage}
+          </span>
+          <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="shrink-0 p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
+          <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="shrink-0 p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
         </div>
 
         <div className="flex flex-wrap gap-1">
@@ -1086,9 +1117,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       <p className="text-xs font-medium truncate">{b.name}</p>
                       <p className="text-[11px] text-gray-400 capitalize">{b.category}</p>
                     </div>
-                    <button onClick={() => handleShareBrochureWA(b.id)}
-                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium flex items-center gap-1">
-                      <MessageCircle size={11} /> Send
+                    <button onClick={() => handleShareBrochureWA(b.id)} disabled={sharingBrochureId === b.id}
+                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium flex items-center gap-1">
+                      <MessageCircle size={11} /> {sharingBrochureId === b.id ? 'Sending...' : 'Send'}
                     </button>
                   </div>
                 ))
@@ -1209,6 +1240,15 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             </div>
           </div>
         </div>,
+        document.body
+      )}
+
+      {showShareBrochure && createPortal(
+        <ShareBrochureModal
+          leadId={id}
+          onClose={() => setShowShareBrochure(false)}
+          onShared={handleBrochureShared}
+        />,
         document.body
       )}
     </div>

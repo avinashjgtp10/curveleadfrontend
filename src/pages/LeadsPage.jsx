@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy, MoreVertical } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
@@ -141,6 +143,7 @@ const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
 const LeadsPage = () => {
   const location = useLocation();
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const queryConfig = getQueryConfig(location.search, location.state);
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
@@ -166,6 +169,35 @@ const LeadsPage = () => {
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
   const [editingStageId, setEditingStageId] = useState(null);
   const [editingAssignId, setEditingAssignId] = useState(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  const [actionMenuPos, setActionMenuPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.target.closest('[data-actions-menu]')) setOpenActionMenuId(null);
+    };
+    const closeMenu = () => setOpenActionMenuId(null);
+    document.addEventListener('mousedown', handler);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, []);
+
+  const toggleActionMenu = (id, e) => {
+    if (openActionMenuId === id) { setOpenActionMenuId(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 176, menuHeight = 118;
+    const openUpward = rect.bottom + menuHeight > window.innerHeight;
+    setActionMenuPos({
+      top: openUpward ? rect.top - menuHeight - 4 : rect.bottom + 4,
+      left: Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
+    });
+    setOpenActionMenuId(id);
+  };
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkStage, setBulkStage] = useState('');
   const [bulkAssign, setBulkAssign] = useState('');
@@ -356,7 +388,7 @@ const LeadsPage = () => {
 
   const handleCompleteFollowup = async (id) => {
     try { await followupAPI.complete(id, { outcome: 'Completed' }); fetchLeads(); }
-    catch (e) { alert('Failed to mark follow-up as done'); }
+    catch (e) { toast.error('Failed to mark follow-up as done'); }
   };
 
   const handleFilterChange = (updater) => { setPage(1); setFilters(updater); };
@@ -390,14 +422,14 @@ const LeadsPage = () => {
       a.download = 'curvelead_import_template.xlsx';
       a.click();
     } catch {
-      alert('Failed to download template.');
+      toast.error('Failed to download template.');
     }
   };
 
   const handleImportFile = (file) => {
     if (!file) return;
     const allowed = /\.(csv|xlsx|xls)$/i.test(file.name);
-    if (!allowed) return alert('Only CSV (.csv) and Excel (.xlsx, .xls) files allowed.');
+    if (!allowed) return toast.error('Only CSV (.csv) and Excel (.xlsx, .xls) files allowed.');
     setImportFile(file);
     setImportResult(null);
     // Preview: CSV only
@@ -456,20 +488,20 @@ const LeadsPage = () => {
       setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
       setNewLeadErrors({});
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const handleDelete = async (id) => {
     const ok = await confirm({ title: 'Delete this lead?' });
     if (!ok) return;
-    try { await leadAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
+    try { await leadAPI.delete(id); loadData(); } catch (e) { toast.error('Failed'); }
   };
 
   const handleAIScore = async (id) => {
     try {
       await aiAPI.scoreLead(id);
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'AI scoring failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'AI scoring failed'); }
   };
 
   const handleStageChange = async (leadId, newStage) => {
@@ -482,7 +514,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.update(leadId, { stage: newStage, lead_status: '' });
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage, lead_status: '' } : l));
-    } catch (e) { alert('Failed to update stage'); }
+    } catch (e) { toast.error('Failed to update stage'); }
   };
 
   const confirmLostStage = async () => {
@@ -499,7 +531,7 @@ const LeadsPage = () => {
         : l
       ));
       closeLostModal();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to update stage'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update stage'); }
   };
 
   const handleExport = async () => {
@@ -524,10 +556,10 @@ const LeadsPage = () => {
       // If server returned an error as blob, read it as text to surface the real message
       if (err.response?.data instanceof Blob) {
         const text = await err.response.data.text().catch(() => '');
-        try { const parsed = JSON.parse(text); alert('Export failed: ' + (parsed.error || text)); return; } catch {}
-        alert('Export failed: ' + (text || err.message));
+        try { const parsed = JSON.parse(text); toast.error('Export failed: ' + (parsed.error || text)); return; } catch {}
+        toast.error('Export failed: ' + (text || err.message));
       } else {
-        alert('Export failed: ' + (err.response?.data?.error || err.message || 'Unknown error'));
+        toast.error('Export failed: ' + (err.response?.data?.error || err.message || 'Unknown error'));
       }
     }
   };
@@ -537,7 +569,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.update(leadId, { lead_status: newStatus });
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, lead_status: newStatus } : l));
-    } catch (e) { alert('Failed to update status'); }
+    } catch (e) { toast.error('Failed to update status'); }
   };
 
   const handleAssignChange = async (leadId, staffId) => {
@@ -549,7 +581,7 @@ const LeadsPage = () => {
         ? { ...l, assigned_to: staffId || null, assigned_to_name: member?.name || null }
         : l
       ));
-    } catch (e) { alert('Failed to update assignment'); }
+    } catch (e) { toast.error('Failed to update assignment'); }
   };
 
   const toggleSelect = (id) => setSelectedIds(prev => {
@@ -575,7 +607,7 @@ const LeadsPage = () => {
       await leadAPI.bulkUpdate({ ids: [...selectedIds], stage });
       clearSelection();
       loadData();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
     finally { setBulkLoading(false); }
   };
 
@@ -585,7 +617,7 @@ const LeadsPage = () => {
       await leadAPI.bulkUpdate({ ids: [...selectedIds], assigned_to: staffId || null });
       clearSelection();
       loadData();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
     finally { setBulkLoading(false); }
   };
 
@@ -597,7 +629,7 @@ const LeadsPage = () => {
       await leadAPI.bulkDelete([...selectedIds]);
       clearSelection();
       loadData();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
     finally { setBulkLoading(false); }
   };
 
@@ -616,7 +648,7 @@ const LeadsPage = () => {
       }
       setDuplicateKeepChoice(defaults);
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to load duplicate leads.');
+      toast.error(e.response?.data?.error || 'Failed to load duplicate leads.');
     } finally {
       setDuplicatesLoading(false);
     }
@@ -639,7 +671,7 @@ const LeadsPage = () => {
       setDuplicateGroups(prev => prev.filter(g => g.norm_phone !== group.norm_phone));
       loadData();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to merge duplicates.');
+      toast.error(e.response?.data?.error || 'Failed to merge duplicates.');
     } finally {
       setMergingPhone(null);
     }
@@ -1158,12 +1190,19 @@ const LeadsPage = () => {
                         </td>
                         )}
                         <td className="px-3 py-3 text-right">
-                          <div className="flex justify-end gap-1">
+                          <div className="flex justify-end items-center gap-1" data-actions-menu>
                             <a href={`tel:${l.phone}`} onClick={() => leadAPI.logCall(l.id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                             <a href={`https://wa.me/${l.phone}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
-                            <button onClick={() => handleAIScore(l.id)} className="p-1.5 hover:bg-purple-50 rounded text-purple-500" title="Recalculate Intent"><Zap size={14} /></button>
-                            <button onClick={() => setOpenLeadId(l.id)} className="p-1.5 hover:bg-gray-100 rounded" title="Edit"><Edit2 size={14} /></button>
-                            <button onClick={() => handleDelete(l.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Delete"><Trash2 size={14} /></button>
+                            <button onClick={(e) => toggleActionMenu(l.id, e)} className="p-1.5 hover:bg-gray-100 rounded text-gray-500" title="More actions"><MoreVertical size={14} /></button>
+                            {openActionMenuId === l.id && createPortal(
+                              <div data-actions-menu style={{ position: 'fixed', top: actionMenuPos.top, left: actionMenuPos.left, width: 176 }}
+                                className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
+                                <button onClick={() => { handleAIScore(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-purple-600"><Zap size={13} /> Recalculate Intent</button>
+                                <button onClick={() => { setOpenLeadId(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700"><Edit2 size={13} /> Edit</button>
+                                <button onClick={() => { handleDelete(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-red-50 text-red-500"><Trash2 size={13} /> Delete</button>
+                              </div>,
+                              document.body
+                            )}
                           </div>
                         </td>
                       </tr>

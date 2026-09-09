@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Mic, Video, Upload, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { recordingAPI } from '../../services/api';
 import { useConfirmDialog } from '../ui/ConfirmDialog';
+import { useToast } from '../ui/Toast';
 
 const fmtSize = (bytes) => {
   if (!bytes) return '';
@@ -178,6 +179,7 @@ const RecordingCard = ({ recording, onDelete, onRetry }) => {
 
 export default function LeadRecordings({ leadId }) {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [recordings, setRecordings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -213,7 +215,7 @@ export default function LeadRecordings({ leadId }) {
   const handleFileSelect = (file) => {
     if (!file) return;
     const ok = /^(audio|video)\//i.test(file.type) || /\.(mp3|mp4|wav|m4a|ogg|webm|mpeg|aac|flac|mov|avi|mkv)$/i.test(file.name);
-    if (!ok) return alert('Only audio and video files are supported.');
+    if (!ok) return toast.error('Only audio and video files are supported.');
     setPendingFile(file);
     setUploadTitle(file.name.replace(/\.[^.]+$/, ''));
     setShowUpload(true);
@@ -229,7 +231,7 @@ export default function LeadRecordings({ leadId }) {
       setShowUpload(false);
       await load();
     } catch (e) {
-      alert(e.response?.data?.error || 'Upload failed.');
+      toast.error(e.response?.data?.error || 'Upload failed.');
     } finally { setUploading(false); }
   };
 
@@ -244,7 +246,7 @@ export default function LeadRecordings({ leadId }) {
       await recordingAPI.retry(id);
       setRecordings(r => r.map(x => x.id === id ? { ...x, analysis_status: 'pending', analysis: null, transcription: null } : x));
     } catch (e) {
-      alert(e.response?.data?.error || 'Retry failed.');
+      toast.error(e.response?.data?.error || 'Retry failed.');
     }
   };
 

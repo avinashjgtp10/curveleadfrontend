@@ -2,8 +2,10 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { quotationsAPI, leadAPI } from '../services/api';
 import { Plus, Trash2, Save, Send, ArrowLeft } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
 
 const QuotationEditorPage = () => {
+  const toast = useToast();
   const navigate = useNavigate();
   const { id } = useParams();
   const [searchParams] = useSearchParams();
@@ -49,8 +51,8 @@ const QuotationEditorPage = () => {
   const total = taxableAmount + taxAmount;
 
   const handleSave = async (send = false) => {
-    if (!form.lead_id) return alert('Please select a lead');
-    if (form.items.length === 0 || !form.items[0].name) return alert('Add at least one item');
+    if (!form.lead_id) return toast.error('Please select a lead');
+    if (form.items.length === 0 || !form.items[0].name) return toast.error('Add at least one item');
 
     setLoading(true);
     try {
@@ -69,7 +71,7 @@ const QuotationEditorPage = () => {
         window.open(data.whatsapp_url, '_blank');
       }
       navigate('/quotations');
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
     finally { setLoading(false); }
   };
 
