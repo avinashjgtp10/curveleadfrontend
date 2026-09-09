@@ -25,7 +25,8 @@ const ShareBrochureModal = ({ leadId, onClose, onShared }) => {
     setSharingId(brochure.id);
     try {
       const { data } = await brochuresAPI.shareWithLead(brochure.id, leadId);
-      window.open(data.whatsapp_url, '_blank');
+      if (!data.sent) toast.error(data.error || 'Message queued but delivery failed.');
+      else toast.success('Brochure sent.');
       onShared?.(brochure);
       onClose();
     } catch (e) { toast.error(e.response?.data?.error || 'Failed'); setSharingId(null); }

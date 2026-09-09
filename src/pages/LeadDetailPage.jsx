@@ -9,7 +9,7 @@ import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { useToast } from '../components/ui/Toast';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
 
 const activityConfig = (type) => {
   const map = {
@@ -359,13 +359,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     e.stopPropagation();
     try {
       const { data } = await templateAPI.generate(tmpl.id, { lead_id: id });
-      if (data.whatsappUrl) {
-        window.open(data.whatsappUrl, '_blank');
-        setShowTmplPicker(false);
-      } else {
-        toast.error('No phone number found for this lead');
-      }
-    } catch (e) { toast.error('Failed to generate message'); }
+      await whatsappAPI.send(id, data.message);
+      setShowTmplPicker(false);
+      await loadData();
+      toast.success('Message sent.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to send message'); }
   };
 
   const handleShareBrochureWA = async (brochureId) => {
@@ -373,7 +371,8 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     setSharingBrochureId(brochureId);
     try {
       const { data } = await brochuresAPI.shareWithLead(brochureId, id);
-      window.open(data.whatsapp_url, '_blank');
+      if (!data.sent) toast.error(data.error || 'Message queued but delivery failed.');
+      else toast.success('Brochure sent.');
       const shared = brochures.find(b => b.id === brochureId);
       await handleBrochureShared(shared);
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to share brochure'); }
@@ -1050,9 +1049,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                           <p className="text-xs text-gray-400 truncate mt-0.5">{t.message}</p>
                         </button>
                         <button onClick={(e) => handleSendTemplateWhatsApp(t, e)}
-                          title="Open in WhatsApp"
+                          title="Send via WhatsApp"
                           className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium transition-colors">
-                          <ExternalLink size={12} /> WA
+                          <Send size={12} /> Send
                         </button>
                       </div>
                     ))}
