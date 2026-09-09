@@ -1034,12 +1034,14 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
   const savedForm = {
     whatsapp_phone_number_id: settings.whatsapp_phone_number_id || '',
     whatsapp_access_token: isConfigured ? '••••••••' : '',
+    whatsapp_business_account_id: settings.whatsapp_business_account_id || '',
   };
   const [form, setForm] = useState(savedForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const isDirty = form.whatsapp_phone_number_id !== savedForm.whatsapp_phone_number_id
-    || form.whatsapp_access_token !== savedForm.whatsapp_access_token;
+    || form.whatsapp_access_token !== savedForm.whatsapp_access_token
+    || form.whatsapp_business_account_id !== savedForm.whatsapp_business_account_id;
 
   const [autoForm, setAutoForm] = useState({
     whatsapp_auto_responder_enabled: settings.whatsapp_auto_responder_enabled || false,
@@ -1075,9 +1077,9 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
 
   const handleDisconnect = async () => {
     if (!confirm('Disconnect WhatsApp Business API?')) return;
-    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
+    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
     await onRefresh();
-    setForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
+    setForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
   };
 
   return (
@@ -1101,6 +1103,13 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
           <input value={form.whatsapp_phone_number_id}
             onChange={e => setForm(f => ({ ...f, whatsapp_phone_number_id: e.target.value }))}
             placeholder="e.g. 123456789012345"
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Business Account ID <span className="text-gray-400 font-normal">(optional — needed for template broadcasts)</span></label>
+          <input value={form.whatsapp_business_account_id}
+            onChange={e => setForm(f => ({ ...f, whatsapp_business_account_id: e.target.value }))}
+            placeholder="e.g. 987654321098765"
             className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
         </div>
         <div>
@@ -1351,7 +1360,7 @@ const IntegrationsPage = () => {
     api_key: null, api_key_created_at: null,
     webhook_url: '', api_ingest_url: '', google_webhook_url: '',
     meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '',
-    whatsapp_phone_number_id: '', whatsapp_access_token: '',
+    whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '',
     voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
   const [loading, setLoading] = useState(true);

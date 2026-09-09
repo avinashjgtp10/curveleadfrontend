@@ -4,6 +4,7 @@ import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
+import WhatsAppBroadcastModal from '../components/lead/WhatsAppBroadcastModal';
 import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy, MoreVertical } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -202,6 +203,7 @@ const LeadsPage = () => {
   const [bulkStage, setBulkStage] = useState('');
   const [bulkAssign, setBulkAssign] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const PAGE_SIZE = 25;
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
@@ -1041,6 +1043,12 @@ const LeadsPage = () => {
                       </select>
                     </div>
                     <button
+                      onClick={() => setShowBroadcastModal(true)}
+                      disabled={bulkLoading}
+                      className="flex items-center gap-1.5 h-8 px-3 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold hover:bg-green-100 disabled:opacity-50">
+                      <MessageCircle size={13} /> WhatsApp Broadcast
+                    </button>
+                    <button
                       onClick={handleBulkDelete}
                       disabled={bulkLoading}
                       className="flex items-center gap-1.5 h-8 px-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 disabled:opacity-50">
@@ -1711,6 +1719,14 @@ const LeadsPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showBroadcastModal && (
+        <WhatsAppBroadcastModal
+          leads={leads.filter(l => selectedIds.has(l.id))}
+          onClose={() => setShowBroadcastModal(false)}
+          onSent={() => { setShowBroadcastModal(false); clearSelection(); loadData(); }}
+        />
       )}
     </div>
   );
