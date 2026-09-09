@@ -134,6 +134,7 @@ export const staffAPI = {
   delete: (id) => api.delete(`/staff/${id}`),
   getPermissions: (id) => api.get(`/staff/${id}/permissions`),
   updatePermissions: (id, permissions) => api.put(`/staff/${id}/permissions`, { permissions }),
+  setPassword: (id, password) => api.put(`/staff/${id}/password`, { password }),
   getMyWhatsAppNumber: () => api.get('/staff/me/whatsapp-number'),
   updateMyWhatsAppNumber: (data) => api.put('/staff/me/whatsapp-number', data),
   getWhatsAppNumber: (id) => api.get(`/staff/${id}/whatsapp-number`),
