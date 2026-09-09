@@ -142,16 +142,35 @@ const ReportsPage = () => {
   const [brochurePageSize, setBrochurePageSize] = useState(20);
   const [brochures, setBrochures] = useState([]);
   const [brochuresLoading, setBrochuresLoading] = useState(false);
+  const overviewRequestRef = useRef(0);
+  const funnelRequestRef = useRef(0);
+  const trendsRequestRef = useRef(0);
+  const gridRequestRef = useRef(0);
+  const brochuresRequestRef = useRef(0);
 
   useEffect(() => {
     stageAPI.getAll().then(res => setStages(res.data.stages || [])).catch(() => {});
   }, []);
 
-  useEffect(() => { loadOverview(); }, [period]);
-  useEffect(() => { loadFunnel(); }, [period]);
-  useEffect(() => { loadTrends(); }, [trendDays]);
-  useEffect(() => { loadGrid(); }, [gridSearch, gridStage, gridScore, gridStalled, gridPage, gridPageSize]);
-  useEffect(() => { loadBrochures(); }, []);
+  useEffect(() => {
+    if (['overview', 'team', 'campaigns'].includes(activeTab)) loadOverview();
+  }, [activeTab, period]);
+
+  useEffect(() => {
+    if (activeTab === 'funnel') loadFunnel();
+  }, [activeTab, period]);
+
+  useEffect(() => {
+    if (activeTab === 'team') loadTrends();
+  }, [activeTab, trendDays]);
+
+  useEffect(() => {
+    if (activeTab === 'leads') loadGrid();
+  }, [activeTab, gridSearch, gridStage, gridScore, gridStalled, gridPage, gridPageSize]);
+
+  useEffect(() => {
+    if (activeTab === 'brochures') loadBrochures();
+  }, [activeTab]);
 
   useEffect(() => {
     const t = setTimeout(() => { setGridPage(1); setGridSearch(gridSearchInput); }, 400);
@@ -164,6 +183,7 @@ const ReportsPage = () => {
   }, [brochureSearchInput]);
 
   const loadOverview = async () => {
+    const requestId = ++overviewRequestRef.current;
     setLoading(true);
     try {
       const [convRes, srcRes, staffRes, campRes] = await Promise.all([
@@ -172,15 +192,17 @@ const ReportsPage = () => {
         reportsAPI.byStaff({ period }).catch(() => ({ data: { staff: [] } })),
         reportsAPI.byCampaign({ period }).catch(() => ({ data: { campaigns: [] } })),
       ]);
+      if (requestId !== overviewRequestRef.current) return;
       setConversion(convRes.data);
       setBySource(srcRes.data.sources || []);
       setByStaff(staffRes.data.staff || []);
       setByCampaign(campRes.data.campaigns || []);
     } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    finally { if (requestId === overviewRequestRef.current) setLoading(false); }
   };
 
   const loadFunnel = async () => {
+    const requestId = ++funnelRequestRef.current;
     setFunnelLoading(true);
     try {
       const [funnelRes, tisRes, stalledRes] = await Promise.all([
@@ -188,27 +210,31 @@ const ReportsPage = () => {
         reportsAPI.timeInStage({ period }).catch(() => ({ data: { stages: [] } })),
         leadAPI.getAll({ stalled: true, limit: 1 }).catch(() => ({ data: { pagination: { total: 0 } } })),
       ]);
+      if (requestId !== funnelRequestRef.current) return;
       setFunnel(funnelRes.data);
       setTimeInStage(tisRes.data.stages || []);
       setStalledCount(stalledRes.data.pagination?.total || 0);
     } catch (e) { console.error(e); }
-    finally { setFunnelLoading(false); }
+    finally { if (requestId === funnelRequestRef.current) setFunnelLoading(false); }
   };
 
   const loadTrends = async () => {
+    const requestId = ++trendsRequestRef.current;
     setTrendLoading(true);
     try {
       const [tlRes, ftRes] = await Promise.all([
         reportsAPI.timeline({ period: 'daily', days: trendDays }).catch(() => ({ data: { timeline: [] } })),
         reportsAPI.followupTrend({ period: 'daily', days: trendDays }).catch(() => ({ data: { trend: [] } })),
       ]);
+      if (requestId !== trendsRequestRef.current) return;
       setResponseTrend(tlRes.data.timeline || []);
       setFollowupTrend(ftRes.data.trend || []);
     } catch (e) { console.error(e); }
-    finally { setTrendLoading(false); }
+    finally { if (requestId === trendsRequestRef.current) setTrendLoading(false); }
   };
 
   const loadGrid = async () => {
+    const requestId = ++gridRequestRef.current;
     setGridLoading(true);
     try {
       const params = { page: gridPage, limit: gridPageSize };
@@ -217,19 +243,22 @@ const ReportsPage = () => {
       if (gridScore) params.score = gridScore;
       if (gridStalled) params.stalled = true;
       const res = await leadAPI.getAll(params);
+      if (requestId !== gridRequestRef.current) return;
       setGridLeads(res.data.leads || []);
       setGridPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
     } catch (e) { console.error(e); }
-    finally { setGridLoading(false); }
+    finally { if (requestId === gridRequestRef.current) setGridLoading(false); }
   };
 
   const loadBrochures = async () => {
+    const requestId = ++brochuresRequestRef.current;
     setBrochuresLoading(true);
     try {
       const res = await brochuresAPI.getAll();
+      if (requestId !== brochuresRequestRef.current) return;
       setBrochures(res.data.brochures || []);
     } catch (e) { console.error(e); }
-    finally { setBrochuresLoading(false); }
+    finally { if (requestId === brochuresRequestRef.current) setBrochuresLoading(false); }
   };
 
   const gridPageNumbers = () => {
