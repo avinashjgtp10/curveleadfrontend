@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, Users, Target, Megaphone, ChevronLeft, ChevronRight, AlertTriangle,
-  Search, SlidersHorizontal, ChevronDown, X,
+  Search, SlidersHorizontal, ChevronDown, X, Download, FileSpreadsheet, FileText,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
@@ -35,6 +35,43 @@ const Spinner = () => (
     <div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
   </div>
 );
+
+const REPORT_COLUMNS = [
+  { key: 'lead_number', label: 'Lead #' },
+  { key: 'name', label: 'Name' },
+  { key: 'phone', label: 'Phone' },
+  { key: 'stage', label: 'Stage' },
+  { key: 'assigned_to_name', label: 'Assigned To' },
+  { key: 'created_at', label: 'Created' },
+];
+
+const formatReportValue = (lead, key) => {
+  const value = lead[key];
+  if (key === 'created_at') return value ? new Date(value).toLocaleDateString('en-IN') : '';
+  return value ?? '';
+};
+
+const escapeCsvValue = (value) => `"${String(value).replace(/"/g, '""')}"`;
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const downloadBlob = (content, type, filename) => {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const getReportFilename = (extension) => `lead_detail_report_${new Date().toISOString().slice(0, 10)}.${extension}`;
 
 // A button-triggered dropdown, anchored and positioned entirely with CSS,
 // so it always opens directly below its trigger instead of relying on the
@@ -113,6 +150,9 @@ const ReportsPage = () => {
   const [gridLeads, setGridLeads] = useState([]);
   const [gridPagination, setGridPagination] = useState({ total: 0, pages: 1 });
   const [gridLoading, setGridLoading] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState('');
+  const exportMenuRef = useRef(null);
 
   useEffect(() => {
     stageAPI.getAll().then(res => setStages(res.data.stages || [])).catch(() => {});
@@ -122,6 +162,14 @@ const ReportsPage = () => {
   useEffect(() => { loadFunnel(); }, [period]);
   useEffect(() => { loadTrends(); }, [trendDays]);
   useEffect(() => { loadGrid(); }, [gridSearch, gridStage, gridScore, gridStalled, gridPage, gridPageSize]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) setExportOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
 
   useEffect(() => {
     const t = setTimeout(() => { setGridPage(1); setGridSearch(gridSearchInput); }, 400);
@@ -186,6 +234,94 @@ const ReportsPage = () => {
       setGridPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
     } catch (e) { console.error(e); }
     finally { setGridLoading(false); }
+  };
+
+  const getGridExportParams = () => {
+    const params = { page: 1, limit: Math.max(gridPagination.total || gridPageSize, gridPageSize) };
+    if (gridSearch) params.search = gridSearch;
+    if (gridStage) params.stage = gridStage;
+    if (gridScore) params.score = gridScore;
+    if (gridStalled) params.stalled = true;
+    return params;
+  };
+
+  const getGridExportLeads = async () => {
+    if (!gridPagination.total || gridPagination.total === gridLeads.length) return gridLeads;
+    const res = await leadAPI.getAll(getGridExportParams());
+    return res.data.leads || [];
+  };
+
+  const handleReportDownload = async (format) => {
+    setExportOpen(false);
+    setExportingFormat(format);
+    try {
+      const leads = await getGridExportLeads();
+      const rows = leads.map(lead => REPORT_COLUMNS.map(col => formatReportValue(lead, col.key)));
+
+      if (format === 'csv') {
+        const csv = [
+          REPORT_COLUMNS.map(col => escapeCsvValue(col.label)).join(','),
+          ...rows.map(row => row.map(escapeCsvValue).join(',')),
+        ].join('\n');
+        downloadBlob(csv, 'text/csv;charset=utf-8;', getReportFilename('csv'));
+        return;
+      }
+
+      if (format === 'excel') {
+        const table = `
+          <table>
+            <thead><tr>${REPORT_COLUMNS.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${rows.map(row => `<tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join('')}</tr>`).join('')}
+            </tbody>
+          </table>
+        `;
+        const workbook = `<!doctype html><html><head><meta charset="utf-8" /></head><body>${table}</body></html>`;
+        downloadBlob(workbook, 'application/vnd.ms-excel;charset=utf-8;', getReportFilename('xls'));
+        return;
+      }
+
+      if (format === 'pdf') {
+        const printedAt = new Date().toLocaleString('en-IN');
+        const tableRows = rows.map(row => `
+          <tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
+        `).join('');
+        const html = `<!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>Lead Detail Report</title>
+              <style>
+                body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
+                h1 { font-size: 20px; margin: 0 0 4px; }
+                p { color: #6b7280; font-size: 12px; margin: 0 0 20px; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                th { text-align: left; text-transform: uppercase; color: #6b7280; font-size: 10px; border-bottom: 1px solid #d1d5db; padding: 8px; }
+                td { border-bottom: 1px solid #e5e7eb; padding: 8px; }
+                @media print { body { margin: 18mm; } }
+              </style>
+            </head>
+            <body>
+              <h1>Lead Detail Report</h1>
+              <p>Generated ${escapeHtml(printedAt)} - ${leads.length} leads</p>
+              <table>
+                <thead><tr>${REPORT_COLUMNS.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+              <script>window.onload = () => { window.print(); };</script>
+            </body>
+          </html>`;
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) throw new Error('Popup blocked. Please allow popups to export PDF.');
+        printWindow.document.write(html);
+        printWindow.document.close();
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || 'Failed to download report.');
+    } finally {
+      setExportingFormat('');
+    }
   };
 
   const gridPageNumbers = () => {
@@ -529,6 +665,37 @@ const ReportsPage = () => {
               <>
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
                   <h3 className="font-semibold">Lead Detail Report</h3>
+                  <div className="relative" ref={exportMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setExportOpen(v => !v)}
+                      disabled={gridLoading || exportingFormat || gridPagination.total === 0}
+                      className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Download size={15} />
+                      {exportingFormat ? 'Preparing...' : 'Download'}
+                      <ChevronDown size={14} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {exportOpen && (
+                      <div className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                        <button type="button" onClick={() => handleReportDownload('excel')}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
+                          <FileSpreadsheet size={15} className="text-green-600" />
+                          Excel (.xls)
+                        </button>
+                        <button type="button" onClick={() => handleReportDownload('pdf')}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
+                          <FileText size={15} className="text-red-600" />
+                          PDF
+                        </button>
+                        <button type="button" onClick={() => handleReportDownload('csv')}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
+                          <FileSpreadsheet size={15} className="text-cyan-600" />
+                          CSV
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3 flex-wrap mb-4">
