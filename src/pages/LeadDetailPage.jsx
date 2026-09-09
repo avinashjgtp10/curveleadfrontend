@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
@@ -77,6 +77,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
   const [showShareBrochure, setShowShareBrochure] = useState(false);
+  const [sharingBrochureId, setSharingBrochureId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Stages, Statuses & Staff
@@ -111,7 +112,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [savingFollowupEdit, setSavingFollowupEdit] = useState(false);
   const FOLLOWUP_LIMIT = 5;
 
-  useEffect(() => { loadData(); loadStages(); loadTemplatesAndBrochures(); }, [id]);
+  const loadedForId = useRef(null);
+  useEffect(() => {
+    if (loadedForId.current === id) return; // StrictMode dev double-invoke guard
+    loadedForId.current = id;
+    loadData(); loadStages(); loadTemplatesAndBrochures();
+  }, [id]);
   useEffect(() => { if (id) loadFollowupHistory(); }, [id, followupPage]);
 
   // Reset ephemeral UI state when switching leads via Prev/Next — the component
@@ -363,12 +369,15 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   };
 
   const handleShareBrochureWA = async (brochureId) => {
+    if (sharingBrochureId) return;
+    setSharingBrochureId(brochureId);
     try {
       const { data } = await brochuresAPI.shareWithLead(brochureId, id);
       window.open(data.whatsapp_url, '_blank');
       const shared = brochures.find(b => b.id === brochureId);
       await handleBrochureShared(shared);
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to share brochure'); }
+    finally { setSharingBrochureId(null); }
   };
 
   const handleBrochureShared = async (brochure) => {
@@ -1108,9 +1117,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       <p className="text-xs font-medium truncate">{b.name}</p>
                       <p className="text-[11px] text-gray-400 capitalize">{b.category}</p>
                     </div>
-                    <button onClick={() => handleShareBrochureWA(b.id)}
-                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium flex items-center gap-1">
-                      <MessageCircle size={11} /> Send
+                    <button onClick={() => handleShareBrochureWA(b.id)} disabled={sharingBrochureId === b.id}
+                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium flex items-center gap-1">
+                      <MessageCircle size={11} /> {sharingBrochureId === b.id ? 'Sending...' : 'Send'}
                     </button>
                   </div>
                 ))

@@ -119,6 +119,7 @@ const INTEGRATIONS = [
     border: 'border-green-100',
     category: 'Messaging',
     live: true,
+    isConfigured: s => s.whatsapp_configured,
   },
   {
     id: null,
@@ -1029,13 +1030,16 @@ const GoogleAdsConfig = () => {
 
 const WhatsAppConfig = ({ settings, onRefresh }) => {
   const toast = useToast();
-  const isConfigured = !!(settings.whatsapp_configured || settings.whatsapp_phone_number_id);
-  const [form, setForm] = useState({
+  const isConfigured = !!settings.whatsapp_configured;
+  const savedForm = {
     whatsapp_phone_number_id: settings.whatsapp_phone_number_id || '',
     whatsapp_access_token: isConfigured ? '••••••••' : '',
-  });
+  };
+  const [form, setForm] = useState(savedForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const isDirty = form.whatsapp_phone_number_id !== savedForm.whatsapp_phone_number_id
+    || form.whatsapp_access_token !== savedForm.whatsapp_access_token;
 
   const [autoForm, setAutoForm] = useState({
     whatsapp_auto_responder_enabled: settings.whatsapp_auto_responder_enabled || false,
@@ -1053,7 +1057,8 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(form);
       await onRefresh();
-      toast.error('WhatsApp settings saved.');
+      setForm(f => ({ ...f, whatsapp_access_token: '••••••••' }));
+      toast.success('WhatsApp connected.');
     } catch (e) { setError(e.response?.data?.error || 'Failed to save'); }
     finally { setSaving(false); }
   };
@@ -1072,13 +1077,18 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     if (!confirm('Disconnect WhatsApp Business API?')) return;
     await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
     await onRefresh();
+    setForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
   };
 
   return (
     <div className="space-y-5">
       <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${isConfigured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
         {isConfigured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-        {isConfigured ? 'WhatsApp Business API connected — appointment messages will auto-send.' : 'Not configured — paste your Meta WhatsApp API credentials below.'}
+        {isConfigured
+          ? `Connected${settings.whatsapp_verified_name ? ` as "${settings.whatsapp_verified_name}"` : ''}${settings.whatsapp_display_number ? ` (${settings.whatsapp_display_number})` : ''} — appointment messages will auto-send.`
+          : settings.whatsapp_error
+            ? `Saved credentials are invalid: ${settings.whatsapp_error}. Re-enter them below.`
+            : 'Not connected — paste your Meta WhatsApp API credentials below.'}
       </div>
 
       <div className="bg-white rounded-2xl border p-5 space-y-4">
@@ -1103,9 +1113,9 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
         </div>
         {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
         <div className="flex gap-2">
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save WhatsApp Settings'}
+          <button onClick={handleSave} disabled={saving || !isDirty}
+            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving ? 'Connecting…' : isConfigured && !isDirty ? 'Connected' : 'Save WhatsApp Settings'}
           </button>
           {isConfigured && (
             <button onClick={handleDisconnect} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">
