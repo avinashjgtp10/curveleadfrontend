@@ -86,6 +86,8 @@ export const whatsappAPI = {
   getInbox: () => api.get('/whatsapp/inbox'),
   getConversation: (leadId) => api.get(`/whatsapp/conversation/${leadId}`),
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
+  getBroadcastTemplates: () => api.get('/whatsapp/broadcast/templates'),
+  sendBroadcast: (data) => api.post('/whatsapp/broadcast/send', data),
 };
 
 // ============================================
