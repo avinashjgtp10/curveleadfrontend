@@ -7,21 +7,34 @@ const planCopy = {
   Free: {
     description: 'For testing the basic sales workflow.',
     features: ['20 leads', '1 user', 'Pipeline basics', 'Email support'],
+    gradient: 'from-gray-400 to-gray-500',
   },
   Starter: {
     description: 'For small teams starting with Meta and WhatsApp follow-up.',
     features: ['100 leads', '1 user', 'Meta Ads capture', 'WhatsApp inbox'],
+    gradient: 'from-cyan-500 to-blue-600',
   },
   Growth: {
     description: 'For active sales teams that need AI and reporting.',
     features: ['1000 leads', '5 users', 'AI scoring', 'Campaign ROI', 'Reports'],
     popular: true,
+    gradient: 'from-brand-500 to-indigo-600',
   },
   Pro: {
     description: 'For larger teams that need custom onboarding and limits.',
     features: ['Unlimited leads', 'Unlimited users', 'Priority support', 'Advanced setup help'],
+    gradient: 'from-amber-500 to-orange-600',
   },
 };
+
+// Static fallback so the plan grid still renders a complete preview when the
+// billing API is unreachable (e.g. running the frontend standalone).
+const FALLBACK_PLANS = [
+  { id: 'free', name: 'Free', max_users: 1, checkoutEnabled: false, prices: { monthly: { amount: 0, currency: 'USD' }, yearly: { amount: 0, currency: 'USD' } } },
+  { id: 'starter', name: 'Starter', max_users: 1, checkoutEnabled: false, prices: { monthly: { amount: 2900, currency: 'USD' }, yearly: { amount: 29000, currency: 'USD' } } },
+  { id: 'growth', name: 'Growth', max_users: 5, checkoutEnabled: false, prices: { monthly: { amount: 7900, currency: 'USD' }, yearly: { amount: 79000, currency: 'USD' } } },
+  { id: 'pro', name: 'Pro', max_users: -1, checkoutEnabled: false, prices: { monthly: { amount: 19900, currency: 'USD' }, yearly: { amount: 199000, currency: 'USD' } } },
+];
 
 const statusBadgeStyles = {
   trial: 'bg-amber-100 text-amber-700',
@@ -67,6 +80,7 @@ const BillingPage = () => {
   const [processingPlan, setProcessingPlan] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [isPreview, setIsPreview] = useState(false);
 
   const subscriptionStatus = tenant?.subscription_status || tenant?.subscriptionStatus || 'trial';
   const currentPlanName = useMemo(() => {
@@ -78,10 +92,12 @@ const BillingPage = () => {
     const loadPlans = async () => {
       try {
         const { data } = await paymentAPI.getPlans();
-        setPlans(data.plans || []);
+        setPlans(data.plans?.length ? data.plans : FALLBACK_PLANS);
         setRazorpayKeyId(data.razorpayKeyId || '');
+        setIsPreview(!data.plans?.length);
       } catch (err) {
-        setError(err.response?.data?.error || 'Failed to load billing plans.');
+        setPlans(FALLBACK_PLANS);
+        setIsPreview(true);
       } finally {
         setLoading(false);
       }
@@ -159,31 +175,35 @@ const BillingPage = () => {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-wider text-brand-600">Billing</p>
-          <h1 className="mt-2 text-2xl font-bold text-gray-950">Choose your CurveLead plan</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-600">
-            Upgrade securely with Razorpay. Your workspace limits update after payment verification.
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="inline-flex rounded-lg border border-gray-200 bg-white p-1">
-            {billingPeriods.map((period) => (
-              <button
-                key={period.id}
-                onClick={() => setBillingPeriod(period.id)}
-                className={`rounded-md px-3 py-1.5 text-sm font-semibold ${billingPeriod === period.id ? 'bg-brand-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
-              >
-                {period.label}
-              </button>
-            ))}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-brand-600 via-brand-700 to-indigo-800 p-5 sm:p-6 shadow-sm mb-6">
+        <div className="absolute -right-8 -top-10 w-40 h-40 rounded-full bg-white/10" />
+        <div className="absolute right-16 bottom-[-2.5rem] w-24 h-24 rounded-full bg-white/10" />
+        <div className="relative flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-white/70">Billing</p>
+            <h1 className="mt-1 text-2xl font-bold text-white">Choose your CurveLead plan</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-white/80">
+              Upgrade securely with Razorpay. Your workspace limits update after payment verification.
+            </p>
           </div>
-          <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5">
-            <p className="text-xs font-medium text-gray-500">Status</p>
-            <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${statusBadgeStyles[subscriptionStatus] || 'bg-gray-100 text-gray-600'}`}>
-              {subscriptionStatus}
-            </span>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="inline-flex rounded-lg bg-white/15 backdrop-blur-sm p-1">
+              {billingPeriods.map((period) => (
+                <button
+                  key={period.id}
+                  onClick={() => setBillingPeriod(period.id)}
+                  className={`rounded-md px-3 py-1.5 text-sm font-semibold transition-colors ${billingPeriod === period.id ? 'bg-white text-brand-700 shadow-sm' : 'text-white/80 hover:text-white'}`}
+                >
+                  {period.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-2 rounded-lg bg-white/15 backdrop-blur-sm px-3 py-1.5">
+              <p className="text-xs font-medium text-white/80">Status</p>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${statusBadgeStyles[subscriptionStatus] || 'bg-white/20 text-white'}`}>
+                {subscriptionStatus}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -200,6 +220,12 @@ const BillingPage = () => {
         </div>
       )}
 
+      {isPreview && !error && (
+        <div className="mb-4 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <ShieldCheck size={16} className="shrink-0" /> Showing preview pricing — connect the billing service to enable live checkout.
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {plans.map((plan) => {
           const copy = planCopy[plan.name] || {};
@@ -212,10 +238,10 @@ const BillingPage = () => {
           return (
             <div
               key={plan.id}
-              className={`relative rounded-lg border bg-white p-5 ${copy.popular ? 'border-brand-600 shadow-xl shadow-brand-100' : 'border-gray-200'}`}
+              className={`relative rounded-2xl border bg-white p-5 shadow-sm hover:shadow-md transition-shadow ${copy.popular ? 'border-brand-300 ring-1 ring-brand-100' : 'border-gray-200'}`}
             >
               {copy.popular && (
-                <div className="absolute -top-3 left-4 rounded-full bg-brand-600 px-3 py-1 text-xs font-bold text-white">
+                <div className="absolute -top-3 left-4 rounded-full bg-gradient-to-r from-brand-600 to-indigo-600 px-3 py-1 text-xs font-bold text-white shadow-sm">
                   Popular
                 </div>
               )}
@@ -225,7 +251,9 @@ const BillingPage = () => {
                   <h2 className="text-lg font-bold text-gray-950">{plan.name}</h2>
                   <p className="mt-2 min-h-10 text-sm leading-5 text-gray-500">{copy.description}</p>
                 </div>
-                {plan.name === 'Growth' ? <Zap className="shrink-0 text-brand-600" size={20} /> : <CreditCard className="shrink-0 text-gray-400" size={20} />}
+                <div className={`shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-gradient-to-br ${copy.gradient || 'from-gray-400 to-gray-500'} text-white shadow-sm`}>
+                  {plan.name === 'Growth' ? <Zap size={16} /> : <CreditCard size={16} />}
+                </div>
               </div>
 
               <div className="mt-5 flex items-end gap-1">
@@ -277,9 +305,11 @@ const BillingPage = () => {
         })}
       </div>
 
-      <div className="mt-6 rounded-lg border border-gray-200 bg-white p-4">
+      <div className="mt-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
         <div className="flex items-start gap-3">
-          <ShieldCheck className="mt-0.5 shrink-0 text-green-600" size={20} />
+          <div className="shrink-0 w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center">
+            <ShieldCheck size={18} />
+          </div>
           <div>
             <h2 className="text-sm font-bold text-gray-950">Secure payments</h2>
             <p className="mt-1 text-sm leading-6 text-gray-600">
