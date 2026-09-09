@@ -3,9 +3,11 @@ import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, automationAPI }
 import { useAuth } from '../context/AuthContext';
 import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag, Zap, Clock } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const SettingsPage = () => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const { user, tenant } = useAuth();
   const [tab, setTab] = useState('profile');
   const [settings, setSettings] = useState({});
@@ -102,13 +104,13 @@ const SettingsPage = () => {
   };
 
   const handleSaveBusiness = async () => {
-    if (!business.name.trim()) return alert('Business Name is required');
+    if (!business.name.trim()) return toast.error('Business Name is required');
     try {
       await settingsAPI.update({ ...settings, ...business });
       setBusinessOriginal(business);
       setEditingBusiness(false);
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const handleCancelBusiness = () => {
@@ -117,13 +119,13 @@ const SettingsPage = () => {
   };
 
   const handleChangePassword = async () => {
-    if (pwForm.newPassword !== pwForm.confirm) return alert('Passwords do not match');
-    if (pwForm.newPassword.length < 6) return alert('Password must be at least 6 characters');
+    if (pwForm.newPassword !== pwForm.confirm) return toast.error('Passwords do not match');
+    if (pwForm.newPassword.length < 6) return toast.error('Password must be at least 6 characters');
     try {
       await authAPI.changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword });
       setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const openCreateTmpl = () => {
@@ -139,7 +141,7 @@ const SettingsPage = () => {
   };
 
   const handleSaveTmpl = async () => {
-    if (!tmplForm.name || !tmplForm.message) return alert('Name and message are required');
+    if (!tmplForm.name || !tmplForm.message) return toast.error('Name and message are required');
     try {
       if (editingTmpl) {
         await templateAPI.update(editingTmpl.id, tmplForm);
@@ -149,7 +151,7 @@ const SettingsPage = () => {
       setTmplModal(false);
       loadTemplates();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const handleDeleteTmpl = async (id) => {
@@ -157,7 +159,7 @@ const SettingsPage = () => {
     try {
       await templateAPI.delete(id);
       loadTemplates();
-    } catch (e) { alert('Failed to delete'); }
+    } catch (e) { toast.error('Failed to delete'); }
   };
 
   const loadSequences = async () => {
@@ -213,7 +215,7 @@ const SettingsPage = () => {
       setSeqModal(false);
       loadSequences();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save sequence'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save sequence'); }
   };
 
   const handleDeleteSeq = async (id) => {
@@ -222,7 +224,7 @@ const SettingsPage = () => {
       await automationAPI.deleteSequence(id);
       loadSequences();
       loadRules();
-    } catch (e) { alert('Failed to delete'); }
+    } catch (e) { toast.error('Failed to delete'); }
   };
 
   const openCreateRule = () => {
@@ -238,9 +240,9 @@ const SettingsPage = () => {
   };
 
   const handleSaveRule = async () => {
-    if (!ruleForm.name.trim()) return alert('Rule name is required');
-    if (!ruleForm.sequence_id) return alert('Pick a sequence for this rule to enroll leads into');
-    if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) return alert('Pick which stage triggers this rule');
+    if (!ruleForm.name.trim()) return toast.error('Rule name is required');
+    if (!ruleForm.sequence_id) return toast.error('Pick a sequence for this rule to enroll leads into');
+    if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) return toast.error('Pick which stage triggers this rule');
     try {
       if (editingRule) {
         await automationAPI.updateRule(editingRule.id, ruleForm);
@@ -250,7 +252,7 @@ const SettingsPage = () => {
       setRuleModal(false);
       loadRules();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save rule'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save rule'); }
   };
 
   const handleDeleteRule = async (id) => {
@@ -258,7 +260,7 @@ const SettingsPage = () => {
     try {
       await automationAPI.deleteRule(id);
       loadRules();
-    } catch (e) { alert('Failed to delete'); }
+    } catch (e) { toast.error('Failed to delete'); }
   };
 
   const loadStages = async () => {
@@ -302,12 +304,12 @@ const SettingsPage = () => {
   };
 
   const handleDeleteStage = async (stage) => {
-    if (stage.is_default) return alert('Default stages cannot be deleted');
+    if (stage.is_default) return toast.error('Default stages cannot be deleted');
     if (!await confirm({ title: `Delete stage "${stage.name}"?`, message: 'Leads in this stage will keep the stage label.' })) return;
     try {
       await stageAPI.delete(stage.id);
       loadStages();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to delete'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete'); }
   };
 
   const openCreateStatus = (stageId) => {
@@ -342,12 +344,12 @@ const SettingsPage = () => {
   };
 
   const handleDeleteStatus = async (st) => {
-    if (st.is_default) return alert('Default statuses cannot be deleted');
+    if (st.is_default) return toast.error('Default statuses cannot be deleted');
     if (!await confirm({ title: `Delete status "${st.name}"?` })) return;
     try {
       await statusAPI.delete(st.id);
       loadStages();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to delete'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete'); }
   };
 
   const webhookUrl = `${window.location.origin.replace('www.', '')}/api/webhook/meta/${tenant?.id}`;

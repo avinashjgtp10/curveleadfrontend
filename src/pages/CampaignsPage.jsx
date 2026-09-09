@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { campaignAPI, integrationsAPI } from '../services/api';
 import { Plus, Megaphone, IndianRupee, Users, TrendingUp, X, Edit2, Trash2, RotateCcw, Eye, MousePointerClick, Target } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const statusColors = {
   active: 'bg-green-100 text-green-700',
@@ -23,6 +24,7 @@ const verdictColors = {
 const CampaignsPage = () => {
   const navigate = useNavigate();
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -40,9 +42,9 @@ const CampaignsPage = () => {
     setSyncingInsights(true);
     try {
       const { data } = await integrationsAPI.syncAdInsights();
-      alert(data.message);
+      toast.error(data.message);
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Sync failed. Connect an ad account in Integrations first.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Sync failed. Connect an ad account in Integrations first.'); }
     finally { setSyncingInsights(false); }
   };
 
@@ -72,7 +74,7 @@ const CampaignsPage = () => {
       setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' });
       setErrors({});
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const handleEdit = (c) => {
@@ -91,7 +93,7 @@ const CampaignsPage = () => {
 
   const handleDelete = async (id) => {
     if (!await confirm({ title: 'Delete this campaign?' })) return;
-    try { await campaignAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
+    try { await campaignAPI.delete(id); loadData(); } catch (e) { toast.error('Failed'); }
   };
 
   return (

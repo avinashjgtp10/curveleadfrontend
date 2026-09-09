@@ -6,6 +6,7 @@ import {
   LayoutGrid, List, ArrowLeft, ArrowRight, ImagePlus, Share2, Download, Check,
 } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const CATEGORIES = [
   { value: '', label: 'All' },
@@ -64,6 +65,7 @@ const Toggle = ({ checked, onChange }) => (
 
 const BrochuresPage = () => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [brochures, setBrochures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -164,14 +166,14 @@ const BrochuresPage = () => {
       setShowWizard(false);
       resetWizard();
       load();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to publish brochure'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to publish brochure'); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
     setOpenMenu(null);
     if (!await confirm({ title: 'Delete this brochure?' })) return;
-    try { await brochuresAPI.delete(id); load(); } catch (e) { alert('Failed'); }
+    try { await brochuresAPI.delete(id); load(); } catch (e) { toast.error('Failed'); }
   };
 
   const handleShareWA = (b) => {
@@ -207,7 +209,7 @@ const BrochuresPage = () => {
                     <p className="text-xs text-gray-500">Upload PDF, DOC, or other files</p>
                   </div>
                 </button>
-                <button onClick={() => { setCreateMenuOpen(false); alert('Create Manually is coming soon.'); }}
+                <button onClick={() => { setCreateMenuOpen(false); toast.error('Create Manually is coming soon.'); }}
                   className="w-full flex items-start gap-3 p-2.5 rounded-lg hover:bg-gray-50 text-left">
                   <div className="w-9 h-9 bg-violet-50 rounded-lg flex items-center justify-center text-violet-600 shrink-0"><Sparkles size={16} /></div>
                   <div>

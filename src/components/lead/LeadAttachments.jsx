@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react';
 import { attachmentsAPI } from '../../services/api';
 import { Paperclip, Upload, FileText, Image as ImageIcon, FileAudio, FileVideo, File as FileIcon, Download, Trash2, Send, X, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { useConfirmDialog } from '../ui/ConfirmDialog';
+import { useToast } from '../ui/Toast';
 
 const fileTypeIcons = {
   image: ImageIcon,
@@ -96,6 +97,7 @@ const Lightbox = ({ images, index, onClose }) => {
 
 const LeadAttachments = ({ leadId, onActivityAdded }) => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -121,7 +123,7 @@ const LeadAttachments = ({ leadId, onActivityAdded }) => {
     if (file.type.startsWith('image/')) {
       file = await compressImage(file);
     } else if (file.size > MAX_FILE_MB * 1024 * 1024) {
-      return alert(`File too large. Max ${MAX_FILE_MB}MB for non-image files.`);
+      return toast.error(`File too large. Max ${MAX_FILE_MB}MB for non-image files.`);
     }
 
     setUploading(true);
@@ -134,13 +136,13 @@ const LeadAttachments = ({ leadId, onActivityAdded }) => {
       e.target.value = '';
       load();
       onActivityAdded?.();
-    } catch (err) { alert(err.response?.data?.error || 'Upload failed'); }
+    } catch (err) { toast.error(err.response?.data?.error || 'Upload failed'); }
     finally { setUploading(false); }
   };
 
   const handleDelete = async (id) => {
     if (!await confirm({ title: 'Delete this file?' })) return;
-    try { await attachmentsAPI.delete(leadId, id); load(); } catch (e) { alert('Failed'); }
+    try { await attachmentsAPI.delete(leadId, id); load(); } catch (e) { toast.error('Failed'); }
   };
 
   const handleDownload = async (f) => {
@@ -153,14 +155,14 @@ const LeadAttachments = ({ leadId, onActivityAdded }) => {
       a.download = f.file_name;
       a.click();
       URL.revokeObjectURL(url);
-    } catch { alert('Download failed'); }
+    } catch { toast.error('Download failed'); }
   };
 
   const handleShare = async (id) => {
     try {
       const { data } = await attachmentsAPI.shareWhatsApp(leadId, id);
       window.open(data.whatsapp_url, '_blank');
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
   };
 
   const images = files.filter(f => f.file_type === 'image');

@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI, leadAPI, staffAPI } from '../services/api';
 import { Calendar, Clock, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Plus, ChevronDown, Search, SlidersHorizontal, MoreVertical, Eye, CalendarClock, CheckCircle, XCircle, X } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM, TYPE_META, STATUS_META, APPOINTMENT_TABS, APPOINTMENTS_PAGE_LIMIT } from '../utils/constants';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -22,6 +23,7 @@ const AppointmentsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -115,14 +117,14 @@ const AppointmentsPage = () => {
       });
       setNewModal(false);
       load();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to create appointment'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to create appointment'); }
     finally { setSaving(false); }
   };
 
   const handleComplete = async (id) => {
     setBusyId(id);
     try { await followupAPI.complete(id, { outcome: 'Completed' }); load(); }
-    catch (e) { alert('Failed to mark done'); }
+    catch (e) { toast.error('Failed to mark done'); }
     finally { setBusyId(null); setOpenMenuId(null); }
   };
 
@@ -130,7 +132,7 @@ const AppointmentsPage = () => {
     if (!await confirm({ title: 'Cancel this appointment?', confirmText: 'Cancel Appointment' })) return;
     setBusyId(id);
     try { await followupAPI.delete(id); load(); }
-    catch (e) { alert('Failed to cancel'); }
+    catch (e) { toast.error('Failed to cancel'); }
     finally { setBusyId(null); setOpenMenuId(null); }
   };
 
@@ -149,7 +151,7 @@ const AppointmentsPage = () => {
       await followupAPI.update(rescheduleId, { next_followup_at: new Date(rescheduleAt).toISOString() });
       setRescheduleId(null);
       load();
-    } catch (e) { alert('Failed to reschedule'); }
+    } catch (e) { toast.error('Failed to reschedule'); }
     finally { setSaving(false); }
   };
 
