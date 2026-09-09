@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy, MoreVertical } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
@@ -166,6 +167,35 @@ const LeadsPage = () => {
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
   const [editingStageId, setEditingStageId] = useState(null);
   const [editingAssignId, setEditingAssignId] = useState(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  const [actionMenuPos, setActionMenuPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.target.closest('[data-actions-menu]')) setOpenActionMenuId(null);
+    };
+    const closeMenu = () => setOpenActionMenuId(null);
+    document.addEventListener('mousedown', handler);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, []);
+
+  const toggleActionMenu = (id, e) => {
+    if (openActionMenuId === id) { setOpenActionMenuId(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 176, menuHeight = 118;
+    const openUpward = rect.bottom + menuHeight > window.innerHeight;
+    setActionMenuPos({
+      top: openUpward ? rect.top - menuHeight - 4 : rect.bottom + 4,
+      left: Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
+    });
+    setOpenActionMenuId(id);
+  };
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkStage, setBulkStage] = useState('');
   const [bulkAssign, setBulkAssign] = useState('');
@@ -1158,12 +1188,19 @@ const LeadsPage = () => {
                         </td>
                         )}
                         <td className="px-3 py-3 text-right">
-                          <div className="flex justify-end gap-1">
+                          <div className="flex justify-end items-center gap-1" data-actions-menu>
                             <a href={`tel:${l.phone}`} onClick={() => leadAPI.logCall(l.id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                             <a href={`https://wa.me/${l.phone}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
-                            <button onClick={() => handleAIScore(l.id)} className="p-1.5 hover:bg-purple-50 rounded text-purple-500" title="Recalculate Intent"><Zap size={14} /></button>
-                            <button onClick={() => setOpenLeadId(l.id)} className="p-1.5 hover:bg-gray-100 rounded" title="Edit"><Edit2 size={14} /></button>
-                            <button onClick={() => handleDelete(l.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Delete"><Trash2 size={14} /></button>
+                            <button onClick={(e) => toggleActionMenu(l.id, e)} className="p-1.5 hover:bg-gray-100 rounded text-gray-500" title="More actions"><MoreVertical size={14} /></button>
+                            {openActionMenuId === l.id && createPortal(
+                              <div data-actions-menu style={{ position: 'fixed', top: actionMenuPos.top, left: actionMenuPos.left, width: 176 }}
+                                className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
+                                <button onClick={() => { handleAIScore(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-purple-600"><Zap size={13} /> Recalculate Intent</button>
+                                <button onClick={() => { setOpenLeadId(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700"><Edit2 size={13} /> Edit</button>
+                                <button onClick={() => { handleDelete(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-red-50 text-red-500"><Trash2 size={13} /> Delete</button>
+                              </div>,
+                              document.body
+                            )}
                           </div>
                         </td>
                       </tr>
