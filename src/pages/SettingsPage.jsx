@@ -31,6 +31,7 @@ const SettingsPage = () => {
   const [tmplModal, setTmplModal] = useState(false);
   const [editingTmpl, setEditingTmpl] = useState(null);
   const [tmplForm, setTmplForm] = useState({ name: '', category: 'follow_up', channel: 'whatsapp', message: '' });
+  const [tmplErrors, setTmplErrors] = useState({});
 
   const [stages, setStages] = useState([]);
   const [stageModal, setStageModal] = useState(false);
@@ -132,17 +133,23 @@ const SettingsPage = () => {
   const openCreateTmpl = () => {
     setEditingTmpl(null);
     setTmplForm({ name: '', category: 'follow_up', channel: 'whatsapp', message: '' });
+    setTmplErrors({});
     setTmplModal(true);
   };
 
   const openEditTmpl = (t) => {
     setEditingTmpl(t);
     setTmplForm({ name: t.name, category: t.category, channel: t.channel, message: t.message });
+    setTmplErrors({});
     setTmplModal(true);
   };
 
   const handleSaveTmpl = async () => {
-    if (!tmplForm.name || !tmplForm.message) return toast.error('Name and message are required');
+    const errs = {};
+    if (!tmplForm.name.trim()) errs.name = 'Template name is required';
+    if (!tmplForm.message.trim()) errs.message = 'Message is required';
+    setTmplErrors(errs);
+    if (Object.keys(errs).length) return;
     try {
       if (editingTmpl) {
         await templateAPI.update(editingTmpl.id, tmplForm);
@@ -643,9 +650,11 @@ const SettingsPage = () => {
                     <h3 className="font-bold text-base mb-4">{editingTmpl ? 'Edit Template' : 'New Template'}</h3>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-                        <input value={tmplForm.name} onChange={e => setTmplForm({ ...tmplForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. Welcome Message" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                        <input value={tmplForm.name}
+                          onChange={e => { setTmplForm({ ...tmplForm, name: e.target.value }); if (tmplErrors.name) setTmplErrors(er => ({ ...er, name: undefined })); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${tmplErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Welcome Message" />
+                        {tmplErrors.name && <p className="text-xs text-red-500 mt-1">{tmplErrors.name}</p>}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -670,10 +679,12 @@ const SettingsPage = () => {
                         </div>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Message *</label>
-                        <textarea value={tmplForm.message} onChange={e => setTmplForm({ ...tmplForm, message: e.target.value })}
-                          rows={5} className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono"
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Message <span className="text-red-500">*</span></label>
+                        <textarea value={tmplForm.message}
+                          onChange={e => { setTmplForm({ ...tmplForm, message: e.target.value }); if (tmplErrors.message) setTmplErrors(er => ({ ...er, message: undefined })); }}
+                          rows={5} className={`w-full px-3 py-2.5 border rounded-lg text-sm font-mono ${tmplErrors.message ? 'border-red-500' : ''}`}
                           placeholder={'Hi {name}, thanks for your interest in {course} at {business}...'} />
+                        {tmplErrors.message && <p className="text-xs text-red-500 mt-1">{tmplErrors.message}</p>}
                         <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
                           Variables:{' '}
                           {['{name}', '{phone}', '{course}', '{course_fee}', '{course_duration}', '{business}', '{business_phone}'].map(v => (
