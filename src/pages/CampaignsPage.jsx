@@ -176,16 +176,16 @@ const CampaignsPage = () => {
             return (
               <div key={c.id} className="bg-white rounded-2xl border p-5 hover:shadow-lg transition cursor-pointer" onClick={() => navigate(`/campaigns/${c.id}`)}>
                 <div className="flex items-start justify-between gap-2 mb-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="font-semibold break-words">{c.name}</h3>
+                  <div className="flex-1 min-w-0 pr-1">
+                    <h3 className="font-semibold break-all line-clamp-2" title={c.name}>{c.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
                       {c.meta_campaign_id && (
                         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600">Meta Synced</span>
                       )}
+                      <p className="text-xs text-gray-500 capitalize">{c.source?.replace(/_/g, ' ')}</p>
                     </div>
-                    <p className="text-xs text-gray-500 capitalize">{c.source?.replace(/_/g, ' ')}</p>
                   </div>
-                  <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
+                  <span className={`shrink-0 whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
                 </div>
                 {c.verdict_label && (
                   <div className={`mb-3 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${verdictColors[c.verdict] || 'bg-gray-100 text-gray-600'}`} title={c.verdict_reason}>
