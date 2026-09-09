@@ -39,6 +39,7 @@ const SettingsPage = () => {
   const [statusModal, setStatusModal] = useState(false);
   const [editingStatus, setEditingStatus] = useState(null);
   const [statusForm, setStatusForm] = useState({ name: '', stage_id: '' });
+  const [statusErrors, setStatusErrors] = useState({});
   const [statusStageId, setStatusStageId] = useState(null);
   const [modalError, setModalError] = useState('');
 
@@ -315,6 +316,7 @@ const SettingsPage = () => {
     setStatusStageId(stageId);
     setStatusForm({ name: '', stage_id: stageId });
     setModalError('');
+    setStatusErrors({});
     setStatusModal(true);
   };
 
@@ -323,11 +325,13 @@ const SettingsPage = () => {
     setStatusStageId(stageId);
     setStatusForm({ name: st.name, stage_id: stageId });
     setModalError('');
+    setStatusErrors({});
     setStatusModal(true);
   };
 
   const handleSaveStatus = async () => {
-    if (!statusForm.name.trim()) return setModalError('Status name is required');
+    if (!statusForm.name.trim()) { setStatusErrors({ name: 'Status name is required' }); return; }
+    setStatusErrors({});
     setModalError('');
     try {
       if (editingStatus) {
@@ -1067,9 +1071,11 @@ const SettingsPage = () => {
                       <button onClick={() => setStatusModal(false)}><X size={16} className="text-gray-400" /></button>
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">Status Name *</label>
-                      <input value={statusForm.name} onChange={e => setStatusForm({ ...statusForm, name: e.target.value })}
-                        className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. No Answer" autoFocus />
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Status Name <span className="text-red-500">*</span></label>
+                      <input value={statusForm.name}
+                        onChange={e => { setStatusForm({ ...statusForm, name: e.target.value }); if (statusErrors.name) setStatusErrors({}); }}
+                        className={`w-full px-3 py-2.5 border rounded-lg text-sm ${statusErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. No Answer" autoFocus />
+                      {statusErrors.name && <p className="text-xs text-red-500 mt-1">{statusErrors.name}</p>}
                     </div>
                     {modalError && (
                       <div className="mt-3 px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{modalError}</div>
