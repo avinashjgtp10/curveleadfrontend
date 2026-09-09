@@ -8,6 +8,7 @@ import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
+import { useToast } from '../components/ui/Toast';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
 
 const activityConfig = (type) => {
@@ -55,6 +56,7 @@ const scoreColors = {
 };
 
 const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = {}) => {
+  const toast = useToast();
   const { id: routeId } = useParams();
   const id = leadId || routeId;
   const navigate = useNavigate();
@@ -213,7 +215,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setActivities(data.activities || []);
       setEditing(false);
       setLeadFormErrors({});
-    } catch (e) { alert('Failed to save'); }
+    } catch (e) { toast.error('Failed to save'); }
   };
 
   const handleStageChange = async (newStage) => {
@@ -226,7 +228,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await leadAPI.update(id, { stage: newStage, lead_status: '' });
       setLead(prev => ({ ...prev, stage: newStage, lead_status: '' }));
-    } catch (e) { alert('Failed to update stage'); }
+    } catch (e) { toast.error('Failed to update stage'); }
     finally { setStageSaving(false); }
   };
 
@@ -241,7 +243,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setLead(prev => ({ ...prev, stage: lostReasonModal.newStage, lead_status: '' }));
       closeLostModal();
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to update stage'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update stage'); }
     finally { setStageSaving(false); }
   };
 
@@ -249,11 +251,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await leadAPI.update(id, { lead_status: newStatus });
       setLead(prev => ({ ...prev, lead_status: newStatus }));
-    } catch (e) { alert('Failed to update status'); }
+    } catch (e) { toast.error('Failed to update status'); }
   };
 
   const handleScheduleFollowup = async () => {
-    if (!followupForm.next_followup_at) return alert('Please pick a date and time');
+    if (!followupForm.next_followup_at) return toast.error('Please pick a date and time');
     setSavingFollowup(true);
     try {
       // Convert local datetime string to UTC ISO so the server (UTC) stores it correctly
@@ -267,7 +269,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setFollowupPage(1);
       loadData();
       loadFollowupHistory();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to schedule follow-up'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to schedule follow-up'); }
     finally { setSavingFollowup(false); }
   };
 
@@ -289,7 +291,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const cancelEditFollowup = () => setEditingFollowupId(null);
 
   const saveFollowupEdit = async () => {
-    if (!editFollowupForm.next_followup_at) return alert('Please pick a date and time');
+    if (!editFollowupForm.next_followup_at) return toast.error('Please pick a date and time');
     setSavingFollowupEdit(true);
     try {
       const utcAt = new Date(editFollowupForm.next_followup_at).toISOString();
@@ -301,7 +303,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setEditingFollowupId(null);
       loadFollowupHistory();
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to update follow-up'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update follow-up'); }
     finally { setSavingFollowupEdit(false); }
   };
 
@@ -309,14 +311,14 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await aiAPI.scoreLead(id);
       loadData();
-    } catch (e) { alert('AI scoring failed'); }
+    } catch (e) { toast.error('AI scoring failed'); }
   };
 
   const handleMarkContacted = async () => {
     try {
       await leadAPI.markContacted(id);
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to mark as contacted'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to mark as contacted'); }
   };
 
   const handleSendMessage = async () => {
@@ -325,7 +327,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       await whatsappAPI.send(id, newMessage);
       setNewMessage('');
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to send'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to send'); }
   };
 
   const handleOpenTmplPicker = async () => {
@@ -344,7 +346,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       const { data } = await templateAPI.generate(tmpl.id, { lead_id: id });
       setNewMessage(data.message);
       setShowTmplPicker(false);
-    } catch (e) { alert('Failed to generate message'); }
+    } catch (e) { toast.error('Failed to generate message'); }
   };
 
   const handleSendTemplateWhatsApp = async (tmpl, e) => {
@@ -355,9 +357,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
         window.open(data.whatsappUrl, '_blank');
         setShowTmplPicker(false);
       } else {
-        alert('No phone number found for this lead');
+        toast.error('No phone number found for this lead');
       }
-    } catch (e) { alert('Failed to generate message'); }
+    } catch (e) { toast.error('Failed to generate message'); }
   };
 
   const handleShareBrochureWA = async (brochureId) => {
@@ -366,7 +368,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       window.open(data.whatsapp_url, '_blank');
       const shared = brochures.find(b => b.id === brochureId);
       await handleBrochureShared(shared);
-    } catch (e) { alert(e.response?.data?.error || 'Failed to share brochure'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to share brochure'); }
   };
 
   const handleBrochureShared = async (brochure) => {

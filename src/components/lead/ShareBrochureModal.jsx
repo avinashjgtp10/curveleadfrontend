@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
 import { brochuresAPI } from '../../services/api';
 import { X, Search, FileText, Send } from 'lucide-react';
+import { useToast } from '../ui/Toast';
 
 const ShareBrochureModal = ({ leadId, onClose, onShared }) => {
+  const toast = useToast();
   const [brochures, setBrochures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -23,7 +25,7 @@ const ShareBrochureModal = ({ leadId, onClose, onShared }) => {
       window.open(data.whatsapp_url, '_blank');
       onShared?.(brochure);
       onClose();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const filtered = brochures.filter(b => b.name.toLowerCase().includes(search.toLowerCase()));

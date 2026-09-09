@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI, leadAPI, staffAPI } from '../services/api';
 import { Calendar, Clock, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Plus, ChevronDown, Search, SlidersHorizontal, MoreVertical, Eye, CalendarClock, CheckCircle, XCircle, X } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM, TYPE_META, STATUS_META, APPOINTMENT_TABS, APPOINTMENTS_PAGE_LIMIT } from '../utils/constants';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -22,6 +23,7 @@ const AppointmentsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
@@ -115,14 +117,14 @@ const AppointmentsPage = () => {
       });
       setNewModal(false);
       load();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to create appointment'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to create appointment'); }
     finally { setSaving(false); }
   };
 
   const handleComplete = async (id) => {
     setBusyId(id);
     try { await followupAPI.complete(id, { outcome: 'Completed' }); load(); }
-    catch (e) { alert('Failed to mark done'); }
+    catch (e) { toast.error('Failed to mark done'); }
     finally { setBusyId(null); setOpenMenuId(null); }
   };
 
@@ -130,7 +132,7 @@ const AppointmentsPage = () => {
     if (!await confirm({ title: 'Cancel this appointment?', confirmText: 'Cancel Appointment' })) return;
     setBusyId(id);
     try { await followupAPI.delete(id); load(); }
-    catch (e) { alert('Failed to cancel'); }
+    catch (e) { toast.error('Failed to cancel'); }
     finally { setBusyId(null); setOpenMenuId(null); }
   };
 
@@ -149,7 +151,7 @@ const AppointmentsPage = () => {
       await followupAPI.update(rescheduleId, { next_followup_at: new Date(rescheduleAt).toISOString() });
       setRescheduleId(null);
       load();
-    } catch (e) { alert('Failed to reschedule'); }
+    } catch (e) { toast.error('Failed to reschedule'); }
     finally { setSaving(false); }
   };
 
@@ -195,6 +197,13 @@ const AppointmentsPage = () => {
   const pages = Math.max(1, Math.ceil(filtered.length / APPOINTMENTS_PAGE_LIMIT));
   const currentPage = Math.min(page, pages);
   const pageRows = filtered.slice((currentPage - 1) * APPOINTMENTS_PAGE_LIMIT, currentPage * APPOINTMENTS_PAGE_LIMIT);
+
+  const pageNumbers = () => {
+    if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+    if (currentPage <= 4) return [1, 2, 3, 4, 5, '…', pages];
+    if (currentPage >= pages - 3) return [1, '…', pages - 4, pages - 3, pages - 2, pages - 1, pages];
+    return [1, '…', currentPage - 1, currentPage, currentPage + 1, '…', pages];
+  };
 
   useEffect(() => {
     if (page > pages) setPage(pages);
@@ -459,18 +468,22 @@ const AppointmentsPage = () => {
             <span>Showing {(currentPage - 1) * APPOINTMENTS_PAGE_LIMIT + 1} to {Math.min(currentPage * APPOINTMENTS_PAGE_LIMIT, filtered.length)} of {filtered.length} appointments</span>
             <div className="flex items-center gap-1.5">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40">
-                <ChevronLeft size={15} />
+                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronLeft size={16} />
               </button>
-              {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPage(p)}
-                  className={`w-8 h-8 rounded-lg border text-sm font-medium ${p === currentPage ? 'border-brand-600 text-brand-600' : 'hover:bg-gray-50 text-gray-600'}`}>
-                  {p}
-                </button>
-              ))}
+              {pageNumbers().map((p, i) =>
+                p === '…' ? (
+                  <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+                ) : (
+                  <button key={p} onClick={() => setPage(p)}
+                    className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${p === currentPage ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                    {p}
+                  </button>
+                )
+              )}
               <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={currentPage === pages}
-                className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40">
-                <ChevronRight size={15} />
+                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronRight size={16} />
               </button>
             </div>
           </div>

@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { staffAPI, teamAPI, campaignAPI, automationAPI, assignmentRuleAPI } from '../services/api';
 import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, RotateCcw, MessageCircle, ArrowUp, ArrowDown, Shuffle } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const SOURCE_OPTIONS = ['meta_ads', 'google_ads', 'whatsapp', 'referral', 'manual', 'website', 'walkin'];
 
 const StaffPage = () => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -47,7 +49,7 @@ const StaffPage = () => {
       await staffAPI.updateMyWhatsAppNumber(myWaForm);
       setMyWaForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
       loadMyWhatsApp();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save WhatsApp number'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save WhatsApp number'); }
   };
 
   const openStaffWhatsApp = async (s) => {
@@ -63,7 +65,7 @@ const StaffPage = () => {
     try {
       await staffAPI.updateWhatsAppNumber(waModalStaff.id, waForm);
       setWaModalStaff(null);
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save WhatsApp number'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save WhatsApp number'); }
   };
 
   const loadRules = async () => {
@@ -84,9 +86,9 @@ const StaffPage = () => {
   const openCreateRule = () => { setRuleForm(emptyRuleForm); setRuleModal(true); };
 
   const handleSaveRule = async () => {
-    if (!ruleForm.name.trim()) return alert('Rule name is required');
-    if (ruleForm.target_type === 'user' && !ruleForm.assign_to_user_id) return alert('Pick a team member to assign to');
-    if (ruleForm.target_type === 'team' && !ruleForm.assign_to_team_id) return alert('Pick a team to assign to');
+    if (!ruleForm.name.trim()) return toast.error('Rule name is required');
+    if (ruleForm.target_type === 'user' && !ruleForm.assign_to_user_id) return toast.error('Pick a team member to assign to');
+    if (ruleForm.target_type === 'team' && !ruleForm.assign_to_team_id) return toast.error('Pick a team to assign to');
     try {
       await assignmentRuleAPI.create({
         name: ruleForm.name,
@@ -99,17 +101,17 @@ const StaffPage = () => {
       });
       setRuleModal(false);
       loadRules();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save rule'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save rule'); }
   };
 
   const handleDeleteRule = async (id) => {
     if (!await confirm({ title: 'Delete this assignment rule?' })) return;
-    try { await assignmentRuleAPI.delete(id); loadRules(); } catch (e) { alert('Failed to delete'); }
+    try { await assignmentRuleAPI.delete(id); loadRules(); } catch (e) { toast.error('Failed to delete'); }
   };
 
   const handleToggleRule = async (rule) => {
     try { await assignmentRuleAPI.update(rule.id, { is_active: !rule.is_active }); loadRules(); }
-    catch (e) { alert('Failed to update'); }
+    catch (e) { toast.error('Failed to update'); }
   };
 
   const moveRule = async (index, direction) => {
@@ -119,7 +121,7 @@ const StaffPage = () => {
     [newOrder[index], newOrder[target]] = [newOrder[target], newOrder[index]];
     setRules(newOrder);
     try { await assignmentRuleAPI.reorder(newOrder.map(r => r.id)); }
-    catch (e) { alert('Failed to reorder'); loadRules(); }
+    catch (e) { toast.error('Failed to reorder'); loadRules(); }
   };
 
   const toggleSource = (src) => {
@@ -146,25 +148,25 @@ const StaffPage = () => {
   const openEditTeam = (t) => { setEditingTeam(t); setTeamForm({ name: t.name }); setTeamModal(true); };
 
   const handleSaveTeam = async () => {
-    if (!teamForm.name.trim()) return alert('Team name is required');
+    if (!teamForm.name.trim()) return toast.error('Team name is required');
     try {
       if (editingTeam) await teamAPI.update(editingTeam.id, teamForm);
       else await teamAPI.create(teamForm);
       setTeamModal(false);
       loadTeams();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save team'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save team'); }
   };
 
   const handleDeleteTeam = async (id) => {
     if (!await confirm({ title: 'Delete this team?', message: 'Members will be unassigned, not removed.' })) return;
-    try { await teamAPI.delete(id); loadTeams(); loadData(); } catch (e) { alert('Failed to delete'); }
+    try { await teamAPI.delete(id); loadTeams(); loadData(); } catch (e) { toast.error('Failed to delete'); }
   };
 
   const handleAssignTeam = async (staffId, teamId) => {
     try {
       await staffAPI.update(staffId, { team_id: teamId });
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to assign team'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to assign team'); }
   };
 
   const loadInvitations = async () => {
@@ -187,23 +189,23 @@ const StaffPage = () => {
       setForm({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
       setInviteErrors({});
       loadInvitations();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const handleResendInvite = async (id) => {
-    try { await staffAPI.resendInvitation(id); loadInvitations(); alert('Invite resent.'); }
-    catch (e) { alert(e.response?.data?.error || 'Failed to resend'); }
+    try { await staffAPI.resendInvitation(id); loadInvitations(); toast.error('Invite resent.'); }
+    catch (e) { toast.error(e.response?.data?.error || 'Failed to resend'); }
   };
 
   const handleRevokeInvite = async (id) => {
     if (!await confirm({ title: 'Revoke this invitation?', confirmText: 'Revoke' })) return;
     try { await staffAPI.revokeInvitation(id); loadInvitations(); }
-    catch (e) { alert('Failed to revoke'); }
+    catch (e) { toast.error('Failed to revoke'); }
   };
 
   const handleDelete = async (id) => {
     if (!await confirm({ title: 'Remove this team member?', confirmText: 'Remove' })) return;
-    try { await staffAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
+    try { await staffAPI.delete(id); loadData(); } catch (e) { toast.error('Failed'); }
   };
 
   return (

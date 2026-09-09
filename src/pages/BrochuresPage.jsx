@@ -4,8 +4,10 @@ import {
   Plus, FileText, Image as ImageIcon, Trash2, BookOpen, X, MessageCircle,
   Search, ChevronDown, Upload, Sparkles, Eye, Send, HardDrive, MoreVertical,
   LayoutGrid, List, ArrowLeft, ArrowRight, ImagePlus, Share2, Download, Check,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const CATEGORIES = [
   { value: '', label: 'All' },
@@ -64,6 +66,7 @@ const Toggle = ({ checked, onChange }) => (
 
 const BrochuresPage = () => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [brochures, setBrochures] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -73,6 +76,7 @@ const BrochuresPage = () => {
   const [openMenu, setOpenMenu] = useState(null);
   const [statFilter, setStatFilter] = useState('');
   const [createMenuOpen, setCreateMenuOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
 
   const [showWizard, setShowWizard] = useState(false);
   const [step, setStep] = useState(1);
@@ -164,14 +168,14 @@ const BrochuresPage = () => {
       setShowWizard(false);
       resetWizard();
       load();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to publish brochure'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to publish brochure'); }
     finally { setSaving(false); }
   };
 
   const handleDelete = async (id) => {
     setOpenMenu(null);
     if (!await confirm({ title: 'Delete this brochure?' })) return;
-    try { await brochuresAPI.delete(id); load(); } catch (e) { alert('Failed'); }
+    try { await brochuresAPI.delete(id); load(); } catch (e) { toast.error('Failed'); }
   };
 
   const handleShareWA = (b) => {
@@ -193,7 +197,7 @@ const BrochuresPage = () => {
         <div className="relative">
           <button onClick={() => setCreateMenuOpen(o => !o)}
             className="px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
-            <Plus size={16} /> Create Brochure <ChevronDown size={14} />
+            Create Brochure <ChevronDown size={14} />
           </button>
           {createMenuOpen && (
             <>
@@ -207,7 +211,7 @@ const BrochuresPage = () => {
                     <p className="text-xs text-gray-500">Upload PDF, DOC, or other files</p>
                   </div>
                 </button>
-                <button onClick={() => { setCreateMenuOpen(false); alert('Create Manually is coming soon.'); }}
+                <button onClick={() => { setCreateMenuOpen(false); toast.error('Create Manually is coming soon.'); }}
                   className="w-full flex items-start gap-3 p-2.5 rounded-lg hover:bg-gray-50 text-left">
                   <div className="w-9 h-9 bg-violet-50 rounded-lg flex items-center justify-center text-violet-600 shrink-0"><Sparkles size={16} /></div>
                   <div>
@@ -240,27 +244,60 @@ const BrochuresPage = () => {
         })}
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[220px]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input type="text" placeholder="Search brochures..." value={search} onChange={e => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3 py-2.5 border rounded-lg text-sm" />
+      <div className="bg-white border rounded-2xl overflow-hidden">
+        <div className="flex items-center gap-2 flex-wrap p-3">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input type="text" placeholder="Search brochures..." value={search} onChange={e => setSearch(e.target.value)}
+              className="w-full pl-9 pr-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+          </div>
+          <button onClick={() => setShowFilters(v => !v)}
+            className={`px-3 py-2.5 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
+              showFilters || category || sortBy !== 'recent' ? 'bg-brand-600 text-white border border-brand-600' : 'border text-gray-600 hover:bg-gray-50'
+            }`}>
+            <SlidersHorizontal size={14} /> Filters
+            {(category || sortBy !== 'recent') && (
+              <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${showFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
+                {(category ? 1 : 0) + (sortBy !== 'recent' ? 1 : 0)}
+              </span>
+            )}
+            <ChevronDown size={13} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
+          </button>
+          {(category || sortBy !== 'recent') && (
+            <button onClick={() => { setCategory(''); setSortBy('recent'); }}
+              className="px-2.5 py-2.5 flex items-center gap-1 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+              <X size={12} /> Clear
+            </button>
+          )}
+          <div className="flex border rounded-lg overflow-hidden ml-auto">
+            <button onClick={() => setViewMode('grid')} className={`p-2.5 ${viewMode === 'grid' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}><LayoutGrid size={16} /></button>
+            <button onClick={() => setViewMode('list')} className={`p-2.5 ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}><List size={16} /></button>
+          </div>
         </div>
-        <select value={category} onChange={e => setCategory(e.target.value)}
-          className="px-3 py-2.5 border rounded-lg text-sm bg-white">
-          {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value ? c.label : 'Category: All'}</option>)}
-        </select>
-        <select value={sortBy} onChange={e => setSortBy(e.target.value)}
-          className="px-3 py-2.5 border rounded-lg text-sm bg-white">
-          <option value="recent">Sort: Recently Created</option>
-          <option value="name">Sort: Name</option>
-          <option value="views">Sort: Most Viewed</option>
-          <option value="shares">Sort: Most Shared</option>
-        </select>
-        <div className="flex border rounded-lg overflow-hidden">
-          <button onClick={() => setViewMode('grid')} className={`p-2.5 ${viewMode === 'grid' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}><LayoutGrid size={16} /></button>
-          <button onClick={() => setViewMode('list')} className={`p-2.5 ${viewMode === 'list' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}><List size={16} /></button>
-        </div>
+
+        {showFilters && (
+          <div className="px-3 pb-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-gray-50 rounded-xl p-4 border">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Category</label>
+                <select value={category} onChange={e => setCategory(e.target.value)}
+                  className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white">
+                  {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value ? c.label : 'All categories'}</option>)}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Sort By</label>
+                <select value={sortBy} onChange={e => setSortBy(e.target.value)}
+                  className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white">
+                  <option value="recent">Recently Created</option>
+                  <option value="name">Name</option>
+                  <option value="views">Most Viewed</option>
+                  <option value="shares">Most Shared</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="flex gap-1.5 flex-wrap">
