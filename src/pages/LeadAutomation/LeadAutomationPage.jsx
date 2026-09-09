@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Workflow, Search, ChevronDown, X, CheckCircle2, Clock, Circle, XCircle, Phone, Settings, Save,
-  MessageCircle, PhoneCall, Play, Pause, Download, Users, Sparkles,
+  MessageCircle, PhoneCall, Play, Pause, Download, Users, Sparkles, AlertTriangle,
 } from 'lucide-react';
 import EmptyState from '../../components/ui/EmptyState';
+import { leadAPI } from '../../services/api';
 
 const AVATAR_COLORS = [
   'from-brand-500 to-brand-700',
@@ -13,7 +14,8 @@ const AVATAR_COLORS = [
   'from-cyan-500 to-cyan-700',
   'from-violet-500 to-violet-700',
 ];
-const avatarColor = (id) => AVATAR_COLORS[id % AVATAR_COLORS.length];
+const hashString = (str) => String(str).split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+const avatarColor = (id) => AVATAR_COLORS[hashString(id) % AVATAR_COLORS.length];
 
 const STATUS_STYLES = {
   'In Progress': 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200',
@@ -96,56 +98,64 @@ const JOURNEYS = {
   ],
 };
 
-const LEADS = [
-  { id: 1, name: 'Shivani', phone: '9999999999', step: 'Send WhatsApp Message', status: 'In Progress', journey: 'waitingReply' },
-  { id: 2, name: 'Test User', phone: '7777777777', step: 'Waiting for Customer Reply', status: 'In Progress', journey: 'waitingReply' },
-  { id: 3, name: 'Rahul', phone: '8888888888', step: 'Booking', status: 'Converted', journey: 'booking' },
-  { id: 4, name: 'Amit', phone: '6666666666', step: 'Wait 24 Hours', status: 'Follow-up', journey: 'finalFollowUp' },
-  { id: 5, name: 'Adi', phone: '5555555555', step: 'Not Interested', status: 'Lost', journey: 'lost' },
-];
+// Journey assignment for real leads — there is no automation backend, so each
+// fetched lead is deterministically assigned one of the journey templates
+// above (by index) to simulate where it stands in the follow-up sequence.
+const JOURNEY_KEYS = ['waitingReply', 'noReply', 'booking', 'finalFollowUp', 'lost'];
 
-const SUMMARY = { total: 120, inProgress: 45, converted: 60, lost: 15 };
-
-// Static demo WhatsApp transcripts, keyed by lead id — frontend-only mock data.
-const WHATSAPP_CHATS = {
-  1: [
-    { from: 'business', text: 'Hi Shivani, thanks for your interest! We’d love to help you find the right service.', time: '10:02 AM' },
-    { from: 'business', text: 'Reply anytime and our team will get back to you shortly.', time: '10:02 AM' },
-  ],
-  2: [
-    { from: 'business', text: 'Hi Test User, thanks for reaching out! How can we help you today?', time: '11:14 AM' },
-    { from: 'business', text: 'Just checking in — are you still looking for our services?', time: '2:30 PM' },
-  ],
-  3: [
-    { from: 'business', text: 'Hi Rahul, thanks for your interest!', time: '9:05 AM' },
-    { from: 'customer', text: 'Yes, I’d like to know more about pricing.', time: '9:20 AM' },
-    { from: 'business', text: 'Sure! Here are our service and offer details 👇', time: '9:22 AM' },
-    { from: 'customer', text: 'Sounds good, can I book a slot?', time: '9:40 AM' },
-    { from: 'business', text: 'Absolutely, here’s your booking link: curvelead.app/book/rahul', time: '9:41 AM' },
-  ],
-  4: [
-    { from: 'business', text: 'Hi Amit, thanks for your interest!', time: 'Yesterday, 4:10 PM' },
-  ],
-  5: [
-    { from: 'business', text: 'Hi Adi, thanks for your interest!', time: '2 days ago' },
-    { from: 'customer', text: 'Not interested right now, thanks.', time: '2 days ago' },
-  ],
+const JOURNEY_STATUS = {
+  waitingReply: 'In Progress',
+  noReply: 'In Progress',
+  booking: 'Converted',
+  finalFollowUp: 'Follow-up',
+  lost: 'Lost',
 };
 
-// Static demo call recordings, keyed by lead id — frontend-only mock data (no real audio).
-const CALL_RECORDINGS = {
-  1: [],
-  2: [],
-  3: [
-    { label: 'Booking Confirmation Call', date: 'Today, 9:45 AM', duration: '2:14' },
-  ],
-  4: [
-    { label: 'AI Follow-up Call', date: 'Yesterday, 4:15 PM', duration: '0:48' },
-  ],
-  5: [
+const currentStepLabel = (journeyKey) => {
+  const steps = JOURNEYS[journeyKey];
+  return (steps.find(s => s.state === 'current') || steps.find(s => s.state === 'failed') || steps[steps.length - 1]).label;
+};
+
+// Fallback rows shown only if the real leads API is unreachable.
+const FALLBACK_LEADS = [
+  { id: 1, name: 'Shivani', phone: '9999999999', journey: 'waitingReply' },
+  { id: 2, name: 'Test User', phone: '7777777777', journey: 'waitingReply' },
+  { id: 3, name: 'Rahul', phone: '8888888888', journey: 'booking' },
+  { id: 4, name: 'Amit', phone: '6666666666', journey: 'finalFollowUp' },
+  { id: 5, name: 'Adi', phone: '5555555555', journey: 'lost' },
+].map(l => ({ ...l, step: currentStepLabel(l.journey), status: JOURNEY_STATUS[l.journey] }));
+
+// Simulated WhatsApp transcript, generated per lead since there is no automation backend.
+const chatFor = (lead) => {
+  const first = lead.name.split(' ')[0];
+  const base = [{ from: 'business', text: `Hi ${first}, thanks for your interest! We’d love to help you find the right service.`, time: '10:02 AM' }];
+  if (lead.journey === 'booking') {
+    return [
+      ...base,
+      { from: 'customer', text: 'Yes, I’d like to know more about pricing.', time: '10:15 AM' },
+      { from: 'business', text: 'Sure! Here are our service and offer details 👇', time: '10:17 AM' },
+      { from: 'customer', text: 'Sounds good, can I book a slot?', time: '10:30 AM' },
+      { from: 'business', text: `Absolutely, here’s your booking link: curvelead.app/book/${first.toLowerCase()}`, time: '10:31 AM' },
+    ];
+  }
+  if (lead.journey === 'lost') {
+    return [...base, { from: 'customer', text: 'Not interested right now, thanks.', time: '2 days ago' }];
+  }
+  if (lead.journey === 'waitingReply') {
+    return [...base, { from: 'business', text: 'Just checking in — are you still looking for our services?', time: '2:30 PM' }];
+  }
+  return base;
+};
+
+// Simulated call recordings, generated per lead since there is no automation backend.
+const recordingsFor = (lead) => {
+  if (lead.journey === 'booking') return [{ label: 'Booking Confirmation Call', date: 'Today, 9:45 AM', duration: '2:14' }];
+  if (lead.journey === 'finalFollowUp') return [{ label: 'AI Follow-up Call', date: 'Yesterday, 4:15 PM', duration: '0:48' }];
+  if (lead.journey === 'lost') return [
     { label: 'AI Follow-up Call', date: '2 days ago', duration: '1:32' },
     { label: 'AI Final Follow-up Call', date: '2 days ago', duration: '0:21' },
-  ],
+  ];
+  return [];
 };
 
 const WAIT_OPTIONS = ['15 Minutes', '30 Minutes', '1 Hour', '2 Hours', '6 Hours', '24 Hours', '48 Hours'];
@@ -259,7 +269,7 @@ const ModalShell = ({ title, icon: Icon, onClose, children }) => (
 
 const WhatsAppChatModal = ({ lead, onClose }) => {
   if (!lead) return null;
-  const messages = WHATSAPP_CHATS[lead.id] || [];
+  const messages = chatFor(lead);
   return (
     <ModalShell title={`WhatsApp Chat — ${lead.name}`} icon={MessageCircle} onClose={onClose}>
       <div className="bg-[#e5ddd5] rounded-xl p-4 space-y-2 min-h-[200px]">
@@ -280,7 +290,7 @@ const WhatsAppChatModal = ({ lead, onClose }) => {
 const CallRecordingModal = ({ lead, onClose }) => {
   const [playingIdx, setPlayingIdx] = useState(null);
   if (!lead) return null;
-  const recordings = CALL_RECORDINGS[lead.id] || [];
+  const recordings = recordingsFor(lead);
   return (
     <ModalShell title={`Call Recordings — ${lead.name}`} icon={PhoneCall} onClose={onClose}>
       {recordings.length === 0 && <EmptyState message="No call recordings yet" />}
@@ -483,14 +493,57 @@ const LeadAutomationPage = () => {
   const [chatLead, setChatLead] = useState(null);
   const [callLead, setCallLead] = useState(null);
 
+  const [leads, setLeads] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isPreview, setIsPreview] = useState(false);
+
+  useEffect(() => {
+    const loadLeads = async () => {
+      try {
+        const { data } = await leadAPI.getAll({ limit: 50 });
+        const realLeads = (data.leads || []).map((l, idx) => {
+          const journey = JOURNEY_KEYS[idx % JOURNEY_KEYS.length];
+          return {
+            id: l.id,
+            name: l.name,
+            phone: l.phone,
+            journey,
+            step: currentStepLabel(journey),
+            status: JOURNEY_STATUS[journey],
+          };
+        });
+        if (realLeads.length) {
+          setLeads(realLeads);
+          setIsPreview(false);
+        } else {
+          setLeads(FALLBACK_LEADS);
+          setIsPreview(true);
+        }
+      } catch {
+        setLeads(FALLBACK_LEADS);
+        setIsPreview(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadLeads();
+  }, []);
+
+  const summary = useMemo(() => ({
+    total: leads.length,
+    inProgress: leads.filter(l => l.status === 'In Progress').length,
+    converted: leads.filter(l => l.status === 'Converted').length,
+    lost: leads.filter(l => l.status === 'Lost').length,
+  }), [leads]);
+
   const filteredLeads = useMemo(() => {
-    return LEADS.filter(lead => {
-      const matchesSearch = lead.name.toLowerCase().includes(search.toLowerCase()) || lead.phone.includes(search);
+    return leads.filter(lead => {
+      const matchesSearch = lead.name.toLowerCase().includes(search.toLowerCase()) || (lead.phone || '').includes(search);
       const matchesStatus = statusFilter === 'All Status' || lead.status === statusFilter;
       const matchesStep = stepFilter === 'All Steps' || lead.step === stepFilter;
       return matchesSearch && matchesStatus && matchesStep;
     });
-  }, [search, statusFilter, stepFilter]);
+  }, [leads, search, statusFilter, stepFilter]);
 
   return (
     <div className="space-y-6">
@@ -517,11 +570,17 @@ const LeadAutomationPage = () => {
         </div>
       </div>
 
+      {isPreview && !loading && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <AlertTriangle size={16} className="shrink-0" /> Showing preview data — could not load real leads, so demo leads are shown instead.
+        </div>
+      )}
+
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="Total Leads" value={SUMMARY.total} icon={Users} gradient="from-brand-500 to-indigo-600" />
-        <StatTile label="In Progress" value={SUMMARY.inProgress} icon={Clock} gradient="from-amber-400 to-amber-600" />
-        <StatTile label="Converted" value={SUMMARY.converted} icon={CheckCircle2} gradient="from-emerald-400 to-emerald-600" />
-        <StatTile label="Lost" value={SUMMARY.lost} icon={XCircle} gradient="from-rose-400 to-rose-600" />
+        <StatTile label="Total Leads" value={summary.total} icon={Users} gradient="from-brand-500 to-indigo-600" />
+        <StatTile label="In Progress" value={summary.inProgress} icon={Clock} gradient="from-amber-400 to-amber-600" />
+        <StatTile label="Converted" value={summary.converted} icon={CheckCircle2} gradient="from-emerald-400 to-emerald-600" />
+        <StatTile label="Lost" value={summary.lost} icon={XCircle} gradient="from-rose-400 to-rose-600" />
       </div>
 
       <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1 w-fit">
@@ -564,6 +623,11 @@ const LeadAutomationPage = () => {
           </div>
         </div>
 
+        {loading ? (
+          <div className="flex items-center justify-center h-40">
+            <div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -619,6 +683,7 @@ const LeadAutomationPage = () => {
           </table>
           {filteredLeads.length === 0 && <EmptyState message="No leads match your filters" />}
         </div>
+        )}
       </div>
       )}
 
