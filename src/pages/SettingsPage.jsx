@@ -34,6 +34,7 @@ const SettingsPage = () => {
   const [stageModal, setStageModal] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
   const [stageForm, setStageForm] = useState({ name: '', color: 'blue', is_won: false, is_lost: false, meta_event_name: '' });
+  const [stageErrors, setStageErrors] = useState({});
   const [expandedStage, setExpandedStage] = useState(null);
 
   const [statusModal, setStatusModal] = useState(false);
@@ -277,17 +278,20 @@ const SettingsPage = () => {
   const openCreateStage = () => {
     setEditingStage(null);
     setStageForm({ name: '', color: 'blue', is_won: false, is_lost: false, meta_event_name: '' });
+    setStageErrors({});
     setStageModal(true);
   };
 
   const openEditStage = (s) => {
     setEditingStage(s);
     setStageForm({ name: s.name, color: s.color || 'blue', is_won: s.is_won || false, is_lost: s.is_lost || false, meta_event_name: s.meta_event_name || '' });
+    setStageErrors({});
     setStageModal(true);
   };
 
   const handleSaveStage = async () => {
-    if (!stageForm.name.trim()) return setModalError('Stage name is required');
+    if (!stageForm.name.trim()) { setStageErrors({ name: 'Stage name is required' }); return; }
+    setStageErrors({});
     setModalError('');
     try {
       if (editingStage) {
@@ -1003,9 +1007,11 @@ const SettingsPage = () => {
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Stage Name *</label>
-                        <input value={stageForm.name} onChange={e => setStageForm({ ...stageForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. Negotiation" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Stage Name <span className="text-red-500">*</span></label>
+                        <input value={stageForm.name}
+                          onChange={e => { setStageForm({ ...stageForm, name: e.target.value }); if (stageErrors.name) setStageErrors({}); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${stageErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Negotiation" />
+                        {stageErrors.name && <p className="text-xs text-red-500 mt-1">{stageErrors.name}</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-2">Color</label>
