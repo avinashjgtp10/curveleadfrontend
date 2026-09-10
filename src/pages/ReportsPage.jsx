@@ -6,13 +6,18 @@ import {
 } from 'recharts';
 import {
   TrendingUp, Users, Target, Megaphone, ChevronLeft, ChevronRight, AlertTriangle,
-  Search, SlidersHorizontal, ChevronDown, X, Download, FileSpreadsheet, FileText,
+  Search, SlidersHorizontal, ChevronDown, X, Download,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
+import {
+  REPORT_LEAD_COLUMNS,
+  REPORT_LEAD_DOWNLOAD_OPTIONS,
+  REPORT_LEAD_PAGE_SIZE_OPTIONS,
+  REPORT_LEAD_SCORE_OPTIONS,
+} from './reportsLeadDownload.constants';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-const GRID_PAGE_SIZE_OPTIONS = [5, 10, 15, 20];
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -35,15 +40,6 @@ const Spinner = () => (
     <div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
   </div>
 );
-
-const REPORT_COLUMNS = [
-  { key: 'lead_number', label: 'Lead #' },
-  { key: 'name', label: 'Name' },
-  { key: 'phone', label: 'Phone' },
-  { key: 'stage', label: 'Stage' },
-  { key: 'assigned_to_name', label: 'Assigned To' },
-  { key: 'created_at', label: 'Created' },
-];
 
 const formatReportValue = (lead, key) => {
   const value = lead[key];
@@ -256,11 +252,11 @@ const ReportsPage = () => {
     setExportingFormat(format);
     try {
       const leads = await getGridExportLeads();
-      const rows = leads.map(lead => REPORT_COLUMNS.map(col => formatReportValue(lead, col.key)));
+      const rows = leads.map(lead => REPORT_LEAD_COLUMNS.map(col => formatReportValue(lead, col.key)));
 
       if (format === 'csv') {
         const csv = [
-          REPORT_COLUMNS.map(col => escapeCsvValue(col.label)).join(','),
+          REPORT_LEAD_COLUMNS.map(col => escapeCsvValue(col.label)).join(','),
           ...rows.map(row => row.map(escapeCsvValue).join(',')),
         ].join('\n');
         downloadBlob(csv, 'text/csv;charset=utf-8;', getReportFilename('csv'));
@@ -270,7 +266,7 @@ const ReportsPage = () => {
       if (format === 'excel') {
         const table = `
           <table>
-            <thead><tr>${REPORT_COLUMNS.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead>
+            <thead><tr>${REPORT_LEAD_COLUMNS.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead>
             <tbody>
               ${rows.map(row => `<tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join('')}</tr>`).join('')}
             </tbody>
@@ -305,7 +301,7 @@ const ReportsPage = () => {
               <h1>Lead Detail Report</h1>
               <p>Generated ${escapeHtml(printedAt)} - ${leads.length} leads</p>
               <table>
-                <thead><tr>${REPORT_COLUMNS.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead>
+                <thead><tr>${REPORT_LEAD_COLUMNS.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead>
                 <tbody>${tableRows}</tbody>
               </table>
               <script>window.onload = () => { window.print(); };</script>
@@ -678,21 +674,13 @@ const ReportsPage = () => {
                     </button>
                     {exportOpen && (
                       <div className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                        <button type="button" onClick={() => handleReportDownload('excel')}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
-                          <FileSpreadsheet size={15} className="text-green-600" />
-                          Excel (.xls)
-                        </button>
-                        <button type="button" onClick={() => handleReportDownload('pdf')}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
-                          <FileText size={15} className="text-red-600" />
-                          PDF
-                        </button>
-                        <button type="button" onClick={() => handleReportDownload('csv')}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
-                          <FileSpreadsheet size={15} className="text-cyan-600" />
-                          CSV
-                        </button>
+                        {REPORT_LEAD_DOWNLOAD_OPTIONS.map(option => (
+                          <button key={option.format} type="button" onClick={() => handleReportDownload(option.format)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            <option.icon size={15} className={option.iconClassName} />
+                            {option.label}
+                          </button>
+                        ))}
                       </div>
                     )}
                   </div>
@@ -738,12 +726,7 @@ const ReportsPage = () => {
                       label="Score"
                       value={gridScore}
                       onChange={v => { setGridPage(1); setGridScore(v); }}
-                      options={[
-                        { value: '', label: 'All Scores' },
-                        { value: 'hot', label: '🔥 Hot' },
-                        { value: 'warm', label: '🌤 Warm' },
-                        { value: 'cold', label: '❄️ Cold' },
-                      ]}
+                      options={REPORT_LEAD_SCORE_OPTIONS}
                     />
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Stalled</label>
@@ -798,7 +781,7 @@ const ReportsPage = () => {
                 </p>
                 <select value={gridPageSize} onChange={e => { setGridPage(1); setGridPageSize(Number(e.target.value)); }}
                   className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white">
-                  {GRID_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
+                  {REPORT_LEAD_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
                 </select>
               </div>
               {gridPagination.pages > 1 && (
