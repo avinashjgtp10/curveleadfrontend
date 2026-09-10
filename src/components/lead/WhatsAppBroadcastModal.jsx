@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
-import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Image as ImageIcon, Film, FileText, Upload } from 'lucide-react';
+import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Image as ImageIcon, Film, FileText, Upload, Search, Megaphone, Wrench, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useToast } from '../ui/Toast';
 
 const FIELD_OPTIONS = [
@@ -23,6 +23,17 @@ const STATUS_STYLE = {
   APPROVED: 'bg-green-100 text-green-700',
   PENDING: 'bg-amber-100 text-amber-700',
   REJECTED: 'bg-red-100 text-red-700',
+};
+const STATUS_DOT = {
+  APPROVED: 'bg-green-500',
+  PENDING: 'bg-amber-500',
+  REJECTED: 'bg-red-500',
+};
+
+const CATEGORY_STYLE = {
+  MARKETING: { icon: Megaphone, iconWrap: 'bg-purple-50 text-purple-600', tag: 'text-purple-500' },
+  UTILITY: { icon: Wrench, iconWrap: 'bg-blue-50 text-blue-600', tag: 'text-blue-500' },
+  AUTHENTICATION: { icon: ShieldCheck, iconWrap: 'bg-amber-50 text-amber-600', tag: 'text-amber-500' },
 };
 
 const getComponent = (tmpl, type) => tmpl.components?.find(c => c.type === type);
@@ -51,6 +62,7 @@ const emptyCreateForm = () => ({ name: '', category: 'MARKETING', language: 'en_
 const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const toast = useToast();
   const [step, setStep] = useState('pick');
+  const [templateSearch, setTemplateSearch] = useState('');
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -78,6 +90,12 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   };
 
   useEffect(() => { loadTemplates(); }, []);
+
+  const filteredTemplates = templates.filter(t => {
+    const q = templateSearch.trim().toLowerCase();
+    if (!q) return true;
+    return t.name.toLowerCase().includes(q) || (getComponent(t, 'BODY')?.text || '').toLowerCase().includes(q);
+  });
 
   const bodyText = selectedTemplate ? getComponent(selectedTemplate, 'BODY')?.text || '' : '';
   const varCount = countVars(bodyText);
@@ -195,6 +213,15 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 <Plus size={14} /> Create New Template
               </button>
 
+              {!loading && !loadError && templates.length > 0 && (
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={templateSearch} onChange={e => setTemplateSearch(e.target.value)}
+                    placeholder="Search templates..."
+                    className="w-full pl-8 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                </div>
+              )}
+
               {loading ? (
                 <div className="text-center py-6 text-gray-400">Loading templates...</div>
               ) : loadError ? (
@@ -203,33 +230,48 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 </div>
               ) : templates.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-6">No templates yet — create one above to submit it for Meta's approval.</p>
+              ) : filteredTemplates.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No templates match "{templateSearch}"</p>
               ) : (
-                <div className="space-y-2">
-                  {templates.map(t => {
+                <div className="space-y-2.5">
+                  {filteredTemplates.map(t => {
                     const supported = isSupported(t) && t.status === 'APPROVED';
+                    const cat = CATEGORY_STYLE[t.category] || CATEGORY_STYLE.UTILITY;
+                    const CatIcon = cat.icon;
                     return (
                       <button key={`${t.name}-${t.language}`} disabled={!supported} onClick={() => handleSelectTemplate(t)}
-                        className={`w-full text-left p-3 rounded-xl border transition-colors ${supported ? 'hover:bg-gray-50 border-gray-200' : 'opacity-60 cursor-not-allowed border-gray-100'}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-sm">{t.name}</p>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500'}`}>{t.status}</span>
-                            <span className="text-[10px] font-semibold uppercase text-gray-400">{t.category}</span>
+                        className={`group w-full text-left p-3.5 rounded-2xl border transition-all ${supported ? 'bg-white border-gray-200 hover:border-brand-300 hover:shadow-md hover:shadow-brand-100/60' : 'bg-gray-50/60 border-gray-100 opacity-70 cursor-not-allowed'}`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cat.iconWrap}`}>
+                            <CatIcon size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-semibold text-sm text-gray-900 truncate min-w-0" title={t.name}>{t.name}</p>
+                              {supported && <ChevronRight size={16} className="text-gray-300 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 mb-1.5">
+                              <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[t.status] || 'bg-gray-400'}`} />
+                                {t.status}
+                              </span>
+                              <span className={`text-[10px] font-semibold uppercase tracking-wide ${cat.tag}`}>{t.category}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 line-clamp-2 flex items-center gap-1">
+                              {t.media_type && MEDIA_ICON[t.media_type] && (() => { const Icon = MEDIA_ICON[t.media_type]; return <Icon size={11} className="text-gray-400 shrink-0" />; })()}
+                              {getComponent(t, 'BODY')?.text}
+                            </p>
+                            {t.status === 'APPROVED' && !isSupported(t) && (
+                              <p className="text-[11px] text-amber-600 mt-1.5">
+                                {getComponent(t, 'HEADER')?.format === 'TEXT'
+                                  ? 'Not supported — this template has a variable in its header.'
+                                  : 'Media not on file — recreate this template through CurveLead to attach an image/video/document.'}
+                              </p>
+                            )}
+                            {t.status === 'REJECTED' && <p className="text-[11px] text-red-600 mt-1.5">Rejected by Meta — edit and resubmit under a new name.</p>}
+                            {t.status === 'PENDING' && <p className="text-[11px] text-amber-600 mt-1.5">Awaiting Meta's review.</p>}
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2 flex items-center gap-1">
-                          {t.media_type && MEDIA_ICON[t.media_type] && (() => { const Icon = MEDIA_ICON[t.media_type]; return <Icon size={11} className="text-gray-400 shrink-0" />; })()}
-                          {getComponent(t, 'BODY')?.text}
-                        </p>
-                        {t.status === 'APPROVED' && !isSupported(t) && (
-                          <p className="text-[11px] text-amber-600 mt-1">
-                            {getComponent(t, 'HEADER')?.format === 'TEXT'
-                              ? 'Not supported — this template has a variable in its header.'
-                              : 'Media not on file — recreate this template through CurveLead to attach an image/video/document.'}
-                          </p>
-                        )}
-                        {t.status === 'REJECTED' && <p className="text-[11px] text-red-600 mt-1">Rejected by Meta — edit and resubmit under a new name.</p>}
-                        {t.status === 'PENDING' && <p className="text-[11px] text-amber-600 mt-1">Awaiting Meta's review.</p>}
                       </button>
                     );
                   })}
@@ -373,14 +415,14 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
           )}
         </div>
 
-        <div className="p-4 border-t flex gap-2">
+        <div className="p-4 border-t flex items-center justify-between gap-2">
           {step === 'create' && (
             <>
               <button onClick={() => setStep('pick')} className="px-4 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50 flex items-center gap-1.5">
                 <ArrowLeft size={14} /> Back
               </button>
               <button onClick={handleCreateTemplate} disabled={creating || headerUploading}
-                className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+                className="px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
                 {creating ? 'Submitting…' : 'Submit for Approval'}
               </button>
             </>
@@ -389,7 +431,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
             <>
               <button onClick={() => setStep('pick')} className="px-4 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Back</button>
               <button onClick={handleSend} disabled={sending || !mappingComplete}
-                className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                className="px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
                 {sending ? 'Sending…' : <><Send size={14} /> Send to {leads.length} lead{leads.length > 1 ? 's' : ''}</>}
               </button>
             </>

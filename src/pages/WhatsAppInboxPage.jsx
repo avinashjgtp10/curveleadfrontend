@@ -1,10 +1,13 @@
-import { useEffect, useMemo, useState } from 'react';
-import { whatsappAPI, leadAPI } from '../services/api';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { whatsappAPI, leadAPI, attachmentsAPI } from '../services/api';
 import { AVATAR_COLORS } from '../utils/constants';
 import LeadDetailPage from './LeadDetailPage';
+import ShareBrochureModal from '../components/lead/ShareBrochureModal';
+import { useToast } from '../components/ui/Toast';
 import {
   MessageCircle, Search, SlidersHorizontal, Star, MoreVertical,
   Paperclip, Send, Smile, Check, CheckCheck, AlertCircle, UserCircle2, X,
+  FileText, Image as ImageIcon,
 } from 'lucide-react';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -41,6 +44,7 @@ const TABS = [
 ];
 
 const WhatsAppInboxPage = () => {
+  const toast = useToast();
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -58,8 +62,17 @@ const WhatsAppInboxPage = () => {
   const [customLabel, setCustomLabel] = useState('');
   const [viewLeadId, setViewLeadId] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showBrochureModal, setShowBrochureModal] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
 
   useEffect(() => { loadInbox(); }, []);
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ block: 'end' });
+  }, [messages, activeId]);
 
   useEffect(() => {
     if (!showChatMenu) return;
@@ -67,6 +80,13 @@ const WhatsAppInboxPage = () => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showChatMenu]);
+
+  useEffect(() => {
+    if (!showAttachMenu) return;
+    const handler = (e) => { if (!e.target.closest('[data-attach-menu]')) setShowAttachMenu(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAttachMenu]);
 
   const loadInbox = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -183,6 +203,35 @@ const WhatsAppInboxPage = () => {
       await whatsappAPI.send(activeId, text);
     } catch (e) { console.error(e); }
     finally { setSending(false); }
+  };
+
+  const handleFileSelected = async (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file || !activeId) return;
+    setUploadingFile(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const { data: uploadData } = await attachmentsAPI.upload(activeId, formData);
+      const attachment = uploadData.attachment;
+      const { data: shareData } = await attachmentsAPI.shareWhatsApp(activeId, attachment.id);
+      if (shareData.whatsapp_url) window.open(shareData.whatsapp_url, '_blank');
+      setMessages(prev => [...prev, {
+        id: `tmp-file-${Date.now()}`, direction: 'outbound', message: `📎 ${file.name}`,
+        sent_at: new Date().toISOString(), status: 'sent',
+      }]);
+      toast.success('File shared on WhatsApp');
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed to share file'); }
+    finally { setUploadingFile(false); }
+  };
+
+  const handleBrochureShared = (brochure) => {
+    setMessages(prev => [...prev, {
+      id: `tmp-brochure-${Date.now()}`, direction: 'outbound', message: `📄 ${brochure.name}`,
+      sent_at: new Date().toISOString(), status: 'sent',
+    }]);
+    loadConversation(activeId, true);
   };
 
   return (
@@ -336,6 +385,7 @@ const WhatsAppInboxPage = () => {
                     })}
                   </>
                 )}
+                <div ref={messagesEndRef} />
               </div>
 
               <div className="flex items-center gap-2 px-4 py-3 border-t">
@@ -344,7 +394,28 @@ const WhatsAppInboxPage = () => {
                   onKeyDown={e => e.key === 'Enter' && handleSend()}
                   placeholder="Type a message..."
                   className="flex-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                <button className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg"><Paperclip size={18} /></button>
+                <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected}
+                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" />
+                <div className="relative" data-attach-menu>
+                  <button onClick={() => setShowAttachMenu(v => !v)} disabled={uploadingFile}
+                    className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg disabled:opacity-50">
+                    <Paperclip size={18} />
+                  </button>
+                  {showAttachMenu && (
+                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white border rounded-lg shadow-lg z-30 py-1">
+                      <button
+                        onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2">
+                        <ImageIcon size={14} /> Attach File
+                      </button>
+                      <button
+                        onClick={() => { setShowAttachMenu(false); setShowBrochureModal(true); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2">
+                        <FileText size={14} /> Send Brochure
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <button onClick={handleSend} disabled={sending || !draft.trim()}
                   className="w-10 h-10 bg-brand-600 text-white rounded-full flex items-center justify-center hover:bg-brand-700 disabled:opacity-50 shrink-0">
                   <Send size={16} />
@@ -447,6 +518,14 @@ const WhatsAppInboxPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showBrochureModal && activeId && (
+        <ShareBrochureModal
+          leadId={activeId}
+          onClose={() => setShowBrochureModal(false)}
+          onShared={handleBrochureShared}
+        />
       )}
     </div>
   );
