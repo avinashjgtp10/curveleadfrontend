@@ -68,8 +68,8 @@ const WhatsAppInboxPage = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, [showChatMenu]);
 
-  const loadInbox = async () => {
-    setLoading(true);
+  const loadInbox = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [{ data: inboxData }, { data: leadData }] = await Promise.all([
         whatsappAPI.getInbox(),
@@ -91,21 +91,30 @@ const WhatsAppInboxPage = () => {
       setConversations(list);
       if (list.length && !activeId) setActiveId(list[0].lead_id);
     } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
+
+  // Chat should feel live — poll the open conversation and the list in the
+  // background rather than requiring a manual refresh to see new replies.
+  useEffect(() => {
+    const interval = setInterval(() => loadInbox(true), 20000);
+    return () => clearInterval(interval);
+  }, [activeId]);
 
   useEffect(() => {
     if (!activeId) return;
     loadConversation(activeId);
+    const interval = setInterval(() => loadConversation(activeId, true), 8000);
+    return () => clearInterval(interval);
   }, [activeId]);
 
-  const loadConversation = async (leadId) => {
-    setMsgLoading(true);
+  const loadConversation = async (leadId, silent = false) => {
+    if (!silent) setMsgLoading(true);
     try {
       const { data } = await whatsappAPI.getConversation(leadId);
       setMessages(data.messages || []);
-    } catch (e) { console.error(e); setMessages([]); }
-    finally { setMsgLoading(false); }
+    } catch (e) { console.error(e); if (!silent) setMessages([]); }
+    finally { if (!silent) setMsgLoading(false); }
   };
 
   const activeLabels = labelsByLead[activeId] || ['Interested'];
