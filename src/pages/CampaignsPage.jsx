@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { campaignAPI, integrationsAPI } from '../services/api';
 import { Plus, Megaphone, IndianRupee, Users, TrendingUp, X, Edit2, Trash2, RotateCcw, Eye, MousePointerClick, Target } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const statusColors = {
   active: 'bg-green-100 text-green-700',
@@ -23,6 +24,7 @@ const verdictColors = {
 const CampaignsPage = () => {
   const navigate = useNavigate();
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -40,9 +42,9 @@ const CampaignsPage = () => {
     setSyncingInsights(true);
     try {
       const { data } = await integrationsAPI.syncAdInsights();
-      alert(data.message);
+      toast.error(data.message);
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Sync failed. Connect an ad account in Integrations first.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Sync failed. Connect an ad account in Integrations first.'); }
     finally { setSyncingInsights(false); }
   };
 
@@ -72,7 +74,7 @@ const CampaignsPage = () => {
       setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' });
       setErrors({});
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const handleEdit = (c) => {
@@ -91,7 +93,7 @@ const CampaignsPage = () => {
 
   const handleDelete = async (id) => {
     if (!await confirm({ title: 'Delete this campaign?' })) return;
-    try { await campaignAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
+    try { await campaignAPI.delete(id); loadData(); } catch (e) { toast.error('Failed'); }
   };
 
   return (
@@ -175,17 +177,17 @@ const CampaignsPage = () => {
           {visible.map(c => {
             return (
               <div key={c.id} className="bg-white rounded-2xl border p-5 hover:shadow-lg transition cursor-pointer" onClick={() => navigate(`/campaigns/${c.id}`)}>
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <h3 className="font-semibold">{c.name}</h3>
+                <div className="flex items-start justify-between gap-2 mb-3">
+                  <div className="flex-1 min-w-0 pr-1">
+                    <h3 className="font-semibold break-all line-clamp-2" title={c.name}>{c.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap mt-1">
                       {c.meta_campaign_id && (
-                        <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600">Meta Synced</span>
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600">Meta Synced</span>
                       )}
+                      <p className="text-xs text-gray-500 capitalize">{c.source?.replace(/_/g, ' ')}</p>
                     </div>
-                    <p className="text-xs text-gray-500 capitalize">{c.source?.replace(/_/g, ' ')}</p>
                   </div>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
+                  <span className={`shrink-0 whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
                 </div>
                 {c.verdict_label && (
                   <div className={`mb-3 px-2.5 py-1.5 rounded-lg text-[11px] font-medium ${verdictColors[c.verdict] || 'bg-gray-100 text-gray-600'}`} title={c.verdict_reason}>

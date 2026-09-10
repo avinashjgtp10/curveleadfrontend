@@ -2,6 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PageLoader from './components/ui/PageLoader';
 import { ConfirmDialogProvider } from './components/ui/ConfirmDialog';
+import { ToastProvider } from './components/ui/Toast';
 
 // Public
 import LandingPage from './pages/LandingPage';
@@ -55,6 +56,7 @@ const GuestRoute = ({ children }) => {
 
 const App = () => (
   <AuthProvider>
+    <ToastProvider>
     <ConfirmDialogProvider>
       <Routes>
         <Route path="/" element={<LandingPage />} />
@@ -94,6 +96,7 @@ const App = () => (
         </Route>
       </Routes>
     </ConfirmDialogProvider>
+    </ToastProvider>
   </AuthProvider>
 );
 

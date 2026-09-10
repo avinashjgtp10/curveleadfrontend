@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI } from '../services/api';
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
 const FB_LOGIN_CONFIG_ID = import.meta.env.VITE_FACEBOOK_LOGIN_CONFIG_ID || '4416725028596340';
@@ -118,6 +119,7 @@ const INTEGRATIONS = [
     border: 'border-green-100',
     category: 'Messaging',
     live: true,
+    isConfigured: s => s.whatsapp_configured,
   },
   {
     id: null,
@@ -236,6 +238,7 @@ const CATEGORIES = ['All', 'Ads', 'Website', 'Forms', 'Marketplace', 'Automation
 // ── Config panels ──────────────────────────────────────────────────────────
 
 const MetaConfig = ({ settings, onRefresh }) => {
+  const toast = useToast();
   const [pages, setPages] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -272,19 +275,19 @@ const MetaConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(capiForm);
       await onRefresh();
-      alert('Meta Conversions API settings saved.');
+      toast.error('Meta Conversions API settings saved.');
     } catch (e) { setCapiError(e.response?.data?.error || 'Failed to save'); }
     finally { setCapiSaving(false); }
   };
 
   const handleFbLogin = useCallback(() => {
-    if (!window.FB) return alert('Facebook SDK not loaded yet. Please wait a moment and try again.');
+    if (!window.FB) return toast.error('Facebook SDK not loaded yet. Please wait a moment and try again.');
     setConnecting(true);
     window.FB.login((authResp) => {
       if (authResp.status !== 'connected') { setConnecting(false); return; }
       integrationsAPI.facebookAuth(authResp.authResponse.accessToken)
         .then(({ data }) => { setPages(data.pages); setConnecting(false); })
-        .catch(e => { alert(e.response?.data?.error || 'Facebook auth failed.'); setConnecting(false); });
+        .catch(e => { toast.error(e.response?.data?.error || 'Facebook auth failed.'); setConnecting(false); });
     }, { config_id: FB_LOGIN_CONFIG_ID });
   }, []);
 
@@ -293,7 +296,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
       await integrationsAPI.facebookConnectPage({ page_id: page.id, page_access_token: page.access_token, page_name: page.name });
       setPages(null);
       onRefresh();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to connect page.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to connect page.'); }
   };
 
   const handleSync = async () => {
@@ -320,7 +323,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
       await integrationsAPI.updateSettings({ meta_ad_account_id: account.id });
       setAdAccounts(null);
       onRefresh();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save ad account.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save ad account.'); }
   };
 
   const handleChangeAdAccount = async () => {
@@ -328,7 +331,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
       await integrationsAPI.updateSettings({ meta_ad_account_id: '' });
       await onRefresh();
       handleLoadAdAccounts();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to disconnect ad account.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to disconnect ad account.'); }
   };
 
   const handleSyncInsights = async () => {
@@ -346,7 +349,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings({ meta_page_id: '', meta_page_access_token: '' });
       onRefresh();
-    } catch { alert('Failed to disconnect.'); }
+    } catch { toast.error('Failed to disconnect.'); }
     finally { setDisconnecting(false); }
   };
 
@@ -685,6 +688,7 @@ const ApiKeyConfig = ({ settings, newKeyValue, handleGenerateKey, handleRevokeKe
 
 const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefresh, showAddButton, onAdd }) => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [form, setForm] = useState({
     name: integration.name,
     is_active: integration.is_active,
@@ -710,7 +714,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
   const handleSave = async () => {
     setSaving(true);
     try { await googleAdsIntegrationsAPI.update(integration.id, form); await onRefresh(); }
-    catch (e) { alert(e.response?.data?.error || 'Failed to save.'); }
+    catch (e) { toast.error(e.response?.data?.error || 'Failed to save.'); }
     finally { setSaving(false); }
   };
 
@@ -718,14 +722,14 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
     const next = !form.is_active;
     setForm(f => ({ ...f, is_active: next }));
     try { await googleAdsIntegrationsAPI.update(integration.id, { ...form, is_active: next }); await onRefresh(); }
-    catch { alert('Failed to update status.'); }
+    catch { toast.error('Failed to update status.'); }
   };
 
   const handleShowKey = async () => {
     if (revealedKey) { setRevealedKey(null); return; }
     setRevealing(true);
     try { const { data } = await googleAdsIntegrationsAPI.revealKey(integration.id); setRevealedKey(data.webhook_key); }
-    catch { alert('Failed to reveal key.'); }
+    catch { toast.error('Failed to reveal key.'); }
     finally { setRevealing(false); }
   };
 
@@ -739,7 +743,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
         const { data } = await googleAdsIntegrationsAPI.revealKey(integration.id);
         key = data.webhook_key;
         setRevealedKey(key);
-      } catch { alert('Failed to copy key.'); return; }
+      } catch { toast.error('Failed to copy key.'); return; }
       finally { setRevealing(false); }
     }
     navigator.clipboard.writeText(key);
@@ -752,7 +756,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
       setNewKeyValue(data.webhook_key);
       setRevealedKey(null);
       await onRefresh();
-    } catch { alert('Failed to regenerate key.'); }
+    } catch { toast.error('Failed to regenerate key.'); }
   };
 
   const handleCheckConnection = () => {
@@ -783,8 +787,8 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
   const handleDeleteTestLeads = async () => {
     if (!await confirm({ title: 'Delete all test leads?', message: 'This will delete all test leads created by this integration.' })) return;
     setDeletingTestLeads(true);
-    try { const { data } = await googleAdsIntegrationsAPI.deleteTestLeads(integration.id); alert(data.message); }
-    catch { alert('Failed to delete test leads.'); }
+    try { const { data } = await googleAdsIntegrationsAPI.deleteTestLeads(integration.id); toast.error(data.message); }
+    catch { toast.error('Failed to delete test leads.'); }
     finally { setDeletingTestLeads(false); }
   };
 
@@ -955,6 +959,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
 };
 
 const GoogleAdsConfig = () => {
+  const toast = useToast();
   const [integrations, setIntegrations] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [staff, setStaff] = useState([]);
@@ -981,7 +986,7 @@ const GoogleAdsConfig = () => {
       const { data } = await googleAdsIntegrationsAPI.create({ name: 'Google Ads Lead Form' });
       await loadIntegrations();
       setActiveId(data.id);
-    } catch (e) { alert(e.response?.data?.error || 'Failed to create integration.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to create integration.'); }
   };
 
   if (integrations === null) return <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>;
@@ -1024,13 +1029,19 @@ const GoogleAdsConfig = () => {
 };
 
 const WhatsAppConfig = ({ settings, onRefresh }) => {
-  const isConfigured = !!(settings.whatsapp_configured || settings.whatsapp_phone_number_id);
-  const [form, setForm] = useState({
+  const toast = useToast();
+  const isConfigured = !!settings.whatsapp_configured;
+  const savedForm = {
     whatsapp_phone_number_id: settings.whatsapp_phone_number_id || '',
     whatsapp_access_token: isConfigured ? '••••••••' : '',
-  });
+    whatsapp_business_account_id: settings.whatsapp_business_account_id || '',
+  };
+  const [form, setForm] = useState(savedForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const isDirty = form.whatsapp_phone_number_id !== savedForm.whatsapp_phone_number_id
+    || form.whatsapp_access_token !== savedForm.whatsapp_access_token
+    || form.whatsapp_business_account_id !== savedForm.whatsapp_business_account_id;
 
   const [autoForm, setAutoForm] = useState({
     whatsapp_auto_responder_enabled: settings.whatsapp_auto_responder_enabled || false,
@@ -1048,7 +1059,8 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(form);
       await onRefresh();
-      alert('WhatsApp settings saved.');
+      setForm(f => ({ ...f, whatsapp_access_token: '••••••••' }));
+      toast.success('WhatsApp connected.');
     } catch (e) { setError(e.response?.data?.error || 'Failed to save'); }
     finally { setSaving(false); }
   };
@@ -1058,22 +1070,27 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(autoForm);
       await onRefresh();
-      alert('Automation settings saved.');
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save'); }
+      toast.error('Automation settings saved.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save'); }
     finally { setAutoSaving(false); }
   };
 
   const handleDisconnect = async () => {
     if (!confirm('Disconnect WhatsApp Business API?')) return;
-    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
+    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
     await onRefresh();
+    setForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
   };
 
   return (
     <div className="space-y-5">
       <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${isConfigured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
         {isConfigured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-        {isConfigured ? 'WhatsApp Business API connected — appointment messages will auto-send.' : 'Not configured — paste your Meta WhatsApp API credentials below.'}
+        {isConfigured
+          ? `Connected${settings.whatsapp_verified_name ? ` as "${settings.whatsapp_verified_name}"` : ''}${settings.whatsapp_display_number ? ` (${settings.whatsapp_display_number})` : ''} — appointment messages will auto-send.`
+          : settings.whatsapp_error
+            ? `Saved credentials are invalid: ${settings.whatsapp_error}. Re-enter them below.`
+            : 'Not connected — paste your Meta WhatsApp API credentials below.'}
       </div>
 
       <div className="bg-white rounded-2xl border p-5 space-y-4">
@@ -1089,6 +1106,13 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
             className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
         </div>
         <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Business Account ID <span className="text-gray-400 font-normal">(optional — needed for template broadcasts)</span></label>
+          <input value={form.whatsapp_business_account_id}
+            onChange={e => setForm(f => ({ ...f, whatsapp_business_account_id: e.target.value }))}
+            placeholder="e.g. 987654321098765"
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Permanent Access Token</label>
           <input value={form.whatsapp_access_token}
             onChange={e => setForm(f => ({ ...f, whatsapp_access_token: e.target.value }))}
@@ -1098,9 +1122,9 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
         </div>
         {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
         <div className="flex gap-2">
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save WhatsApp Settings'}
+          <button onClick={handleSave} disabled={saving || !isDirty}
+            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving ? 'Connecting…' : isConfigured && !isDirty ? 'Connected' : 'Save WhatsApp Settings'}
           </button>
           {isConfigured && (
             <button onClick={handleDisconnect} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">
@@ -1172,6 +1196,7 @@ const emptyAgentForm = () => ({
 
 const AiCallingConfig = ({ settings, onRefresh }) => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [form, setForm] = useState({
     voice_ai_api_key: settings.voice_ai_configured ? '••••••••' : '',
     voice_ai_phone_number_id: settings.voice_ai_phone_number_id || '',
@@ -1192,8 +1217,8 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
   const handleSave = async () => {
     setSaving(true);
-    try { await aiCallingAPI.updateSettings(form); await onRefresh(); alert('AI Calling settings saved.'); }
-    catch { alert('Failed to save.'); }
+    try { await aiCallingAPI.updateSettings(form); await onRefresh(); toast.error('AI Calling settings saved.'); }
+    catch { toast.error('Failed to save.'); }
     finally { setSaving(false); }
   };
 
@@ -1208,14 +1233,14 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
   const handleSaveAgent = async () => {
     if (!agentForm.name || !agentForm.voice_id || !agentForm.system_prompt) {
-      return alert('Name, voice and system prompt are required.');
+      return toast.error('Name, voice and system prompt are required.');
     }
     try {
       if (editingAgent) await aiCallingAPI.updateAgent(editingAgent.id, agentForm);
       else await aiCallingAPI.createAgent(agentForm);
       setShowAgentForm(false);
       reloadAgents();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save agent.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save agent.'); }
   };
 
   const handleDeleteAgent = async (id) => {
@@ -1327,6 +1352,7 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 // ── Main page ──────────────────────────────────────────────────────────────
 
 const IntegrationsPage = () => {
+  const toast = useToast();
   const [selected, setSelected] = useState(null);
   const [category, setCategory] = useState('All');
   const [settings, setSettings] = useState({
@@ -1334,7 +1360,7 @@ const IntegrationsPage = () => {
     api_key: null, api_key_created_at: null,
     webhook_url: '', api_ingest_url: '', google_webhook_url: '',
     meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '',
-    whatsapp_phone_number_id: '', whatsapp_access_token: '',
+    whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '',
     voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
   const [loading, setLoading] = useState(true);
@@ -1365,18 +1391,18 @@ const IntegrationsPage = () => {
   const handleGenerateKey = async () => {
     if (!window.confirm('Generate a new API key? Any existing key will be replaced.')) return;
     try { const { data } = await integrationsAPI.generateApiKey(); setNewKeyValue(data.api_key); load(); }
-    catch { alert('Failed to generate key.'); }
+    catch { toast.error('Failed to generate key.'); }
   };
 
   const handleRevokeKey = async () => {
     if (!window.confirm('Revoke the API key? All integrations using it will stop working.')) return;
     try { await integrationsAPI.revokeApiKey(); setNewKeyValue(null); load(); }
-    catch { alert('Failed.'); }
+    catch { toast.error('Failed.'); }
   };
 
   const handleLoadEmbed = async () => {
     try { const { data } = await integrationsAPI.getEmbedScript(); setEmbedScript(data.script); }
-    catch (e) { alert(e.response?.data?.error || 'Generate an API key first.'); }
+    catch (e) { toast.error(e.response?.data?.error || 'Generate an API key first.'); }
   };
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading integrations…</div>;
