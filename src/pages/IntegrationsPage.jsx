@@ -1035,13 +1035,15 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     whatsapp_phone_number_id: settings.whatsapp_phone_number_id || '',
     whatsapp_access_token: isConfigured ? '••••••••' : '',
     whatsapp_business_account_id: settings.whatsapp_business_account_id || '',
+    whatsapp_app_id: settings.whatsapp_app_id || '',
   };
   const [form, setForm] = useState(savedForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const isDirty = form.whatsapp_phone_number_id !== savedForm.whatsapp_phone_number_id
     || form.whatsapp_access_token !== savedForm.whatsapp_access_token
-    || form.whatsapp_business_account_id !== savedForm.whatsapp_business_account_id;
+    || form.whatsapp_business_account_id !== savedForm.whatsapp_business_account_id
+    || form.whatsapp_app_id !== savedForm.whatsapp_app_id;
 
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState(null); // null | 'success' | 'fail'
@@ -1093,9 +1095,9 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
 
   const handleDisconnect = async () => {
     if (!confirm('Disconnect WhatsApp Business API?')) return;
-    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
+    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '', whatsapp_app_id: '' });
     await onRefresh();
-    setForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
+    setForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '', whatsapp_app_id: '' });
   };
 
   return (
@@ -1127,6 +1129,14 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
             onChange={e => setForm(f => ({ ...f, whatsapp_business_account_id: e.target.value }))}
             placeholder="e.g. 987654321098765"
             className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Meta App ID <span className="text-gray-400 font-normal">(optional — needed to attach images/videos to broadcast templates)</span></label>
+          <input value={form.whatsapp_app_id}
+            onChange={e => setForm(f => ({ ...f, whatsapp_app_id: e.target.value }))}
+            placeholder="e.g. 1536419884823187"
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          <p className="text-[11px] text-gray-400 mt-1">Meta Developer Console → your app → Settings → Basic → App ID (top of the page).</p>
         </div>
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Permanent Access Token</label>
@@ -1400,7 +1410,7 @@ const IntegrationsPage = () => {
     api_key: null, api_key_created_at: null,
     webhook_url: '', api_ingest_url: '', google_webhook_url: '',
     meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '',
-    whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '',
+    whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '', whatsapp_app_id: '',
     whatsapp_webhook_url: '', whatsapp_webhook_verify_token: '',
     voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
