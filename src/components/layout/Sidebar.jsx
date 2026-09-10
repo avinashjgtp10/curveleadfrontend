@@ -1,26 +1,9 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, Megaphone, MessageCircle, UserCog, BarChart3, Settings, LogOut, X, BookOpen, CreditCard, Plug, CalendarCheck, Globe, Lightbulb, HelpCircle, Workflow } from 'lucide-react';
+import { LogOut, X } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
-
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
-  { path: '/leads', label: 'Leads', icon: Users, roles: ['admin', 'staff'] },
-  { path: '/brochures', label: 'Brochures', icon: BookOpen, roles: ['admin', 'staff'] },
-  { path: '/campaigns', label: 'Campaigns', icon: Megaphone, roles: ['admin'] },
-  { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
-  { path: '/appointments', label: 'Appointments', icon: CalendarCheck, roles: ['admin', 'staff'] },
-  { path: '/lead-automation', label: 'Lead Automation', icon: Workflow, roles: ['admin', 'staff'] },
-  { path: '/staff', label: 'Team', icon: UserCog, roles: ['admin'] },
-  { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
-  { path: '/coaching', label: 'Sales Coaching', icon: Lightbulb, roles: ['admin'] },
-  { path: '/market-intelligence', label: 'Market AI', icon: Globe, roles: ['admin'] },
-  { path: '/integrations', label: 'Integrations', icon: Plug, roles: ['admin'] },
-  { path: '/billing', label: 'Billing', icon: CreditCard, roles: ['admin'] },
-  { path: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
-  { path: '/help', label: 'User Guide', icon: HelpCircle, roles: ['admin', 'staff'] },
-];
+import { SIDEBAR_NAV_ITEMS } from './sidebar.constants';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, tenant, logout } = useAuth();
@@ -47,7 +30,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         <nav className="flex-1 px-2 py-3 overflow-y-auto">
-          {navItems.filter(item => item.roles.includes(role)).map(item => (
+          {SIDEBAR_NAV_ITEMS.filter(item => item.roles.includes(role)).map(item => (
             <NavLink key={item.path} to={item.path} onClick={onClose}
               className={({ isActive }) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-50'}`}>
               <item.icon size={18} /> {item.label}
