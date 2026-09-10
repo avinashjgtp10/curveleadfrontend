@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import {
   TrendingUp, Users, Target, Megaphone, ChevronLeft, ChevronRight, AlertTriangle,
-  Search, SlidersHorizontal, ChevronDown, X, FileText, Eye, Share2, Trash2, Square, CheckSquare,
+  Search, SlidersHorizontal, ChevronDown, X, FileText, Eye, Share2, Trash2, Square, CheckSquare, Calendar,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
@@ -23,6 +23,14 @@ const TABS = [
   { id: 'campaigns', label: 'Campaigns' },
   { id: 'leads', label: 'Lead Detail' },
   { id: 'brochures', label: 'Brochure Detail' },
+];
+
+const PERIOD_OPTIONS = [
+  { value: 'today', label: 'Today' },
+  { value: 'this_week', label: 'This Week' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'this_year', label: 'This Year' },
 ];
 
 const fmtDuration = (seconds) => {
@@ -82,6 +90,45 @@ const FilterDropdown = ({ label, value, options, onChange }) => {
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+// The calendar-period selector at the top of the page — styled as a compact
+// pill dropdown instead of a native <select>, to match FilterDropdown's look.
+const PeriodDropdown = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const current = PERIOD_OPTIONS.find(o => o.value === value) || PERIOD_OPTIONS[0];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className={`inline-flex items-center gap-2 h-10 pl-3.5 pr-3 rounded-full border text-sm font-semibold transition-colors ${
+          open ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-200 hover:border-brand-400 hover:text-brand-600'
+        }`}>
+        <Calendar size={14} />
+        {current.label}
+        <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-40">
+          {PERIOD_OPTIONS.map(o => (
+            <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full text-left px-3.5 py-2 text-sm ${o.value === value ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -347,14 +394,7 @@ const ReportsPage = () => {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-gray-500">Track conversion, sources, and campaign performance</p>
         {!['leads', 'brochures'].includes(activeTab) && (
-          <select value={period} onChange={e => setPeriod(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-            <option value="today">Today</option>
-            <option value="this_week">This Week</option>
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="this_year">This Year</option>
-          </select>
+          <PeriodDropdown value={period} onChange={setPeriod} />
         )}
       </div>
 
