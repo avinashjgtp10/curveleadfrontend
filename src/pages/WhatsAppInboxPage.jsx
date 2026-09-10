@@ -4,7 +4,7 @@ import { AVATAR_COLORS } from '../utils/constants';
 import LeadDetailPage from './LeadDetailPage';
 import {
   MessageCircle, Search, SlidersHorizontal, Star, MoreVertical,
-  Paperclip, Send, Smile, Check, CheckCheck, UserCircle2, X,
+  Paperclip, Send, Smile, Check, CheckCheck, AlertCircle, UserCircle2, X,
 } from 'lucide-react';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -320,9 +320,12 @@ const WhatsAppInboxPage = () => {
                               <span className="text-[10px] text-gray-400">
                                 {fmtClock(m.created_at)}
                               </span>
-                              {outbound && (m.status === 'read'
-                                ? <CheckCheck size={13} className="text-blue-500" />
-                                : <Check size={13} className="text-gray-400" />)}
+                              {outbound && (
+                                m.status === 'failed' ? <AlertCircle size={13} className="text-red-500" title="Failed to send" />
+                                : m.status === 'read' ? <CheckCheck size={13} className="text-blue-500" title="Read" />
+                                : m.status === 'delivered' ? <CheckCheck size={13} className="text-gray-400" title="Delivered" />
+                                : <Check size={13} className="text-gray-400" title="Sent" />
+                              )}
                             </div>
                           </div>
                         </div>

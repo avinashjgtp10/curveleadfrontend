@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { quotationsAPI } from '../services/api';
 import { Plus, FileText, Send, Eye, Trash2, MessageCircle } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
 
 const statusColors = {
   draft: 'bg-gray-100 text-gray-700',
@@ -15,6 +16,7 @@ const statusColors = {
 const QuotationsPage = () => {
   const navigate = useNavigate();
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -35,7 +37,7 @@ const QuotationsPage = () => {
       const { data } = await quotationsAPI.send(id);
       window.open(data.whatsapp_url, '_blank');
       load();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
   };
 
   const handleShareWA = (q) => {
@@ -51,7 +53,7 @@ const QuotationsPage = () => {
 
   const handleDelete = async (id) => {
     if (!await confirm({ title: 'Delete this draft quotation?' })) return;
-    try { await quotationsAPI.delete(id); load(); } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    try { await quotationsAPI.delete(id); load(); } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   return (

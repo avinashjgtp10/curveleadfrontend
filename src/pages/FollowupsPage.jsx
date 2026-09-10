@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { followupAPI } from '../services/api';
 import { Clock, CheckCircle, Calendar, Phone, MessageCircle, Navigation, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
 
 const typeIcon = { call: Phone, whatsapp: MessageCircle, visit: Navigation };
 const typeColor = {
@@ -13,6 +14,7 @@ const typeColor = {
 const LIMIT = 15;
 
 const FollowupsPage = () => {
+  const toast = useToast();
   const navigate = useNavigate();
   const [followups, setFollowups] = useState([]);
   const [tab, setTab] = useState('pending');
@@ -37,7 +39,7 @@ const FollowupsPage = () => {
     try {
       await followupAPI.complete(id, { outcome: 'Completed' });
       loadData();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
   };
 
   const isOverdue = (date) => new Date(date) < new Date();
