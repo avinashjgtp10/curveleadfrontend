@@ -6,10 +6,11 @@ import {
 } from 'recharts';
 import {
   TrendingUp, Users, Target, Megaphone, ChevronLeft, ChevronRight, AlertTriangle,
-  Search, SlidersHorizontal, ChevronDown, X,
+  Search, SlidersHorizontal, ChevronDown, X, Trash2, Square, CheckSquare,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 const GRID_PAGE_SIZE_OPTIONS = [5, 10, 15, 20];
@@ -78,6 +79,7 @@ const FilterDropdown = ({ label, value, options, onChange }) => {
 };
 
 const ReportsPage = () => {
+  const confirm = useConfirmDialog();
   const [activeTab, setActiveTab] = useState('overview');
   const [period, setPeriod] = useState('this_month');
 
@@ -113,6 +115,8 @@ const ReportsPage = () => {
   const [gridLeads, setGridLeads] = useState([]);
   const [gridPagination, setGridPagination] = useState({ total: 0, pages: 1 });
   const [gridLoading, setGridLoading] = useState(false);
+  const [selectedGridIds, setSelectedGridIds] = useState(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   useEffect(() => {
     stageAPI.getAll().then(res => setStages(res.data.stages || [])).catch(() => {});
@@ -183,9 +187,38 @@ const ReportsPage = () => {
       if (gridStalled) params.stalled = true;
       const res = await leadAPI.getAll(params);
       setGridLeads(res.data.leads || []);
+      setSelectedGridIds(new Set());
       setGridPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
     } catch (e) { console.error(e); }
     finally { setGridLoading(false); }
+  };
+
+  const toggleGridSelect = (id) => setSelectedGridIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleGridSelectAll = () => {
+    if (selectedGridIds.size === gridLeads.length) setSelectedGridIds(new Set());
+    else setSelectedGridIds(new Set(gridLeads.map(l => l.id)));
+  };
+
+  const clearGridSelection = () => setSelectedGridIds(new Set());
+
+  const handleGridBulkDelete = async () => {
+    const ok = await confirm({ title: `Delete ${selectedGridIds.size} lead${selectedGridIds.size > 1 ? 's' : ''}?` });
+    if (!ok) return;
+    setBulkDeleteLoading(true);
+    try {
+      await leadAPI.bulkDelete([...selectedGridIds]);
+      clearGridSelection();
+      loadGrid();
+    } catch (e) {
+      alert(e.response?.data?.error || 'Failed to delete selected leads.');
+    } finally {
+      setBulkDeleteLoading(false);
+    }
   };
 
   const gridPageNumbers = () => {
@@ -597,9 +630,31 @@ const ReportsPage = () => {
             <EmptyState message="No leads match these filters" className="py-6" />
           ) : (
             <div className="overflow-x-auto">
+              {selectedGridIds.size > 0 && (
+                <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-cyan-50 border border-cyan-200 rounded-xl flex-wrap">
+                  <span className="text-sm font-bold text-cyan-700">{selectedGridIds.size} selected</span>
+                  <button
+                    onClick={handleGridBulkDelete}
+                    disabled={bulkDeleteLoading}
+                    className="flex items-center gap-1.5 h-8 px-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 disabled:opacity-50">
+                    <Trash2 size={13} /> Delete
+                  </button>
+                  <button onClick={clearGridSelection} className="ml-auto text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <X size={13} /> Clear
+                  </button>
+                </div>
+              )}
+
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 uppercase">
                   <tr>
+                    <th className="text-left py-2 w-8">
+                      <button onClick={toggleGridSelectAll} className="text-gray-400 hover:text-cyan-600">
+                        {selectedGridIds.size === gridLeads.length && gridLeads.length > 0
+                          ? <CheckSquare size={16} className="text-cyan-600" />
+                          : <Square size={16} />}
+                      </button>
+                    </th>
                     <th className="text-left py-2">Lead #</th>
                     <th className="text-left py-2">Name</th>
                     <th className="text-left py-2">Phone</th>
@@ -610,7 +665,14 @@ const ReportsPage = () => {
                 </thead>
                 <tbody>
                   {gridLeads.map(l => (
-                    <tr key={l.id} className="border-t">
+                    <tr key={l.id} className={`border-t hover:bg-gray-50 ${selectedGridIds.has(l.id) ? 'bg-cyan-50/50' : ''}`}>
+                      <td className="py-2.5">
+                        <button onClick={() => toggleGridSelect(l.id)} className="text-gray-400 hover:text-cyan-600">
+                          {selectedGridIds.has(l.id)
+                            ? <CheckSquare size={16} className="text-cyan-600" />
+                            : <Square size={16} />}
+                        </button>
+                      </td>
                       <td className="py-2.5 text-gray-500">{l.lead_number}</td>
                       <td className="font-medium">{l.name}</td>
                       <td>{l.phone}</td>
