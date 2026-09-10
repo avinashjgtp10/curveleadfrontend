@@ -429,32 +429,34 @@ const DashboardPage = () => {
         <div className="bg-white rounded-2xl p-5 border">
           <h3 className="font-semibold text-gray-900 mb-4">Lead Sources</h3>
           {(data?.sources || []).length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
-                  <th className="text-left pb-2 font-semibold">Source</th>
-                  <th className="text-right pb-2 font-semibold">Leads</th>
-                  <th className="text-right pb-2 font-semibold">Won</th>
-                  <th className="text-right pb-2 font-semibold">Conv%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.sources.map(s => (
-                  <tr key={s.source} className="border-b last:border-0">
-                    <td className="py-2.5 font-medium text-gray-700 capitalize">{s.source}</td>
-                    <td className="py-2.5 text-right text-gray-500">{s.total}</td>
-                    <td className="py-2.5 text-right font-semibold text-emerald-600">{s.won}</td>
-                    <td className="py-2.5 text-right">
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                        parseFloat(s.conversion_rate) >= 20 ? 'bg-emerald-100 text-emerald-700' :
-                        parseFloat(s.conversion_rate) >= 10 ? 'bg-amber-100 text-amber-700' :
-                                                              'bg-gray-100 text-gray-500'
-                      }`}>{s.conversion_rate}%</span>
-                    </td>
+            <div className="overflow-x-auto -mx-5 px-5">
+              <table className="w-full text-sm min-w-[420px]">
+                <thead>
+                  <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
+                    <th className="text-left pb-2 font-semibold whitespace-nowrap">Source</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Leads</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Won</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Conv%</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.sources.map(s => (
+                    <tr key={s.source} className="border-b last:border-0">
+                      <td className="py-2.5 font-medium text-gray-700 capitalize whitespace-nowrap">{s.source}</td>
+                      <td className="py-2.5 text-right text-gray-500 whitespace-nowrap">{s.total}</td>
+                      <td className="py-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap">{s.won}</td>
+                      <td className="py-2.5 text-right whitespace-nowrap">
+                        <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                          parseFloat(s.conversion_rate) >= 20 ? 'bg-emerald-100 text-emerald-700' :
+                          parseFloat(s.conversion_rate) >= 10 ? 'bg-amber-100 text-amber-700' :
+                                                                'bg-gray-100 text-gray-500'
+                        }`}>{s.conversion_rate}%</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="text-sm text-gray-400 text-center py-8">No source data yet</p>
           )}
@@ -464,35 +466,37 @@ const DashboardPage = () => {
         <div className="bg-white rounded-2xl p-5 border">
           <h3 className="font-semibold text-gray-900 mb-4">Team Performance</h3>
           {(data?.team || []).length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
-                  <th className="text-left pb-2 font-semibold">Member</th>
-                  <th className="text-right pb-2 font-semibold">Leads</th>
-                  <th className="text-right pb-2 font-semibold">Won</th>
-                  <th className="text-right pb-2 font-semibold">Revenue</th>
-                  <th className="text-right pb-2 font-semibold">Avg Response</th>
-                  <th className="text-right pb-2 font-semibold">Follow-ups Done</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.team.map((t, i) => (
-                  <tr key={t.name} className="border-b last:border-0">
-                    <td className="py-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}</span>
-                        <span className="font-medium text-gray-700">{t.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-right text-gray-500">{t.total_leads}</td>
-                    <td className="py-2.5 text-right font-semibold text-emerald-600">{t.won}</td>
-                    <td className="py-2.5 text-right font-semibold text-gray-700">{fmtMoney(t.revenue)}</td>
-                    <td className="py-2.5 text-right text-gray-500">{fmtDuration(t.avg_response_seconds)}</td>
-                    <td className="py-2.5 text-right text-gray-500">{t.completed_followups}</td>
+            <div className="overflow-x-auto -mx-5 px-5">
+              <table className="w-full text-sm min-w-[560px]">
+                <thead>
+                  <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
+                    <th className="text-left pb-2 font-semibold whitespace-nowrap">Member</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Leads</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Won</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Revenue</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Avg Response</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Follow-ups Done</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.team.map((t, i) => (
+                    <tr key={t.name} className="border-b last:border-0">
+                      <td className="py-2.5 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}</span>
+                          <span className="font-medium text-gray-700">{t.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 text-right text-gray-500 whitespace-nowrap">{t.total_leads}</td>
+                      <td className="py-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap">{t.won}</td>
+                      <td className="py-2.5 text-right font-semibold text-gray-700 whitespace-nowrap">{fmtMoney(t.revenue)}</td>
+                      <td className="py-2.5 text-right text-gray-500 whitespace-nowrap">{fmtDuration(t.avg_response_seconds)}</td>
+                      <td className="py-2.5 text-right text-gray-500 whitespace-nowrap">{t.completed_followups}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <p className="text-sm text-gray-400 text-center py-8">No team data yet</p>
           )}
