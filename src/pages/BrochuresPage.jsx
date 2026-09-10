@@ -322,7 +322,6 @@ const BrochuresPage = () => {
                       <span className="text-[11px] text-gray-400">{b.times_shared || 0} Shares</span>
                     </div>
                   </div>
-                  <a href={b.file_url} target="_blank" rel="noopener noreferrer" className="px-3 py-1.5 border rounded-lg text-xs font-medium text-brand-600">View</a>
                   <button onClick={() => handleShareWA(b)} className="px-3 py-1.5 border rounded-lg text-xs font-medium text-green-600">Share</button>
                   <button onClick={() => handleDelete(b.id)} className="p-1.5 hover:bg-red-50 rounded-lg text-red-500"><Trash2 size={14} /></button>
                 </div>
@@ -360,8 +359,6 @@ const BrochuresPage = () => {
                     <span className="text-[11px] text-gray-500 flex items-center gap-1"><Share2 size={12} /> {b.times_shared || 0} Shares</span>
                   </div>
                   <div className="flex gap-1.5 mt-3">
-                    <a href={b.file_url} target="_blank" rel="noopener noreferrer"
-                      className="flex-1 py-1.5 border rounded-lg text-xs font-medium text-brand-600 text-center">View</a>
                     <button onClick={() => handleShareWA(b)} className="flex-1 py-1.5 border rounded-lg text-xs font-medium text-brand-600 flex items-center justify-center gap-1">
                       <MessageCircle size={12} /> Share
                     </button>
