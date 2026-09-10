@@ -1043,6 +1043,22 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     || form.whatsapp_access_token !== savedForm.whatsapp_access_token
     || form.whatsapp_business_account_id !== savedForm.whatsapp_business_account_id;
 
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState(null); // null | 'success' | 'fail'
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const challenge = String(Date.now());
+      const url = `${settings.whatsapp_webhook_url}?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(settings.whatsapp_webhook_verify_token)}&hub.challenge=${challenge}`;
+      const res = await fetch(url);
+      const text = await res.text();
+      setWebhookTestResult(res.ok && text === challenge ? 'success' : 'fail');
+    } catch (e) { setWebhookTestResult('fail'); }
+    finally { setTestingWebhook(false); }
+  };
+
   const [autoForm, setAutoForm] = useState({
     whatsapp_auto_responder_enabled: settings.whatsapp_auto_responder_enabled || false,
     whatsapp_auto_responder_message: settings.whatsapp_auto_responder_message || '',
@@ -1133,6 +1149,30 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
           )}
         </div>
       </div>
+
+      {isConfigured && (
+        <div className="bg-white rounded-2xl border p-5 space-y-3">
+          <div>
+            <h2 className="font-semibold mb-1">Step 2 — Set up the Webhook</h2>
+            <p className="text-xs text-gray-500">This makes replies and delivery status show up in CurveLead. Open <strong>Meta Developer Console → the app this number lives under → WhatsApp → Configuration → Webhook</strong>, paste these two values in, and subscribe to the <code className="bg-gray-100 px-1 rounded">messages</code> field.</p>
+          </div>
+          <UrlRow label="Callback URL" url={settings.whatsapp_webhook_url} />
+          <UrlRow label="Verify Token" url={settings.whatsapp_webhook_verify_token} />
+          <div className="flex items-center gap-3">
+            <button onClick={handleTestWebhook} disabled={testingWebhook}
+              className="px-4 py-2 border rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+              {testingWebhook ? 'Testing…' : 'Test Webhook'}
+            </button>
+            {webhookTestResult === 'success' && (
+              <span className="text-sm text-green-700 flex items-center gap-1"><CheckCircle size={14} /> Reachable — safe to paste into Meta.</span>
+            )}
+            {webhookTestResult === 'fail' && (
+              <span className="text-sm text-red-600 flex items-center gap-1"><AlertCircle size={14} /> Not responding correctly — check your server before configuring Meta.</span>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-400">This only confirms CurveLead's server responds correctly — it can't confirm Meta itself can reach it (network/DNS issues would still need checking separately).</p>
+        </div>
+      )}
 
       {isConfigured && (
         <div className="bg-white rounded-2xl border p-5 space-y-5">
@@ -1361,6 +1401,7 @@ const IntegrationsPage = () => {
     webhook_url: '', api_ingest_url: '', google_webhook_url: '',
     meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '',
     whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '',
+    whatsapp_webhook_url: '', whatsapp_webhook_verify_token: '',
     voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
   const [loading, setLoading] = useState(true);
