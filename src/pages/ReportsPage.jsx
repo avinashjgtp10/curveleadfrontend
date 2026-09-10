@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { reportsAPI, leadAPI, stageAPI } from '../services/api';
+import { reportsAPI, leadAPI, stageAPI, staffAPI } from '../services/api';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
   AreaChart, Area, LineChart, Line,
@@ -10,7 +10,9 @@ import {
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
+import DatePicker from '../components/ui/DatePicker';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { LEAD_SCORE_OPTIONS, ALL_STAGES_OPTION, ALL_STAFF_OPTION, UNASSIGNED_OPTION } from './reportsFilter.constants';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 const GRID_PAGE_SIZE_OPTIONS = [5, 10, 15, 20];
@@ -21,6 +23,31 @@ const TABS = [
   { id: 'team', label: 'Team' },
   { id: 'campaigns', label: 'Campaigns' },
   { id: 'leads', label: 'Lead Detail' },
+];
+
+const toISODate = (d) => {
+  const c = new Date(d);
+  c.setMinutes(c.getMinutes() - c.getTimezoneOffset());
+  return c.toISOString().slice(0, 10);
+};
+
+const DATE_PRESETS = [
+  { label: 'Today', range: () => { const t = new Date(); return [toISODate(t), toISODate(t)]; } },
+  { label: 'This Week', range: () => {
+    const t = new Date();
+    const start = new Date(t); start.setDate(t.getDate() - t.getDay());
+    return [toISODate(start), toISODate(t)];
+  } },
+  { label: 'This Month', range: () => {
+    const t = new Date();
+    const start = new Date(t.getFullYear(), t.getMonth(), 1);
+    return [toISODate(start), toISODate(t)];
+  } },
+  { label: 'Last 30 Days', range: () => {
+    const t = new Date();
+    const start = new Date(t); start.setDate(t.getDate() - 29);
+    return [toISODate(start), toISODate(t)];
+  } },
 ];
 
 const fmtDuration = (seconds) => {
@@ -41,8 +68,9 @@ const Spinner = () => (
 // so it always opens directly below its trigger instead of relying on the
 // browser's native <select> popup placement (which can render detached from
 // the field and overlap unrelated page content).
-const FilterDropdown = ({ label, value, options, onChange }) => {
+const FilterDropdown = ({ label, value, options, onChange, searchable = false }) => {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
   const ref = useRef(null);
 
   useEffect(() => {
@@ -52,7 +80,12 @@ const FilterDropdown = ({ label, value, options, onChange }) => {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
+  useEffect(() => { if (!open) setQuery(''); }, [open]);
+
   const current = options.find(o => o.value === value) || options[0];
+  const filteredOptions = searchable && query.trim()
+    ? options.filter(o => o.label.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
 
   return (
     <div className="space-y-1" ref={ref}>
@@ -64,13 +97,24 @@ const FilterDropdown = ({ label, value, options, onChange }) => {
           <ChevronDown size={14} className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
         {open && (
-          <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto py-1">
-            {options.map(o => (
-              <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-cyan-50 ${o.value === value ? 'bg-cyan-50 text-cyan-700 font-semibold' : 'text-gray-700'}`}>
-                {o.label}
-              </button>
-            ))}
+          <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-lg py-1">
+            {searchable && (
+              <div className="px-2 pb-1.5 mb-1 border-b">
+                <input type="text" autoFocus value={query} onChange={e => setQuery(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full px-2 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+              </div>
+            )}
+            <div className="max-h-48 overflow-y-auto">
+              {filteredOptions.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-3">No matches</p>
+              ) : filteredOptions.map(o => (
+                <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-cyan-50 ${o.value === value ? 'bg-cyan-50 text-cyan-700 font-semibold' : 'text-gray-700'}`}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
           </div>
         )}
       </div>
@@ -110,6 +154,10 @@ const ReportsPage = () => {
   const [gridStage, setGridStage] = useState('');
   const [gridScore, setGridScore] = useState('');
   const [gridStalled, setGridStalled] = useState(false);
+  const [gridAssignedTo, setGridAssignedTo] = useState('');
+  const [gridDateFrom, setGridDateFrom] = useState('');
+  const [gridDateTo, setGridDateTo] = useState('');
+  const [staff, setStaff] = useState([]);
   const [gridPage, setGridPage] = useState(1);
   const [gridPageSize, setGridPageSize] = useState(20);
   const [gridLeads, setGridLeads] = useState([]);
@@ -120,12 +168,13 @@ const ReportsPage = () => {
 
   useEffect(() => {
     stageAPI.getAll().then(res => setStages(res.data.stages || [])).catch(() => {});
+    staffAPI.getAll().then(res => setStaff(res.data.staff || [])).catch(() => {});
   }, []);
 
   useEffect(() => { loadOverview(); }, [period]);
   useEffect(() => { loadFunnel(); }, [period]);
   useEffect(() => { loadTrends(); }, [trendDays]);
-  useEffect(() => { loadGrid(); }, [gridSearch, gridStage, gridScore, gridStalled, gridPage, gridPageSize]);
+  useEffect(() => { loadGrid(); }, [gridSearch, gridStage, gridScore, gridStalled, gridAssignedTo, gridDateFrom, gridDateTo, gridPage, gridPageSize]);
 
   useEffect(() => {
     const t = setTimeout(() => { setGridPage(1); setGridSearch(gridSearchInput); }, 400);
@@ -185,6 +234,9 @@ const ReportsPage = () => {
       if (gridStage) params.stage = gridStage;
       if (gridScore) params.score = gridScore;
       if (gridStalled) params.stalled = true;
+      if (gridAssignedTo) params.assigned_to = gridAssignedTo;
+      if (gridDateFrom) params.date_from = gridDateFrom;
+      if (gridDateTo) params.date_to = gridDateTo;
       const res = await leadAPI.getAll(params);
       setGridLeads(res.data.leads || []);
       setSelectedGridIds(new Set());
@@ -552,11 +604,12 @@ const ReportsPage = () => {
       {activeTab === 'leads' && (
         <div className="bg-white rounded-2xl border p-5">
           {(() => {
-            const gridActiveFilterCount = [gridSearchInput, gridStage, gridScore, gridStalled].filter(Boolean).length;
+            const gridActiveFilterCount = [gridSearchInput, gridStage, gridScore, gridStalled, gridAssignedTo, gridDateFrom, gridDateTo].filter(Boolean).length;
             const clearGridFilters = () => {
               setGridPage(1);
               setGridSearchInput(''); setGridSearch('');
               setGridStage(''); setGridScore(''); setGridStalled(false);
+              setGridAssignedTo(''); setGridDateFrom(''); setGridDateTo('');
             };
             return (
               <>
@@ -593,23 +646,25 @@ const ReportsPage = () => {
                 </div>
 
                 {showGridFilters && (
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
                     <FilterDropdown
                       label="Stage"
                       value={gridStage}
                       onChange={v => { setGridPage(1); setGridStage(v); }}
-                      options={[{ value: '', label: 'All Stages' }, ...stages.map(s => ({ value: s.name, label: s.name }))]}
+                      options={[ALL_STAGES_OPTION, ...stages.map(s => ({ value: s.name, label: s.name }))]}
                     />
                     <FilterDropdown
                       label="Score"
                       value={gridScore}
                       onChange={v => { setGridPage(1); setGridScore(v); }}
-                      options={[
-                        { value: '', label: 'All Scores' },
-                        { value: 'hot', label: '🔥 Hot' },
-                        { value: 'warm', label: '🌤 Warm' },
-                        { value: 'cold', label: '❄️ Cold' },
-                      ]}
+                      options={LEAD_SCORE_OPTIONS}
+                    />
+                    <FilterDropdown
+                      label="Assigned To"
+                      value={gridAssignedTo}
+                      onChange={v => { setGridPage(1); setGridAssignedTo(v); }}
+                      options={[ALL_STAFF_OPTION, UNASSIGNED_OPTION, ...staff.map(s => ({ value: s.id, label: s.name }))]}
+                      searchable
                     />
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Stalled</label>
@@ -618,6 +673,27 @@ const ReportsPage = () => {
                           onChange={e => { setGridPage(1); setGridStalled(e.target.checked); }} />
                         Stalled only
                       </label>
+                    </div>
+                    <div className="col-span-2 md:col-span-4 space-y-1.5">
+                      <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Created</label>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {DATE_PRESETS.map(p => {
+                          const [from, to] = p.range();
+                          const active = gridDateFrom === from && gridDateTo === to;
+                          return (
+                            <button key={p.label} type="button"
+                              onClick={() => { setGridPage(1); setGridDateFrom(from); setGridDateTo(to); }}
+                              className={`text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors ${active ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}>
+                              {p.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-2 max-w-sm">
+                        <DatePicker value={gridDateFrom} onChange={v => { setGridPage(1); setGridDateFrom(v); }} className="flex-1" />
+                        <span className="text-gray-400 text-xs shrink-0">to</span>
+                        <DatePicker value={gridDateTo} onChange={v => { setGridPage(1); setGridDateTo(v); }} className="flex-1" />
+                      </div>
                     </div>
                   </div>
                 )}
