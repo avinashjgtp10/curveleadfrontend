@@ -238,7 +238,6 @@ const WhatsAppInboxPage = () => {
                 className={`w-full p-4 text-left flex items-start gap-3 border-b transition-colors ${activeId === c.lead_id ? 'bg-brand-50' : 'hover:bg-gray-50'}`}>
                 <div className={`relative w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(c.lead_name)}`}>
                   {initials(c.lead_name)}
-                  <span className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 border-2 border-white rounded-full ${c.is_online ? 'bg-green-500' : 'bg-gray-300'}`} />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
@@ -274,13 +273,8 @@ const WhatsAppInboxPage = () => {
                     {initials(active.lead_name)}
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-sm text-gray-900">{active.lead_name || 'Unknown'}</p>
-                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${active.is_online ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                        {active.is_online ? 'Online' : 'Offline'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-400">{active.lead_phone}</p>
+                    <p className="font-semibold text-sm text-gray-900">{active.lead_name || 'Unknown'}</p>
+                    <p className="text-xs text-gray-400">{active.lead_phone}{active.sent_at ? ` · Last message ${relTime(active.sent_at)}` : ''}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
@@ -372,7 +366,6 @@ const WhatsAppInboxPage = () => {
               <div className="flex flex-col items-center text-center mb-4">
                 <div className={`relative w-16 h-16 rounded-full flex items-center justify-center text-lg font-bold mb-2 ${avatarColor(active.lead_name)}`}>
                   {initials(active.lead_name)}
-                  <span className={`absolute bottom-0 right-0 w-4 h-4 border-2 border-white rounded-full ${active.is_online ? 'bg-green-500' : 'bg-gray-300'}`} />
                 </div>
                 <p className="font-semibold text-gray-900">{active.lead_name || 'Unknown'}</p>
                 <p className="text-xs text-gray-400">{active.lead_phone}</p>

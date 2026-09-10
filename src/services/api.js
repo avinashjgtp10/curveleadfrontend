@@ -88,6 +88,14 @@ export const whatsappAPI = {
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
   getBroadcastTemplates: () => api.get('/whatsapp/broadcast/templates'),
   createBroadcastTemplate: (data) => api.post('/whatsapp/broadcast/templates', data),
+  uploadBroadcastMedia: (file, mediaType) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('media_type', mediaType);
+    return api.post('/whatsapp/broadcast/templates/media', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
   sendBroadcast: (data) => api.post('/whatsapp/broadcast/send', data),
 };
 
