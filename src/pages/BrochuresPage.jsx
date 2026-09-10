@@ -7,15 +7,8 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { BROCHURE_FILTER_CATEGORIES, BROCHURE_SORT_OPTIONS } from './brochureFilter.constants';
 import { useToast } from '../components/ui/Toast';
-
-const CATEGORIES = [
-  { value: '', label: 'All' },
-  { value: 'products', label: 'Products' },
-  { value: 'services', label: 'Services' },
-  { value: 'pricing', label: 'Pricing' },
-  { value: 'company', label: 'Company' },
-];
 
 const CATEGORY_BADGE = {
   products: 'bg-indigo-50 text-indigo-600',
@@ -282,17 +275,16 @@ const BrochuresPage = () => {
                 <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Category</label>
                 <select value={category} onChange={e => setCategory(e.target.value)}
                   className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white">
-                  {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value ? c.label : 'All categories'}</option>)}
+                  {BROCHURE_FILTER_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value ? c.label : 'All categories'}</option>)}
                 </select>
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Sort By</label>
                 <select value={sortBy} onChange={e => setSortBy(e.target.value)}
                   className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white">
-                  <option value="recent">Recently Created</option>
-                  <option value="name">Name</option>
-                  <option value="views">Most Viewed</option>
-                  <option value="shares">Most Shared</option>
+                  {BROCHURE_SORT_OPTIONS.map(option => (
+                    <option key={option.value} value={option.value}>{option.label.replace('Sort: ', '')}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -301,7 +293,7 @@ const BrochuresPage = () => {
       </div>
 
       <div className="flex gap-1.5 flex-wrap">
-        {CATEGORIES.map(c => (
+        {BROCHURE_FILTER_CATEGORIES.map(c => (
           <button key={c.value} onClick={() => setCategory(c.value)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium ${category === c.value ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 border'}`}>
             {c.label} ({c.value ? (categoryCounts[c.value] || 0) : brochures.length})
