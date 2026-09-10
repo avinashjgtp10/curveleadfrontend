@@ -10,19 +10,10 @@ import {
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
+import { BROCHURE_PAGE_SIZE_OPTIONS, BROCHURE_REPORT_CATEGORIES } from './brochureFilter.constants';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
 const GRID_PAGE_SIZE_OPTIONS = [5, 10, 15, 20];
-const BROCHURE_PAGE_SIZE_OPTIONS = [5, 10, 15, 20];
-
-const BROCHURE_CATEGORIES = [
-  { value: '', label: 'All Categories' },
-  { value: 'products', label: 'Products' },
-  { value: 'services', label: 'Services' },
-  { value: 'pricing', label: 'Pricing' },
-  { value: 'company', label: 'Company' },
-  { value: 'general', label: 'General' },
-];
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -816,7 +807,7 @@ const ReportsPage = () => {
                       label="Category"
                       value={brochureCategory}
                       onChange={v => { setBrochurePage(1); setBrochureCategory(v); }}
-                      options={BROCHURE_CATEGORIES}
+                      options={BROCHURE_REPORT_CATEGORIES}
                     />
                     <div className="space-y-1">
                       <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Shared</label>

@@ -6,14 +6,7 @@ import {
   LayoutGrid, List, ArrowLeft, ArrowRight, ImagePlus, Share2, Download, Check,
 } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
-
-const CATEGORIES = [
-  { value: '', label: 'All' },
-  { value: 'products', label: 'Products' },
-  { value: 'services', label: 'Services' },
-  { value: 'pricing', label: 'Pricing' },
-  { value: 'company', label: 'Company' },
-];
+import { BROCHURE_FILTER_CATEGORIES, BROCHURE_SORT_OPTIONS } from './brochureFilter.constants';
 
 const CATEGORY_BADGE = {
   products: 'bg-indigo-50 text-indigo-600',
@@ -248,14 +241,11 @@ const BrochuresPage = () => {
         </div>
         <select value={category} onChange={e => setCategory(e.target.value)}
           className="px-3 py-2.5 border rounded-lg text-sm bg-white">
-          {CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value ? c.label : 'Category: All'}</option>)}
+          {BROCHURE_FILTER_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.value ? c.label : 'Category: All'}</option>)}
         </select>
         <select value={sortBy} onChange={e => setSortBy(e.target.value)}
           className="px-3 py-2.5 border rounded-lg text-sm bg-white">
-          <option value="recent">Sort: Recently Created</option>
-          <option value="name">Sort: Name</option>
-          <option value="views">Sort: Most Viewed</option>
-          <option value="shares">Sort: Most Shared</option>
+          {BROCHURE_SORT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
         </select>
         <div className="flex border rounded-lg overflow-hidden">
           <button onClick={() => setViewMode('grid')} className={`p-2.5 ${viewMode === 'grid' ? 'bg-brand-600 text-white' : 'bg-white text-gray-500'}`}><LayoutGrid size={16} /></button>
@@ -264,7 +254,7 @@ const BrochuresPage = () => {
       </div>
 
       <div className="flex gap-1.5 flex-wrap">
-        {CATEGORIES.map(c => (
+        {BROCHURE_FILTER_CATEGORIES.map(c => (
           <button key={c.value} onClick={() => setCategory(c.value)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium ${category === c.value ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 border'}`}>
             {c.label} ({c.value ? (categoryCounts[c.value] || 0) : brochures.length})
