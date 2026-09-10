@@ -6,10 +6,11 @@ import {
 } from 'recharts';
 import {
   TrendingUp, Users, Target, Megaphone, ChevronLeft, ChevronRight, AlertTriangle,
-  Search, SlidersHorizontal, ChevronDown, X, Download,
+  Search, SlidersHorizontal, ChevronDown, X, Download, Trash2, Square, CheckSquare, Calendar,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import EmptyState from '../components/ui/EmptyState';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   REPORT_LEAD_COLUMNS,
   REPORT_LEAD_DOWNLOAD_OPTIONS,
@@ -25,6 +26,14 @@ const TABS = [
   { id: 'team', label: 'Team' },
   { id: 'campaigns', label: 'Campaigns' },
   { id: 'leads', label: 'Lead Detail' },
+];
+
+const PERIOD_OPTIONS = [
+  { value: 'today', label: 'Today' },
+  { value: 'this_week', label: 'This Week' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'this_year', label: 'This Year' },
 ];
 
 const fmtDuration = (seconds) => {
@@ -110,7 +119,47 @@ const FilterDropdown = ({ label, value, options, onChange }) => {
   );
 };
 
+// The calendar-period selector at the top of the page — styled as a compact
+// pill dropdown instead of a native <select>, to match FilterDropdown's look.
+const PeriodDropdown = ({ value, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const current = PERIOD_OPTIONS.find(o => o.value === value) || PERIOD_OPTIONS[0];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className={`inline-flex items-center gap-2 h-10 pl-3.5 pr-3 rounded-full border text-sm font-semibold transition-colors ${
+          open ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-200 hover:border-brand-400 hover:text-brand-600'
+        }`}>
+        <Calendar size={14} />
+        {current.label}
+        <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-40">
+          {PERIOD_OPTIONS.map(o => (
+            <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full text-left px-3.5 py-2 text-sm ${o.value === value ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const ReportsPage = () => {
+  const confirm = useConfirmDialog();
   const [activeTab, setActiveTab] = useState('overview');
   const [period, setPeriod] = useState('this_month');
 
@@ -149,6 +198,8 @@ const ReportsPage = () => {
   const [exportOpen, setExportOpen] = useState(false);
   const [exportingFormat, setExportingFormat] = useState('');
   const exportMenuRef = useRef(null);
+  const [selectedGridIds, setSelectedGridIds] = useState(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   useEffect(() => {
     stageAPI.getAll().then(res => setStages(res.data.stages || [])).catch(() => {});
@@ -227,6 +278,7 @@ const ReportsPage = () => {
       if (gridStalled) params.stalled = true;
       const res = await leadAPI.getAll(params);
       setGridLeads(res.data.leads || []);
+      setSelectedGridIds(new Set());
       setGridPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
     } catch (e) { console.error(e); }
     finally { setGridLoading(false); }
@@ -320,6 +372,34 @@ const ReportsPage = () => {
     }
   };
 
+  const toggleGridSelect = (id) => setSelectedGridIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleGridSelectAll = () => {
+    if (selectedGridIds.size === gridLeads.length) setSelectedGridIds(new Set());
+    else setSelectedGridIds(new Set(gridLeads.map(l => l.id)));
+  };
+
+  const clearGridSelection = () => setSelectedGridIds(new Set());
+
+  const handleGridBulkDelete = async () => {
+    const ok = await confirm({ title: `Delete ${selectedGridIds.size} lead${selectedGridIds.size > 1 ? 's' : ''}?` });
+    if (!ok) return;
+    setBulkDeleteLoading(true);
+    try {
+      await leadAPI.bulkDelete([...selectedGridIds]);
+      clearGridSelection();
+      loadGrid();
+    } catch (e) {
+      alert(e.response?.data?.error || 'Failed to delete selected leads.');
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
+
   const gridPageNumbers = () => {
     const t = gridPagination.pages;
     if (t <= 7) return Array.from({ length: t }, (_, i) => i + 1);
@@ -356,14 +436,7 @@ const ReportsPage = () => {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-gray-500">Track conversion, sources, and campaign performance</p>
         {activeTab !== 'leads' && (
-          <select value={period} onChange={e => setPeriod(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-            <option value="today">Today</option>
-            <option value="this_week">This Week</option>
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="this_year">This Year</option>
-          </select>
+          <PeriodDropdown value={period} onChange={setPeriod} />
         )}
       </div>
 
@@ -747,9 +820,31 @@ const ReportsPage = () => {
             <EmptyState message="No leads match these filters" className="py-6" />
           ) : (
             <div className="overflow-x-auto">
+              {selectedGridIds.size > 0 && (
+                <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-cyan-50 border border-cyan-200 rounded-xl flex-wrap">
+                  <span className="text-sm font-bold text-cyan-700">{selectedGridIds.size} selected</span>
+                  <button
+                    onClick={handleGridBulkDelete}
+                    disabled={bulkDeleteLoading}
+                    className="flex items-center gap-1.5 h-8 px-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 disabled:opacity-50">
+                    <Trash2 size={13} /> Delete
+                  </button>
+                  <button onClick={clearGridSelection} className="ml-auto text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <X size={13} /> Clear
+                  </button>
+                </div>
+              )}
+
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 uppercase">
                   <tr>
+                    <th className="text-left py-2 w-8">
+                      <button onClick={toggleGridSelectAll} className="text-gray-400 hover:text-cyan-600">
+                        {selectedGridIds.size === gridLeads.length && gridLeads.length > 0
+                          ? <CheckSquare size={16} className="text-cyan-600" />
+                          : <Square size={16} />}
+                      </button>
+                    </th>
                     <th className="text-left py-2">Lead #</th>
                     <th className="text-left py-2">Name</th>
                     <th className="text-left py-2">Phone</th>
@@ -760,7 +855,14 @@ const ReportsPage = () => {
                 </thead>
                 <tbody>
                   {gridLeads.map(l => (
-                    <tr key={l.id} className="border-t">
+                    <tr key={l.id} className={`border-t hover:bg-gray-50 ${selectedGridIds.has(l.id) ? 'bg-cyan-50/50' : ''}`}>
+                      <td className="py-2.5">
+                        <button onClick={() => toggleGridSelect(l.id)} className="text-gray-400 hover:text-cyan-600">
+                          {selectedGridIds.has(l.id)
+                            ? <CheckSquare size={16} className="text-cyan-600" />
+                            : <Square size={16} />}
+                        </button>
+                      </td>
                       <td className="py-2.5 text-gray-500">{l.lead_number}</td>
                       <td className="font-medium">{l.name}</td>
                       <td>{l.phone}</td>

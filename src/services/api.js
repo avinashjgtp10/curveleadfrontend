@@ -86,6 +86,9 @@ export const whatsappAPI = {
   getInbox: () => api.get('/whatsapp/inbox'),
   getConversation: (leadId) => api.get(`/whatsapp/conversation/${leadId}`),
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
+  getBroadcastTemplates: () => api.get('/whatsapp/broadcast/templates'),
+  createBroadcastTemplate: (data) => api.post('/whatsapp/broadcast/templates', data),
+  sendBroadcast: (data) => api.post('/whatsapp/broadcast/send', data),
 };
 
 // ============================================
@@ -134,6 +137,7 @@ export const staffAPI = {
   delete: (id) => api.delete(`/staff/${id}`),
   getPermissions: (id) => api.get(`/staff/${id}/permissions`),
   updatePermissions: (id, permissions) => api.put(`/staff/${id}/permissions`, { permissions }),
+  setPassword: (id, password) => api.put(`/staff/${id}/password`, { password }),
   getMyWhatsAppNumber: () => api.get('/staff/me/whatsapp-number'),
   updateMyWhatsAppNumber: (data) => api.put('/staff/me/whatsapp-number', data),
   getWhatsAppNumber: (id) => api.get(`/staff/${id}/whatsapp-number`),

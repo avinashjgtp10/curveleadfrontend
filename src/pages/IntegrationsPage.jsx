@@ -119,6 +119,7 @@ const INTEGRATIONS = [
     border: 'border-green-100',
     category: 'Messaging',
     live: true,
+    isConfigured: s => s.whatsapp_configured,
   },
   {
     id: null,
@@ -1029,13 +1030,34 @@ const GoogleAdsConfig = () => {
 
 const WhatsAppConfig = ({ settings, onRefresh }) => {
   const toast = useToast();
-  const isConfigured = !!(settings.whatsapp_configured || settings.whatsapp_phone_number_id);
-  const [form, setForm] = useState({
+  const isConfigured = !!settings.whatsapp_configured;
+  const savedForm = {
     whatsapp_phone_number_id: settings.whatsapp_phone_number_id || '',
     whatsapp_access_token: isConfigured ? '••••••••' : '',
-  });
+    whatsapp_business_account_id: settings.whatsapp_business_account_id || '',
+  };
+  const [form, setForm] = useState(savedForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const isDirty = form.whatsapp_phone_number_id !== savedForm.whatsapp_phone_number_id
+    || form.whatsapp_access_token !== savedForm.whatsapp_access_token
+    || form.whatsapp_business_account_id !== savedForm.whatsapp_business_account_id;
+
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState(null); // null | 'success' | 'fail'
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const challenge = String(Date.now());
+      const url = `${settings.whatsapp_webhook_url}?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(settings.whatsapp_webhook_verify_token)}&hub.challenge=${challenge}`;
+      const res = await fetch(url);
+      const text = await res.text();
+      setWebhookTestResult(res.ok && text === challenge ? 'success' : 'fail');
+    } catch (e) { setWebhookTestResult('fail'); }
+    finally { setTestingWebhook(false); }
+  };
 
   const [autoForm, setAutoForm] = useState({
     whatsapp_auto_responder_enabled: settings.whatsapp_auto_responder_enabled || false,
@@ -1053,7 +1075,8 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(form);
       await onRefresh();
-      toast.error('WhatsApp settings saved.');
+      setForm(f => ({ ...f, whatsapp_access_token: '••••••••' }));
+      toast.success('WhatsApp connected.');
     } catch (e) { setError(e.response?.data?.error || 'Failed to save'); }
     finally { setSaving(false); }
   };
@@ -1070,15 +1093,20 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
 
   const handleDisconnect = async () => {
     if (!confirm('Disconnect WhatsApp Business API?')) return;
-    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
+    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
     await onRefresh();
+    setForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
   };
 
   return (
     <div className="space-y-5">
       <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${isConfigured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
         {isConfigured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-        {isConfigured ? 'WhatsApp Business API connected — appointment messages will auto-send.' : 'Not configured — paste your Meta WhatsApp API credentials below.'}
+        {isConfigured
+          ? `Connected${settings.whatsapp_verified_name ? ` as "${settings.whatsapp_verified_name}"` : ''}${settings.whatsapp_display_number ? ` (${settings.whatsapp_display_number})` : ''} — appointment messages will auto-send.`
+          : settings.whatsapp_error
+            ? `Saved credentials are invalid: ${settings.whatsapp_error}. Re-enter them below.`
+            : 'Not connected — paste your Meta WhatsApp API credentials below.'}
       </div>
 
       <div className="bg-white rounded-2xl border p-5 space-y-4">
@@ -1094,6 +1122,13 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
             className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
         </div>
         <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Business Account ID <span className="text-gray-400 font-normal">(optional — needed for template broadcasts)</span></label>
+          <input value={form.whatsapp_business_account_id}
+            onChange={e => setForm(f => ({ ...f, whatsapp_business_account_id: e.target.value }))}
+            placeholder="e.g. 987654321098765"
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Permanent Access Token</label>
           <input value={form.whatsapp_access_token}
             onChange={e => setForm(f => ({ ...f, whatsapp_access_token: e.target.value }))}
@@ -1103,9 +1138,9 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
         </div>
         {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
         <div className="flex gap-2">
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save WhatsApp Settings'}
+          <button onClick={handleSave} disabled={saving || !isDirty}
+            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving ? 'Connecting…' : isConfigured && !isDirty ? 'Connected' : 'Save WhatsApp Settings'}
           </button>
           {isConfigured && (
             <button onClick={handleDisconnect} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">
@@ -1114,6 +1149,30 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
           )}
         </div>
       </div>
+
+      {isConfigured && (
+        <div className="bg-white rounded-2xl border p-5 space-y-3">
+          <div>
+            <h2 className="font-semibold mb-1">Step 2 — Set up the Webhook</h2>
+            <p className="text-xs text-gray-500">This makes replies and delivery status show up in CurveLead. Open <strong>Meta Developer Console → the app this number lives under → WhatsApp → Configuration → Webhook</strong>, paste these two values in, and subscribe to the <code className="bg-gray-100 px-1 rounded">messages</code> field.</p>
+          </div>
+          <UrlRow label="Callback URL" url={settings.whatsapp_webhook_url} />
+          <UrlRow label="Verify Token" url={settings.whatsapp_webhook_verify_token} />
+          <div className="flex items-center gap-3">
+            <button onClick={handleTestWebhook} disabled={testingWebhook}
+              className="px-4 py-2 border rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+              {testingWebhook ? 'Testing…' : 'Test Webhook'}
+            </button>
+            {webhookTestResult === 'success' && (
+              <span className="text-sm text-green-700 flex items-center gap-1"><CheckCircle size={14} /> Reachable — safe to paste into Meta.</span>
+            )}
+            {webhookTestResult === 'fail' && (
+              <span className="text-sm text-red-600 flex items-center gap-1"><AlertCircle size={14} /> Not responding correctly — check your server before configuring Meta.</span>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-400">This only confirms CurveLead's server responds correctly — it can't confirm Meta itself can reach it (network/DNS issues would still need checking separately).</p>
+        </div>
+      )}
 
       {isConfigured && (
         <div className="bg-white rounded-2xl border p-5 space-y-5">
@@ -1341,7 +1400,8 @@ const IntegrationsPage = () => {
     api_key: null, api_key_created_at: null,
     webhook_url: '', api_ingest_url: '', google_webhook_url: '',
     meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '',
-    whatsapp_phone_number_id: '', whatsapp_access_token: '',
+    whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '',
+    whatsapp_webhook_url: '', whatsapp_webhook_verify_token: '',
     voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
   const [loading, setLoading] = useState(true);

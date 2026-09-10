@@ -4,7 +4,7 @@ import { AVATAR_COLORS } from '../utils/constants';
 import LeadDetailPage from './LeadDetailPage';
 import {
   MessageCircle, Search, SlidersHorizontal, Star, MoreVertical,
-  Paperclip, Send, Smile, Check, CheckCheck, UserCircle2, X,
+  Paperclip, Send, Smile, Check, CheckCheck, AlertCircle, UserCircle2, X,
 } from 'lucide-react';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -68,8 +68,8 @@ const WhatsAppInboxPage = () => {
     return () => document.removeEventListener('mousedown', handler);
   }, [showChatMenu]);
 
-  const loadInbox = async () => {
-    setLoading(true);
+  const loadInbox = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const [{ data: inboxData }, { data: leadData }] = await Promise.all([
         whatsappAPI.getInbox(),
@@ -83,29 +83,38 @@ const WhatsAppInboxPage = () => {
           lead_id: l.id,
           lead_name: l.name,
           lead_phone: l.phone,
-          last_message: null,
-          last_message_at: null,
+          message: null,
+          sent_at: null,
           unread_count: 0,
         }));
       const list = [...convList, ...extraContacts];
       setConversations(list);
       if (list.length && !activeId) setActiveId(list[0].lead_id);
     } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    finally { if (!silent) setLoading(false); }
   };
+
+  // Chat should feel live — poll the open conversation and the list in the
+  // background rather than requiring a manual refresh to see new replies.
+  useEffect(() => {
+    const interval = setInterval(() => loadInbox(true), 20000);
+    return () => clearInterval(interval);
+  }, [activeId]);
 
   useEffect(() => {
     if (!activeId) return;
     loadConversation(activeId);
+    const interval = setInterval(() => loadConversation(activeId, true), 8000);
+    return () => clearInterval(interval);
   }, [activeId]);
 
-  const loadConversation = async (leadId) => {
-    setMsgLoading(true);
+  const loadConversation = async (leadId, silent = false) => {
+    if (!silent) setMsgLoading(true);
     try {
       const { data } = await whatsappAPI.getConversation(leadId);
       setMessages(data.messages || []);
-    } catch (e) { console.error(e); setMessages([]); }
-    finally { setMsgLoading(false); }
+    } catch (e) { console.error(e); if (!silent) setMessages([]); }
+    finally { if (!silent) setMsgLoading(false); }
   };
 
   const activeLabels = labelsByLead[activeId] || ['Interested'];
@@ -167,7 +176,7 @@ const WhatsAppInboxPage = () => {
     const text = draft.trim();
     if (!text || !activeId) return;
     setSending(true);
-    const optimistic = { id: `tmp-${Date.now()}`, direction: 'outbound', text, created_at: new Date().toISOString(), status: 'sent' };
+    const optimistic = { id: `tmp-${Date.now()}`, direction: 'outbound', message: text, sent_at: new Date().toISOString(), status: 'sent' };
     setMessages(prev => [...prev, optimistic]);
     setDraft('');
     try {
@@ -234,10 +243,10 @@ const WhatsAppInboxPage = () => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-semibold text-sm text-gray-900 truncate">{c.lead_name || 'Unknown'}</p>
-                    <span className="text-xs text-gray-400 shrink-0">{relTime(c.last_message_at)}</span>
+                    <span className="text-xs text-gray-400 shrink-0">{relTime(c.sent_at)}</span>
                   </div>
-                  <p className={`text-xs truncate mt-0.5 ${c.last_message ? 'text-gray-500' : 'italic text-gray-400'}`}>
-                    {c.last_message || 'No messages yet — tap to start chatting'}
+                  <p className={`text-xs truncate mt-0.5 ${c.message ? 'text-gray-500' : 'italic text-gray-400'}`}>
+                    {c.message || 'No messages yet — tap to start chatting'}
                   </p>
                 </div>
                 {c.unread_count > 0 && (
@@ -315,14 +324,17 @@ const WhatsAppInboxPage = () => {
                       return (
                         <div key={m.id || i} className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${outbound ? 'bg-green-100 text-gray-800 rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm shadow-sm'}`}>
-                            <p>{m.text}</p>
+                            <p>{m.message}</p>
                             <div className={`flex items-center gap-1 mt-1 ${outbound ? 'justify-end' : ''}`}>
                               <span className="text-[10px] text-gray-400">
-                                {fmtClock(m.created_at)}
+                                {fmtClock(m.sent_at)}
                               </span>
-                              {outbound && (m.status === 'read'
-                                ? <CheckCheck size={13} className="text-blue-500" />
-                                : <Check size={13} className="text-gray-400" />)}
+                              {outbound && (
+                                m.status === 'failed' ? <AlertCircle size={13} className="text-red-500" title="Failed to send" />
+                                : m.status === 'read' ? <CheckCheck size={13} className="text-blue-500" title="Read" />
+                                : m.status === 'delivered' ? <CheckCheck size={13} className="text-gray-400" title="Delivered" />
+                                : <Check size={13} className="text-gray-400" title="Sent" />
+                              )}
                             </div>
                           </div>
                         </div>
@@ -374,7 +386,7 @@ const WhatsAppInboxPage = () => {
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">About</p>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between"><span className="text-gray-400">First Message</span><span className="text-gray-700 font-medium">{active.first_message_at ? fmtDate(active.first_message_at) : '—'}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-400">Last Message</span><span className="text-gray-700 font-medium">{active.last_message_at ? fmtClock(active.last_message_at) || '—' : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">Last Message</span><span className="text-gray-700 font-medium">{active.sent_at ? fmtClock(active.sent_at) || '—' : '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-400">Total Messages</span><span className="text-gray-700 font-medium">{messages.length}</span></div>
                   <div className="flex justify-between items-center"><span className="text-gray-400">Status</span><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Active</span></div>
                 </div>

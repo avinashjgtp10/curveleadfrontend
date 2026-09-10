@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
@@ -9,7 +9,16 @@ import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { useToast } from '../components/ui/Toast';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+
+// Mirrors WhatsApp's own delivery ticks for an outbound message.
+const MessageStatus = ({ status }) => {
+  if (status === 'failed') return <AlertCircle size={11} className="text-red-300" title="Failed to send" />;
+  if (status === 'read') return <CheckCheck size={13} className="text-sky-300" title="Read" />;
+  if (status === 'delivered') return <CheckCheck size={13} title="Delivered" />;
+  if (status === 'sent') return <Check size={13} title="Sent" />;
+  return <Clock size={11} title="Sending…" />;
+};
 
 const activityConfig = (type) => {
   const map = {
@@ -77,6 +86,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
   const [showShareBrochure, setShowShareBrochure] = useState(false);
+  const [sharingBrochureId, setSharingBrochureId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   // Stages, Statuses & Staff
@@ -111,7 +121,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [savingFollowupEdit, setSavingFollowupEdit] = useState(false);
   const FOLLOWUP_LIMIT = 5;
 
-  useEffect(() => { loadData(); loadStages(); loadTemplatesAndBrochures(); }, [id]);
+  const loadedForId = useRef(null);
+  useEffect(() => {
+    if (loadedForId.current === id) return; // StrictMode dev double-invoke guard
+    loadedForId.current = id;
+    loadData(); loadStages(); loadTemplatesAndBrochures();
+  }, [id]);
   useEffect(() => { if (id) loadFollowupHistory(); }, [id, followupPage]);
 
   // Reset ephemeral UI state when switching leads via Prev/Next — the component
@@ -353,22 +368,24 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     e.stopPropagation();
     try {
       const { data } = await templateAPI.generate(tmpl.id, { lead_id: id });
-      if (data.whatsappUrl) {
-        window.open(data.whatsappUrl, '_blank');
-        setShowTmplPicker(false);
-      } else {
-        toast.error('No phone number found for this lead');
-      }
-    } catch (e) { toast.error('Failed to generate message'); }
+      await whatsappAPI.send(id, data.message);
+      setShowTmplPicker(false);
+      await loadData();
+      toast.success('Message sent.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to send message'); }
   };
 
   const handleShareBrochureWA = async (brochureId) => {
+    if (sharingBrochureId) return;
+    setSharingBrochureId(brochureId);
     try {
       const { data } = await brochuresAPI.shareWithLead(brochureId, id);
-      window.open(data.whatsapp_url, '_blank');
+      if (!data.sent) toast.error(data.error || 'Message queued but delivery failed.');
+      else toast.success('Brochure sent.');
       const shared = brochures.find(b => b.id === brochureId);
       await handleBrochureShared(shared);
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to share brochure'); }
+    finally { setSharingBrochureId(null); }
   };
 
   const handleBrochureShared = async (brochure) => {
@@ -1017,8 +1034,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                 <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm ${m.direction === 'outbound' ? 'bg-brand-600 text-white' : 'bg-gray-100'}`}>
                     <p>{m.message}</p>
-                    <p className={`text-[10px] mt-1 ${m.direction === 'outbound' ? 'text-white/70' : 'text-gray-400'}`}>
+                    <p className={`text-[10px] mt-1 flex items-center gap-1 ${m.direction === 'outbound' ? 'text-white/70 justify-end' : 'text-gray-400'}`}>
                       {new Date(m.sent_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      {m.direction === 'outbound' && <MessageStatus status={m.status} />}
                     </p>
                   </div>
                 </div>
@@ -1041,9 +1059,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                           <p className="text-xs text-gray-400 truncate mt-0.5">{t.message}</p>
                         </button>
                         <button onClick={(e) => handleSendTemplateWhatsApp(t, e)}
-                          title="Open in WhatsApp"
+                          title="Send via WhatsApp"
                           className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium transition-colors">
-                          <ExternalLink size={12} /> WA
+                          <Send size={12} /> Send
                         </button>
                       </div>
                     ))}
@@ -1108,9 +1126,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       <p className="text-xs font-medium truncate">{b.name}</p>
                       <p className="text-[11px] text-gray-400 capitalize">{b.category}</p>
                     </div>
-                    <button onClick={() => handleShareBrochureWA(b.id)}
-                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium flex items-center gap-1">
-                      <MessageCircle size={11} /> Send
+                    <button onClick={() => handleShareBrochureWA(b.id)} disabled={sharingBrochureId === b.id}
+                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium flex items-center gap-1">
+                      <MessageCircle size={11} /> {sharingBrochureId === b.id ? 'Sending...' : 'Send'}
                     </button>
                   </div>
                 ))
