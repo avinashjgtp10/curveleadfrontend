@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
-import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft } from 'lucide-react';
+import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Search, Megaphone, Settings2, ShieldCheck } from 'lucide-react';
 import { useToast } from '../ui/Toast';
 
 const FIELD_OPTIONS = [
@@ -25,6 +25,12 @@ const STATUS_STYLE = {
   REJECTED: 'bg-red-100 text-red-700',
 };
 
+const CATEGORY_STYLE = {
+  MARKETING: { icon: Megaphone, iconBg: 'bg-purple-100 text-purple-600', badge: 'bg-purple-50 text-purple-600' },
+  UTILITY: { icon: Settings2, iconBg: 'bg-blue-100 text-blue-600', badge: 'bg-blue-50 text-blue-600' },
+  AUTHENTICATION: { icon: ShieldCheck, iconBg: 'bg-slate-100 text-slate-600', badge: 'bg-slate-50 text-slate-600' },
+};
+
 const getComponent = (tmpl, type) => tmpl.components?.find(c => c.type === type);
 
 const countVars = (text) => {
@@ -46,6 +52,7 @@ const emptyCreateForm = () => ({ name: '', category: 'MARKETING', language: 'en_
 const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const toast = useToast();
   const [step, setStep] = useState('pick');
+  const [templateSearch, setTemplateSearch] = useState('');
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -69,6 +76,12 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   };
 
   useEffect(() => { loadTemplates(); }, []);
+
+  const filteredTemplates = templates.filter(t => {
+    const q = templateSearch.trim().toLowerCase();
+    if (!q) return true;
+    return t.name.toLowerCase().includes(q) || (getComponent(t, 'BODY')?.text || '').toLowerCase().includes(q);
+  });
 
   const bodyText = selectedTemplate ? getComponent(selectedTemplate, 'BODY')?.text || '' : '';
   const varCount = countVars(bodyText);
@@ -166,6 +179,15 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 <Plus size={14} /> Create New Template
               </button>
 
+              {!loading && !loadError && templates.length > 0 && (
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input type="text" value={templateSearch} onChange={e => setTemplateSearch(e.target.value)}
+                    placeholder="Search templates..."
+                    className="w-full pl-9 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" />
+                </div>
+              )}
+
               {loading ? (
                 <div className="text-center py-6 text-gray-400">Loading templates...</div>
               ) : loadError ? (
@@ -174,24 +196,31 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 </div>
               ) : templates.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-6">No templates yet — create one above to submit it for Meta's approval.</p>
+              ) : filteredTemplates.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No templates match "{templateSearch}".</p>
               ) : (
-                <div className="space-y-2">
-                  {templates.map(t => {
+                <div className="space-y-2.5">
+                  {filteredTemplates.map(t => {
                     const supported = isSupported(t) && t.status === 'APPROVED';
+                    const cat = CATEGORY_STYLE[t.category] || CATEGORY_STYLE.UTILITY;
+                    const CatIcon = cat.icon;
                     return (
                       <button key={`${t.name}-${t.language}`} disabled={!supported} onClick={() => handleSelectTemplate(t)}
-                        className={`w-full text-left p-3 rounded-xl border transition-colors ${supported ? 'hover:bg-gray-50 border-gray-200' : 'opacity-60 cursor-not-allowed border-gray-100'}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-sm">{t.name}</p>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500'}`}>{t.status}</span>
-                            <span className="text-[10px] font-semibold uppercase text-gray-400">{t.category}</span>
-                          </div>
+                        className={`w-full text-left p-3.5 rounded-2xl border flex gap-3 transition-all ${supported ? 'hover:border-brand-300 hover:shadow-sm border-gray-200' : 'opacity-60 cursor-not-allowed border-gray-100'}`}>
+                        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cat.iconBg}`}>
+                          <CatIcon size={16} />
                         </div>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{getComponent(t, 'BODY')?.text}</p>
-                        {t.status === 'APPROVED' && !isSupported(t) && <p className="text-[11px] text-amber-600 mt-1">Not supported — this template has a media or variable header.</p>}
-                        {t.status === 'REJECTED' && <p className="text-[11px] text-red-600 mt-1">Rejected by Meta — edit and resubmit under a new name.</p>}
-                        {t.status === 'PENDING' && <p className="text-[11px] text-amber-600 mt-1">Awaiting Meta's review.</p>}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-semibold text-sm min-w-0 truncate" title={t.name}>{t.name}</p>
+                            <span className={`shrink-0 text-[10px] font-bold px-2 py-0.5 rounded-full ${STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500'}`}>{t.status}</span>
+                          </div>
+                          <span className={`inline-block mt-1 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded ${cat.badge}`}>{t.category}</span>
+                          <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{getComponent(t, 'BODY')?.text}</p>
+                          {t.status === 'APPROVED' && !isSupported(t) && <p className="text-[11px] text-amber-600 mt-1.5 flex items-center gap-1"><AlertCircle size={11} className="shrink-0" /> Not supported — media or variable header.</p>}
+                          {t.status === 'REJECTED' && <p className="text-[11px] text-red-600 mt-1.5">Rejected by Meta — edit and resubmit under a new name.</p>}
+                          {t.status === 'PENDING' && <p className="text-[11px] text-amber-600 mt-1.5">Awaiting Meta's review.</p>}
+                        </div>
                       </button>
                     );
                   })}
