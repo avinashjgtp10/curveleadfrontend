@@ -220,6 +220,15 @@ const LeadsPage = () => {
   const [importResult, setImportResult] = useState(null);
   const [importDragOver, setImportDragOver] = useState(false);
 
+  // More Actions dropdown (Export / Import / Duplicates)
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const moreActionsRef = useRef(null);
+  useEffect(() => {
+    const onClick = (e) => { if (moreActionsRef.current && !moreActionsRef.current.contains(e.target)) setShowMoreActions(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
   // Duplicate leads state
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState([]);
@@ -690,22 +699,32 @@ const LeadsPage = () => {
           <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExport}
-            className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-            <Download size={16} /> Export
-          </button>
-          {isAdmin && (
-            <button onClick={() => setShowImport(true)}
+          <div className="relative" ref={moreActionsRef}>
+            <button onClick={() => setShowMoreActions(v => !v)}
               className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-              <Upload size={16} /> Import CSV
+              More Actions <ChevronDown size={15} className={`transition-transform ${showMoreActions ? 'rotate-180' : ''}`} />
             </button>
-          )}
-          {isAdmin && (
-            <button onClick={openDuplicates}
-              className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-              <Copy size={16} /> Duplicates
-            </button>
-          )}
+            {showMoreActions && (
+              <div className="absolute right-0 z-30 mt-1.5 w-52 bg-white border border-gray-100 rounded-lg shadow-lg py-1">
+                <button onClick={() => { setShowMoreActions(false); handleExport(); }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                  <Download size={15} /> Export
+                </button>
+                {isAdmin && (
+                  <button onClick={() => { setShowMoreActions(false); setShowImport(true); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                    <Upload size={15} /> Import CSV
+                  </button>
+                )}
+                {isAdmin && (
+                  <button onClick={() => { setShowMoreActions(false); openDuplicates(); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                    <Copy size={15} /> Duplicates
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <button onClick={() => { setShowAddModal(true); setNewLeadErrors({}); }}
             className="inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 text-sm font-extrabold uppercase text-white shadow-sm hover:bg-cyan-700">
             <Plus size={18} /> Add New Lead
