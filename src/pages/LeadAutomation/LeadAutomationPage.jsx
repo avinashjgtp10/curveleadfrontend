@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import EmptyState from '../../components/ui/EmptyState';
 import { leadAPI, automationAPI, whatsappAPI, recordingAPI } from '../../services/api';
+import AutomationBuilder from './AutomationBuilder';
 
 const AVATAR_COLORS = [
   'from-brand-500 to-brand-700',
@@ -440,17 +441,8 @@ const LeadAutomationPage = () => {
       </div>
 
       {tab === 'settings' ? (
-        <div className="bg-white rounded-2xl border p-8 shadow-sm text-center space-y-3">
-          <div className="w-12 h-12 mx-auto rounded-xl bg-brand-50 flex items-center justify-center">
-            <Settings size={22} className="text-brand-600" />
-          </div>
-          <p className="text-sm text-gray-600 max-w-sm mx-auto">
-            Automation sequences and triggers are configured in Settings → Automations.
-          </p>
-          <Link to="/settings?tab=automations"
-            className="inline-flex items-center gap-1.5 bg-gradient-to-r from-brand-600 to-brand-700 hover:opacity-90 text-white text-sm font-medium px-4 py-2 rounded-lg shadow-sm">
-            <Settings size={15} /> Open Automation Settings
-          </Link>
+        <div className="bg-white rounded-2xl border p-4 sm:p-6 shadow-sm">
+          <AutomationBuilder />
         </div>
       ) : (
       <div className="bg-white rounded-2xl border p-4 sm:p-6 shadow-sm">
