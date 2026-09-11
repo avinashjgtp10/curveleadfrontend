@@ -251,6 +251,8 @@ const StaffPage = () => {
     if (!form.name.trim()) newErrors.name = 'Name is required';
     if (!form.email.trim()) newErrors.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) newErrors.email = 'Enter a valid email address';
+    if (!form.phone.trim()) newErrors.phone = 'Phone number is required';
+    else if (form.phone.replace(/\D/g, '').length < 10) newErrors.phone = 'Enter a valid phone number';
     setInviteErrors(newErrors);
     if (Object.keys(newErrors).length) return;
     try {
@@ -528,9 +530,11 @@ const StaffPage = () => {
                 {inviteErrors.email && <p className="text-xs text-red-500 mt-1">{inviteErrors.email}</p>}
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
-                <input type="tel" value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                <label className="block text-xs font-medium text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
+                <input type="tel" value={form.phone}
+                  onChange={e => { setForm({ ...form, phone: e.target.value }); if (inviteErrors.phone) setInviteErrors(er => ({ ...er, phone: undefined })); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${inviteErrors.phone ? 'border-red-500' : ''}`} />
+                {inviteErrors.phone && <p className="text-xs text-red-500 mt-1">{inviteErrors.phone}</p>}
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
