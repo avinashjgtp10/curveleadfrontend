@@ -459,8 +459,20 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const handleSendTeamComm = async () => {
     if (!teamCommForm.recipient_id) return setTeamCommError('Select who this is for');
     if (!teamCommForm.message.trim()) return setTeamCommError('Write a message first');
-    setTeamCommError('');
     const recipient = staff.find(s => String(s.id) === String(teamCommForm.recipient_id));
+
+    if ((teamCommForm.method === 'call' || teamCommForm.method === 'whatsapp') && !recipient?.phone) {
+      return setTeamCommError(`No phone number on file for ${recipient?.name || 'this staff member'}`);
+    }
+    setTeamCommError('');
+
+    // Open the tab synchronously (inside the click gesture) so the browser's
+    // popup blocker doesn't swallow it once we await the note creation below.
+    let waWindow = null;
+    if (teamCommForm.method === 'whatsapp') {
+      waWindow = window.open('', '_blank', 'noopener,noreferrer');
+    }
+
     setSendingTeamComm(true);
     try {
       const methodLabel = { internal: 'Internal note', call: 'Call', whatsapp: 'WhatsApp' }[teamCommForm.method];
@@ -479,13 +491,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       if (teamCommForm.method === 'call' && recipient?.phone) {
         window.open(`tel:${recipient.phone}`, '_self');
       } else if (teamCommForm.method === 'whatsapp' && recipient?.phone) {
-        window.open(`https://wa.me/${recipient.phone}?text=${encodeURIComponent(teamCommForm.message.trim())}`, '_blank', 'noopener,noreferrer');
+        const waUrl = `https://wa.me/${recipient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(teamCommForm.message.trim())}`;
+        if (waWindow) waWindow.location.href = waUrl;
+        else window.open(waUrl, '_blank', 'noopener,noreferrer');
       }
 
       toast.success('Sent to ' + (recipient?.name || 'team member'));
       setTeamCommForm({ recipient_id: '', method: 'internal', message: '' });
       setShowTeamComm(false);
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed to send'); }
+    } catch (e) {
+      if (waWindow) waWindow.close();
+      toast.error(e.response?.data?.error || 'Failed to send');
+    }
     finally { setSendingTeamComm(false); }
   };
 
@@ -574,7 +591,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               className="whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
               <FileText size={14} /> New Quotation
             </button>
-            <button onClick={() => { loadStaff(); setTeamCommError(''); setShowTeamComm(true); }}
+            <button onClick={() => { loadStaff(); setTeamCommError(''); setTeamCommForm(f => ({ ...f, recipient_id: lead?.assigned_to || '' })); setShowTeamComm(true); }}
               className="whitespace-nowrap px-3 py-2 bg-cyan-50 text-cyan-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
               <Users size={14} /> Team Communication
             </button>
@@ -1364,24 +1381,19 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               {/* Recipient */}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Send to</label>
-                <select
-                  value={teamCommForm.recipient_id}
-                  onChange={e => { setTeamCommForm(f => ({ ...f, recipient_id: e.target.value })); setTeamCommError(''); }}
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-cyan-300 ${teamCommError && !teamCommForm.recipient_id ? 'border-red-500' : ''}`}>
-                  <option value="">— Select recipient —</option>
-                  {staff.length === 0 && <option value="" disabled>Loading team…</option>}
-                  {[...staff]
-                    .sort((a, b) => {
-                      const rank = s => (String(s.id) === String(lead?.assigned_to) ? 0 : s.role === 'admin' ? 1 : 2);
-                      return rank(a) - rank(b);
-                    })
-                    .map(s => (
-                      <option key={s.id} value={s.id}>
-                        {s.name}
-                        {String(s.id) === String(lead?.assigned_to) ? ' (Assigned to this lead)' : s.role === 'admin' ? ' (Admin)' : ''}
-                      </option>
-                    ))}
-                </select>
+                {lead?.assigned_to ? (
+                  <div className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+                      {(lead.assigned_to_name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <span className="font-medium text-gray-800">{lead.assigned_to_name || 'Assigned staff'}</span>
+                    <span className="text-xs text-gray-400 ml-auto">Assigned to this lead</span>
+                  </div>
+                ) : (
+                  <p className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 text-gray-400 ${teamCommError && !teamCommForm.recipient_id ? 'border-red-500' : ''}`}>
+                    No staff assigned to this lead yet
+                  </p>
+                )}
               </div>
 
               {/* Method */}
