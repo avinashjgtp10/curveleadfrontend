@@ -232,6 +232,7 @@ export const automationAPI = {
   createRule: (data) => api.post('/automations/rules', data),
   updateRule: (id, data) => api.put(`/automations/rules/${id}`, data),
   deleteRule: (id) => api.delete(`/automations/rules/${id}`),
+  getEnrollments: (leadIds) => api.get('/automations/enrollments', { params: { lead_ids: leadIds.join(',') } }),
 };
 
 // ============================================
