@@ -429,7 +429,7 @@ const AppointmentsPage = () => {
                         {openMenuId === a.id && createPortal(
                           <div data-actions-menu style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: 190 }}
                             className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
-                            <button onClick={() => { setOpenMenuId(null); navigate(`/leads/${a.lead_id}`); }}
+                            <button onClick={() => { setOpenMenuId(null); navigate('/leads', { state: { openLeadId: a.lead_id } }); }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700">
                               <Eye size={13} /> View Details
                             </button>

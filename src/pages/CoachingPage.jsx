@@ -4,14 +4,21 @@ import { Lightbulb, CheckCircle, MessageSquareWarning, ThumbsUp, ThumbsDown, Ref
 
 const fmtDate = (d) => new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
 
-const InsightCard = ({ icon: Icon, color, title, children }) => (
-  <div className="bg-white rounded-2xl border p-5">
-    <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
-      <Icon size={16} className={color} /> {title}
+const InsightCard = ({ icon: Icon, color, bg, title, children }) => (
+  <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">
+    <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm text-gray-800">
+      <span className={`w-7 h-7 rounded-lg flex items-center justify-center ${bg}`}>
+        <Icon size={14} className={color} />
+      </span>
+      {title}
     </h3>
     {children}
   </div>
 );
+
+const initials = (name = '') => name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+
+const avatarPalette = ['bg-brand-100 text-brand-700', 'bg-violet-100 text-violet-700', 'bg-amber-100 text-amber-700', 'bg-rose-100 text-rose-700', 'bg-teal-100 text-teal-700'];
 
 const CoachingPage = () => {
   const [playbook, setPlaybook] = useState(null);
@@ -48,11 +55,14 @@ const CoachingPage = () => {
   if (loading) return <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <p className="text-sm text-gray-500">AI-synthesized sales playbook, learned from your team's call outcomes, plus per-rep coaching insights.</p>
+    <div className="max-w-6xl mx-auto space-y-5">
+      <div className="flex items-center justify-between flex-wrap gap-3 bg-gradient-to-r from-brand-50 to-white border border-brand-100 rounded-2xl px-5 py-4">
+        <div>
+          <h2 className="text-base font-semibold text-gray-900">Sales Coaching</h2>
+          <p className="text-sm text-gray-500 mt-0.5">AI-synthesized sales playbook, learned from your team's call outcomes, plus per-rep coaching insights.</p>
+        </div>
         <button onClick={handleRegenerate} disabled={regenerating}
-          className="flex items-center gap-1.5 text-xs bg-brand-600 text-white px-3 py-1.5 rounded-lg hover:bg-brand-700 disabled:opacity-60">
+          className="flex items-center gap-1.5 text-xs font-medium bg-brand-600 text-white px-3.5 py-2 rounded-lg shadow-sm hover:bg-brand-700 disabled:opacity-60 transition-colors">
           <RefreshCw size={13} className={regenerating ? 'animate-spin' : ''} />
           {regenerating ? 'Regenerating…' : 'Regenerate Now'}
         </button>
@@ -61,10 +71,12 @@ const CoachingPage = () => {
       {error && <div className="bg-amber-50 border border-amber-200 text-amber-700 text-sm rounded-xl px-4 py-2.5">{error}</div>}
 
       {!playbook ? (
-        <div className="bg-white rounded-2xl border p-8 text-center">
-          <Lightbulb size={28} className="text-gray-300 mx-auto mb-2" />
-          <p className="text-sm text-gray-500">No playbook yet.</p>
-          <p className="text-xs text-gray-400 mt-1">Once you have a few leads marked won or lost with analyzed calls attached, click "Regenerate Now" to build one.</p>
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center">
+          <div className="w-14 h-14 rounded-2xl bg-brand-50 flex items-center justify-center mx-auto mb-3">
+            <Lightbulb size={24} className="text-brand-400" />
+          </div>
+          <p className="text-sm font-medium text-gray-700">No playbook yet</p>
+          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">Once you have a few leads marked won or lost with analyzed calls attached, click "Regenerate Now" to build one.</p>
         </div>
       ) : (
         <>
@@ -74,7 +86,7 @@ const CoachingPage = () => {
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <InsightCard icon={CheckCircle} color="text-green-500" title="Best Practices">
+            <InsightCard icon={CheckCircle} color="text-green-600" bg="bg-green-50" title="Best Practices">
               {playbook.best_practices?.length > 0 ? (
                 <ul className="space-y-1.5">
                   {playbook.best_practices.map((p, i) => (
@@ -86,11 +98,11 @@ const CoachingPage = () => {
               ) : <p className="text-xs text-gray-400">None yet.</p>}
             </InsightCard>
 
-            <InsightCard icon={MessageSquareWarning} color="text-amber-500" title="Common Objections & Responses">
+            <InsightCard icon={MessageSquareWarning} color="text-amber-600" bg="bg-amber-50" title="Common Objections & Responses">
               {playbook.common_objections?.length > 0 ? (
                 <div className="space-y-3">
                   {playbook.common_objections.map((o, i) => (
-                    <div key={i} className="text-sm">
+                    <div key={i} className="text-sm bg-gray-50 rounded-lg px-3 py-2">
                       <p className="text-gray-700 font-medium">"{o.objection}"</p>
                       <p className="text-gray-500 text-xs mt-0.5">→ {o.recommended_response}</p>
                     </div>
@@ -99,7 +111,7 @@ const CoachingPage = () => {
               ) : <p className="text-xs text-gray-400">None yet.</p>}
             </InsightCard>
 
-            <InsightCard icon={ThumbsUp} color="text-brand-500" title="Phrases That Work">
+            <InsightCard icon={ThumbsUp} color="text-brand-600" bg="bg-brand-50" title="Phrases That Work">
               {playbook.phrases_that_work?.length > 0 ? (
                 <ul className="space-y-1 text-sm text-gray-600">
                   {playbook.phrases_that_work.map((p, i) => <li key={i}>• {p}</li>)}
@@ -107,7 +119,7 @@ const CoachingPage = () => {
               ) : <p className="text-xs text-gray-400">None yet.</p>}
             </InsightCard>
 
-            <InsightCard icon={ThumbsDown} color="text-red-400" title="Phrases to Avoid">
+            <InsightCard icon={ThumbsDown} color="text-red-500" bg="bg-red-50" title="Phrases to Avoid">
               {playbook.phrases_to_avoid?.length > 0 ? (
                 <ul className="space-y-1 text-sm text-gray-600">
                   {playbook.phrases_to_avoid.map((p, i) => <li key={i}>• {p}</li>)}
@@ -119,8 +131,8 @@ const CoachingPage = () => {
       )}
 
       {/* Staff coaching table */}
-      <div className="bg-white rounded-2xl border p-5">
-        <h3 className="font-semibold mb-4">Staff Coaching</h3>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+        <h3 className="font-semibold mb-4 text-gray-800">Staff Coaching</h3>
         {coaching.staff.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">No staff data yet.</p>
         ) : (
@@ -137,11 +149,18 @@ const CoachingPage = () => {
                 </tr>
               </thead>
               <tbody>
-                {coaching.staff.map(s => (
-                  <tr key={s.id} className="border-t">
-                    <td className="py-2.5 font-medium">{s.name}</td>
-                    <td className="text-right">{s.call_count}</td>
-                    <td className="text-right font-semibold">{s.avg_score ?? '—'}</td>
+                {coaching.staff.map((s, idx) => (
+                  <tr key={s.id} className="border-t border-gray-100 hover:bg-gray-50/60 transition-colors">
+                    <td className="py-3">
+                      <div className="flex items-center gap-2.5 font-medium text-gray-800">
+                        <span className={`w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0 ${avatarPalette[idx % avatarPalette.length]}`}>
+                          {initials(s.name) || '?'}
+                        </span>
+                        {s.name}
+                      </div>
+                    </td>
+                    <td className="text-right text-gray-600">{s.call_count}</td>
+                    <td className="text-right font-semibold text-gray-800">{s.avg_score ?? '—'}</td>
                     <td className="text-right">
                       {s.score_vs_team !== null ? (
                         <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${s.score_vs_team >= 0 ? 'text-green-600' : 'text-red-500'}`}>
@@ -150,8 +169,14 @@ const CoachingPage = () => {
                         </span>
                       ) : '—'}
                     </td>
-                    <td className="text-right font-semibold">{s.conversion_rate}%</td>
-                    <td className="py-2.5 pl-4 text-xs text-gray-500">{s.top_missed.join(', ') || '—'}</td>
+                    <td className="text-right">
+                      <span className={`inline-flex items-center justify-center min-w-[52px] text-xs font-semibold px-2 py-1 rounded-full ${
+                        s.conversion_rate >= 20 ? 'bg-green-50 text-green-700' : s.conversion_rate >= 5 ? 'bg-amber-50 text-amber-700' : 'bg-gray-100 text-gray-500'
+                      }`}>
+                        {s.conversion_rate}%
+                      </span>
+                    </td>
+                    <td className="py-3 pl-4 text-xs text-gray-500">{s.top_missed.join(', ') || '—'}</td>
                   </tr>
                 ))}
               </tbody>

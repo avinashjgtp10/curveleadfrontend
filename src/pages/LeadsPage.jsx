@@ -18,6 +18,46 @@ const scoreColors = {
 
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
 
+// Custom filter dropdown that always opens downward — a native <select> can
+// flip upward and overlap the tabs above when there isn't room below it.
+const FilterDropdown = ({ value, onChange, options, className }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = options.find(o => o.value === value);
+
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`${className} flex items-center justify-between`}>
+        <span className="truncate">{selected?.label ?? value}</span>
+        <ChevronDown size={14} className="text-gray-400 shrink-0 ml-1" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {options.map(o => (
+            <div
+              key={o.value}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${o.value === value ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-700'}`}>
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
 const LEADS_COLUMNS = [
   { key: 'lead_id', label: 'Lead ID' },
@@ -219,6 +259,15 @@ const LeadsPage = () => {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [importDragOver, setImportDragOver] = useState(false);
+
+  // More Actions dropdown (Export / Import / Duplicates)
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const moreActionsRef = useRef(null);
+  useEffect(() => {
+    const onClick = (e) => { if (moreActionsRef.current && !moreActionsRef.current.contains(e.target)) setShowMoreActions(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
 
   // Duplicate leads state
   const [showDuplicates, setShowDuplicates] = useState(false);
@@ -690,22 +739,32 @@ const LeadsPage = () => {
           <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExport}
-            className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-            <Download size={16} /> Export
-          </button>
-          {isAdmin && (
-            <button onClick={() => setShowImport(true)}
+          <div className="relative" ref={moreActionsRef}>
+            <button onClick={() => setShowMoreActions(v => !v)}
               className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-              <Upload size={16} /> Import CSV
+              More Actions <ChevronDown size={15} className={`transition-transform ${showMoreActions ? 'rotate-180' : ''}`} />
             </button>
-          )}
-          {isAdmin && (
-            <button onClick={openDuplicates}
-              className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-              <Copy size={16} /> Duplicates
-            </button>
-          )}
+            {showMoreActions && (
+              <div className="absolute right-0 z-30 mt-1.5 w-52 bg-white border border-gray-100 rounded-lg shadow-lg py-1">
+                <button onClick={() => { setShowMoreActions(false); handleExport(); }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                  <Download size={15} /> Export
+                </button>
+                {isAdmin && (
+                  <button onClick={() => { setShowMoreActions(false); setShowImport(true); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                    <Upload size={15} /> Import CSV
+                  </button>
+                )}
+                {isAdmin && (
+                  <button onClick={() => { setShowMoreActions(false); openDuplicates(); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                    <Copy size={15} /> Duplicates
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <button onClick={() => { setShowAddModal(true); setNewLeadErrors({}); }}
             className="inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 text-sm font-extrabold uppercase text-white shadow-sm hover:bg-cyan-700">
             <Plus size={18} /> Add New Lead
@@ -902,16 +961,21 @@ const LeadsPage = () => {
                   {/* Source */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Source</label>
-                    <select value={filters.source} onChange={e => handleFilterChange(f => ({ ...f, source: e.target.value }))} className={selectClass}>
-                      <option value="">All sources</option>
-                      <option value="meta_ads">Meta Ads</option>
-                      <option value="google_ads">Google Ads</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="referral">Referral</option>
-                      <option value="manual">Manual</option>
-                      <option value="website">Website</option>
-                      <option value="walkin">Walk-in</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.source}
+                      onChange={v => handleFilterChange(f => ({ ...f, source: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All sources' },
+                        { value: 'meta_ads', label: 'Meta Ads' },
+                        { value: 'google_ads', label: 'Google Ads' },
+                        { value: 'whatsapp', label: 'WhatsApp' },
+                        { value: 'referral', label: 'Referral' },
+                        { value: 'manual', label: 'Manual' },
+                        { value: 'website', label: 'Website' },
+                        { value: 'walkin', label: 'Walk-in' },
+                      ]}
+                    />
                   </div>
 
                   {/* Assigned To */}
@@ -1494,20 +1558,18 @@ const LeadsPage = () => {
             onClick={closeLeadModal}
           />
           <div
-            className={`relative bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto shadow-2xl transition-all duration-200 ${
+            className={`relative w-full max-w-6xl max-h-[90vh] transition-all duration-200 ${
               modalEntered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
             }`}
           >
-            <div className="sticky top-0 z-[60] h-0">
-              <button
-                onClick={closeLeadModal}
-                className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-white hover:bg-gray-100 rounded-full shadow border"
-                title="Close"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-4 sm:p-6">
+            <button
+              onClick={closeLeadModal}
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[60] p-2 bg-white hover:bg-gray-100 rounded-full shadow border"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+            <div className="bg-white rounded-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-4 sm:p-6">
               <LeadDetailPage
                 leadId={renderedLeadId}
                 onClose={closeLeadModal}
