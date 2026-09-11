@@ -1539,20 +1539,18 @@ const LeadsPage = () => {
             onClick={closeLeadModal}
           />
           <div
-            className={`relative bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto shadow-2xl transition-all duration-200 ${
+            className={`relative w-full max-w-6xl max-h-[90vh] transition-all duration-200 ${
               modalEntered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
             }`}
           >
-            <div className="sticky top-0 z-[60] h-0">
-              <button
-                onClick={closeLeadModal}
-                className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-white hover:bg-gray-100 rounded-full shadow border"
-                title="Close"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-4 sm:p-6">
+            <button
+              onClick={closeLeadModal}
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[60] p-2 bg-white hover:bg-gray-100 rounded-full shadow border"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+            <div className="bg-white rounded-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-4 sm:p-6">
               <LeadDetailPage
                 leadId={renderedLeadId}
                 onClose={closeLeadModal}
