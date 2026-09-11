@@ -6,7 +6,7 @@ import {
   Users, IndianRupee, Target, TrendingUp,
   ArrowUpRight, ArrowDownRight, Minus,
   Calendar, Video, AlertTriangle, ChevronRight, Flame, Clock,
-  Zap, Sparkles, CheckCircle2, Megaphone,
+  Zap, Sparkles, CheckCircle2, Megaphone, Send, UserX,
 } from 'lucide-react';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -295,6 +295,27 @@ const DashboardPage = () => {
               icon: Megaphone,
               cls: 'text-blue-600 bg-blue-50 border-blue-100',
               to: `/leads?source=meta_ads&date_field=created_at&date_from=${today}&date_to=${today}`,
+            },
+            {
+              label: 'Automated Sends (7d)',
+              value: data?.automated_sends_this_week || 0,
+              icon: Send,
+              cls: 'text-indigo-600 bg-indigo-50 border-indigo-100',
+              to: '/settings',
+            },
+            {
+              label: 'Opt-outs (7d)',
+              value: data?.opt_outs_this_week || 0,
+              icon: UserX,
+              cls: 'text-red-600 bg-red-50 border-red-100',
+              to: '/whatsapp',
+            },
+            {
+              label: 'Escalations (7d)',
+              value: data?.escalations_this_week || 0,
+              icon: AlertTriangle,
+              cls: 'text-amber-600 bg-amber-50 border-amber-100',
+              to: '/leads',
             },
           ].map(s => (
             <button key={s.label} onClick={() => navigate(s.to)}
