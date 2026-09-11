@@ -449,7 +449,7 @@ const WhatsAppInboxPage = () => {
               <div className="mb-5">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">About</p>
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-400">First Message</span><span className="text-gray-700 font-medium">{active.first_message_at ? fmtDate(active.first_message_at) : '—'}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-400">First Message</span><span className="text-gray-700 font-medium">{messages[0]?.sent_at ? fmtDate(messages[0].sent_at) : '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-400">Last Message</span><span className="text-gray-700 font-medium">{active.sent_at ? fmtClock(active.sent_at) || '—' : '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-400">Total Messages</span><span className="text-gray-700 font-medium">{messages.length}</span></div>
                   <div className="flex justify-between items-center"><span className="text-gray-400">Status</span><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Active</span></div>
