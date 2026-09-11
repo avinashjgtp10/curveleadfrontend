@@ -18,6 +18,46 @@ const scoreColors = {
 
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
 
+// Custom filter dropdown that always opens downward — a native <select> can
+// flip upward and overlap the tabs above when there isn't room below it.
+const FilterDropdown = ({ value, onChange, options, className }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = options.find(o => o.value === value);
+
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`${className} flex items-center justify-between`}>
+        <span className="truncate">{selected?.label ?? value}</span>
+        <ChevronDown size={14} className="text-gray-400 shrink-0 ml-1" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {options.map(o => (
+            <div
+              key={o.value}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${o.value === value ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-700'}`}>
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
 const LEADS_COLUMNS = [
   { key: 'lead_id', label: 'Lead ID' },
@@ -844,84 +884,119 @@ const LeadsPage = () => {
                   {/* Stage */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Stage</label>
-                    <select value={filters.stage} onChange={e => handleFilterChange(f => ({ ...f, stage: e.target.value, lead_status: '' }))} className={selectClass}>
-                      <option value="">All stages</option>
-                      {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                    </select>
+                    <FilterDropdown
+                      value={filters.stage}
+                      onChange={v => handleFilterChange(f => ({ ...f, stage: v, lead_status: '' }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All stages' },
+                        ...stages.map(s => ({ value: s.name, label: s.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Status */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Status</label>
-                    <select value={filters.lead_status} onChange={e => handleFilterChange(f => ({ ...f, lead_status: e.target.value }))} className={selectClass}>
-                      <option value="">All statuses</option>
-                      {(filters.stage
-                        ? (stageStatuses[filters.stage?.toLowerCase()] || [])
-                        : allStatuses
-                      ).map(st => <option key={st.id} value={st.name}>{st.name}</option>)}
-                    </select>
+                    <FilterDropdown
+                      value={filters.lead_status}
+                      onChange={v => handleFilterChange(f => ({ ...f, lead_status: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All statuses' },
+                        ...(filters.stage
+                          ? (stageStatuses[filters.stage?.toLowerCase()] || [])
+                          : allStatuses
+                        ).map(st => ({ value: st.name, label: st.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Score */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Score</label>
-                    <select value={filters.score} onChange={e => handleFilterChange(f => ({ ...f, score: e.target.value }))} className={selectClass}>
-                      <option value="">All scores</option>
-                      <option value="hot">🔥 Hot</option>
-                      <option value="warm">🌤 Warm</option>
-                      <option value="cold">❄️ Cold</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.score}
+                      onChange={v => handleFilterChange(f => ({ ...f, score: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All scores' },
+                        { value: 'hot', label: '🔥 Hot' },
+                        { value: 'warm', label: '🌤 Warm' },
+                        { value: 'cold', label: '❄️ Cold' },
+                      ]}
+                    />
                   </div>
 
                   {/* Follow-up Health */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Follow-up Health</label>
-                    <select value={filters.followup_health} onChange={e => handleFilterChange(f => ({ ...f, followup_health: e.target.value }))} className={selectClass}>
-                      <option value="">All</option>
-                      <option value="good">🟢 Good</option>
-                      <option value="delayed">🟡 Delayed</option>
-                      <option value="missed">🔴 Missed</option>
-                      <option value="critical">🚨 Critical</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.followup_health}
+                      onChange={v => handleFilterChange(f => ({ ...f, followup_health: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All' },
+                        { value: 'good', label: '🟢 Good' },
+                        { value: 'delayed', label: '🟡 Delayed' },
+                        { value: 'missed', label: '🔴 Missed' },
+                        { value: 'critical', label: '🚨 Critical' },
+                      ]}
+                    />
                   </div>
 
                   {/* Response SLA */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Response SLA</label>
-                    <select value={filters.sla_status} onChange={e => handleFilterChange(f => ({ ...f, sla_status: e.target.value }))} className={selectClass}>
-                      <option value="">All</option>
-                      <option value="uncontacted">Uncontacted</option>
-                      <option value="new">🟢 New</option>
-                      <option value="sla_risk">🟡 SLA Risk</option>
-                      <option value="sla_breached">🔴 SLA Breached</option>
-                      <option value="missed_lead">🚨 Missed Lead</option>
-                      <option value="responded_5min">✅ Responded ≤5 min</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.sla_status}
+                      onChange={v => handleFilterChange(f => ({ ...f, sla_status: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All' },
+                        { value: 'uncontacted', label: 'Uncontacted' },
+                        { value: 'new', label: '🟢 New' },
+                        { value: 'sla_risk', label: '🟡 SLA Risk' },
+                        { value: 'sla_breached', label: '🔴 SLA Breached' },
+                        { value: 'missed_lead', label: '🚨 Missed Lead' },
+                        { value: 'responded_5min', label: '✅ Responded ≤5 min' },
+                      ]}
+                    />
                   </div>
 
                   {/* Source */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Source</label>
-                    <select value={filters.source} onChange={e => handleFilterChange(f => ({ ...f, source: e.target.value }))} className={selectClass}>
-                      <option value="">All sources</option>
-                      <option value="meta_ads">Meta Ads</option>
-                      <option value="google_ads">Google Ads</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="referral">Referral</option>
-                      <option value="manual">Manual</option>
-                      <option value="website">Website</option>
-                      <option value="walkin">Walk-in</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.source}
+                      onChange={v => handleFilterChange(f => ({ ...f, source: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All sources' },
+                        { value: 'meta_ads', label: 'Meta Ads' },
+                        { value: 'google_ads', label: 'Google Ads' },
+                        { value: 'whatsapp', label: 'WhatsApp' },
+                        { value: 'referral', label: 'Referral' },
+                        { value: 'manual', label: 'Manual' },
+                        { value: 'website', label: 'Website' },
+                        { value: 'walkin', label: 'Walk-in' },
+                      ]}
+                    />
                   </div>
 
                   {/* Assigned To */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Assigned To</label>
-                    <select value={filters.assigned_to} onChange={e => handleFilterChange(f => ({ ...f, assigned_to: e.target.value }))} className={selectClass}>
-                      <option value="">All staff</option>
-                      <option value="unassigned">Unassigned</option>
-                      {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    <FilterDropdown
+                      value={filters.assigned_to}
+                      onChange={v => handleFilterChange(f => ({ ...f, assigned_to: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All staff' },
+                        { value: 'unassigned', label: 'Unassigned' },
+                        ...staff.map(s => ({ value: s.id, label: s.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Lead Date Range */}
