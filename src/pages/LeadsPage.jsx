@@ -18,6 +18,46 @@ const scoreColors = {
 
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
 
+// Custom filter dropdown that always opens downward — a native <select> can
+// flip upward and overlap the tabs above when there isn't room below it.
+const FilterDropdown = ({ value, onChange, options, className }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = options.find(o => o.value === value);
+
+  useEffect(() => {
+    const onClickOutside = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
+  }, []);
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`${className} flex items-center justify-between`}>
+        <span className="truncate">{selected?.label ?? value}</span>
+        <ChevronDown size={14} className="text-gray-400 shrink-0 ml-1" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {options.map(o => (
+            <div
+              key={o.value}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${o.value === value ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-700'}`}>
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
 const LEADS_COLUMNS = [
   { key: 'lead_id', label: 'Lead ID' },
@@ -902,16 +942,21 @@ const LeadsPage = () => {
                   {/* Source */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Source</label>
-                    <select value={filters.source} onChange={e => handleFilterChange(f => ({ ...f, source: e.target.value }))} className={selectClass}>
-                      <option value="">All sources</option>
-                      <option value="meta_ads">Meta Ads</option>
-                      <option value="google_ads">Google Ads</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="referral">Referral</option>
-                      <option value="manual">Manual</option>
-                      <option value="website">Website</option>
-                      <option value="walkin">Walk-in</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.source}
+                      onChange={v => handleFilterChange(f => ({ ...f, source: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All sources' },
+                        { value: 'meta_ads', label: 'Meta Ads' },
+                        { value: 'google_ads', label: 'Google Ads' },
+                        { value: 'whatsapp', label: 'WhatsApp' },
+                        { value: 'referral', label: 'Referral' },
+                        { value: 'manual', label: 'Manual' },
+                        { value: 'website', label: 'Website' },
+                        { value: 'walkin', label: 'Walk-in' },
+                      ]}
+                    />
                   </div>
 
                   {/* Assigned To */}
