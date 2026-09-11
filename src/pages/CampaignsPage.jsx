@@ -30,7 +30,7 @@ const CampaignsPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
   const [form, setForm] = useState({
-    name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active',
+    name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active', is_priority: false,
   });
   const [errors, setErrors] = useState({});
   const [syncingInsights, setSyncingInsights] = useState(false);
@@ -71,7 +71,7 @@ const CampaignsPage = () => {
       }
       setShowModal(false);
       setEditing(null);
-      setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' });
+      setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active', is_priority: false });
       setErrors({});
       loadData();
     } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
@@ -86,6 +86,7 @@ const CampaignsPage = () => {
       start_date: c.start_date?.split('T')[0] || '',
       end_date: c.end_date?.split('T')[0] || '',
       status: c.status,
+      is_priority: !!c.is_priority,
     });
     setErrors({});
     setShowModal(true);
@@ -105,7 +106,7 @@ const CampaignsPage = () => {
             className="px-4 py-2 border rounded-lg text-sm font-semibold hover:bg-gray-50 flex items-center gap-2 disabled:opacity-50">
             <RotateCcw size={14} className={syncingInsights ? 'animate-spin' : ''} /> {syncingInsights ? 'Syncing…' : 'Sync Ad Insights'}
           </button>
-          <button onClick={() => { setEditing(null); setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active' }); setErrors({}); setShowModal(true); }}
+          <button onClick={() => { setEditing(null); setForm({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active', is_priority: false }); setErrors({}); setShowModal(true); }}
             className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
             <Plus size={16} /> New Campaign
           </button>
@@ -277,6 +278,14 @@ const CampaignsPage = () => {
                   <option value="paused">Paused</option>
                   <option value="completed">Completed</option>
                 </select>
+              </div>
+              <div>
+                <label className="flex items-center gap-2 text-sm cursor-pointer">
+                  <input type="checkbox" checked={form.is_priority} onChange={e => setForm({ ...form, is_priority: e.target.checked })}
+                    className="w-4 h-4 rounded" />
+                  <span className="font-medium">Priority campaign</span>
+                </label>
+                <p className="text-xs text-gray-400 mt-1 ml-6">Leads from this campaign skip automated messaging entirely and go straight to the assigned salesperson.</p>
               </div>
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
