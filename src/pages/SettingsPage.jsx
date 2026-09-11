@@ -9,7 +9,8 @@ const SettingsPage = () => {
   const confirm = useConfirmDialog();
   const toast = useToast();
   const { user, tenant } = useAuth();
-  const [tab, setTab] = useState('profile');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') || 'profile');
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
