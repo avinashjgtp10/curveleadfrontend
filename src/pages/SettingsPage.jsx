@@ -830,9 +830,10 @@ const SettingsPage = () => {
                                 </div>
                                 <div>
                                   <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Delay after previous step (minutes)</label>
-                                  <input type="number" min="0" value={step.delay_minutes}
-                                    onChange={e => updateStep(idx, { delay_minutes: parseInt(e.target.value) || 0 })}
-                                    className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="0 = send immediately" />
+                                  <input type="number" min="0" value={step.delay_minutes || ''}
+                                    onChange={e => updateStep(idx, { delay_minutes: parseInt(e.target.value, 10) || 0 })}
+                                    onFocus={e => e.target.select()}
+                                    className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="0" />
                                 </div>
                               </div>
                               {step.channel === 'email' && (
