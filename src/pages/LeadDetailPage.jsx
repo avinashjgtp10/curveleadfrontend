@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
+import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI, notesAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
@@ -9,7 +9,7 @@ import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { useToast } from '../components/ui/Toast';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2, Users } from 'lucide-react';
 
 // Mirrors WhatsApp's own delivery ticks for an outbound message.
 const MessageStatus = ({ status }) => {
@@ -45,6 +45,7 @@ const activityConfig = (type) => {
     created:             { Icon: PlusCircle,   bg: 'bg-brand-50',   color: 'text-brand-600' },
     ai_scored:           { Icon: Star,         bg: 'bg-yellow-50',  color: 'text-yellow-600' },
     score_change:        { Icon: Gauge,        bg: 'bg-yellow-50',  color: 'text-yellow-600' },
+    team_message:        { Icon: Users,        bg: 'bg-cyan-50',    color: 'text-cyan-600' },
   };
   return map[type] || { Icon: StickyNote, bg: 'bg-gray-50', color: 'text-gray-400' };
 };
@@ -132,6 +133,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [sharingBrochureId, setSharingBrochureId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Team Communication
+  const [showTeamComm, setShowTeamComm] = useState(false);
+  const [teamCommForm, setTeamCommForm] = useState({ recipient_id: '', method: 'internal', message: '' });
+  const [teamCommError, setTeamCommError] = useState('');
+  const [sendingTeamComm, setSendingTeamComm] = useState(false);
+
   // Stages, Statuses & Staff
   const [stages, setStages] = useState([]);
   const [stageSaving, setStageSaving] = useState(false);
@@ -186,6 +193,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     setStageSaving(false);
     setLostReasonModal({ open: false, newStage: null, reason: '', customReason: '' });
     setFollowupForm({ next_followup_at: getLocalNow(), followup_type: 'call', notes: '', meeting_url: '' });
+    setShowTeamComm(false);
+    setTeamCommForm({ recipient_id: '', method: 'internal', message: '' });
+    setTeamCommError('');
   }, [id]);
 
   const loadTemplatesAndBrochures = async () => {
@@ -446,6 +456,56 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     });
   };
 
+  const handleSendTeamComm = async () => {
+    if (!teamCommForm.recipient_id) return setTeamCommError('Select who this is for');
+    if (!teamCommForm.message.trim()) return setTeamCommError('Write a message first');
+    const recipient = staff.find(s => String(s.id) === String(teamCommForm.recipient_id));
+
+    if ((teamCommForm.method === 'call' || teamCommForm.method === 'whatsapp') && !recipient?.phone) {
+      return setTeamCommError(`No phone number on file for ${recipient?.name || 'this staff member'}`);
+    }
+    setTeamCommError('');
+
+    // Open the tab synchronously (inside the click gesture) so the browser's
+    // popup blocker doesn't swallow it once we await the note creation below.
+    let waWindow = null;
+    if (teamCommForm.method === 'whatsapp') {
+      waWindow = window.open('', '_blank', 'noopener,noreferrer');
+    }
+
+    setSendingTeamComm(true);
+    try {
+      const methodLabel = { internal: 'Internal note', call: 'Call', whatsapp: 'WhatsApp' }[teamCommForm.method];
+      await notesAPI.create(id, {
+        note: `[To ${recipient?.name || 'Team'} · ${methodLabel}] ${teamCommForm.message.trim()}`,
+        note_type: teamCommForm.method === 'call' ? 'call' : 'general',
+      });
+      setActivities(prev => [{
+        id: `local-team-msg-${Date.now()}`,
+        activity_type: 'team_message',
+        title: `${methodLabel} to ${recipient?.name || 'team'}`,
+        description: teamCommForm.message.trim(),
+        created_at: new Date().toISOString(),
+      }, ...prev]);
+
+      if (teamCommForm.method === 'call' && recipient?.phone) {
+        window.open(`tel:${recipient.phone}`, '_self');
+      } else if (teamCommForm.method === 'whatsapp' && recipient?.phone) {
+        const waUrl = `https://wa.me/${recipient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(teamCommForm.message.trim())}`;
+        if (waWindow) waWindow.location.href = waUrl;
+        else window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      toast.success('Sent to ' + (recipient?.name || 'team member'));
+      setTeamCommForm({ recipient_id: '', method: 'internal', message: '' });
+      setShowTeamComm(false);
+    } catch (e) {
+      if (waWindow) waWindow.close();
+      toast.error(e.response?.data?.error || 'Failed to send');
+    }
+    finally { setSendingTeamComm(false); }
+  };
+
   const nextFollowup = followups.find(f => !f.is_completed && f.next_followup_at);
 
   if (loading && !lead) {
@@ -530,6 +590,10 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
               className="whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
               <FileText size={14} /> New Quotation
+            </button>
+            <button onClick={() => { loadStaff(); setTeamCommError(''); setTeamCommForm(f => ({ ...f, recipient_id: lead?.assigned_to || '' })); setShowTeamComm(true); }}
+              className="whitespace-nowrap px-3 py-2 bg-cyan-50 text-cyan-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <Users size={14} /> Team Communication
             </button>
           </div>
         </div>
@@ -1296,6 +1360,85 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           onClose={() => setShowShareBrochure(false)}
           onShared={handleBrochureShared}
         />,
+        document.body
+      )}
+
+      {/* ── Team Communication Modal ── */}
+      {showTeamComm && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setShowTeamComm(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Users size={18} className="text-cyan-600" /> Team Communication
+              </h2>
+              <button onClick={() => setShowTeamComm(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-gray-400 -mt-1">Loop in the Admin or a team member on this lead's follow-up.</p>
+
+              {/* Recipient */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Send to</label>
+                {lead?.assigned_to ? (
+                  <div className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+                      {(lead.assigned_to_name || '?').charAt(0).toUpperCase()}
+                    </span>
+                    <span className="font-medium text-gray-800">{lead.assigned_to_name || 'Assigned staff'}</span>
+                    <span className="text-xs text-gray-400 ml-auto">Assigned to this lead</span>
+                  </div>
+                ) : (
+                  <p className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 text-gray-400 ${teamCommError && !teamCommForm.recipient_id ? 'border-red-500' : ''}`}>
+                    No staff assigned to this lead yet
+                  </p>
+                )}
+              </div>
+
+              {/* Method */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Via</label>
+                <div className="flex gap-2">
+                  {[
+                    { id: 'internal', label: 'Internal Message', Icon: MessageSquare },
+                    { id: 'call', label: 'Call', Icon: PhoneCall },
+                    { id: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle },
+                  ].map(m => (
+                    <button key={m.id} type="button" onClick={() => setTeamCommForm(f => ({ ...f, method: m.id }))}
+                      className={`flex-1 flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
+                        teamCommForm.method === m.id ? 'bg-cyan-50 border-cyan-300 text-cyan-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                      }`}>
+                      <m.Icon size={15} /> {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Message</label>
+                <textarea
+                  value={teamCommForm.message}
+                  onChange={e => { setTeamCommForm(f => ({ ...f, message: e.target.value })); setTeamCommError(''); }}
+                  rows={4}
+                  placeholder="e.g. I called Rajkumar regarding the scheduled demo. Please follow up tomorrow."
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300 ${teamCommError && !teamCommForm.message.trim() ? 'border-red-500' : ''}`}
+                />
+                <p className="text-[10px] text-gray-400 mt-1">This gets logged to the lead's Notes & Activity so the whole team can see it.</p>
+              </div>
+
+              {teamCommError && (
+                <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{teamCommError}</div>
+              )}
+
+              <button onClick={handleSendTeamComm} disabled={sendingTeamComm}
+                className="w-full py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-1.5">
+                <Send size={14} /> {sendingTeamComm ? 'Sending…' : 'Send Message'}
+              </button>
+            </div>
+          </div>
+        </div>,
         document.body
       )}
     </div>
