@@ -57,6 +57,7 @@ const SettingsPage = () => {
   const [ruleModal, setRuleModal] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
   const [ruleForm, setRuleForm] = useState({ name: '', trigger_type: 'new_lead', stage_name: '', sequence_id: '' });
+  const [ruleErrors, setRuleErrors] = useState({});
 
   useEffect(() => { loadSettings(); }, []);
 
@@ -238,19 +239,24 @@ const SettingsPage = () => {
   const openCreateRule = () => {
     setEditingRule(null);
     setRuleForm({ name: '', trigger_type: 'new_lead', stage_name: '', sequence_id: sequences[0]?.id || '' });
+    setRuleErrors({});
     setRuleModal(true);
   };
 
   const openEditRule = (r) => {
     setEditingRule(r);
     setRuleForm({ name: r.name, trigger_type: r.trigger_type, stage_name: r.stage_name || '', sequence_id: r.sequence_id });
+    setRuleErrors({});
     setRuleModal(true);
   };
 
   const handleSaveRule = async () => {
-    if (!ruleForm.name.trim()) return toast.error('Rule name is required');
-    if (!ruleForm.sequence_id) return toast.error('Pick a sequence for this rule to enroll leads into');
-    if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) return toast.error('Pick which stage triggers this rule');
+    const errs = {};
+    if (!ruleForm.name.trim()) errs.name = 'Rule name is required';
+    if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) errs.stage_name = 'Pick which stage triggers this rule';
+    if (!ruleForm.sequence_id) errs.sequence_id = 'Pick a sequence for this rule to enroll leads into';
+    setRuleErrors(errs);
+    if (Object.keys(errs).length) return;
     try {
       if (editingRule) {
         await automationAPI.updateRule(editingRule.id, ruleForm);
@@ -873,9 +879,11 @@ const SettingsPage = () => {
                     <h3 className="font-bold text-base mb-4">{editingRule ? 'Edit Rule' : 'New Rule'}</h3>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-                        <input value={ruleForm.name} onChange={e => setRuleForm({ ...ruleForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. Welcome new leads" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                        <input value={ruleForm.name}
+                          onChange={e => { setRuleForm({ ...ruleForm, name: e.target.value }); if (ruleErrors.name) setRuleErrors(er => ({ ...er, name: undefined })); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${ruleErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Welcome new leads" />
+                        {ruleErrors.name && <p className="text-xs text-red-500 mt-1">{ruleErrors.name}</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">When...</label>
@@ -888,20 +896,24 @@ const SettingsPage = () => {
                       {ruleForm.trigger_type === 'stage_change' && (
                         <div>
                           <label className="block text-xs font-medium text-gray-500 mb-1">Stage</label>
-                          <select value={ruleForm.stage_name} onChange={e => setRuleForm({ ...ruleForm, stage_name: e.target.value })}
-                            className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                          <select value={ruleForm.stage_name}
+                            onChange={e => { setRuleForm({ ...ruleForm, stage_name: e.target.value }); if (ruleErrors.stage_name) setRuleErrors(er => ({ ...er, stage_name: undefined })); }}
+                            className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white ${ruleErrors.stage_name ? 'border-red-500' : ''}`}>
                             <option value="">Select a stage...</option>
                             {stages.map(s => <option key={s.id || s.name} value={s.name}>{s.name}</option>)}
                           </select>
+                          {ruleErrors.stage_name && <p className="text-xs text-red-500 mt-1">{ruleErrors.stage_name}</p>}
                         </div>
                       )}
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Enroll into sequence</label>
-                        <select value={ruleForm.sequence_id} onChange={e => setRuleForm({ ...ruleForm, sequence_id: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                        <select value={ruleForm.sequence_id}
+                          onChange={e => { setRuleForm({ ...ruleForm, sequence_id: e.target.value }); if (ruleErrors.sequence_id) setRuleErrors(er => ({ ...er, sequence_id: undefined })); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white ${ruleErrors.sequence_id ? 'border-red-500' : ''}`}>
                           <option value="">Select a sequence...</option>
                           {sequences.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                         </select>
+                        {ruleErrors.sequence_id && <p className="text-xs text-red-500 mt-1">{ruleErrors.sequence_id}</p>}
                       </div>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
