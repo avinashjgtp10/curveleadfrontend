@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI } from '../services/api';
+import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, campaignAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -24,6 +24,11 @@ const SettingsPage = () => {
     daily_report_enabled: false,
     daily_report_time: '08:00',
     email_reply_to: '',
+    automation_business_hours_enabled: false,
+    automation_business_hours_start: '09:00',
+    automation_business_hours_end: '20:00',
+    automation_daily_cap_enabled: false,
+    automation_daily_cap: 1,
   });
   const [businessOriginal, setBusinessOriginal] = useState(null);
   const [editingBusiness, setEditingBusiness] = useState(false);
@@ -31,8 +36,9 @@ const SettingsPage = () => {
   const [templates, setTemplates] = useState([]);
   const [tmplModal, setTmplModal] = useState(false);
   const [editingTmpl, setEditingTmpl] = useState(null);
-  const [tmplForm, setTmplForm] = useState({ name: '', category: 'follow_up', channel: 'whatsapp', message: '' });
+  const [tmplForm, setTmplForm] = useState({ name: '', category: 'follow_up', channel: 'whatsapp', message: '', stage_name: '', campaign_id: '' });
   const [tmplErrors, setTmplErrors] = useState({});
+  const [campaigns, setCampaigns] = useState([]);
 
   const [stages, setStages] = useState([]);
   const [stageModal, setStageModal] = useState(false);
@@ -50,7 +56,7 @@ const SettingsPage = () => {
   useEffect(() => { loadSettings(); }, []);
 
   useEffect(() => {
-    if (tab === 'templates') loadTemplates();
+    if (tab === 'templates') { loadTemplates(); loadStages(); loadCampaigns(); }
     if (tab === 'pipeline') loadStages();
   }, [tab]);
 
@@ -74,6 +80,11 @@ const SettingsPage = () => {
         daily_report_enabled: !!s.daily_report_enabled,
         daily_report_time: s.daily_report_time || '08:00',
         email_reply_to: s.email_reply_to || '',
+        automation_business_hours_enabled: !!s.automation_business_hours_enabled,
+        automation_business_hours_start: s.automation_business_hours_start || '09:00',
+        automation_business_hours_end: s.automation_business_hours_end || '20:00',
+        automation_daily_cap_enabled: !!s.automation_daily_cap_enabled,
+        automation_daily_cap: s.automation_daily_cap || 1,
       };
       setBusiness(loadedBusiness);
       setBusinessOriginal(loadedBusiness);
@@ -120,14 +131,14 @@ const SettingsPage = () => {
 
   const openCreateTmpl = () => {
     setEditingTmpl(null);
-    setTmplForm({ name: '', category: 'follow_up', channel: 'whatsapp', message: '' });
+    setTmplForm({ name: '', category: 'follow_up', channel: 'whatsapp', message: '', stage_name: '', campaign_id: '' });
     setTmplErrors({});
     setTmplModal(true);
   };
 
   const openEditTmpl = (t) => {
     setEditingTmpl(t);
-    setTmplForm({ name: t.name, category: t.category, channel: t.channel, message: t.message });
+    setTmplForm({ name: t.name, category: t.category, channel: t.channel, message: t.message, stage_name: t.stage_name || '', campaign_id: t.campaign_id || '' });
     setTmplErrors({});
     setTmplModal(true);
   };
@@ -169,6 +180,13 @@ const SettingsPage = () => {
         setStages((data.stages || []).map(s => ({ ...s, statuses: [] })));
       } catch (e) { console.error(e); }
     }
+  };
+
+  const loadCampaigns = async () => {
+    try {
+      const { data } = await campaignAPI.getAll();
+      setCampaigns(data.campaigns || []);
+    } catch (e) { console.error(e); }
   };
 
   const openCreateStage = () => {
@@ -455,6 +473,45 @@ const SettingsPage = () => {
                         </div>
                       )}
                     </div>
+
+                    {/* Automation */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Automation</p>
+                    <div className="mb-5">
+                      <label className={`flex items-center gap-2 text-sm ${editingBusiness ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input type="checkbox" disabled={!editingBusiness} checked={business.automation_business_hours_enabled}
+                          onChange={e => setBusiness({ ...business, automation_business_hours_enabled: e.target.checked })}
+                          className="w-4 h-4 rounded" />
+                        <span className="font-medium">Only send automated messages during business hours</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1 ml-6">Anything due outside this window waits until the next allowed time instead of sending late.</p>
+                      {business.automation_business_hours_enabled && (
+                        <div className="mt-3 ml-6 flex items-center gap-2">
+                          <input type="time" disabled={!editingBusiness} value={business.automation_business_hours_start}
+                            onChange={e => setBusiness({ ...business, automation_business_hours_start: e.target.value })}
+                            className={`px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                          <span className="text-xs text-gray-400">to</span>
+                          <input type="time" disabled={!editingBusiness} value={business.automation_business_hours_end}
+                            onChange={e => setBusiness({ ...business, automation_business_hours_end: e.target.value })}
+                            className={`px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="mb-5">
+                      <label className={`flex items-center gap-2 text-sm ${editingBusiness ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input type="checkbox" disabled={!editingBusiness} checked={business.automation_daily_cap_enabled}
+                          onChange={e => setBusiness({ ...business, automation_daily_cap_enabled: e.target.checked })}
+                          className="w-4 h-4 rounded" />
+                        <span className="font-medium">Cap automated messages per lead per day</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1 ml-6">Even if multiple rules would fire, no lead gets more than this many automated messages in a day.</p>
+                      {business.automation_daily_cap_enabled && (
+                        <div className="mt-3 ml-6">
+                          <input type="number" min="1" disabled={!editingBusiness} value={business.automation_daily_cap}
+                            onChange={e => setBusiness({ ...business, automation_daily_cap: parseInt(e.target.value, 10) || 1 })}
+                            className={`w-24 px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                        </div>
+                      )}
+                    </div>
                   </>
                 );
               })()}
@@ -561,6 +618,24 @@ const SettingsPage = () => {
                             <option value="whatsapp">WhatsApp</option>
                             <option value="sms">SMS</option>
                             <option value="email">Email</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Assign to stage (optional)</label>
+                          <select value={tmplForm.stage_name} onChange={e => setTmplForm({ ...tmplForm, stage_name: e.target.value })}
+                            className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                            <option value="">None</option>
+                            {stages.map(s => <option key={s.id || s.name} value={s.name}>{s.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Assign to campaign (optional)</label>
+                          <select value={tmplForm.campaign_id} onChange={e => setTmplForm({ ...tmplForm, campaign_id: e.target.value })}
+                            className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                            <option value="">None</option>
+                            {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                           </select>
                         </div>
                       </div>

@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, Clock } from 'lucide-react';
-import { automationAPI, stageAPI, statusAPI } from '../../services/api';
+import { Plus, Edit2, Trash2, Clock, Power } from 'lucide-react';
+import { automationAPI, stageAPI, statusAPI, campaignAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 
-const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, message: '', email_subject: '' });
+const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, message: '', email_subject: '', approved_template_name: '' });
 
 // Quick-start presets — common real-world automations built from the two
 // trigger types and two step channels the backend actually supports today.
@@ -52,13 +52,14 @@ const AutomationBuilder = () => {
   const [rules, setRules] = useState([]);
   const [ruleModal, setRuleModal] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
-  const [ruleForm, setRuleForm] = useState({ name: '', trigger_type: 'new_lead', stage_name: '', sequence_id: '' });
+  const [ruleForm, setRuleForm] = useState({ name: '', trigger_type: 'new_lead', stage_name: '', campaign_id: '', sequence_id: '' });
   const [ruleErrors, setRuleErrors] = useState({});
 
   const [stages, setStages] = useState([]);
+  const [campaigns, setCampaigns] = useState([]);
   const [pendingRulePreset, setPendingRulePreset] = useState(null);
 
-  useEffect(() => { loadSequences(); loadRules(); loadStages(); }, []);
+  useEffect(() => { loadSequences(); loadRules(); loadStages(); loadCampaigns(); }, []);
 
   const loadSequences = async () => {
     try {
@@ -86,6 +87,13 @@ const AutomationBuilder = () => {
     }
   };
 
+  const loadCampaigns = async () => {
+    try {
+      const { data } = await campaignAPI.getAll();
+      setCampaigns(data.campaigns || []);
+    } catch (e) { console.error(e); }
+  };
+
   const openCreateSeq = (preset) => {
     setEditingSeq(null);
     setSeqForm(preset ? { ...preset, steps: preset.steps.map(s => ({ ...s })) } : { name: '', description: '', steps: [emptyStep()] });
@@ -97,7 +105,7 @@ const AutomationBuilder = () => {
     setEditingSeq(s);
     setSeqForm({
       name: s.name, description: s.description || '',
-      steps: s.steps?.length ? s.steps.map(st => ({ ...st, email_subject: st.email_subject || '' })) : [emptyStep()],
+      steps: s.steps?.length ? s.steps.map(st => ({ ...st, email_subject: st.email_subject || '', approved_template_name: st.approved_template_name || '' })) : [emptyStep()],
     });
     setSeqErrors({});
     setSeqModal(true);
@@ -148,15 +156,15 @@ const AutomationBuilder = () => {
   const openCreateRule = (preset) => {
     setEditingRule(null);
     setRuleForm(preset
-      ? { name: preset.name, trigger_type: preset.trigger_type, stage_name: preset.stage_name || '', sequence_id: preset.sequence_id || sequences[0]?.id || '' }
-      : { name: '', trigger_type: 'new_lead', stage_name: '', sequence_id: sequences[0]?.id || '' });
+      ? { name: preset.name, trigger_type: preset.trigger_type, stage_name: preset.stage_name || '', campaign_id: preset.campaign_id || '', sequence_id: preset.sequence_id || sequences[0]?.id || '' }
+      : { name: '', trigger_type: 'new_lead', stage_name: '', campaign_id: '', sequence_id: sequences[0]?.id || '' });
     setRuleErrors({});
     setRuleModal(true);
   };
 
   const openEditRule = (r) => {
     setEditingRule(r);
-    setRuleForm({ name: r.name, trigger_type: r.trigger_type, stage_name: r.stage_name || '', sequence_id: r.sequence_id });
+    setRuleForm({ name: r.name, trigger_type: r.trigger_type, stage_name: r.stage_name || '', campaign_id: r.campaign_id || '', sequence_id: r.sequence_id });
     setRuleErrors({});
     setRuleModal(true);
   };
@@ -165,6 +173,7 @@ const AutomationBuilder = () => {
     const errs = {};
     if (!ruleForm.name.trim()) errs.name = 'Rule name is required';
     if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) errs.stage_name = 'Pick which stage triggers this rule';
+    if (ruleForm.trigger_type === 'campaign' && !ruleForm.campaign_id) errs.campaign_id = 'Pick which campaign triggers this rule';
     if (!ruleForm.sequence_id) errs.sequence_id = 'Pick a sequence for this rule to enroll leads into';
     setRuleErrors(errs);
     if (Object.keys(errs).length) return;
@@ -178,6 +187,20 @@ const AutomationBuilder = () => {
       loadRules();
       toast.success(editingRule ? 'Rule updated.' : 'Rule created.');
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to save rule'); }
+  };
+
+  const toggleSeqActive = async (s) => {
+    try {
+      await automationAPI.updateSequence(s.id, { is_active: !s.is_active });
+      loadSequences();
+    } catch (e) { toast.error('Failed to update'); }
+  };
+
+  const toggleRuleActive = async (r) => {
+    try {
+      await automationAPI.updateRule(r.id, { is_active: !r.is_active });
+      loadRules();
+    } catch (e) { toast.error('Failed to update'); }
   };
 
   const handleDeleteRule = async (id) => {
@@ -240,7 +263,14 @@ const AutomationBuilder = () => {
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span className="font-semibold text-sm">{s.name}</span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-50 text-brand-700">{s.steps?.length || 0} step{s.steps?.length === 1 ? '' : 's'}</span>
-                      {!s.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Inactive</span>}
+                      {isAdmin ? (
+                        <button onClick={() => toggleSeqActive(s)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${s.is_active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                          <Power size={9} /> {s.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                      ) : (
+                        !s.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Inactive</span>
+                      )}
                     </div>
                     {s.description && <p className="text-xs text-gray-500 line-clamp-2">{s.description}</p>}
                   </div>
@@ -284,9 +314,18 @@ const AutomationBuilder = () => {
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span className="font-semibold text-sm">{r.name}</span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700">
-                        {r.trigger_type === 'new_lead' ? 'New lead received' : `Stage → ${r.stage_name}`}
+                        {r.trigger_type === 'new_lead' ? 'New lead received'
+                          : r.trigger_type === 'campaign' ? `Campaign → ${campaigns.find(c => c.id === r.campaign_id)?.name || 'Unknown'}`
+                          : `Stage → ${r.stage_name}`}
                       </span>
-                      {!r.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Inactive</span>}
+                      {isAdmin ? (
+                        <button onClick={() => toggleRuleActive(r)}
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${r.is_active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
+                          <Power size={9} /> {r.is_active ? 'Active' : 'Inactive'}
+                        </button>
+                      ) : (
+                        !r.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Inactive</span>
+                      )}
                     </div>
                     <p className="text-xs text-gray-500">Enrolls into <span className="font-medium">{r.sequence_name}</span></p>
                   </div>
@@ -355,6 +394,15 @@ const AutomationBuilder = () => {
                       <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
                         rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
                         placeholder={'Hi {{name}}, ...'} />
+                      {step.channel === 'whatsapp' && (
+                        <div className="mt-2">
+                          <input value={step.approved_template_name || ''} onChange={e => updateStep(idx, { approved_template_name: e.target.value })}
+                            className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="Approved template name (optional fallback)" />
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Used only if this step would send after 24h+ of silence — WhatsApp requires a pre-approved template at that point, not free text.
+                          </p>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -398,6 +446,7 @@ const AutomationBuilder = () => {
                   className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
                   <option value="new_lead">A new lead is received</option>
                   <option value="stage_change">A lead moves into a stage</option>
+                  <option value="campaign">A lead comes from a specific campaign</option>
                 </select>
               </div>
               {ruleForm.trigger_type === 'stage_change' && (
@@ -410,6 +459,19 @@ const AutomationBuilder = () => {
                     {stages.map(s => <option key={s.id || s.name} value={s.name}>{s.name}</option>)}
                   </select>
                   {ruleErrors.stage_name && <p className="text-xs text-red-500 mt-1">{ruleErrors.stage_name}</p>}
+                </div>
+              )}
+              {ruleForm.trigger_type === 'campaign' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Campaign</label>
+                  <select value={ruleForm.campaign_id}
+                    onChange={e => { setRuleForm({ ...ruleForm, campaign_id: e.target.value }); if (ruleErrors.campaign_id) setRuleErrors(er => ({ ...er, campaign_id: undefined })); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white ${ruleErrors.campaign_id ? 'border-red-500' : ''}`}>
+                    <option value="">Select a campaign...</option>
+                    {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                  {ruleErrors.campaign_id && <p className="text-xs text-red-500 mt-1">{ruleErrors.campaign_id}</p>}
+                  <p className="text-[10px] text-gray-400 mt-1">Takes priority over a "new lead" rule for leads from this campaign — only this sequence will fire.</p>
                 </div>
               )}
               <div>

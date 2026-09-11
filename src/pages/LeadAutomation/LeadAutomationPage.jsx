@@ -260,7 +260,7 @@ const CallRecordingModal = ({ lead, onClose }) => {
   );
 };
 
-const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls }) => {
+const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls, onReEnable }) => {
   if (!lead) return null;
   return (
     <div className="fixed inset-0 z-[70] flex justify-end">
@@ -303,6 +303,13 @@ const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls }) => {
               </button>
             </div>
           </div>
+
+          {lead.opted_out && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-3 flex items-center justify-between gap-2">
+              <span className="text-xs text-red-700 font-medium">Opted out of automated messages</span>
+              <button onClick={() => onReEnable(lead)} className="text-xs font-semibold text-red-700 underline shrink-0">Re-enable</button>
+            </div>
+          )}
 
           <div>
             <p className="text-[11px] font-bold uppercase text-gray-400 tracking-wide mb-3 flex items-center gap-1.5">
@@ -360,6 +367,7 @@ const LeadAutomationPage = () => {
             phone: l.phone,
             won_at: l.won_at,
             lost_at: l.lost_at,
+            opted_out: l.opted_out,
             enrollment,
             status: computeStatus(l, enrollment),
             step: stepLabel(enrollment),
@@ -538,6 +546,13 @@ const LeadAutomationPage = () => {
         onClose={() => setSelectedLead(null)}
         onViewChat={(l) => { setSelectedLead(null); setChatLead(l); }}
         onViewCalls={(l) => { setSelectedLead(null); setCallLead(l); }}
+        onReEnable={async (l) => {
+          try {
+            await leadAPI.update(l.id, { opted_out: false });
+            setLeads(ls => ls.map(x => x.id === l.id ? { ...x, opted_out: false } : x));
+            setSelectedLead(s => s && s.id === l.id ? { ...s, opted_out: false } : s);
+          } catch { /* silently ignore — drawer stays as-is, user can retry */ }
+        }}
       />
       <WhatsAppChatModal lead={chatLead} onClose={() => setChatLead(null)} />
       <CallRecordingModal lead={callLead} onClose={() => setCallLead(null)} />
