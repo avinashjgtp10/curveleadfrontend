@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, automationAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag, Zap, Clock } from 'lucide-react';
@@ -9,7 +10,8 @@ const SettingsPage = () => {
   const confirm = useConfirmDialog();
   const toast = useToast();
   const { user, tenant } = useAuth();
-  const [tab, setTab] = useState('profile');
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') || 'profile');
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
