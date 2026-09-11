@@ -15,6 +15,7 @@ const Layout = () => {
     '/whatsapp': 'WhatsApp Inbox',
     '/followups': 'Follow-ups',
     '/appointments': 'Appointments',
+    '/lead-automation': 'Lead Automation',
     '/staff': 'Team',
     '/reports': 'Reports',
     '/billing': 'Billing',

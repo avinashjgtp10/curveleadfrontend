@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
-import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft } from 'lucide-react';
+import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Image as ImageIcon, Film, FileText, Upload, Search, Megaphone, Wrench, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useToast } from '../ui/Toast';
 
 const FIELD_OPTIONS = [
@@ -24,6 +24,17 @@ const STATUS_STYLE = {
   PENDING: 'bg-amber-100 text-amber-700',
   REJECTED: 'bg-red-100 text-red-700',
 };
+const STATUS_DOT = {
+  APPROVED: 'bg-green-500',
+  PENDING: 'bg-amber-500',
+  REJECTED: 'bg-red-500',
+};
+
+const CATEGORY_STYLE = {
+  MARKETING: { icon: Megaphone, iconWrap: 'bg-purple-50 text-purple-600', tag: 'text-purple-500' },
+  UTILITY: { icon: Wrench, iconWrap: 'bg-blue-50 text-blue-600', tag: 'text-blue-500' },
+  AUTHENTICATION: { icon: ShieldCheck, iconWrap: 'bg-amber-50 text-amber-600', tag: 'text-amber-500' },
+};
 
 const getComponent = (tmpl, type) => tmpl.components?.find(c => c.type === type);
 
@@ -33,12 +44,17 @@ const countVars = (text) => {
   return nums.length ? Math.max(...nums) : 0;
 };
 
-// v1 only sends BODY parameters — a template is unsupported if its header
-// carries media or its own variables, since we have nowhere to source those.
+const MEDIA_ICON = { IMAGE: ImageIcon, VIDEO: Film, DOCUMENT: FileText };
+
+// A template with a plain/no header is always supported. One with a text
+// header carrying its own variable isn't (no way to source it). One with a
+// media header is only supported if CurveLead has the matching file on
+// record (attached when the template was created through this modal).
 const isSupported = (tmpl) => {
   const header = getComponent(tmpl, 'HEADER');
-  if (header && (header.format !== 'TEXT' || countVars(header.text) > 0)) return false;
-  return true;
+  if (!header) return true;
+  if (header.format === 'TEXT') return countVars(header.text) === 0;
+  return !!tmpl.media_url;
 };
 
 const emptyCreateForm = () => ({ name: '', category: 'MARKETING', language: 'en_US', body_text: '' });
@@ -46,6 +62,7 @@ const emptyCreateForm = () => ({ name: '', category: 'MARKETING', language: 'en_
 const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const toast = useToast();
   const [step, setStep] = useState('pick');
+  const [templateSearch, setTemplateSearch] = useState('');
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -59,6 +76,10 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
+  const [headerType, setHeaderType] = useState('NONE'); // NONE | IMAGE | VIDEO | DOCUMENT
+  const [headerUploading, setHeaderUploading] = useState(false);
+  const [headerMedia, setHeaderMedia] = useState(null); // { url, handle, media_type, fileName }
+
   const loadTemplates = () => {
     setLoading(true);
     setLoadError('');
@@ -69,6 +90,12 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   };
 
   useEffect(() => { loadTemplates(); }, []);
+
+  const filteredTemplates = templates.filter(t => {
+    const q = templateSearch.trim().toLowerCase();
+    if (!q) return true;
+    return t.name.toLowerCase().includes(q) || (getComponent(t, 'BODY')?.text || '').toLowerCase().includes(q);
+  });
 
   const bodyText = selectedTemplate ? getComponent(selectedTemplate, 'BODY')?.text || '' : '';
   const varCount = countVars(bodyText);
@@ -118,7 +145,23 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
     setCreateForm(emptyCreateForm());
     setCreateExamples([]);
     setCreateError('');
+    setHeaderType('NONE');
+    setHeaderMedia(null);
     setStep('create');
+  };
+
+  const handleHeaderFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setHeaderMedia(null);
+    setCreateError('');
+    setHeaderUploading(true);
+    try {
+      const { data } = await whatsappAPI.uploadBroadcastMedia(file, headerType);
+      setHeaderMedia({ ...data, fileName: file.name });
+    } catch (e2) { setCreateError(e2.response?.data?.error || 'Failed to upload file'); }
+    finally { setHeaderUploading(false); }
   };
 
   const handleCreateTemplate = async () => {
@@ -130,6 +173,9 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
     if (createVarCount > 0 && createExamples.some(e => !e.trim())) {
       return setCreateError('Provide an example value for every {{n}} variable — Meta requires this for review.');
     }
+    if (headerType !== 'NONE' && !headerMedia) {
+      return setCreateError('Upload a file for the header, or set Header back to None.');
+    }
     setCreating(true);
     try {
       const { data } = await whatsappAPI.createBroadcastTemplate({
@@ -138,6 +184,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
         language: createForm.language,
         body_text: createForm.body_text,
         examples: createExamples,
+        ...(headerMedia ? { header_type: headerType, header_handle: headerMedia.handle, header_media_url: headerMedia.url } : {}),
       });
       toast.success(`Template submitted — status: ${data.status}. Meta usually reviews within a few hours.`);
       loadTemplates();
@@ -166,6 +213,15 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 <Plus size={14} /> Create New Template
               </button>
 
+              {!loading && !loadError && templates.length > 0 && (
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <input value={templateSearch} onChange={e => setTemplateSearch(e.target.value)}
+                    placeholder="Search templates..."
+                    className="w-full pl-8 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                </div>
+              )}
+
               {loading ? (
                 <div className="text-center py-6 text-gray-400">Loading templates...</div>
               ) : loadError ? (
@@ -174,24 +230,48 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 </div>
               ) : templates.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-6">No templates yet — create one above to submit it for Meta's approval.</p>
+              ) : filteredTemplates.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">No templates match "{templateSearch}"</p>
               ) : (
-                <div className="space-y-2">
-                  {templates.map(t => {
+                <div className="space-y-2.5">
+                  {filteredTemplates.map(t => {
                     const supported = isSupported(t) && t.status === 'APPROVED';
+                    const cat = CATEGORY_STYLE[t.category] || CATEGORY_STYLE.UTILITY;
+                    const CatIcon = cat.icon;
                     return (
                       <button key={`${t.name}-${t.language}`} disabled={!supported} onClick={() => handleSelectTemplate(t)}
-                        className={`w-full text-left p-3 rounded-xl border transition-colors ${supported ? 'hover:bg-gray-50 border-gray-200' : 'opacity-60 cursor-not-allowed border-gray-100'}`}>
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-medium text-sm">{t.name}</p>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500'}`}>{t.status}</span>
-                            <span className="text-[10px] font-semibold uppercase text-gray-400">{t.category}</span>
+                        className={`group w-full text-left p-3.5 rounded-2xl border transition-all ${supported ? 'bg-white border-gray-200 hover:border-brand-300 hover:shadow-md hover:shadow-brand-100/60' : 'bg-gray-50/60 border-gray-100 opacity-70 cursor-not-allowed'}`}>
+                        <div className="flex items-start gap-3">
+                          <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${cat.iconWrap}`}>
+                            <CatIcon size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-semibold text-sm text-gray-900 truncate min-w-0" title={t.name}>{t.name}</p>
+                              {supported && <ChevronRight size={16} className="text-gray-300 shrink-0 transition-transform group-hover:translate-x-0.5 group-hover:text-brand-500" />}
+                            </div>
+                            <div className="flex items-center gap-2 mt-1 mb-1.5">
+                              <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUS_STYLE[t.status] || 'bg-gray-100 text-gray-500'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_DOT[t.status] || 'bg-gray-400'}`} />
+                                {t.status}
+                              </span>
+                              <span className={`text-[10px] font-semibold uppercase tracking-wide ${cat.tag}`}>{t.category}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 line-clamp-2 flex items-center gap-1">
+                              {t.media_type && MEDIA_ICON[t.media_type] && (() => { const Icon = MEDIA_ICON[t.media_type]; return <Icon size={11} className="text-gray-400 shrink-0" />; })()}
+                              {getComponent(t, 'BODY')?.text}
+                            </p>
+                            {t.status === 'APPROVED' && !isSupported(t) && (
+                              <p className="text-[11px] text-amber-600 mt-1.5">
+                                {getComponent(t, 'HEADER')?.format === 'TEXT'
+                                  ? 'Not supported — this template has a variable in its header.'
+                                  : 'Media not on file — recreate this template through CurveLead to attach an image/video/document.'}
+                              </p>
+                            )}
+                            {t.status === 'REJECTED' && <p className="text-[11px] text-red-600 mt-1.5">Rejected by Meta — edit and resubmit under a new name.</p>}
+                            {t.status === 'PENDING' && <p className="text-[11px] text-amber-600 mt-1.5">Awaiting Meta's review.</p>}
                           </div>
                         </div>
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{getComponent(t, 'BODY')?.text}</p>
-                        {t.status === 'APPROVED' && !isSupported(t) && <p className="text-[11px] text-amber-600 mt-1">Not supported — this template has a media or variable header.</p>}
-                        {t.status === 'REJECTED' && <p className="text-[11px] text-red-600 mt-1">Rejected by Meta — edit and resubmit under a new name.</p>}
-                        {t.status === 'PENDING' && <p className="text-[11px] text-amber-600 mt-1">Awaiting Meta's review.</p>}
                       </button>
                     );
                   })}
@@ -226,11 +306,31 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 </div>
               </div>
               <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Header <span className="text-gray-400 font-normal">(optional)</span></label>
+                <div className="flex items-center gap-2">
+                  <select value={headerType}
+                    onChange={e => { setHeaderType(e.target.value); setHeaderMedia(null); setCreateError(''); }}
+                    className="px-2 py-1.5 border rounded-lg text-sm bg-white">
+                    <option value="NONE">None</option>
+                    <option value="IMAGE">Image</option>
+                    <option value="VIDEO">Video</option>
+                    <option value="DOCUMENT">Document</option>
+                  </select>
+                  {headerType !== 'NONE' && (
+                    <label className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 border border-dashed rounded-lg text-xs font-medium cursor-pointer ${headerMedia ? 'border-green-300 text-green-700 bg-green-50' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}>
+                      <input type="file" className="hidden" onChange={handleHeaderFileSelect}
+                        accept={headerType === 'IMAGE' ? '.jpg,.jpeg,.png' : headerType === 'VIDEO' ? '.mp4,.3gp' : '.pdf'} />
+                      {headerUploading ? 'Uploading…' : headerMedia ? <><CheckCircle size={13} /> {headerMedia.fileName}</> : <><Upload size={13} /> Choose file</>}
+                    </label>
+                  )}
+                </div>
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Body Text</label>
                 <textarea value={createForm.body_text} onChange={e => setCreateForm(f => ({ ...f, body_text: e.target.value }))}
                   rows={4} placeholder={'Hi {{1}}, your order is on its way. Track it here: {{2}}'}
                   className="w-full px-3 py-2 border rounded-lg text-sm font-mono" />
-                <p className="text-[11px] text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{{1}}'}</code>, <code className="bg-gray-100 px-1 rounded">{'{{2}}'}</code>... for variables. Header, footer, and buttons aren't supported yet.</p>
+                <p className="text-[11px] text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{{1}}'}</code>, <code className="bg-gray-100 px-1 rounded">{'{{2}}'}</code>... for variables. Footer and buttons aren't supported yet.</p>
               </div>
 
               {createVarCount > 0 && (
@@ -252,6 +352,16 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
 
           {step === 'map' && selectedTemplate && (
             <div className="space-y-4">
+              {selectedTemplate.media_url && (
+                selectedTemplate.media_type === 'IMAGE' ? (
+                  <img src={selectedTemplate.media_url} alt="Header" className="w-full max-h-40 object-cover rounded-xl border" />
+                ) : (
+                  <div className="flex items-center gap-2 bg-gray-50 border rounded-xl p-3 text-sm text-gray-600">
+                    {(() => { const Icon = MEDIA_ICON[selectedTemplate.media_type] || FileText; return <Icon size={16} />; })()}
+                    {selectedTemplate.media_type === 'VIDEO' ? 'Video attached' : 'Document attached'}
+                  </div>
+                )
+              )}
               <div className="bg-gray-50 border rounded-xl p-3">
                 <p className="text-xs font-medium text-gray-500 mb-1">Preview (using "{sampleLead.name || 'first selected lead'}")</p>
                 <p className="text-sm whitespace-pre-wrap">{previewText()}</p>
@@ -305,14 +415,14 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
           )}
         </div>
 
-        <div className="p-4 border-t flex gap-2">
+        <div className="p-4 border-t flex items-center justify-between gap-2">
           {step === 'create' && (
             <>
               <button onClick={() => setStep('pick')} className="px-4 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50 flex items-center gap-1.5">
                 <ArrowLeft size={14} /> Back
               </button>
-              <button onClick={handleCreateTemplate} disabled={creating}
-                className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+              <button onClick={handleCreateTemplate} disabled={creating || headerUploading}
+                className="px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
                 {creating ? 'Submitting…' : 'Submit for Approval'}
               </button>
             </>
@@ -321,7 +431,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
             <>
               <button onClick={() => setStep('pick')} className="px-4 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Back</button>
               <button onClick={handleSend} disabled={sending || !mappingComplete}
-                className="flex-1 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                className="px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
                 {sending ? 'Sending…' : <><Send size={14} /> Send to {leads.length} lead{leads.length > 1 ? 's' : ''}</>}
               </button>
             </>
