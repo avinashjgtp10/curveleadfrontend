@@ -64,6 +64,49 @@ const scoreColors = {
   cold: 'bg-gray-100 text-gray-600',
 };
 
+// Custom-rendered dropdown — native <select> popups are OS-anchored and can overlap
+// a modal's own header/content in odd ways, so this keeps the open list in normal page flow.
+const InlineSelect = ({ value, onChange, options, disabled, placeholder, ringColor = 'focus:ring-brand-300', capitalize }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  const selected = options.find(o => o.value === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center justify-between px-3 py-2 border rounded-lg text-sm bg-white ${ringColor} focus:outline-none disabled:opacity-60 ${capitalize ? 'capitalize' : ''} ${!selected ? 'text-gray-400' : 'text-gray-800'}`}
+      >
+        <span className="truncate">{selected ? selected.label : (placeholder || 'Select...')}</span>
+        <ChevronDown size={14} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-gray-100 rounded-lg shadow-lg py-1">
+          {options.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${capitalize ? 'capitalize' : ''} ${opt.value === value ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-700'}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = {}) => {
   const toast = useToast();
   const { id: routeId } = useParams();
@@ -729,19 +772,16 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               {/* Stage Dropdown — always visible */}
               <div className={editing ? '' : 'pt-2 border-t'}>
                 <p className="text-xs text-gray-500 mb-1">Stage</p>
-                <div className="relative">
-                  <select
-                    value={(lead.stage || '').toLowerCase()}
-                    onChange={e => handleStageChange(e.target.value)}
-                    disabled={stageSaving}
-                    className="w-full appearance-none px-3 py-2 border rounded-lg text-sm font-medium bg-white pr-8 focus:outline-none focus:ring-2 focus:ring-brand-300 capitalize disabled:opacity-60">
-                    {stages.length > 0
-                      ? stages.map(s => <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>)
-                      : <option value={(lead.stage || '').toLowerCase()}>{lead.stage || 'Select stage'}</option>
-                    }
-                  </select>
-                  <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
+                <InlineSelect
+                  value={(lead.stage || '').toLowerCase()}
+                  onChange={handleStageChange}
+                  disabled={stageSaving}
+                  capitalize
+                  options={stages.length > 0
+                    ? stages.map(s => ({ value: s.name.toLowerCase(), label: s.name }))
+                    : [{ value: (lead.stage || '').toLowerCase(), label: lead.stage || 'Select stage' }]
+                  }
+                />
                 {stageSince && (
                   <p className="text-[10px] text-gray-400 mt-1" title={new Date(stageSince).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}>
                     In this stage for {formatDuration(stageSince)}
@@ -753,18 +793,16 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               {(stageStatuses[lead.stage?.toLowerCase()]?.length > 0 || allStatuses.length > 0) && (
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Status</p>
-                  <div className="relative">
-                    <select
-                      value={lead.lead_status || ''}
-                      onChange={e => handleStatusChange(e.target.value)}
-                      className="w-full appearance-none px-3 py-2 border rounded-lg text-sm bg-white pr-8 focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                      <option value="">— No status —</option>
-                      {(stageStatuses[lead.stage?.toLowerCase()] || allStatuses).map(st => (
-                        <option key={st.id} value={st.name}>{st.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
+                  <InlineSelect
+                    value={lead.lead_status || ''}
+                    onChange={handleStatusChange}
+                    ringColor="focus:ring-indigo-300"
+                    placeholder="— No status —"
+                    options={[
+                      { value: '', label: '— No status —' },
+                      ...(stageStatuses[lead.stage?.toLowerCase()] || allStatuses).map(st => ({ value: st.name, label: st.name })),
+                    ]}
+                  />
                 </div>
               )}
 
