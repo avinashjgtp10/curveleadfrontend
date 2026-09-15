@@ -18,6 +18,17 @@ const scoreColors = {
 
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
 
+// Closes whatever the ref is attached to when a mousedown lands outside it.
+const useClickOutside = (ref, onOutside) => {
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onOutside();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ref, onOutside]);
+};
+
 // Custom filter dropdown that always opens downward — a native <select> can
 // flip upward and overlap the tabs above when there isn't room below it.
 const FilterDropdown = ({ value, onChange, options, className }) => {
@@ -25,13 +36,7 @@ const FilterDropdown = ({ value, onChange, options, className }) => {
   const ref = useRef(null);
   const selected = options.find(o => o.value === value);
 
-  useEffect(() => {
-    const onClickOutside = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
+  useClickOutside(ref, () => setOpen(false));
 
   return (
     <div className="relative" ref={ref}>
@@ -59,6 +64,22 @@ const FilterDropdown = ({ value, onChange, options, className }) => {
 };
 
 const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const FOLLOWUP_HEALTH_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'good', label: '🟢 Good' },
+  { value: 'delayed', label: '🟡 Delayed' },
+  { value: 'missed', label: '🔴 Missed' },
+  { value: 'critical', label: '🚨 Critical' },
+];
+const SLA_STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'uncontacted', label: 'Uncontacted' },
+  { value: 'new', label: '🟢 New' },
+  { value: 'sla_risk', label: '🟡 SLA Risk' },
+  { value: 'sla_breached', label: '🔴 SLA Breached' },
+  { value: 'missed_lead', label: '🚨 Missed Lead' },
+  { value: 'responded_5min', label: '✅ Responded ≤5 min' },
+];
 const LEADS_COLUMNS = [
   { key: 'lead_id', label: 'Lead ID' },
   { key: 'date', label: 'Date' },
@@ -329,11 +350,7 @@ const LeadsPage = () => {
     localStorage.setItem(LEADS_HIDDEN_STAGES_STORAGE_KEY, JSON.stringify(hiddenStages));
   }, [hiddenStages]);
 
-  useEffect(() => {
-    const handler = (e) => { if (columnSettingsRef.current && !columnSettingsRef.current.contains(e.target)) setShowColumnSettings(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  useClickOutside(columnSettingsRef, () => setShowColumnSettings(false));
 
   useEffect(() => {
     const next = getQueryConfig(location.search, location.state);
@@ -935,13 +952,7 @@ const LeadsPage = () => {
                       value={filters.followup_health}
                       onChange={v => handleFilterChange(f => ({ ...f, followup_health: v }))}
                       className={selectClass}
-                      options={[
-                        { value: '', label: 'All' },
-                        { value: 'good', label: '🟢 Good' },
-                        { value: 'delayed', label: '🟡 Delayed' },
-                        { value: 'missed', label: '🔴 Missed' },
-                        { value: 'critical', label: '🚨 Critical' },
-                      ]}
+                      options={FOLLOWUP_HEALTH_OPTIONS}
                     />
                   </div>
 
@@ -952,15 +963,7 @@ const LeadsPage = () => {
                       value={filters.sla_status}
                       onChange={v => handleFilterChange(f => ({ ...f, sla_status: v }))}
                       className={selectClass}
-                      options={[
-                        { value: '', label: 'All' },
-                        { value: 'uncontacted', label: 'Uncontacted' },
-                        { value: 'new', label: '🟢 New' },
-                        { value: 'sla_risk', label: '🟡 SLA Risk' },
-                        { value: 'sla_breached', label: '🔴 SLA Breached' },
-                        { value: 'missed_lead', label: '🚨 Missed Lead' },
-                        { value: 'responded_5min', label: '✅ Responded ≤5 min' },
-                      ]}
+                      options={SLA_STATUS_OPTIONS}
                     />
                   </div>
 
@@ -1109,11 +1112,11 @@ const LeadsPage = () => {
                       <UserCheck size={14} className="text-gray-500" />
                       <select
                         value={bulkAssign}
-                        onChange={e => { setBulkAssign(e.target.value); handleBulkAssign(e.target.value); }}
+                        onChange={e => { setBulkAssign(e.target.value); handleBulkAssign(e.target.value === 'unassigned' ? '' : e.target.value); }}
                         disabled={bulkLoading}
                         className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50">
                         <option value="">Assign To…</option>
-                        <option value="">Unassign</option>
+                        <option value="unassigned">Unassign</option>
                         {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
