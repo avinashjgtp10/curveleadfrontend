@@ -26,6 +26,9 @@ const planCopy = {
 const statusBadgeStyles = {
   trial: 'bg-amber-100 text-amber-700',
   active: 'bg-green-100 text-green-700',
+  cancelled: 'bg-gray-100 text-gray-600',
+  halted: 'bg-red-100 text-red-700',
+  expired: 'bg-red-100 text-red-700',
 };
 
 const billingPeriods = [
@@ -98,14 +101,12 @@ const BillingPage = () => {
     try {
       await loadRazorpay();
 
-      const { data } = await paymentAPI.createOrder(planName, billingPeriod);
+      const { data } = await paymentAPI.createSubscription(planName, billingPeriod);
       const options = {
         key: data.razorpayKeyId || razorpayKeyId,
-        amount: data.amount,
-        currency: data.currency,
+        subscription_id: data.subscriptionId,
         name: 'CurveLead',
         description: data.plan?.description || `${planName} subscription`,
-        order_id: data.orderId,
         prefill: {
           name: data.prefill?.name || user?.name || '',
           email: data.prefill?.email || user?.email || '',
@@ -118,7 +119,7 @@ const BillingPage = () => {
         theme: { color: '#4f46e5' },
         handler: async (response) => {
           try {
-            const verifyResult = await paymentAPI.verify({
+            const verifyResult = await paymentAPI.verifySubscription({
               ...response,
               planName,
               billingPeriod,
