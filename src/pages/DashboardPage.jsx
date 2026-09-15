@@ -7,6 +7,7 @@ import {
   ArrowUpRight, ArrowDownRight, Minus,
   Calendar, Video, AlertTriangle, ChevronRight, Flame, Clock,
   Zap, Sparkles, CheckCircle2, Megaphone, Send, UserX,
+  LayoutGrid, GitBranch, UserCheck, PieChart, LineChart,
 } from 'lucide-react';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -104,31 +105,48 @@ const DashboardPage = () => {
     Leads: parseInt(t.count),
   }));
 
-  return (
-    <div className="space-y-5 max-w-7xl mx-auto">
+  const greetingHour = new Date().getHours();
+  const [greeting, headerGradient] =
+    greetingHour < 12  ? ['Good morning',   'from-amber-400 via-orange-400 to-rose-400'] :
+    greetingHour < 17  ? ['Good afternoon', 'from-brand-600 via-brand-600 to-indigo-600'] :
+    greetingHour < 21  ? ['Good evening',   'from-indigo-600 via-violet-600 to-purple-600'] :
+                          ['Good night',     'from-slate-700 via-indigo-800 to-slate-900'];
 
-      {/* ── Period Selector ── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          {PERIOD_OPTIONS.map(opt => (
-            <button key={opt.id} onClick={() => setPeriod(opt.id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                period === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        {period === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-              className="px-2.5 py-1.5 border rounded-lg text-xs" />
-            <span className="text-xs text-gray-400">to</span>
-            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-              className="px-2.5 py-1.5 border rounded-lg text-xs" />
+  return (
+    <div className="space-y-6 max-w-7xl mx-auto pb-4">
+
+      {/* ── Page Header ── */}
+      <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${headerGradient} p-6 shadow-lg shadow-brand-600/10 transition-colors duration-700`}>
+        <div className="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-white/10 blur-2xl" />
+        <div className="absolute -bottom-14 right-24 w-36 h-36 rounded-full bg-white/10 blur-2xl" />
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight">{greeting}</h1>
+            <p className="text-white/80 text-sm mt-1">Here's what's happening with your leads — {periodLabel}</p>
           </div>
-        )}
-        {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-brand-600 border-t-transparent rounded-full" />}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-1 bg-white/15 backdrop-blur-sm rounded-xl p-1 ring-1 ring-white/20">
+              {PERIOD_OPTIONS.map(opt => (
+                <button key={opt.id} onClick={() => setPeriod(opt.id)}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                    period === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {period === 'custom' && (
+              <div className="flex items-center gap-2">
+                <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
+                  className="px-2.5 py-1.5 border-0 rounded-lg text-xs bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/60 transition-shadow" />
+                <span className="text-xs text-white/70">to</span>
+                <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
+                  className="px-2.5 py-1.5 border-0 rounded-lg text-xs bg-white/90 focus:outline-none focus:ring-2 focus:ring-white/60 transition-shadow" />
+              </div>
+            )}
+            {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full" />}
+          </div>
+        </div>
       </div>
 
       {/* ── KPI Cards ── */}
@@ -140,7 +158,8 @@ const DashboardPage = () => {
             sub: `${fmt(data?.total_leads)} total`,
             trend: data?.leads_change,
             icon: Users,
-            iconCls: 'bg-blue-100 text-blue-600',
+            iconCls: 'bg-gradient-to-br from-blue-500 to-blue-400 text-white shadow-blue-200',
+            ring: 'hover:ring-blue-100',
           },
           {
             label: `Revenue in ${periodLabel}`,
@@ -148,53 +167,64 @@ const DashboardPage = () => {
             sub: `${fmtMoney(data?.total_revenue)} total`,
             trend: data?.revenue_change,
             icon: IndianRupee,
-            iconCls: 'bg-emerald-100 text-emerald-600',
+            iconCls: 'bg-gradient-to-br from-emerald-500 to-emerald-400 text-white shadow-emerald-200',
+            ring: 'hover:ring-emerald-100',
           },
           {
             label: 'Conversion Rate',
             value: `${data?.conversion_rate || '0.0'}%`,
             sub: `${fmt(data?.won_in_period)} won in period`,
             icon: Target,
-            iconCls: 'bg-violet-100 text-violet-600',
+            iconCls: 'bg-gradient-to-br from-violet-500 to-violet-400 text-white shadow-violet-200',
+            ring: 'hover:ring-violet-100',
           },
           {
             label: 'Avg Deal Value',
             value: fmtMoney(data?.avg_deal_value),
             sub: `${fmt(data?.won_in_period)} deals closed`,
             icon: TrendingUp,
-            iconCls: 'bg-amber-100 text-amber-600',
+            iconCls: 'bg-gradient-to-br from-amber-500 to-amber-400 text-white shadow-amber-200',
+            ring: 'hover:ring-amber-100',
           },
           {
             label: 'Advance Collected',
             value: fmtMoney(data?.advance_collected_in_period),
             sub: 'From won deals in period',
             icon: IndianRupee,
-            iconCls: 'bg-cyan-100 text-cyan-600',
+            iconCls: 'bg-gradient-to-br from-cyan-500 to-cyan-400 text-white shadow-cyan-200',
+            ring: 'hover:ring-cyan-100',
           },
           {
             label: 'Balance Due',
             value: fmtMoney(data?.balance_due_in_period),
             sub: 'Pending from won deals in period',
             icon: AlertTriangle,
-            iconCls: 'bg-orange-100 text-orange-600',
+            iconCls: 'bg-gradient-to-br from-orange-500 to-orange-400 text-white shadow-orange-200',
+            ring: 'hover:ring-orange-100',
           },
         ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl p-5 border">
+          <div key={s.label}
+            className={`bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg ring-1 ring-transparent ${s.ring} transition-all duration-300 hover:-translate-y-0.5`}>
             <div className="flex items-start justify-between gap-2">
-              <div className={`w-10 h-10 ${s.iconCls} rounded-xl flex items-center justify-center shrink-0`}>
-                <s.icon size={18} />
+              <div className={`w-11 h-11 ${s.iconCls} rounded-xl flex items-center justify-center shrink-0 shadow-lg`}>
+                <s.icon size={19} />
               </div>
               {s.trend !== undefined && <Trend change={s.trend} />}
             </div>
-            <p className="text-2xl font-bold mt-3 text-gray-900">{s.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
+            <p className="text-2xl font-bold mt-3.5 text-gray-900 tracking-tight">{s.value}</p>
+            <p className="text-xs text-gray-500 mt-0.5 font-medium">{s.label}</p>
             <p className="text-[11px] text-gray-400 mt-1">{s.sub}</p>
           </div>
         ))}
       </div>
 
       {/* ── Today's Action Strip ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div>
+        <h3 className="text-sm font-semibold text-gray-500 mb-2.5 flex items-center gap-1.5">
+          <LayoutGrid size={14} className="text-brand-400" />
+          Today at a Glance
+        </h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           {
             label: 'New Today',
@@ -253,7 +283,7 @@ const DashboardPage = () => {
           },
         ].map(s => (
           <button key={s.label} onClick={() => navigate(s.to)}
-            className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:opacity-80 transition-opacity text-left w-full`}>
+            className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all duration-200 text-left w-full`}>
             <s.icon size={18} className="shrink-0" />
             <div>
               <p className="text-xl font-bold leading-none">{s.value}</p>
@@ -261,11 +291,15 @@ const DashboardPage = () => {
             </div>
           </button>
         ))}
+        </div>
       </div>
 
       {/* ── Automation & AI Activity ── */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-500 mb-2">Automation & AI</h3>
+        <h3 className="text-sm font-semibold text-gray-500 mb-2.5 flex items-center gap-1.5">
+          <Sparkles size={14} className="text-violet-400" />
+          Automation & AI
+        </h3>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[
             {
@@ -319,7 +353,7 @@ const DashboardPage = () => {
             },
           ].map(s => (
             <button key={s.label} onClick={() => navigate(s.to)}
-              className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:opacity-80 transition-opacity text-left w-full`}>
+              className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:shadow-md hover:scale-[1.02] active:scale-[0.99] transition-all duration-200 text-left w-full`}>
               <s.icon size={18} className="shrink-0" />
               <div>
                 <p className="text-xl font-bold leading-none">{s.value}</p>
@@ -333,7 +367,7 @@ const DashboardPage = () => {
       {/* ── Unassigned Leads Alert ── */}
       {(data?.unassigned_leads || 0) > 0 && (
         <button onClick={() => navigate('/leads?assigned_to=unassigned')}
-          className="w-full flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors text-left">
+          className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-amber-50 to-amber-50/40 border border-amber-200 rounded-xl hover:shadow-md hover:from-amber-100 transition-all duration-200 text-left">
           <AlertTriangle size={18} className="text-amber-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-800">
@@ -348,7 +382,7 @@ const DashboardPage = () => {
       {/* ── Critical Follow-ups Alert ── */}
       {(data?.critical_followups || 0) > 0 && (
         <button onClick={() => navigate('/leads?followup_health=critical')}
-          className="w-full flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors text-left">
+          className="w-full flex items-center gap-3 p-4 bg-gradient-to-r from-red-50 to-red-50/40 border border-red-200 rounded-xl hover:shadow-md hover:from-red-100 transition-all duration-200 text-left">
           <AlertTriangle size={18} className="text-red-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-red-800">
@@ -364,10 +398,15 @@ const DashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         {/* Pipeline funnel */}
-        <div className="lg:col-span-3 bg-white rounded-2xl p-5 border">
+        <div className="lg:col-span-3 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-semibold text-gray-900">Pipeline</h3>
-            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-500 flex items-center justify-center">
+                <GitBranch size={14} />
+              </span>
+              Pipeline
+            </h3>
+            <span className="text-xs text-gray-500 bg-gray-50 px-2.5 py-1 rounded-lg font-medium ring-1 ring-gray-100">
               {fmt(pipelineTotal)} total leads
             </span>
           </div>
@@ -396,9 +435,9 @@ const DashboardPage = () => {
                       <span className="text-gray-400 w-7 text-right">{pct}%</span>
                     </div>
                   </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, background: bar }} />
+                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full transition-all duration-700 shadow-sm"
+                      style={{ width: `${pct}%`, background: `linear-gradient(90deg, ${bar}cc, ${bar})` }} />
                   </div>
                 </div>
               );
@@ -410,11 +449,16 @@ const DashboardPage = () => {
         </div>
 
         {/* Recent leads */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Recent Leads</h3>
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-500 flex items-center justify-center">
+                <Users size={14} />
+              </span>
+              Recent Leads
+            </h3>
             <button onClick={() => navigate('/leads')}
-              className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+              className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline hover:gap-1 transition-all">
               View all <ChevronRight size={12} />
             </button>
           </div>
@@ -422,7 +466,7 @@ const DashboardPage = () => {
             {(data?.recentLeads || []).map(l => (
               <button key={l.id} onClick={() => navigate('/leads', { state: { openLeadId: l.id } })}
                 className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 text-left group transition-colors">
-                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0 group-hover:bg-brand-50 group-hover:text-brand-700 transition-colors">
+                <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0 group-hover:from-brand-100 group-hover:to-brand-50 group-hover:text-brand-700 transition-colors">
                   {l.name?.charAt(0)?.toUpperCase()}
                 </div>
                 <div className="flex-1 min-w-0">
@@ -447,8 +491,13 @@ const DashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
         {/* Lead sources */}
-        <div className="bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold text-gray-900 mb-4">Lead Sources</h3>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-cyan-50 text-cyan-500 flex items-center justify-center">
+              <PieChart size={14} />
+            </span>
+            Lead Sources
+          </h3>
           {(data?.sources || []).length > 0 ? (
             <div className="overflow-x-auto -mx-5 px-5">
               <table className="w-full text-sm min-w-[420px]">
@@ -462,7 +511,7 @@ const DashboardPage = () => {
                 </thead>
                 <tbody>
                   {data.sources.map(s => (
-                    <tr key={s.source} className="border-b last:border-0">
+                    <tr key={s.source} className="border-b last:border-0 hover:bg-gray-50/70 transition-colors">
                       <td className="py-2.5 font-medium text-gray-700 capitalize whitespace-nowrap">{s.source}</td>
                       <td className="py-2.5 text-right text-gray-500 whitespace-nowrap">{s.total}</td>
                       <td className="py-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap">{s.won}</td>
@@ -484,8 +533,13 @@ const DashboardPage = () => {
         </div>
 
         {/* Team performance */}
-        <div className="bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold text-gray-900 mb-4">Team Performance</h3>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-500 flex items-center justify-center">
+              <UserCheck size={14} />
+            </span>
+            Team Performance
+          </h3>
           {(data?.team || []).length > 0 ? (
             <div className="overflow-x-auto -mx-5 px-5">
               <table className="w-full text-sm min-w-[560px]">
@@ -501,7 +555,7 @@ const DashboardPage = () => {
                 </thead>
                 <tbody>
                   {data.team.map((t, i) => (
-                    <tr key={t.name} className="border-b last:border-0">
+                    <tr key={t.name} className="border-b last:border-0 hover:bg-gray-50/70 transition-colors">
                       <td className="py-2.5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <span className="text-sm">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}</span>
@@ -526,14 +580,23 @@ const DashboardPage = () => {
 
       {/* ── Lead Trend ── */}
       {trendData.length > 1 && (
-        <div className="bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold text-gray-900 mb-4">Lead Trend — {periodLabel}</h3>
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-md transition-shadow duration-300">
+          <h3 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-violet-50 text-violet-500 flex items-center justify-center">
+              <LineChart size={14} />
+            </span>
+            Lead Trend — {periodLabel}
+          </h3>
           <ResponsiveContainer width="100%" height={160}>
             <AreaChart data={trendData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
               <defs>
                 <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.18} />
+                  <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.28} />
                   <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="leadStroke" x1="0" y1="0" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#818cf8" />
+                  <stop offset="100%" stopColor="#4f46e5" />
                 </linearGradient>
               </defs>
               <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
@@ -542,8 +605,8 @@ const DashboardPage = () => {
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }}
                 cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 2' }}
               />
-              <Area type="monotone" dataKey="Leads" stroke="#6366f1" strokeWidth={2}
-                fill="url(#leadGrad)" dot={false} activeDot={{ r: 4, fill: '#6366f1' }} />
+              <Area type="monotone" dataKey="Leads" stroke="url(#leadStroke)" strokeWidth={2.5}
+                fill="url(#leadGrad)" dot={false} activeDot={{ r: 5, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }} />
             </AreaChart>
           </ResponsiveContainer>
         </div>
