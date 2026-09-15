@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, campaignAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
