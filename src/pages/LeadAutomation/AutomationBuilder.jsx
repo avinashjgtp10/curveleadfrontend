@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 
-const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, message: '', email_subject: '', approved_template_name: '' });
+const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '' });
 
 // Quick-start presets — common real-world automations built from the two
 // trigger types and two step channels the backend actually supports today.
@@ -105,7 +105,13 @@ const AutomationBuilder = () => {
     setEditingSeq(s);
     setSeqForm({
       name: s.name, description: s.description || '',
-      steps: s.steps?.length ? s.steps.map(st => ({ ...st, email_subject: st.email_subject || '', approved_template_name: st.approved_template_name || '' })) : [emptyStep()],
+      steps: s.steps?.length ? s.steps.map(st => ({
+        ...st,
+        email_subject: st.email_subject || '',
+        approved_template_name: st.approved_template_name || '',
+        ai_generated: st.ai_generated || false,
+        ai_instructions: st.ai_instructions || '',
+      })) : [emptyStep()],
     });
     setSeqErrors({});
     setSeqModal(true);
@@ -113,7 +119,7 @@ const AutomationBuilder = () => {
 
   const updateStep = (idx, patch) => {
     setSeqForm(f => ({ ...f, steps: f.steps.map((s, i) => i === idx ? { ...s, ...patch } : s) }));
-    if (patch.message?.trim() && seqErrors.steps) setSeqErrors(er => ({ ...er, steps: undefined }));
+    if ((patch.message?.trim() || patch.ai_generated) && seqErrors.steps) setSeqErrors(er => ({ ...er, steps: undefined }));
   };
   const addStep = () => setSeqForm(f => ({ ...f, steps: [...f.steps, emptyStep()] }));
   const removeStep = (idx) => setSeqForm(f => ({ ...f, steps: f.steps.filter((_, i) => i !== idx) }));
@@ -121,7 +127,7 @@ const AutomationBuilder = () => {
   const handleSaveSeq = async () => {
     const errors = {};
     if (!seqForm.name.trim()) errors.name = 'Sequence name is required';
-    if (!seqForm.steps.some(s => s.message.trim())) errors.steps = 'At least one step needs a message';
+    if (!seqForm.steps.some(s => s.ai_generated || s.message.trim())) errors.steps = 'At least one step needs a message';
     setSeqErrors(errors);
     if (Object.keys(errors).length) return;
     try {
@@ -391,9 +397,28 @@ const AutomationBuilder = () => {
                         <input value={step.email_subject} onChange={e => updateStep(idx, { email_subject: e.target.value })}
                           className="w-full px-2.5 py-2 border rounded-lg text-xs mb-2" placeholder="Email subject" />
                       )}
-                      <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
-                        rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
-                        placeholder={'Hi {{name}}, ...'} />
+                      {step.channel === 'whatsapp' && (
+                        <label className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-2 cursor-pointer">
+                          <input type="checkbox" checked={!!step.ai_generated}
+                            onChange={e => updateStep(idx, { ai_generated: e.target.checked })} />
+                          Let AI write this message
+                        </label>
+                      )}
+                      {step.channel === 'whatsapp' && step.ai_generated ? (
+                        <>
+                          <label className="block text-[10px] font-medium text-gray-400 mb-1">Instructions for the AI (optional)</label>
+                          <textarea value={step.ai_instructions} onChange={e => updateStep(idx, { ai_instructions: e.target.value })}
+                            rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs"
+                            placeholder="e.g. mention our new autumn discount, keep it under 3 lines, casual tone" />
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            AI writes the actual message using this guidance plus the lead's own conversation. Applies only within the 24h WhatsApp session window — outside it, the approved template below (if set) is sent instead, unchanged.
+                          </p>
+                        </>
+                      ) : (
+                        <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
+                          rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
+                          placeholder={'Hi {{name}}, ...'} />
+                      )}
                       {step.channel === 'whatsapp' && (
                         <div className="mt-2">
                           <input value={step.approved_template_name || ''} onChange={e => updateStep(idx, { approved_template_name: e.target.value })}
