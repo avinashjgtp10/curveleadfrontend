@@ -534,15 +534,24 @@ const SettingsPage = () => {
             <>
               <h2 className="text-lg font-bold mb-4">Change Password</h2>
               <div className="space-y-3 max-w-sm">
-                <input type="password" placeholder="Current Password" value={pwForm.currentPassword}
-                  onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                <input type="password" placeholder="New Password (min 6)" value={pwForm.newPassword}
-                  onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                <input type="password" placeholder="Confirm New Password" value={pwForm.confirm}
-                  onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
+                  <input type="password" placeholder="Current Password" value={pwForm.currentPassword}
+                    onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">New Password</label>
+                  <input type="password" placeholder="New Password (min 6)" value={pwForm.newPassword}
+                    onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Confirm New Password</label>
+                  <input type="password" placeholder="Confirm New Password" value={pwForm.confirm}
+                    onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                </div>
                 <button onClick={handleChangePassword} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Change Password</button>
               </div>
             </>
