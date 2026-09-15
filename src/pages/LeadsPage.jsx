@@ -18,6 +18,17 @@ const scoreColors = {
 
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
 
+// Closes whatever the ref is attached to when a mousedown lands outside it.
+const useClickOutside = (ref, onOutside) => {
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onOutside();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ref, onOutside]);
+};
+
 // Custom filter dropdown that always opens downward — a native <select> can
 // flip upward and overlap the tabs above when there isn't room below it.
 const FilterDropdown = ({ value, onChange, options, className }) => {
@@ -25,13 +36,7 @@ const FilterDropdown = ({ value, onChange, options, className }) => {
   const ref = useRef(null);
   const selected = options.find(o => o.value === value);
 
-  useEffect(() => {
-    const onClickOutside = (e) => {
-      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
-    };
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
+  useClickOutside(ref, () => setOpen(false));
 
   return (
     <div className="relative" ref={ref}>
@@ -59,6 +64,22 @@ const FilterDropdown = ({ value, onChange, options, className }) => {
 };
 
 const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const FOLLOWUP_HEALTH_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'good', label: '🟢 Good' },
+  { value: 'delayed', label: '🟡 Delayed' },
+  { value: 'missed', label: '🔴 Missed' },
+  { value: 'critical', label: '🚨 Critical' },
+];
+const SLA_STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'uncontacted', label: 'Uncontacted' },
+  { value: 'new', label: '🟢 New' },
+  { value: 'sla_risk', label: '🟡 SLA Risk' },
+  { value: 'sla_breached', label: '🔴 SLA Breached' },
+  { value: 'missed_lead', label: '🚨 Missed Lead' },
+  { value: 'responded_5min', label: '✅ Responded ≤5 min' },
+];
 const LEADS_COLUMNS = [
   { key: 'lead_id', label: 'Lead ID' },
   { key: 'date', label: 'Date' },
@@ -338,11 +359,7 @@ const LeadsPage = () => {
     localStorage.setItem(LEADS_HIDDEN_STAGES_STORAGE_KEY, JSON.stringify(hiddenStages));
   }, [hiddenStages]);
 
-  useEffect(() => {
-    const handler = (e) => { if (columnSettingsRef.current && !columnSettingsRef.current.contains(e.target)) setShowColumnSettings(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+  useClickOutside(columnSettingsRef, () => setShowColumnSettings(false));
 
   useEffect(() => {
     const next = getQueryConfig(location.search, location.state);
@@ -903,59 +920,70 @@ const LeadsPage = () => {
                   {/* Stage */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Stage</label>
-                    <select value={filters.stage} onChange={e => handleFilterChange(f => ({ ...f, stage: e.target.value, lead_status: '' }))} className={selectClass}>
-                      <option value="">All stages</option>
-                      {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                    </select>
+                    <FilterDropdown
+                      value={filters.stage}
+                      onChange={v => handleFilterChange(f => ({ ...f, stage: v, lead_status: '' }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All stages' },
+                        ...stages.map(s => ({ value: s.name, label: s.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Status */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Status</label>
-                    <select value={filters.lead_status} onChange={e => handleFilterChange(f => ({ ...f, lead_status: e.target.value }))} className={selectClass}>
-                      <option value="">All statuses</option>
-                      {(filters.stage
-                        ? (stageStatuses[filters.stage?.toLowerCase()] || [])
-                        : allStatuses
-                      ).map(st => <option key={st.id} value={st.name}>{st.name}</option>)}
-                    </select>
+                    <FilterDropdown
+                      value={filters.lead_status}
+                      onChange={v => handleFilterChange(f => ({ ...f, lead_status: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All statuses' },
+                        ...(filters.stage
+                          ? (stageStatuses[filters.stage?.toLowerCase()] || [])
+                          : allStatuses
+                        ).map(st => ({ value: st.name, label: st.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Score */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Score</label>
-                    <select value={filters.score} onChange={e => handleFilterChange(f => ({ ...f, score: e.target.value }))} className={selectClass}>
-                      <option value="">All scores</option>
-                      <option value="hot">🔥 Hot</option>
-                      <option value="warm">🌤 Warm</option>
-                      <option value="cold">❄️ Cold</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.score}
+                      onChange={v => handleFilterChange(f => ({ ...f, score: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All scores' },
+                        { value: 'hot', label: '🔥 Hot' },
+                        { value: 'warm', label: '🌤 Warm' },
+                        { value: 'cold', label: '❄️ Cold' },
+                      ]}
+                    />
                   </div>
 
                   {/* Follow-up Health */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Follow-up Health</label>
-                    <select value={filters.followup_health} onChange={e => handleFilterChange(f => ({ ...f, followup_health: e.target.value }))} className={selectClass}>
-                      <option value="">All</option>
-                      <option value="good">🟢 Good</option>
-                      <option value="delayed">🟡 Delayed</option>
-                      <option value="missed">🔴 Missed</option>
-                      <option value="critical">🚨 Critical</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.followup_health}
+                      onChange={v => handleFilterChange(f => ({ ...f, followup_health: v }))}
+                      className={selectClass}
+                      options={FOLLOWUP_HEALTH_OPTIONS}
+                    />
                   </div>
 
                   {/* Response SLA */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Response SLA</label>
-                    <select value={filters.sla_status} onChange={e => handleFilterChange(f => ({ ...f, sla_status: e.target.value }))} className={selectClass}>
-                      <option value="">All</option>
-                      <option value="uncontacted">Uncontacted</option>
-                      <option value="new">🟢 New</option>
-                      <option value="sla_risk">🟡 SLA Risk</option>
-                      <option value="sla_breached">🔴 SLA Breached</option>
-                      <option value="missed_lead">🚨 Missed Lead</option>
-                      <option value="responded_5min">✅ Responded ≤5 min</option>
-                    </select>
+                    <FilterDropdown
+                      value={filters.sla_status}
+                      onChange={v => handleFilterChange(f => ({ ...f, sla_status: v }))}
+                      className={selectClass}
+                      options={SLA_STATUS_OPTIONS}
+                    />
                   </div>
 
                   {/* Source */}
@@ -981,11 +1009,16 @@ const LeadsPage = () => {
                   {/* Assigned To */}
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Assigned To</label>
-                    <select value={filters.assigned_to} onChange={e => handleFilterChange(f => ({ ...f, assigned_to: e.target.value }))} className={selectClass}>
-                      <option value="">All staff</option>
-                      <option value="unassigned">Unassigned</option>
-                      {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    <FilterDropdown
+                      value={filters.assigned_to}
+                      onChange={v => handleFilterChange(f => ({ ...f, assigned_to: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All staff' },
+                        { value: 'unassigned', label: 'Unassigned' },
+                        ...staff.map(s => ({ value: s.id, label: s.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Lead Date Range */}
@@ -1098,11 +1131,11 @@ const LeadsPage = () => {
                       <UserCheck size={14} className="text-gray-500" />
                       <select
                         value={bulkAssign}
-                        onChange={e => { setBulkAssign(e.target.value); handleBulkAssign(e.target.value); }}
+                        onChange={e => { setBulkAssign(e.target.value); handleBulkAssign(e.target.value === 'unassigned' ? '' : e.target.value); }}
                         disabled={bulkLoading}
                         className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50">
                         <option value="">Assign To…</option>
-                        <option value="">Unassign</option>
+                        <option value="unassigned">Unassign</option>
                         {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
