@@ -201,8 +201,8 @@ const BillingPage = () => {
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {plans.map((plan) => {
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {plans.filter(plan => plan.name !== 'Pro').map((plan) => {
           const copy = planCopy[plan.name] || {};
           const isCurrentPlan = currentPlanName === plan.name;
           const isProcessing = processingPlan === plan.name;
@@ -229,10 +229,14 @@ const BillingPage = () => {
                 {plan.name === 'Growth' ? <Zap className="shrink-0 text-brand-600" size={20} /> : <CreditCard className="shrink-0 text-gray-400" size={20} />}
               </div>
 
-              <div className="mt-5 flex items-end gap-1">
-                <span className="text-3xl font-extrabold text-gray-950">{formatPrice(amount, currency)}</span>
-                {amount > 0 && <span className="pb-1 text-sm text-gray-500">/{billingPeriod === 'yearly' ? 'yr' : 'mo'}</span>}
-              </div>
+              {plan.name !== 'Free' && (
+                <div className="mt-5 flex items-end gap-1">
+                  <span className="text-3xl font-extrabold text-gray-950">
+                    {plan.name === 'Pro' ? 'Custom' : formatPrice(amount, currency)}
+                  </span>
+                  {amount > 0 && plan.name !== 'Pro' && <span className="pb-1 text-sm text-gray-500">/{billingPeriod === 'yearly' ? 'yr' : 'mo'}</span>}
+                </div>
+              )}
               {billingPeriod === 'yearly' && selectedPrice && (
                 <p className="mt-2 text-xs font-semibold text-green-700">Two months free</p>
               )}
