@@ -1,8 +1,24 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI } from '../services/api';
-import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff } from 'lucide-react';
+import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff, Infinity as InfinityIcon } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+
+const GoogleGIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48">
+    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.8 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.5 29.6 3.5 24 3.5 12.7 3.5 3.5 12.7 3.5 24S12.7 44.5 24 44.5 44.5 35.3 44.5 24c0-1.2-.1-2.4-.3-3.5z"/>
+    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 6.5 29.6 4.5 24 4.5c-7.6 0-14.1 4.3-17.7 10.6z"/>
+    <path fill="#4CAF50" d="M24 44.5c5.5 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.6 35.6 26.9 36.5 24 36.5c-5.3 0-9.7-3.4-11.3-8.2l-6.6 5.1C9.8 40.1 16.4 44.5 24 44.5z"/>
+    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.7 2.1-2.1 3.9-3.8 5.1l6.6 5.4C41.6 35.6 44.5 30.2 44.5 24c0-1.2-.1-2.4-.9-3.5z"/>
+  </svg>
+);
+
+const WhatsAppIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="16" fill="#25D366" />
+    <path fill="#fff" d="M22.7 9.3a8.9 8.9 0 0 0-14.1 10.7L7.3 24l4.1-1.3a8.9 8.9 0 0 0 12.6-11.8 8.9 8.9 0 0 0-1.3-1.6zm-6.6 13.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.8.9.9-2.7-.2-.3a7.4 7.4 0 1 1 6.2 3.3zm4.1-5.5c-.2-.1-1.3-.7-1.5-.7-.2-.1-.4-.1-.5.1s-.6.7-.7.9c-.1.1-.3.2-.5.1a6 6 0 0 1-1.8-1.1 6.7 6.7 0 0 1-1.2-1.5c-.1-.2 0-.3.1-.4l.4-.4.2-.3c.1-.1 0-.3 0-.4l-.6-1.5c-.2-.4-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 1.9s.8 2.2.9 2.4c.1.1 1.6 2.5 3.9 3.5.5.2.9.4 1.3.5.5.2 1 .1 1.4.1.4-.1 1.3-.5 1.5-1 .2-.5.2-.9.1-1z"/>
+  </svg>
+);
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
 const FB_LOGIN_CONFIG_ID = import.meta.env.VITE_FACEBOOK_LOGIN_CONFIG_ID || '4416725028596340';
@@ -59,7 +75,7 @@ const INTEGRATIONS = [
     id: 'meta',
     label: 'Facebook / Instagram',
     description: 'Capture leads from Facebook & Instagram Lead Ads automatically.',
-    emoji: '📘',
+    icon: <InfinityIcon size={20} className="text-blue-500" />,
     bg: 'bg-blue-50',
     border: 'border-blue-100',
     category: 'Ads',
@@ -70,7 +86,7 @@ const INTEGRATIONS = [
     id: 'google',
     label: 'Google Ads',
     description: 'Capture leads from Google Lead Form Assets in real-time.',
-    emoji: '🟢',
+    icon: <GoogleGIcon size={20} />,
     bg: 'bg-green-50',
     border: 'border-green-100',
     category: 'Ads',
@@ -114,7 +130,7 @@ const INTEGRATIONS = [
     id: 'whatsapp',
     label: 'WhatsApp Business API',
     description: 'Auto-send appointment & demo confirmations to leads via WhatsApp.',
-    emoji: '💬',
+    icon: <WhatsAppIcon size={20} />,
     bg: 'bg-green-50',
     border: 'border-green-100',
     category: 'Messaging',
@@ -1468,7 +1484,7 @@ const IntegrationsPage = () => {
             <ArrowLeft size={18} />
           </button>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${integration.bg}`}>
-            {integration.emoji}
+            {integration.icon || integration.emoji}
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900">{integration.label}</h1>
@@ -1520,7 +1536,7 @@ const IntegrationsPage = () => {
                 ${isLive ? 'bg-white hover:shadow-md cursor-pointer group' : 'bg-gray-50 cursor-default opacity-70'}`}>
               <div className="flex items-start justify-between">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${integration.bg}`}>
-                  {integration.emoji}
+                  {integration.icon || integration.emoji}
                 </div>
                 {isLive ? (
                   <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${configured ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
