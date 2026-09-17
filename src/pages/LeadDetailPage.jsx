@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI, notesAPI } from '../services/api';
+import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI, notesAPI, automationAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
@@ -132,6 +132,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [showShareBrochure, setShowShareBrochure] = useState(false);
   const [sharingBrochureId, setSharingBrochureId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [enrollment, setEnrollment] = useState(null);
 
   // Team Communication
   const [showTeamComm, setShowTeamComm] = useState(false);
@@ -214,16 +215,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [leadRes, msgRes, quoteRes] = await Promise.all([
+      const [leadRes, msgRes, quoteRes, enrollRes] = await Promise.all([
         leadAPI.getOne(id),
         whatsappAPI.getConversation(id).catch(() => ({ data: { messages: [] } })),
         quotationsAPI.getAll({ lead_id: id }).catch(() => ({ data: { quotations: [] } })),
+        automationAPI.getEnrollments([id]).catch(() => ({ data: { enrollments: {} } })),
       ]);
       setLead(leadRes.data.lead);
       setFollowups(leadRes.data.followups || []);
       setActivities(leadRes.data.activities || []);
       setMessages(msgRes.data.messages || []);
       setQuotations(quoteRes.data.quotations || []);
+      setEnrollment(enrollRes.data.enrollments?.[id] || null);
       setForm(leadRes.data.lead);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
@@ -633,6 +636,28 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
        <div className="space-y-4">
         {/* Lead Intent */}
         <LeadIntentCard lead={lead} activities={activities} />
+
+        {/* Automation Sequence — only shown if this lead has ever been enrolled */}
+        {enrollment && (
+          <div className="bg-white rounded-2xl border p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold flex items-center gap-1.5 text-gray-800">
+                <Zap size={14} className="text-brand-500" /> Automation Sequence
+              </h3>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                enrollment.status === 'active' ? 'bg-blue-50 text-blue-700'
+                : enrollment.status === 'completed' ? 'bg-teal-50 text-teal-700'
+                : 'bg-gray-100 text-gray-500'
+              }`}>
+                {enrollment.status === 'active' ? 'In Progress' : enrollment.status === 'completed' ? 'Completed' : 'Cancelled'}
+              </span>
+            </div>
+            <p className="text-sm font-medium text-gray-800">{enrollment.sequence_name}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Step {enrollment.current_step + 1} of {enrollment.steps?.length || 1}
+            </p>
+          </div>
+        )}
 
         {/* Lead Info */}
         <div className="bg-white rounded-2xl border p-5">
