@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { staffAPI, teamAPI, campaignAPI, automationAPI, assignmentRuleAPI } from '../services/api';
-import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, RotateCcw, RefreshCw, MessageCircle, ArrowUp, ArrowDown, Shuffle, KeyRound, ShieldCheck, MoreVertical } from 'lucide-react';
+import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, Phone, Calendar, RotateCcw, RefreshCw, MessageCircle, ArrowUp, ArrowDown, Shuffle, KeyRound, ShieldCheck, MoreVertical } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 
@@ -23,6 +23,10 @@ const StaffPage = () => {
   const [invitations, setInvitations] = useState([]);
   const [openMenuStaffId, setOpenMenuStaffId] = useState(null);
   const [refreshingInvites, setRefreshingInvites] = useState(false);
+  const [profileStaff, setProfileStaff] = useState(null);
+  const [editStaffModal, setEditStaffModal] = useState(null); // { id }
+  const [editStaffForm, setEditStaffForm] = useState({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
+  const [editStaffErrors, setEditStaffErrors] = useState({});
 
   const [myWhatsApp, setMyWhatsApp] = useState(null);
   const [myWaForm, setMyWaForm] = useState({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
@@ -272,7 +276,7 @@ const StaffPage = () => {
   };
 
   const handleResendInvite = async (id) => {
-    try { await staffAPI.resendInvitation(id); loadInvitations(); toast.error('Invite resent.'); }
+    try { await staffAPI.resendInvitation(id); loadInvitations(); toast.success('Invite resent.'); }
     catch (e) { toast.error(e.response?.data?.error || 'Failed to resend'); }
   };
 
@@ -286,6 +290,35 @@ const StaffPage = () => {
     if (!await confirm({ title: 'Remove this team member?', confirmText: 'Remove' })) return;
     try { await staffAPI.delete(id); loadData(); } catch (e) { toast.error('Failed'); }
   };
+
+  const openEditStaff = (s) => {
+    setEditStaffForm({ name: s.name || '', email: s.email || '', phone: s.phone || '', role: s.role || 'staff', team_id: s.team_id || '' });
+    setEditStaffErrors({});
+    setEditStaffModal(s);
+    setProfileStaff(null);
+  };
+
+  const handleSaveEditStaff = async () => {
+    const errs = {};
+    if (!editStaffForm.name.trim()) errs.name = 'Name is required';
+    setEditStaffErrors(errs);
+    if (Object.keys(errs).length) return;
+    try {
+      await staffAPI.update(editStaffModal.id, { name: editStaffForm.name, phone: editStaffForm.phone, role: editStaffForm.role, team_id: editStaffForm.team_id || null });
+      setEditStaffModal(null);
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update'); }
+  };
+
+  const handleDeleteFromProfile = async (s) => {
+    if (!await confirm({ title: 'Remove this team member?', confirmText: 'Remove' })) return;
+    try {
+      await staffAPI.delete(s.id);
+      setProfileStaff(null);
+      loadData();
+    } catch (e) { toast.error('Failed to remove'); }
+  };
+
 
   const activeStaffCount = staff.filter(s => s.is_active !== false).length;
 
@@ -422,13 +455,15 @@ const StaffPage = () => {
           <div className="space-y-2">
             {staff.map(s => (
               <div key={s.id} className="flex flex-wrap items-center gap-3 p-3.5 border rounded-xl hover:border-brand-200 hover:bg-gray-50/50 transition">
-                <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center shrink-0">
-                  <span className="text-brand-700 font-semibold text-sm">{s.name?.charAt(0)?.toUpperCase()}</span>
-                </div>
-                <div className="flex-1 min-w-[140px]">
-                  <p className="font-medium text-sm">{s.name}</p>
-                  <p className="text-xs text-gray-500">{s.email}</p>
-                </div>
+                <button onClick={() => setProfileStaff(s)} className="flex items-center gap-3 flex-1 min-w-[140px] text-left">
+                  <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center shrink-0">
+                    <span className="text-brand-700 font-semibold text-sm">{s.name?.charAt(0)?.toUpperCase()}</span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm truncate">{s.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{s.email}</p>
+                  </div>
+                </button>
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700 capitalize">{s.role}</span>
                 <button onClick={() => handleToggleActive(s)}
                   className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${s.is_active !== false ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100 text-gray-500 border-gray-200'}`}>
@@ -517,6 +552,117 @@ const StaffPage = () => {
           </div>
         )}
       </div>
+
+      {profileStaff && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setProfileStaff(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden">
+            <div className="bg-gradient-to-br from-brand-600 to-brand-500 px-5 py-5 relative flex items-center gap-3">
+              <button onClick={() => setProfileStaff(null)}
+                className="absolute top-4 right-4 p-1.5 hover:bg-white/20 rounded-lg text-white"><X size={18} /></button>
+              <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shrink-0"
+                style={{ color: '#4338ca' }}>
+                <span className="font-bold text-xl">{profileStaff.name?.charAt(0)?.toUpperCase()}</span>
+              </div>
+              <div className="min-w-0 pr-6">
+                <p className="font-bold text-lg text-white truncate">{profileStaff.name}</p>
+                <div className="flex items-center gap-1.5 mt-1">
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-white/20 text-white capitalize">{profileStaff.role}</span>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${profileStaff.is_active !== false ? 'bg-white text-green-700' : 'bg-white/20 text-white'}`}>
+                    {profileStaff.is_active !== false ? 'Active' : 'Inactive'}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div className="p-5">
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-2.5">
+                  <Mail size={14} className="text-gray-400 shrink-0" />
+                  <span className="text-gray-700 truncate">{profileStaff.email}</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Phone size={14} className="text-gray-400 shrink-0" />
+                  <span className="text-gray-700">{profileStaff.phone || '—'}</span>
+                </div>
+                <div className="flex items-center gap-2.5">
+                  <Users size={14} className="text-gray-400 shrink-0" />
+                  <span className="text-gray-700">{teams.find(t => t.id === profileStaff.team_id)?.name || 'No team'}</span>
+                </div>
+                {profileStaff.created_at && (
+                  <div className="flex items-center gap-2.5">
+                    <Calendar size={14} className="text-gray-400 shrink-0" />
+                    <span className="text-gray-700">Joined {new Date(profileStaff.created_at).toLocaleDateString('en-IN')}</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex gap-2 pt-4 mt-4 border-t">
+                <button onClick={() => openEditStaff(profileStaff)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 border rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50">
+                  <Edit2 size={14} /> Edit
+                </button>
+                {profileStaff.role !== 'admin' && (
+                  <button onClick={() => handleDeleteFromProfile(profileStaff)}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 border border-red-200 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50">
+                    <Trash2 size={14} /> Remove
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editStaffModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setEditStaffModal(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold">Edit Team Member</h2>
+              <button onClick={() => setEditStaffModal(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+            </div>
+            <div className="p-5 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                <input type="text" value={editStaffForm.name}
+                  onChange={e => { setEditStaffForm({ ...editStaffForm, name: e.target.value }); if (editStaffErrors.name) setEditStaffErrors(er => ({ ...er, name: undefined })); }}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${editStaffErrors.name ? 'border-red-500' : ''}`} />
+                {editStaffErrors.name && <p className="text-xs text-red-500 mt-1">{editStaffErrors.name}</p>}
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Email</label>
+                <input type="email" value={editStaffForm.email} disabled
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 text-gray-500 cursor-not-allowed" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                <input type="tel" value={editStaffForm.phone}
+                  onChange={e => setEditStaffForm({ ...editStaffForm, phone: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
+                <select value={editStaffForm.role} onChange={e => setEditStaffForm({ ...editStaffForm, role: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                  <option value="staff">Staff</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Team</label>
+                <select value={editStaffForm.team_id} onChange={e => setEditStaffForm({ ...editStaffForm, team_id: e.target.value })}
+                  className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                  <option value="">No team</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setEditStaffModal(null)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={handleSaveEditStaff} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Save</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

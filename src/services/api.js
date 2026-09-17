@@ -251,8 +251,8 @@ export const assignmentRuleAPI = {
 // ============================================
 export const paymentAPI = {
   getPlans: () => api.get('/payments/plans'),
-  createOrder: (planName, billingPeriod) => api.post('/payments/create-order', { planName, billingPeriod }),
-  verify: (data) => api.post('/payments/verify', data),
+  createSubscription: (planName, billingPeriod) => api.post('/payments/create-subscription', { planName, billingPeriod }),
+  verifySubscription: (data) => api.post('/payments/verify-subscription', data),
 };
 
 // ============================================
