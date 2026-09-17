@@ -28,6 +28,7 @@ const TABS = [
   { id: 'campaigns', label: 'Campaigns' },
   { id: 'leads', label: 'Lead Detail' },
   { id: 'brochures', label: 'Brochure Detail' },
+  { id: 'messages', label: 'Messages' },
 ];
 
 const PERIOD_OPTIONS = [
@@ -220,11 +221,25 @@ const ReportsPage = () => {
   const [brochurePageSize, setBrochurePageSize] = useState(20);
   const [brochures, setBrochures] = useState([]);
   const [brochuresLoading, setBrochuresLoading] = useState(false);
+  // Messages tab
+  const [msgSearchInput, setMsgSearchInput] = useState('');
+  const [msgSearch, setMsgSearch] = useState('');
+  const [showMsgFilters, setShowMsgFilters] = useState(false);
+  const [msgStatus, setMsgStatus] = useState('');
+  const [msgDirection, setMsgDirection] = useState('');
+  const [msgAutomated, setMsgAutomated] = useState('');
+  const [msgPage, setMsgPage] = useState(1);
+  const [msgPageSize, setMsgPageSize] = useState(20);
+  const [messages, setMessages] = useState([]);
+  const [msgPagination, setMsgPagination] = useState({ total: 0, pages: 1 });
+  const [msgLoading, setMsgLoading] = useState(false);
+
   const overviewRequestRef = useRef(0);
   const funnelRequestRef = useRef(0);
   const trendsRequestRef = useRef(0);
   const gridRequestRef = useRef(0);
   const brochuresRequestRef = useRef(0);
+  const msgRequestRef = useRef(0);
 
   useEffect(() => {
     stageAPI.getAll().then(res => setStages(res.data.stages || [])).catch(() => {});
@@ -251,6 +266,10 @@ const ReportsPage = () => {
   }, [activeTab]);
 
   useEffect(() => {
+    if (activeTab === 'messages') loadMessages();
+  }, [activeTab, msgSearch, msgStatus, msgDirection, msgAutomated, msgPage, msgPageSize]);
+
+  useEffect(() => {
     const onDocClick = (e) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) setExportOpen(false);
     };
@@ -262,6 +281,11 @@ const ReportsPage = () => {
     const t = setTimeout(() => { setGridPage(1); setGridSearch(gridSearchInput); }, 400);
     return () => clearTimeout(t);
   }, [gridSearchInput]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setMsgPage(1); setMsgSearch(msgSearchInput); }, 400);
+    return () => clearTimeout(t);
+  }, [msgSearchInput]);
 
   useEffect(() => {
     const t = setTimeout(() => { setBrochurePage(1); setBrochureSearch(brochureSearchInput); }, 400);
@@ -335,6 +359,23 @@ const ReportsPage = () => {
       setGridPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
     } catch (e) { console.error(e); }
     finally { if (requestId === gridRequestRef.current) setGridLoading(false); }
+  };
+
+  const loadMessages = async () => {
+    const requestId = ++msgRequestRef.current;
+    setMsgLoading(true);
+    try {
+      const params = { page: msgPage, limit: msgPageSize };
+      if (msgSearch) params.search = msgSearch;
+      if (msgStatus) params.status = msgStatus;
+      if (msgDirection) params.direction = msgDirection;
+      if (msgAutomated) params.is_automated = msgAutomated;
+      const res = await reportsAPI.messages(params);
+      if (requestId !== msgRequestRef.current) return;
+      setMessages(res.data.messages || []);
+      setMsgPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
+    } catch (e) { console.error(e); }
+    finally { if (requestId === msgRequestRef.current) setMsgLoading(false); }
   };
 
   const loadBrochures = async () => {
@@ -472,6 +513,14 @@ const ReportsPage = () => {
     return [1, '…', gridPage - 1, gridPage, gridPage + 1, '…', t];
   };
 
+  const msgPageNumbers = () => {
+    const t = msgPagination.pages;
+    if (t <= 7) return Array.from({ length: t }, (_, i) => i + 1);
+    if (msgPage <= 4) return [1, 2, 3, 4, 5, '…', t];
+    if (msgPage >= t - 3) return [1, '…', t - 4, t - 3, t - 2, t - 1, t];
+    return [1, '…', msgPage - 1, msgPage, msgPage + 1, '…', t];
+  };
+
   const filteredBrochures = brochures
     .filter(b =>
       (!brochureCategory || b.category === brochureCategory) &&
@@ -525,7 +574,7 @@ const ReportsPage = () => {
     <div className="max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-gray-500">Track conversion, sources, and campaign performance</p>
-        {!['leads', 'brochures'].includes(activeTab) && (
+        {!['leads', 'brochures', 'messages'].includes(activeTab) && (
           <PeriodDropdown value={period} onChange={setPeriod} />
         )}
       </div>
@@ -1148,6 +1197,174 @@ const ReportsPage = () => {
                     )
                   )}
                   <button onClick={() => setBrochurePage(p => Math.min(brochureTotalPages, p + 1))} disabled={brochurePage === brochureTotalPages}
+                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'messages' && (
+        <div className="bg-white rounded-2xl border p-5">
+          {(() => {
+            const msgActiveFilterCount = [msgSearchInput, msgStatus, msgDirection, msgAutomated].filter(Boolean).length;
+            const clearMsgFilters = () => {
+              setMsgPage(1);
+              setMsgSearchInput(''); setMsgSearch('');
+              setMsgStatus(''); setMsgDirection(''); setMsgAutomated('');
+            };
+            return (
+              <>
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                  <h3 className="font-semibold">Messages Report</h3>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap mb-4">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input type="text" placeholder="Search by name or phone..."
+                      value={msgSearchInput} onChange={e => setMsgSearchInput(e.target.value)}
+                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
+                  </div>
+                  <button
+                    onClick={() => setShowMsgFilters(v => !v)}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showMsgFilters || msgActiveFilterCount > 0 ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                  >
+                    <SlidersHorizontal size={15} />
+                    Filters
+                    {msgActiveFilterCount > 0 && (
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showMsgFilters ? 'bg-white text-cyan-600' : 'bg-cyan-600 text-white'}`}>
+                        {msgActiveFilterCount}
+                      </span>
+                    )}
+                    <ChevronDown size={14} className={`transition-transform ${showMsgFilters ? 'rotate-180' : ''}`} />
+                  </button>
+                  {msgActiveFilterCount > 0 && (
+                    <button onClick={clearMsgFilters}
+                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                      <X size={13} /> Clear filters
+                    </button>
+                  )}
+                </div>
+
+                {showMsgFilters && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                    <FilterDropdown
+                      label="Status"
+                      value={msgStatus}
+                      onChange={v => { setMsgPage(1); setMsgStatus(v); }}
+                      options={[
+                        { value: '', label: 'All Statuses' },
+                        { value: 'sent', label: 'Sent' },
+                        { value: 'delivered', label: 'Delivered' },
+                        { value: 'read', label: 'Read' },
+                        { value: 'failed', label: 'Failed' },
+                      ]}
+                    />
+                    <FilterDropdown
+                      label="Direction"
+                      value={msgDirection}
+                      onChange={v => { setMsgPage(1); setMsgDirection(v); }}
+                      options={[
+                        { value: '', label: 'Inbound + Outbound' },
+                        { value: 'outbound', label: 'Outbound only' },
+                        { value: 'inbound', label: 'Inbound only' },
+                      ]}
+                    />
+                    <FilterDropdown
+                      label="Source"
+                      value={msgAutomated}
+                      onChange={v => { setMsgPage(1); setMsgAutomated(v); }}
+                      options={[
+                        { value: '', label: 'All' },
+                        { value: 'true', label: 'Automated only' },
+                        { value: 'false', label: 'Manual only' },
+                      ]}
+                    />
+                  </div>
+                )}
+              </>
+            );
+          })()}
+          {msgLoading ? (
+            <div className="flex items-center justify-center py-10"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+          ) : messages.length === 0 ? (
+            <EmptyState message="No messages match these filters" className="py-6" />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b">
+                    <th className="pb-2 font-semibold">Lead</th>
+                    <th className="pb-2 font-semibold">Direction</th>
+                    <th className="pb-2 font-semibold">Type</th>
+                    <th className="pb-2 font-semibold">Template</th>
+                    <th className="pb-2 font-semibold">Source</th>
+                    <th className="pb-2 font-semibold">Status</th>
+                    <th className="pb-2 font-semibold text-right">Sent At</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {messages.map(m => (
+                    <tr key={m.id} className="hover:bg-gray-50">
+                      <td className="py-2.5">
+                        <p className="font-medium text-gray-800">{m.lead_name}</p>
+                        <p className="text-xs text-gray-400">{m.lead_phone}</p>
+                      </td>
+                      <td className="capitalize text-gray-600">{m.direction}</td>
+                      <td className="capitalize text-gray-600">{m.message_type}</td>
+                      <td className="text-gray-600">{m.template_name || '—'}</td>
+                      <td className="text-gray-600">
+                        {m.is_automated ? (m.is_ai_generated ? 'AI Automated' : 'Automated') : 'Manual'}
+                      </td>
+                      <td>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          m.status === 'delivered' || m.status === 'read' ? 'bg-emerald-50 text-emerald-700'
+                          : m.status === 'sent' ? 'bg-blue-50 text-blue-700'
+                          : m.status === 'failed' ? 'bg-red-50 text-red-700'
+                          : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {m.status?.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="text-right text-gray-500">{new Date(m.sent_at).toLocaleString('en-IN')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {msgPagination.total > 0 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-gray-500">
+                  Showing {Math.min((msgPage - 1) * msgPageSize + 1, msgPagination.total)}–{Math.min(msgPage * msgPageSize, msgPagination.total)} of <span className="font-semibold text-gray-700">{msgPagination.total}</span> messages
+                </p>
+                <select value={msgPageSize} onChange={e => { setMsgPage(1); setMsgPageSize(Number(e.target.value)); }}
+                  className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white">
+                  {REPORT_LEAD_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
+                </select>
+              </div>
+              {msgPagination.pages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setMsgPage(p => Math.max(1, p - 1))} disabled={msgPage === 1}
+                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronLeft size={16} />
+                  </button>
+                  {msgPageNumbers().map((n, i) =>
+                    n === '…' ? (
+                      <span key={`msg-ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+                    ) : (
+                      <button key={n} onClick={() => setMsgPage(n)}
+                        className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${msgPage === n ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                        {n}
+                      </button>
+                    )
+                  )}
+                  <button onClick={() => setMsgPage(p => Math.min(msgPagination.pages, p + 1))} disabled={msgPage === msgPagination.pages}
                     className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronRight size={16} />
                   </button>

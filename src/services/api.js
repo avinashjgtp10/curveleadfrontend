@@ -175,6 +175,7 @@ export const reportsAPI = {
   funnel: (params) => api.get('/reports/funnel', { params }),
   timeInStage: (params) => api.get('/reports/time-in-stage', { params }),
   followupTrend: (params) => api.get('/reports/followup-trend', { params }),
+  messages: (params) => api.get('/reports/messages', { params }),
 };
 
 // ============================================
