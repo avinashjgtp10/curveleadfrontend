@@ -5,7 +5,7 @@ import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupA
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
 import WhatsAppBroadcastModal from '../components/lead/WhatsAppBroadcastModal';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy, MoreVertical } from 'lucide-react';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy, MoreVertical, RotateCcw } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
@@ -17,6 +17,17 @@ const scoreColors = {
 };
 
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
+
+const timeAgo = (date) => {
+  if (!date) return null;
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
 
 // Closes whatever the ref is attached to when a mousedown lands outside it.
 const useClickOutside = (ref, onOutside) => {
@@ -281,6 +292,29 @@ const LeadsPage = () => {
   const [importResult, setImportResult] = useState(null);
   const [importDragOver, setImportDragOver] = useState(false);
 
+  // Manual Facebook lead sync (mirrors Integrations > Sync Leads, same endpoint)
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(() => {
+    const v = Number(localStorage.getItem('meta_leads_last_sync') || 0);
+    return v ? new Date(v) : null;
+  });
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await integrationsAPI.facebookSyncLeads();
+      const now = new Date();
+      localStorage.setItem('meta_leads_last_sync', String(now.getTime()));
+      setLastSyncedAt(now);
+      toast.success(data.message || 'Leads synced.');
+      if (data.created) fetchLeads();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Sync failed.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   // More Actions dropdown (Export / Import / Duplicates)
   const [showMoreActions, setShowMoreActions] = useState(false);
   const moreActionsRef = useRef(null);
@@ -404,7 +438,9 @@ const LeadsPage = () => {
     const META_SYNC_THROTTLE_MS = 2 * 60 * 1000;
     const lastSync = Number(localStorage.getItem('meta_leads_last_sync') || 0);
     if (Date.now() - lastSync < META_SYNC_THROTTLE_MS) return;
-    localStorage.setItem('meta_leads_last_sync', String(Date.now()));
+    const now = new Date();
+    localStorage.setItem('meta_leads_last_sync', String(now.getTime()));
+    setLastSyncedAt(now);
 
     integrationsAPI.facebookSyncLeads()
       .then(({ data }) => { if (data?.created) fetchLeads(); })
@@ -754,8 +790,16 @@ const LeadsPage = () => {
         <div>
           <p className="text-xs font-bold uppercase text-cyan-600">Global lead workspace</p>
           <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
+          <p className="mt-1 text-xs text-gray-400">
+            {lastSyncedAt ? `Facebook leads last synced ${timeAgo(lastSyncedAt)}` : 'Facebook leads not synced yet'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
+          <button onClick={handleManualSync} disabled={syncing} title="Pull latest leads from Facebook"
+            className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg disabled:opacity-50">
+            <RotateCcw size={15} className={syncing ? 'animate-spin' : ''} />
+            {syncing ? 'Syncing…' : 'Sync Leads'}
+          </button>
           <div className="relative" ref={moreActionsRef}>
             <button onClick={() => setShowMoreActions(v => !v)}
               className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
