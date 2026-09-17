@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { staffAPI, teamAPI, campaignAPI, automationAPI, assignmentRuleAPI } from '../services/api';
-import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, Phone, Calendar, RotateCcw, MessageCircle, ArrowUp, ArrowDown, Shuffle, KeyRound, ShieldCheck, MoreVertical } from 'lucide-react';
+import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, Phone, Calendar, RotateCcw, RefreshCw, MessageCircle, ArrowUp, ArrowDown, Shuffle, KeyRound, ShieldCheck, MoreVertical } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 
@@ -22,6 +22,7 @@ const StaffPage = () => {
 
   const [invitations, setInvitations] = useState([]);
   const [openMenuStaffId, setOpenMenuStaffId] = useState(null);
+  const [refreshingInvites, setRefreshingInvites] = useState(false);
   const [profileStaff, setProfileStaff] = useState(null);
   const [editStaffModal, setEditStaffModal] = useState(null); // { id }
   const [editStaffForm, setEditStaffForm] = useState({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
@@ -250,6 +251,12 @@ const StaffPage = () => {
     } catch (e) { console.error(e); }
   };
 
+  const handleRefreshInvites = async () => {
+    setRefreshingInvites(true);
+    await Promise.all([loadData(), loadInvitations()]);
+    setRefreshingInvites(false);
+  };
+
   const handleInvite = async () => {
     const newErrors = {};
     if (!form.name.trim()) newErrors.name = 'Name is required';
@@ -406,7 +413,13 @@ const StaffPage = () => {
 
       {invitations.length > 0 && (
         <div className="bg-white rounded-2xl border p-5 space-y-2">
-          <h2 className="font-semibold flex items-center gap-2"><Mail size={16} className="text-brand-600" /> Pending Invitations</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold flex items-center gap-2"><Mail size={16} className="text-brand-600" /> Pending Invitations</h2>
+            <button onClick={handleRefreshInvites} disabled={refreshingInvites}
+              className="flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50">
+              <RefreshCw size={13} className={refreshingInvites ? 'animate-spin' : ''} /> Refresh
+            </button>
+          </div>
           <div className="space-y-1.5">
             {invitations.map(inv => (
               <div key={inv.id} className="flex items-center justify-between px-3 py-2.5 border rounded-xl bg-gray-50/50">

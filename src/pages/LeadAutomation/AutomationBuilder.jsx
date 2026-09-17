@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Clock, Power } from 'lucide-react';
-import { automationAPI, stageAPI, statusAPI, campaignAPI } from '../../services/api';
+import { automationAPI, stageAPI, statusAPI, campaignAPI, templateAPI, whatsappAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
@@ -58,8 +58,27 @@ const AutomationBuilder = () => {
   const [stages, setStages] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
   const [pendingRulePreset, setPendingRulePreset] = useState(null);
+  const [messageTemplates, setMessageTemplates] = useState([]);
+  const [approvedTemplates, setApprovedTemplates] = useState([]);
 
-  useEffect(() => { loadSequences(); loadRules(); loadStages(); loadCampaigns(); }, []);
+  useEffect(() => { loadSequences(); loadRules(); loadStages(); loadCampaigns(); loadMessageTemplates(); loadApprovedTemplates(); }, []);
+
+  const loadMessageTemplates = async () => {
+    try {
+      const { data } = await templateAPI.getAll();
+      setMessageTemplates(data.templates || []);
+    } catch (e) { console.error(e); }
+  };
+
+  // Meta-approved WhatsApp templates — same source the Broadcast picker uses.
+  // Fails silently (WhatsApp not connected yet, or no permission): the step
+  // editor just falls back to manual entry for approved_template_name.
+  const loadApprovedTemplates = async () => {
+    try {
+      const { data } = await whatsappAPI.getBroadcastTemplates();
+      setApprovedTemplates((data.templates || []).filter(t => t.status === 'APPROVED'));
+    } catch (e) { /* not connected / not permitted — picker stays empty */ }
+  };
 
   const loadSequences = async () => {
     try {
@@ -415,14 +434,37 @@ const AutomationBuilder = () => {
                           </p>
                         </>
                       ) : (
-                        <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
-                          rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
-                          placeholder={'Hi {{name}}, ...'} />
+                        <>
+                          {messageTemplates.filter(t => t.channel === step.channel).length > 0 && (
+                            <select value="" onChange={e => {
+                              const tmpl = messageTemplates.find(t => String(t.id) === e.target.value);
+                              if (tmpl) updateStep(idx, { message: tmpl.message });
+                            }} className="w-full px-2.5 py-2 border rounded-lg text-xs bg-white mb-2">
+                              <option value="">Insert saved template...</option>
+                              {messageTemplates.filter(t => t.channel === step.channel).map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          )}
+                          <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
+                            rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
+                            placeholder={'Hi {{name}}, ...'} />
+                        </>
                       )}
                       {step.channel === 'whatsapp' && (
                         <div className="mt-2">
-                          <input value={step.approved_template_name || ''} onChange={e => updateStep(idx, { approved_template_name: e.target.value })}
-                            className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="Approved template name (optional fallback)" />
+                          {approvedTemplates.length > 0 ? (
+                            <select value={step.approved_template_name || ''} onChange={e => updateStep(idx, { approved_template_name: e.target.value })}
+                              className="w-full px-2.5 py-2 border rounded-lg text-xs bg-white">
+                              <option value="">No fallback template</option>
+                              {approvedTemplates.map(t => (
+                                <option key={`${t.name}::${t.language}`} value={t.name}>{t.name} ({t.language})</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <input value={step.approved_template_name || ''} onChange={e => updateStep(idx, { approved_template_name: e.target.value })}
+                              className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="Approved template name (optional fallback)" />
+                          )}
                           <p className="text-[10px] text-gray-400 mt-1">
                             Used only if this step would send after 24h+ of silence — WhatsApp requires a pre-approved template at that point, not free text.
                           </p>
