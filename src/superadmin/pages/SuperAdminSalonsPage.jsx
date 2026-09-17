@@ -1,26 +1,43 @@
-import { useMemo, useState } from 'react';
-import { Plus, Search, MoreHorizontal } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Search, RefreshCw } from 'lucide-react';
 import StatusBadge from '../components/StatusBadge';
-import { MOCK_SALONS } from '../mockData';
+import { superAdminAPI } from '../../services/api';
 
 const SuperAdminSalonsPage = () => {
   const [search, setSearch] = useState('');
+  const [tenants, setTenants] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [extendingId, setExtendingId] = useState(null);
 
-  const filtered = useMemo(() => MOCK_SALONS.filter(s => {
+  const load = () => {
+    setLoading(true);
+    superAdminAPI.getTenants()
+      .then(({ data }) => setTenants(data.tenants || []))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const filtered = useMemo(() => tenants.filter(t => {
     const q = search.trim().toLowerCase();
-    return !q || s.name.toLowerCase().includes(q) || s.location.toLowerCase().includes(q);
-  }), [search]);
+    return !q || t.name?.toLowerCase().includes(q) || t.slug?.toLowerCase().includes(q);
+  }), [search, tenants]);
+
+  const handleExtendTrial = async (id) => {
+    setExtendingId(id);
+    try {
+      await superAdminAPI.extendTrial(id, 14);
+      load();
+    } catch (e) { console.error(e); }
+    finally { setExtendingId(null); }
+  };
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Salons</h1>
-          <p className="text-sm text-gray-500">Manage and track all salons.</p>
-        </div>
-        <button className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700">
-          <Plus size={16} /> Add Salon
-        </button>
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Salons</h1>
+        <p className="text-sm text-gray-500">Every business (tenant) using CurveLead.</p>
       </div>
 
       <div className="bg-white rounded-2xl border">
@@ -37,39 +54,45 @@ const SuperAdminSalonsPage = () => {
             <thead>
               <tr className="text-[11px] text-gray-400 uppercase border-b">
                 <th className="text-left px-4 py-3 font-semibold">Salon Name</th>
-                <th className="text-left px-4 py-3 font-semibold">Location</th>
+                <th className="text-left px-4 py-3 font-semibold">Plan</th>
                 <th className="text-left px-4 py-3 font-semibold">Status</th>
-                <th className="text-left px-4 py-3 font-semibold">Total Bookings</th>
+                <th className="text-left px-4 py-3 font-semibold">Users</th>
+                <th className="text-left px-4 py-3 font-semibold">Leads</th>
                 <th className="text-left px-4 py-3 font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map(s => (
-                <tr key={s.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-800">{s.name}</td>
-                  <td className="px-4 py-3 text-gray-500">{s.location}</td>
-                  <td className="px-4 py-3"><StatusBadge status={s.status} /></td>
-                  <td className="px-4 py-3 text-gray-500">{s.totalBookings}</td>
+              {loading ? (
+                <tr><td colSpan={6} className="text-center text-gray-400 py-10">Loading…</td></tr>
+              ) : filtered.map(t => (
+                <tr key={t.id} className="border-b last:border-0 hover:bg-gray-50">
+                  <td className="px-4 py-3 font-medium text-gray-800">{t.name}</td>
+                  <td className="px-4 py-3 text-gray-500">{t.plan_name || '—'}</td>
+                  <td className="px-4 py-3"><StatusBadge status={t.subscription_status} /></td>
+                  <td className="px-4 py-3 text-gray-500">{t.user_count}</td>
+                  <td className="px-4 py-3 text-gray-500">{t.lead_count}</td>
                   <td className="px-4 py-3">
-                    <button className="p-1 text-gray-400 hover:text-gray-700"><MoreHorizontal size={16} /></button>
+                    {t.subscription_status === 'trial' && (
+                      <button onClick={() => handleExtendTrial(t.id)} disabled={extendingId === t.id}
+                        className="flex items-center gap-1 text-xs text-indigo-600 hover:underline disabled:opacity-50">
+                        <RefreshCw size={12} className={extendingId === t.id ? 'animate-spin' : ''} /> Extend trial +14d
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
-              {!filtered.length && (
-                <tr><td colSpan={5} className="text-center text-gray-400 py-10">No salons found.</td></tr>
+              {!loading && !filtered.length && (
+                <tr><td colSpan={6} className="text-center text-gray-400 py-10">No salons found.</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
-        <div className="flex items-center justify-between px-4 py-3 border-t text-xs text-gray-400">
-          <div className="flex gap-1">
-            {[1, 2].map(n => (
-              <button key={n} className={`w-7 h-7 rounded-lg ${n === 1 ? 'bg-indigo-600 text-white' : 'hover:bg-gray-100 text-gray-600'}`}>{n}</button>
-            ))}
+        {!loading && (
+          <div className="flex items-center justify-between px-4 py-3 border-t text-xs text-gray-400">
+            <span>Showing {filtered.length} of {tenants.length} salons</span>
           </div>
-          <span>Showing 1-{filtered.length} of {MOCK_SALONS.length} salons</span>
-        </div>
+        )}
       </div>
     </div>
   );

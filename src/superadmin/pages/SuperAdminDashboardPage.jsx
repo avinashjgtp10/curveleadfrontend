@@ -1,18 +1,17 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { Users, Phone, Sparkles, CalendarCheck, TrendingUp, Crown, ChevronRight } from 'lucide-react';
-import { INITIAL_LEADS, MOCK_LEAD_GROWTH } from '../mockData';
+import {
+  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer, CartesianGrid,
+} from 'recharts';
+import {
+  Store, Target, Users, MessageCircle, CalendarCheck, IndianRupee, CreditCard, Mail, Crown,
+} from 'lucide-react';
+import StatCard from '../components/ui/StatCard';
+import StatusBadge from '../components/StatusBadge';
+import EmptyState from '../../components/ui/EmptyState';
+import { superAdminAPI } from '../../services/api';
 
-const PERIODS = ['This Month', 'Last Month', 'Custom'];
-
-const STAT_CARDS = [
-  { label: 'Total Leads', value: 124, trend: '+12%', icon: Users, cls: 'bg-blue-50 text-blue-600' },
-  { label: 'Contacted', value: 78, trend: '+18%', icon: Phone, cls: 'bg-emerald-50 text-emerald-600' },
-  { label: 'Interested', value: 32, trend: '+22%', icon: Sparkles, cls: 'bg-violet-50 text-violet-600' },
-  { label: 'Bookings', value: 18, trend: '+15%', icon: CalendarCheck, cls: 'bg-amber-50 text-amber-600' },
-  { label: 'Converted', value: 15, trend: '+20%', icon: TrendingUp, cls: 'bg-pink-50 text-pink-600' },
-];
+const PLAN_COLORS = ['#94a3b8', '#6366f1', '#10b981', '#f59e0b'];
 
 const ROLE_PERMISSIONS = [
   'View all leads, bookings, customers and salons',
@@ -22,87 +21,150 @@ const ROLE_PERMISSIONS = [
   'View analytics and export data',
 ];
 
+const fmtMoney = (n) => `₹${Number(n || 0).toLocaleString('en-IN')}`;
+
 const SuperAdminDashboardPage = () => {
   const navigate = useNavigate();
-  const [period, setPeriod] = useState('This Month');
+  const [stats, setStats] = useState(null);
+  const [tenants, setTenants] = useState([]);
+  const [logs, setLogs] = useState([]);
+  const [workspaceGrowth, setWorkspaceGrowth] = useState([]);
+  const [revenueTrend, setRevenueTrend] = useState([]);
+  const [leadsTrend, setLeadsTrend] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.all([
+      superAdminAPI.getStats(), superAdminAPI.getTenants(), superAdminAPI.getActivityLogs(),
+      superAdminAPI.getWorkspaceGrowthTrend(), superAdminAPI.getRevenueTrend(), superAdminAPI.getLeadsTrend(),
+    ])
+      .then(([statsRes, tenantsRes, logsRes, growthRes, revenueRes, leadsRes]) => {
+        setStats(statsRes.data.stats);
+        setTenants(tenantsRes.data.tenants || []);
+        setLogs((logsRes.data.logs || []).slice(0, 5));
+        setWorkspaceGrowth(growthRes.data.trend || []);
+        setRevenueTrend(revenueRes.data.trend || []);
+        setLeadsTrend(leadsRes.data.trend || []);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full" />
+    </div>
+  );
+
+  const planDistribution = Object.entries(
+    tenants.reduce((acc, t) => { const name = t.plan_name || 'No plan'; acc[name] = (acc[name] || 0) + 1; return acc; }, {})
+  ).map(([name, value]) => ({ name, value }));
+
+  const statCards = [
+    { label: 'Total Workspaces', value: stats?.total_tenants || 0, icon: Store, cls: 'bg-blue-50 text-blue-600' },
+    { label: 'Active Workspaces', value: stats?.active_tenants || 0, icon: Target, cls: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Total Users', value: stats?.total_users || 0, icon: Users, cls: 'bg-violet-50 text-violet-600' },
+    { label: 'Total Leads', value: stats?.total_leads || 0, icon: MessageCircle, cls: 'bg-amber-50 text-amber-600' },
+    { label: 'Total Bookings', value: '—', icon: CalendarCheck, cls: 'bg-pink-50 text-pink-600' },
+    { label: 'Monthly Revenue', value: fmtMoney(stats?.mrr), icon: IndianRupee, cls: 'bg-teal-50 text-teal-600' },
+    { label: 'Active Subscriptions', value: stats?.active_tenants || 0, icon: CreditCard, cls: 'bg-indigo-50 text-indigo-600' },
+    { label: 'Pending Invitations', value: stats?.pending_invitations || 0, icon: Mail, cls: 'bg-orange-50 text-orange-600' },
+  ];
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500">Overview of your leads, bookings and automation performance.</p>
-        </div>
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          {PERIODS.map(p => (
-            <button key={p} onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                period === p ? 'bg-white text-indigo-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {p}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+        <p className="text-sm text-gray-500">Platform-wide overview across every workspace on CurveLead.</p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        {STAT_CARDS.map(s => (
-          <div key={s.label} className="bg-white rounded-2xl p-5 border">
-            <div className="flex items-center justify-between">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${s.cls}`}>
-                <s.icon size={18} />
-              </div>
-              <span className="text-xs font-semibold text-emerald-600">↑ {s.trend}</span>
-            </div>
-            <p className="text-2xl font-bold text-gray-900 mt-3">{s.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
-          </div>
-        ))}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map(s => <StatCard key={s.label} {...s} />)}
       </div>
+      <p className="text-xs text-gray-400 -mt-2">Total Bookings has no backing table yet, so it isn't shown as a real number.</p>
 
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <div className="lg:col-span-3 bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold text-gray-900 mb-4">Lead Growth</h3>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="bg-white rounded-2xl p-5 border">
+          <h3 className="font-semibold text-gray-900 mb-4">Workspace Growth</h3>
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={MOCK_LEAD_GROWTH} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+            <LineChart data={workspaceGrowth} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f4" />
-              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="Total" stroke="#6366f1" strokeWidth={2} dot={false} />
-              <Line type="monotone" dataKey="Converted" stroke="#10b981" strokeWidth={2} dot={false} />
+              <Line type="monotone" dataKey="workspaces" name="Workspaces" stroke="#6366f1" strokeWidth={2} dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
 
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-gray-900">Recent Leads</h3>
-            <button onClick={() => navigate('/super-admin/leads')}
-              className="text-xs text-indigo-600 flex items-center gap-0.5 hover:underline">
-              View All <ChevronRight size={12} />
-            </button>
-          </div>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-[11px] text-gray-400 uppercase border-b">
-                <th className="text-left pb-2 font-semibold">Name</th>
-                <th className="text-left pb-2 font-semibold">Service</th>
-                <th className="text-left pb-2 font-semibold">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {INITIAL_LEADS.map(l => (
-                <tr key={l.id} className="border-b last:border-0">
-                  <td className="py-2.5 font-medium text-gray-700">{l.name}</td>
-                  <td className="py-2.5 text-gray-500">{l.service}</td>
-                  <td className="py-2.5 text-gray-500">{l.status}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="bg-white rounded-2xl p-5 border">
+          <h3 className="font-semibold text-gray-900 mb-4">Monthly Revenue</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <BarChart data={revenueTrend} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f4" />
+              <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} formatter={v => fmtMoney(v)} />
+              <Bar dataKey="revenue" name="Revenue" fill="#10b981" radius={[6, 6, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
         </div>
+
+        <div className="bg-white rounded-2xl p-5 border">
+          <h3 className="font-semibold text-gray-900 mb-4">Leads Created Over Time</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <LineChart data={leadsTrend} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f1f4" />
+              <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+              <Line type="monotone" dataKey="leads" name="Leads" stroke="#f59e0b" strokeWidth={2} dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 border">
+          <h3 className="font-semibold text-gray-900 mb-4">Subscription Plan Distribution</h3>
+          <ResponsiveContainer width="100%" height={220}>
+            <PieChart>
+              <Pie data={planDistribution} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={2}>
+                {planDistribution.map((_, i) => <Cell key={i} fill={PLAN_COLORS[i % PLAN_COLORS.length]} stroke="#fff" strokeWidth={2} />)}
+              </Pie>
+              <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb' }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+            </PieChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl p-5 border">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900">Recent Platform Activities</h3>
+          <button onClick={() => navigate('/super-admin/activity-logs')} className="text-xs text-indigo-600 hover:underline">View All</button>
+        </div>
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-[11px] text-gray-400 uppercase border-b">
+              <th className="text-left pb-2 font-semibold">Date &amp; Time</th>
+              <th className="text-left pb-2 font-semibold">User</th>
+              <th className="text-left pb-2 font-semibold">Workspace</th>
+              <th className="text-left pb-2 font-semibold">Action</th>
+              <th className="text-left pb-2 font-semibold">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {logs.map(a => (
+              <tr key={a.id} className="border-b last:border-0">
+                <td className="py-2.5 text-gray-400">{new Date(a.created_at).toLocaleString('en-IN')}</td>
+                <td className="py-2.5 font-medium text-gray-700">{a.actor_name}</td>
+                <td className="py-2.5 text-gray-500">{a.workspace || '—'}</td>
+                <td className="py-2.5 text-gray-700">{a.action}</td>
+                <td className="py-2.5"><StatusBadge status={a.status} /></td>
+              </tr>
+            ))}
+            {!logs.length && <tr><td colSpan={5}><EmptyState message="No activity recorded yet." /></td></tr>}
+          </tbody>
+        </table>
       </div>
 
       <div className="bg-gradient-to-br from-indigo-600 to-violet-600 rounded-2xl p-6 flex items-center justify-between flex-wrap gap-6">

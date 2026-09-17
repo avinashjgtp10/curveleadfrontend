@@ -243,6 +243,31 @@ export const paymentAPI = {
 };
 
 // ============================================
+// Super Admin (platform-level, cross-tenant)
+// ============================================
+export const superAdminAPI = {
+  getStats: () => api.get('/super-admin/stats'),
+  getTenants: () => api.get('/super-admin/tenants'),
+  updateTenant: (id, data) => api.put(`/super-admin/tenants/${id}`, data),
+  extendTrial: (id, days) => api.post(`/super-admin/tenants/${id}/extend-trial`, { days }),
+  getPlans: () => api.get('/super-admin/plans'),
+  createPlan: (data) => api.post('/super-admin/plans', data),
+  updatePlan: (id, data) => api.put(`/super-admin/plans/${id}`, data),
+  getUsers: () => api.get('/super-admin/users'),
+  updateUser: (id, data) => api.put(`/super-admin/users/${id}`, data),
+  deleteUser: (id) => api.delete(`/super-admin/users/${id}`),
+  getLeads: (params) => api.get('/super-admin/leads', { params }),
+  getBillingSummary: () => api.get('/super-admin/billing/summary'),
+  getWorkspaceRevenue: () => api.get('/super-admin/billing/workspace-revenue'),
+  getPaymentHistory: () => api.get('/super-admin/billing/payments'),
+  getActivityLogs: (params) => api.get('/super-admin/activity-logs', { params }),
+  getWorkspaceGrowthTrend: () => api.get('/super-admin/trends/workspace-growth'),
+  getLeadsTrend: () => api.get('/super-admin/trends/leads'),
+  getRevenueTrend: () => api.get('/super-admin/trends/revenue'),
+  getAutomations: () => api.get('/super-admin/automations'),
+};
+
+// ============================================
 // ⭐ NEW: Notes
 // ============================================
 export const notesAPI = {

@@ -1,16 +1,24 @@
 import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, Zap, CalendarCheck, UserCircle2, Store, Settings, Bell, ChevronDown, Search, LogOut } from 'lucide-react';
+import {
+  LayoutDashboard, Users, Zap, CalendarCheck, Store, Settings, Bell, ChevronDown, Search, LogOut,
+  UserCog, CreditCard, Receipt, Layers, ScrollText, LifeBuoy,
+} from 'lucide-react';
 import BrandLogo from '../components/ui/BrandLogo';
 import { MOCK_SESSION_KEY } from './mockData';
 
 const NAV_ITEMS = [
   { path: '/super-admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/super-admin/workspaces', label: 'Workspaces', icon: Store },
+  { path: '/super-admin/users', label: 'Users', icon: UserCog },
   { path: '/super-admin/leads', label: 'Leads', icon: Users },
-  { path: '/super-admin/automations', label: 'Automations', icon: Zap },
   { path: '/super-admin/bookings', label: 'Bookings', icon: CalendarCheck },
-  { path: '/super-admin/customers', label: 'Customers', icon: UserCircle2 },
-  { path: '/super-admin/salons', label: 'Salons', icon: Store },
+  { path: '/super-admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
+  { path: '/super-admin/billing', label: 'Billing', icon: Receipt },
+  { path: '/super-admin/plans', label: 'Plans', icon: Layers },
+  { path: '/super-admin/automations', label: 'Automations', icon: Zap },
+  { path: '/super-admin/activity-logs', label: 'Activity Logs', icon: ScrollText },
+  { path: '/super-admin/support', label: 'Support', icon: LifeBuoy },
   { path: '/super-admin/settings', label: 'Settings', icon: Settings },
 ];
 

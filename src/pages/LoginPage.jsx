@@ -33,8 +33,13 @@ const LoginPage = () => {
     e.preventDefault();
     setError('');
 
+    // Trim stray whitespace from copy/paste or autofill — a leading/trailing
+    // space silently turns a correct password into a rejected one.
+    const email = form.email.trim();
+    const password = form.password.trim();
+
     // Demo-only Super Admin console: bypasses the real API entirely.
-    if (form.email === MOCK_SUPERADMIN_CREDENTIALS.email && form.password === MOCK_SUPERADMIN_CREDENTIALS.password) {
+    if (email === MOCK_SUPERADMIN_CREDENTIALS.email && password === MOCK_SUPERADMIN_CREDENTIALS.password) {
       localStorage.setItem(MOCK_SESSION_KEY, 'true');
       navigate('/super-admin/dashboard');
       return;
@@ -42,8 +47,8 @@ const LoginPage = () => {
 
     setLoading(true);
     try {
-      await login({ email: form.email, password: form.password });
-      navigate('/dashboard');
+      const data = await login({ email, password });
+      navigate(data.user?.role === 'super_admin' ? '/super-admin/dashboard' : '/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed.');
     } finally {

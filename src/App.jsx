@@ -40,20 +40,31 @@ import QuotationEditorPage from './pages/QuotationEditorPage';
 import QuotationViewPage from './pages/QuotationViewPage';
 import QuotationPublicPage from './pages/QuotationPublicPage';
 
-// ⭐ Super Admin mock console (frontend-only demo, see src/superadmin)
+// ⭐ Super Admin console (see src/superadmin)
 import SuperAdminLayout from './superadmin/SuperAdminLayout';
 import SuperAdminDashboardPage from './superadmin/pages/SuperAdminDashboardPage';
+import SuperAdminWorkspacesPage from './superadmin/pages/SuperAdminWorkspacesPage';
+import SuperAdminWorkspaceDetailPage from './superadmin/pages/SuperAdminWorkspaceDetailPage';
+import SuperAdminUsersPage from './superadmin/pages/SuperAdminUsersPage';
 import SuperAdminLeadsPage from './superadmin/pages/SuperAdminLeadsPage';
 import SuperAdminAutomationsPage from './superadmin/pages/SuperAdminAutomationsPage';
 import SuperAdminBookingsPage from './superadmin/pages/SuperAdminBookingsPage';
 import SuperAdminCustomersPage from './superadmin/pages/SuperAdminCustomersPage';
 import SuperAdminSalonsPage from './superadmin/pages/SuperAdminSalonsPage';
+import SuperAdminSubscriptionsPage from './superadmin/pages/SuperAdminSubscriptionsPage';
+import SuperAdminBillingPage from './superadmin/pages/SuperAdminBillingPage';
+import SuperAdminPlansPage from './superadmin/pages/SuperAdminPlansPage';
+import SuperAdminActivityLogsPage from './superadmin/pages/SuperAdminActivityLogsPage';
+import SuperAdminSupportPage from './superadmin/pages/SuperAdminSupportPage';
 import SuperAdminSettingsPage from './superadmin/pages/SuperAdminSettingsPage';
 import { MOCK_SESSION_KEY } from './superadmin/mockData';
 
 const SuperAdminProtectedRoute = ({ children }) => {
+  const { user, loading } = useAuth();
   const isMockSuperAdmin = localStorage.getItem(MOCK_SESSION_KEY) === 'true';
-  return isMockSuperAdmin ? children : <Navigate to="/login" replace />;
+  if (loading) return <PageLoader message="Checking your session..." minHeight="h-screen" />;
+  const isRealSuperAdmin = user?.role === 'super_admin';
+  return (isRealSuperAdmin || isMockSuperAdmin) ? children : <Navigate to="/login" replace />;
 };
 
 const ProtectedRoute = ({ children }) => {
@@ -110,12 +121,21 @@ const App = () => (
         <Route path="/super-admin" element={<SuperAdminProtectedRoute><SuperAdminLayout /></SuperAdminProtectedRoute>}>
           <Route index element={<Navigate to="dashboard" replace />} />
           <Route path="dashboard" element={<SuperAdminDashboardPage />} />
+          <Route path="workspaces" element={<SuperAdminWorkspacesPage />} />
+          <Route path="workspaces/:id" element={<SuperAdminWorkspaceDetailPage />} />
+          <Route path="users" element={<SuperAdminUsersPage />} />
           <Route path="leads" element={<SuperAdminLeadsPage />} />
-          <Route path="automations" element={<SuperAdminAutomationsPage />} />
           <Route path="bookings" element={<SuperAdminBookingsPage />} />
+          <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />
+          <Route path="billing" element={<SuperAdminBillingPage />} />
+          <Route path="plans" element={<SuperAdminPlansPage />} />
+          <Route path="automations" element={<SuperAdminAutomationsPage />} />
+          <Route path="activity-logs" element={<SuperAdminActivityLogsPage />} />
+          <Route path="support" element={<SuperAdminSupportPage />} />
+          <Route path="settings" element={<SuperAdminSettingsPage />} />
+          {/* Legacy paths kept working, redirected to their new equivalents */}
           <Route path="customers" element={<SuperAdminCustomersPage />} />
           <Route path="salons" element={<SuperAdminSalonsPage />} />
-          <Route path="settings" element={<SuperAdminSettingsPage />} />
         </Route>
       </Routes>
     </ConfirmDialogProvider>
