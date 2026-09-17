@@ -265,7 +265,7 @@ const StaffPage = () => {
   };
 
   const handleResendInvite = async (id) => {
-    try { await staffAPI.resendInvitation(id); loadInvitations(); toast.error('Invite resent.'); }
+    try { await staffAPI.resendInvitation(id); loadInvitations(); toast.success('Invite resent.'); }
     catch (e) { toast.error(e.response?.data?.error || 'Failed to resend'); }
   };
 
