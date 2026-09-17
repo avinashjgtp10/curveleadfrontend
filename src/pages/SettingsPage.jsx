@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, campaignAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
+import { User, Building, CheckCircle, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 
@@ -18,6 +18,8 @@ const SettingsPage = () => {
 
   const [profile, setProfile] = useState({ name: '', email: '', phone: '' });
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [editingPassword, setEditingPassword] = useState(false);
+  const [pwErrors, setPwErrors] = useState({});
   const [business, setBusiness] = useState({
     name: '', email: '', phone: '', address: '', city: '', state: '',
     gst_number: '', pan_number: '', website: '',
@@ -121,13 +123,24 @@ const SettingsPage = () => {
   };
 
   const handleChangePassword = async () => {
-    if (pwForm.newPassword !== pwForm.confirm) return toast.error('Passwords do not match');
-    if (pwForm.newPassword.length < 6) return toast.error('Password must be at least 6 characters');
+    const errors = {};
+    if (!pwForm.currentPassword) errors.currentPassword = 'Current password is required';
+    if (pwForm.newPassword.length < 6) errors.newPassword = 'Password must be at least 6 characters';
+    if (pwForm.confirm !== pwForm.newPassword) errors.confirm = 'Passwords do not match';
+    setPwErrors(errors);
+    if (Object.keys(errors).length) return;
     try {
       await authAPI.changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword });
       setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
+      setEditingPassword(false);
       showSaved();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { setPwErrors({ currentPassword: e.response?.data?.error || 'Failed' }); }
+  };
+
+  const handleCancelPassword = () => {
+    setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
+    setPwErrors({});
+    setEditingPassword(false);
   };
 
   const openCreateTmpl = () => {
@@ -269,20 +282,11 @@ const SettingsPage = () => {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete'); }
   };
 
-  const webhookUrl = `${window.location.origin.replace('www.', '')}/api/webhook/meta/${tenant?.id}`;
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    showSaved();
-  };
-
   const tabs = [
     { id: 'profile', label: 'My Profile', icon: User },
     { id: 'business', label: 'Business', icon: Building },
-    { id: 'password', label: 'Password', icon: Lock },
     { id: 'templates', label: 'Templates', icon: MessageSquare },
     { id: 'pipeline', label: 'Pipeline', icon: Layers },
-    { id: 'integrations', label: 'Integrations', icon: Webhook },
   ];
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
@@ -323,6 +327,45 @@ const SettingsPage = () => {
                   <input type="text" value={user?.role} disabled className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 capitalize" />
                 </div>
               </div>
+
+              <div className="flex items-center justify-between mb-4 mt-8">
+                <h2 className="text-lg font-bold">Change Password</h2>
+                {!editingPassword && (
+                  <button onClick={() => { setPwErrors({}); setEditingPassword(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 shrink-0">
+                    <Edit2 size={14} /> Edit
+                  </button>
+                )}
+              </div>
+              {editingPassword && (
+              <div className="space-y-3 max-w-sm">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
+                  <input type="password" placeholder="Current Password" value={pwForm.currentPassword}
+                    onChange={e => { setPwForm({ ...pwForm, currentPassword: e.target.value }); setPwErrors({ ...pwErrors, currentPassword: undefined }); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm ${pwErrors.currentPassword ? 'border-red-400' : ''}`} />
+                  {pwErrors.currentPassword && <p className="text-xs text-red-500 mt-1">{pwErrors.currentPassword}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">New Password</label>
+                  <input type="password" placeholder="New Password (min 6)" value={pwForm.newPassword}
+                    onChange={e => { setPwForm({ ...pwForm, newPassword: e.target.value }); setPwErrors({ ...pwErrors, newPassword: undefined }); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm ${pwErrors.newPassword ? 'border-red-400' : ''}`} />
+                  {pwErrors.newPassword && <p className="text-xs text-red-500 mt-1">{pwErrors.newPassword}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Confirm New Password</label>
+                  <input type="password" placeholder="Confirm New Password" value={pwForm.confirm}
+                    onChange={e => { setPwForm({ ...pwForm, confirm: e.target.value }); setPwErrors({ ...pwErrors, confirm: undefined }); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm ${pwErrors.confirm ? 'border-red-400' : ''}`} />
+                  {pwErrors.confirm && <p className="text-xs text-red-500 mt-1">{pwErrors.confirm}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleChangePassword} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Save Password</button>
+                  <button onClick={handleCancelPassword} className="px-4 py-2 border rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
+                </div>
+              </div>
+              )}
             </>
           )}
 
@@ -527,33 +570,6 @@ const SettingsPage = () => {
                   </button>
                 </div>
               )}
-            </>
-          )}
-
-          {tab === 'password' && (
-            <>
-              <h2 className="text-lg font-bold mb-4">Change Password</h2>
-              <div className="space-y-3 max-w-sm">
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
-                  <input type="password" placeholder="Current Password" value={pwForm.currentPassword}
-                    onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">New Password</label>
-                  <input type="password" placeholder="New Password (min 6)" value={pwForm.newPassword}
-                    onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">Confirm New Password</label>
-                  <input type="password" placeholder="Confirm New Password" value={pwForm.confirm}
-                    onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                </div>
-                <button onClick={handleChangePassword} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Change Password</button>
-              </div>
             </>
           )}
 
@@ -865,52 +881,6 @@ const SettingsPage = () => {
             </>
           )}
 
-          {tab === 'integrations' && (
-            <>
-              <h2 className="text-lg font-bold mb-4">Integrations</h2>
-
-              <div className="border rounded-xl p-4 mb-4">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <h3 className="font-semibold text-sm">Meta Ads Webhook</h3>
-                    <p className="text-xs text-gray-500 mt-1">Auto-capture leads from Facebook & Instagram</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">ACTIVE</span>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 mb-1">Webhook URL:</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-white px-2 py-1.5 rounded border break-all">{webhookUrl}</code>
-                    <button onClick={() => copyToClipboard(webhookUrl)} className="p-2 hover:bg-gray-100 rounded"><Copy size={14} /></button>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mt-3">
-                  Verify Token: <code className="bg-gray-100 px-1.5 py-0.5 rounded">curvelead_webhook_2026</code>
-                </p>
-              </div>
-
-              <div className="border rounded-xl p-4 mb-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h3 className="font-semibold text-sm">WhatsApp Business API</h3>
-                    <p className="text-xs text-gray-500 mt-1">Send and receive WhatsApp messages</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">SETUP REQUIRED</span>
-                </div>
-                <p className="text-xs text-gray-500">Configure via environment variables on the server. See documentation.</p>
-              </div>
-
-              <div className="border rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h3 className="font-semibold text-sm">AI (Groq)</h3>
-                    <p className="text-xs text-gray-500 mt-1">Auto-score leads as hot/warm/cold</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">ACTIVE</span>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </div>
     </div>

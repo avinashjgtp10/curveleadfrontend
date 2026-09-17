@@ -470,7 +470,10 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     // popup blocker doesn't swallow it once we await the note creation below.
     let waWindow = null;
     if (teamCommForm.method === 'whatsapp') {
-      waWindow = window.open('', '_blank', 'noopener,noreferrer');
+      waWindow = window.open('', '_blank');
+      // Sever window.opener ourselves (same effect as the `noopener` feature flag)
+      // without it nulling out the window reference we need to redirect below.
+      if (waWindow) waWindow.opener = null;
     }
 
     setSendingTeamComm(true);
