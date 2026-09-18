@@ -10,6 +10,8 @@ import {
   FileText, Image as ImageIcon,
 } from 'lucide-react';
 
+const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😎','🤔','😅','😉','🙂','😢','😭','😡','👍','👎','🙏','👏','💪','🔥','🎉','❤️','💯'];
+
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
@@ -63,6 +65,7 @@ const WhatsAppInboxPage = () => {
   const [viewLeadId, setViewLeadId] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showAttachMenu, setShowAttachMenu] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showBrochureModal, setShowBrochureModal] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const messagesEndRef = useRef(null);
@@ -87,6 +90,13 @@ const WhatsAppInboxPage = () => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showAttachMenu]);
+
+  useEffect(() => {
+    if (!showEmojiPicker) return;
+    const handler = (e) => { if (!e.target.closest('[data-emoji-menu]')) setShowEmojiPicker(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showEmojiPicker]);
 
   const loadInbox = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -389,7 +399,21 @@ const WhatsAppInboxPage = () => {
               </div>
 
               <div className="flex items-center gap-2 px-4 py-3 border-t">
-                <button className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg"><Smile size={18} /></button>
+                <div className="relative" data-emoji-menu>
+                  <button onClick={() => setShowEmojiPicker(v => !v)}
+                    className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg"><Smile size={18} /></button>
+                  {showEmojiPicker && (
+                    <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border rounded-lg shadow-lg z-30 p-2 grid grid-cols-8 gap-1">
+                      {EMOJIS.map(emoji => (
+                        <button key={emoji}
+                          onClick={() => { setDraft(d => d + emoji); setShowEmojiPicker(false); }}
+                          className="text-lg hover:bg-gray-100 rounded p-1">
+                          {emoji}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 <input value={draft} onChange={e => setDraft(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleSend()}
                   placeholder="Type a message..."
