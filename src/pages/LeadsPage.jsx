@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI } from '../services/api';
+import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI, authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
 import WhatsAppBroadcastModal from '../components/lead/WhatsAppBroadcastModal';
@@ -382,16 +382,26 @@ const LeadsPage = () => {
   const toggleColumn = (key) => setVisibleColumns(v => ({ ...v, [key]: !v[key] }));
   const toggleHiddenStage = (stageName) => {
     const key = stageName.toLowerCase();
-    setHiddenStages(prev => prev.includes(key) ? prev.filter(s => s !== key) : [...prev, key]);
+    const next = hiddenStages.includes(key) ? hiddenStages.filter(s => s !== key) : [...hiddenStages, key];
+    setHiddenStages(next);
+    authAPI.updatePreferences({ hidden_lead_stages: next }).catch(() => setHiddenStages(hiddenStages));
   };
 
   useEffect(() => {
     localStorage.setItem(LEADS_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
 
+  // Hidden stages are synced server-side (per user) so web and mobile stay in sync;
+  // localStorage here is just a fast local cache for the next page load.
   useEffect(() => {
     localStorage.setItem(LEADS_HIDDEN_STAGES_STORAGE_KEY, JSON.stringify(hiddenStages));
   }, [hiddenStages]);
+
+  useEffect(() => {
+    authAPI.getPreferences()
+      .then(({ data }) => { if (Array.isArray(data?.preferences?.hidden_lead_stages)) setHiddenStages(data.preferences.hidden_lead_stages); })
+      .catch(() => {}); // fall back to whatever loadHiddenStages() seeded from localStorage
+  }, []);
 
   useClickOutside(columnSettingsRef, () => setShowColumnSettings(false));
 

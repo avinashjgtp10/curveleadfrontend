@@ -43,6 +43,8 @@ export const authAPI = {
   changePassword: (data) => api.post('/auth/change-password', data),
   getInviteInfo: (token) => api.get(`/auth/invite/${token}`),
   acceptInvite: (data) => api.post('/auth/accept-invite', data),
+  getPreferences: () => api.get('/auth/preferences'),
+  updatePreferences: (patch) => api.put('/auth/preferences', patch),
 };
 
 // ============================================
