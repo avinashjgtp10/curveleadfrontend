@@ -7,6 +7,16 @@ import { useToast } from '../../components/ui/Toast';
 
 const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '' });
 
+const SOURCE_OPTIONS = ['manual', 'website', 'meta_ads', 'google_ads', 'whatsapp', 'referral', 'walkin'];
+
+const TRIGGER_LABEL = (r, campaigns) => {
+  if (r.trigger_type === 'new_lead') return 'New lead received';
+  if (r.trigger_type === 'campaign') return `Campaign → ${campaigns.find(c => c.id === r.campaign_id)?.name || 'Unknown'}`;
+  if (r.trigger_type === 'lead_source') return `Source → ${r.source_value}`;
+  if (r.trigger_type === 'lead_status') return `Status → ${r.status_value}`;
+  return `Stage → ${r.stage_name}`;
+};
+
 // Quick-start presets — common real-world automations built from the two
 // trigger types and two step channels the backend actually supports today.
 // Picking one pre-fills both the New Sequence and New Rule forms.
@@ -52,16 +62,24 @@ const AutomationBuilder = () => {
   const [rules, setRules] = useState([]);
   const [ruleModal, setRuleModal] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
-  const [ruleForm, setRuleForm] = useState({ name: '', trigger_type: 'new_lead', stage_name: '', campaign_id: '', sequence_id: '' });
+  const [ruleForm, setRuleForm] = useState({ name: '', trigger_type: 'new_lead', stage_name: '', campaign_id: '', source_value: '', status_value: '', sequence_id: '' });
   const [ruleErrors, setRuleErrors] = useState({});
 
   const [stages, setStages] = useState([]);
   const [campaigns, setCampaigns] = useState([]);
+  const [leadStatuses, setLeadStatuses] = useState([]);
   const [pendingRulePreset, setPendingRulePreset] = useState(null);
   const [messageTemplates, setMessageTemplates] = useState([]);
   const [approvedTemplates, setApprovedTemplates] = useState([]);
 
-  useEffect(() => { loadSequences(); loadRules(); loadStages(); loadCampaigns(); loadMessageTemplates(); loadApprovedTemplates(); }, []);
+  useEffect(() => { loadSequences(); loadRules(); loadStages(); loadCampaigns(); loadMessageTemplates(); loadApprovedTemplates(); loadLeadStatuses(); }, []);
+
+  const loadLeadStatuses = async () => {
+    try {
+      const { data } = await statusAPI.getAll();
+      setLeadStatuses(data.statuses || []);
+    } catch (e) { console.error(e); }
+  };
 
   const loadMessageTemplates = async () => {
     try {
@@ -181,15 +199,15 @@ const AutomationBuilder = () => {
   const openCreateRule = (preset) => {
     setEditingRule(null);
     setRuleForm(preset
-      ? { name: preset.name, trigger_type: preset.trigger_type, stage_name: preset.stage_name || '', campaign_id: preset.campaign_id || '', sequence_id: preset.sequence_id || sequences[0]?.id || '' }
-      : { name: '', trigger_type: 'new_lead', stage_name: '', campaign_id: '', sequence_id: sequences[0]?.id || '' });
+      ? { name: preset.name, trigger_type: preset.trigger_type, stage_name: preset.stage_name || '', campaign_id: preset.campaign_id || '', source_value: preset.source_value || '', status_value: preset.status_value || '', sequence_id: preset.sequence_id || sequences[0]?.id || '' }
+      : { name: '', trigger_type: 'new_lead', stage_name: '', campaign_id: '', source_value: '', status_value: '', sequence_id: sequences[0]?.id || '' });
     setRuleErrors({});
     setRuleModal(true);
   };
 
   const openEditRule = (r) => {
     setEditingRule(r);
-    setRuleForm({ name: r.name, trigger_type: r.trigger_type, stage_name: r.stage_name || '', campaign_id: r.campaign_id || '', sequence_id: r.sequence_id });
+    setRuleForm({ name: r.name, trigger_type: r.trigger_type, stage_name: r.stage_name || '', campaign_id: r.campaign_id || '', source_value: r.source_value || '', status_value: r.status_value || '', sequence_id: r.sequence_id });
     setRuleErrors({});
     setRuleModal(true);
   };
@@ -199,6 +217,8 @@ const AutomationBuilder = () => {
     if (!ruleForm.name.trim()) errs.name = 'Rule name is required';
     if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) errs.stage_name = 'Pick which stage triggers this rule';
     if (ruleForm.trigger_type === 'campaign' && !ruleForm.campaign_id) errs.campaign_id = 'Pick which campaign triggers this rule';
+    if (ruleForm.trigger_type === 'lead_source' && !ruleForm.source_value) errs.source_value = 'Pick which source triggers this rule';
+    if (ruleForm.trigger_type === 'lead_status' && !ruleForm.status_value) errs.status_value = 'Pick which status triggers this rule';
     if (!ruleForm.sequence_id) errs.sequence_id = 'Pick a sequence for this rule to enroll leads into';
     setRuleErrors(errs);
     if (Object.keys(errs).length) return;
@@ -339,9 +359,7 @@ const AutomationBuilder = () => {
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <span className="font-semibold text-sm">{r.name}</span>
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700">
-                        {r.trigger_type === 'new_lead' ? 'New lead received'
-                          : r.trigger_type === 'campaign' ? `Campaign → ${campaigns.find(c => c.id === r.campaign_id)?.name || 'Unknown'}`
-                          : `Stage → ${r.stage_name}`}
+                        {TRIGGER_LABEL(r, campaigns)}
                       </span>
                       {isAdmin ? (
                         <button onClick={() => toggleRuleActive(r)}
@@ -514,6 +532,8 @@ const AutomationBuilder = () => {
                   <option value="new_lead">A new lead is received</option>
                   <option value="stage_change">A lead moves into a stage</option>
                   <option value="campaign">A lead comes from a specific campaign</option>
+                  <option value="lead_source">A lead comes from a specific source</option>
+                  <option value="lead_status">A lead's status changes to a specific status</option>
                 </select>
               </div>
               {ruleForm.trigger_type === 'stage_change' && (
@@ -539,6 +559,30 @@ const AutomationBuilder = () => {
                   </select>
                   {ruleErrors.campaign_id && <p className="text-xs text-red-500 mt-1">{ruleErrors.campaign_id}</p>}
                   <p className="text-[10px] text-gray-400 mt-1">Takes priority over a "new lead" rule for leads from this campaign — only this sequence will fire.</p>
+                </div>
+              )}
+              {ruleForm.trigger_type === 'lead_source' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
+                  <select value={ruleForm.source_value}
+                    onChange={e => { setRuleForm({ ...ruleForm, source_value: e.target.value }); if (ruleErrors.source_value) setRuleErrors(er => ({ ...er, source_value: undefined })); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white ${ruleErrors.source_value ? 'border-red-500' : ''}`}>
+                    <option value="">Select a source...</option>
+                    {SOURCE_OPTIONS.map(s => <option key={s} value={s}>{s.replace(/_/g, ' ')}</option>)}
+                  </select>
+                  {ruleErrors.source_value && <p className="text-xs text-red-500 mt-1">{ruleErrors.source_value}</p>}
+                </div>
+              )}
+              {ruleForm.trigger_type === 'lead_status' && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
+                  <select value={ruleForm.status_value}
+                    onChange={e => { setRuleForm({ ...ruleForm, status_value: e.target.value }); if (ruleErrors.status_value) setRuleErrors(er => ({ ...er, status_value: undefined })); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white ${ruleErrors.status_value ? 'border-red-500' : ''}`}>
+                    <option value="">Select a status...</option>
+                    {leadStatuses.map(s => <option key={s.id || s.name} value={s.name}>{s.name}</option>)}
+                  </select>
+                  {ruleErrors.status_value && <p className="text-xs text-red-500 mt-1">{ruleErrors.status_value}</p>}
                 </div>
               )}
               <div>
