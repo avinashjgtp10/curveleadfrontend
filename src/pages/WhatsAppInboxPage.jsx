@@ -59,6 +59,8 @@ const WhatsAppInboxPage = () => {
 
   const [labelsByLead, setLabelsByLead] = useState({});
   const [showLabelPicker, setShowLabelPicker] = useState(false);
+  const [showFilterMenu, setShowFilterMenu] = useState(false);
+  const [labelFilter, setLabelFilter] = useState(null);
   const [customLabel, setCustomLabel] = useState('');
   const [viewLeadId, setViewLeadId] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
@@ -87,6 +89,13 @@ const WhatsAppInboxPage = () => {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [showAttachMenu]);
+
+  useEffect(() => {
+    if (!showFilterMenu) return;
+    const handler = (e) => { if (!e.target.closest('[data-filter-menu]')) setShowFilterMenu(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showFilterMenu]);
 
   const loadInbox = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -185,7 +194,9 @@ const WhatsAppInboxPage = () => {
     .filter(c =>
       (c.lead_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (c.lead_phone || '').includes(search)
-    ), [conversations, tab, search, starredIds]);
+    )
+    .filter(c => !labelFilter || (labelsByLead[c.lead_id] || ['Interested']).includes(labelFilter)),
+    [conversations, tab, search, starredIds, labelFilter, labelsByLead]);
 
   const unreadCount = conversations.filter(c => c.unread_count > 0).length;
   const starredCount = starredIds.size;
@@ -257,9 +268,27 @@ const WhatsAppInboxPage = () => {
                 <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search conversations..."
                   className="w-full pl-8 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
               </div>
-              <button className="p-2 border rounded-lg text-gray-500 hover:bg-gray-50 shrink-0">
-                <SlidersHorizontal size={15} />
-              </button>
+              <div className="relative shrink-0" data-filter-menu>
+                <button onClick={() => setShowFilterMenu(v => !v)}
+                  className={`p-2 border rounded-lg shrink-0 ${labelFilter ? 'bg-brand-50 text-brand-600 border-brand-300' : 'text-gray-500 hover:bg-gray-50'}`}>
+                  <SlidersHorizontal size={15} />
+                </button>
+                {showFilterMenu && (
+                  <div className="absolute right-0 top-full mt-1 w-48 bg-white border rounded-lg shadow-lg z-20 py-1">
+                    <p className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400">Filter by label</p>
+                    <button onClick={() => { setLabelFilter(null); setShowFilterMenu(false); }}
+                      className={`w-full text-left px-3 py-1.5 text-xs font-medium ${!labelFilter ? 'text-brand-600 bg-brand-50' : 'text-gray-600 hover:bg-gray-50'}`}>
+                      All labels
+                    </button>
+                    {PRESET_LABELS.map(l => (
+                      <button key={l} onClick={() => { setLabelFilter(l); setShowFilterMenu(false); }}
+                        className={`w-full text-left px-3 py-1.5 text-xs font-medium ${labelFilter === l ? 'text-brand-600 bg-brand-50' : 'text-gray-600 hover:bg-gray-50'}`}>
+                        {l}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex gap-4 mt-3">
               {TABS.map(t => {
