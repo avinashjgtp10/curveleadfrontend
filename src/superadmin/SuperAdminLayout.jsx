@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, Zap, CalendarCheck, Store, Settings, Bell, ChevronDown, Search, LogOut,
-  UserCog, CreditCard, Receipt, Layers, ScrollText, LifeBuoy,
+  UserCog, CreditCard, Receipt, Layers, ScrollText, LifeBuoy, MessageCircle, Megaphone,
 } from 'lucide-react';
 import BrandLogo from '../components/ui/BrandLogo';
 import { MOCK_SESSION_KEY } from './mockData';
@@ -12,7 +12,9 @@ const NAV_ITEMS = [
   { path: '/super-admin/workspaces', label: 'Workspaces', icon: Store },
   { path: '/super-admin/users', label: 'Users', icon: UserCog },
   { path: '/super-admin/leads', label: 'Leads', icon: Users },
+  { path: '/super-admin/campaigns', label: 'Campaigns', icon: Megaphone },
   { path: '/super-admin/bookings', label: 'Bookings', icon: CalendarCheck },
+  { path: '/super-admin/whatsapp', label: 'WhatsApp', icon: MessageCircle },
   { path: '/super-admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { path: '/super-admin/billing', label: 'Billing', icon: Receipt },
   { path: '/super-admin/plans', label: 'Plans', icon: Layers },

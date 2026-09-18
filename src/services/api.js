@@ -265,6 +265,10 @@ export const superAdminAPI = {
   getLeadsTrend: () => api.get('/super-admin/trends/leads'),
   getRevenueTrend: () => api.get('/super-admin/trends/revenue'),
   getAutomations: () => api.get('/super-admin/automations'),
+  getCampaigns: (params) => api.get('/super-admin/campaigns', { params }),
+  getWhatsAppConversations: (params) => api.get('/super-admin/whatsapp/conversations', { params }),
+  getWhatsAppMessages: (id) => api.get(`/super-admin/whatsapp/conversations/${id}/messages`),
+  sendWhatsAppMessage: (id, text) => api.post(`/super-admin/whatsapp/conversations/${id}/send`, { text }),
 };
 
 // ============================================

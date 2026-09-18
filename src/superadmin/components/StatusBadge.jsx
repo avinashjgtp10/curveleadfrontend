@@ -28,6 +28,10 @@ const STATUS_STYLES = {
   Hot: 'bg-red-50 text-red-600',
   Warm: 'bg-amber-50 text-amber-600',
   Cold: 'bg-blue-50 text-blue-600',
+  // Campaign statuses (lowercase, as stored in the DB)
+  paused: 'bg-amber-50 text-amber-600',
+  completed: 'bg-gray-100 text-gray-600',
+  draft: 'bg-blue-50 text-blue-600',
 };
 
 const StatusBadge = ({ status }) => (

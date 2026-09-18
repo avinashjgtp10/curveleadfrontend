@@ -47,8 +47,10 @@ import SuperAdminWorkspacesPage from './superadmin/pages/SuperAdminWorkspacesPag
 import SuperAdminWorkspaceDetailPage from './superadmin/pages/SuperAdminWorkspaceDetailPage';
 import SuperAdminUsersPage from './superadmin/pages/SuperAdminUsersPage';
 import SuperAdminLeadsPage from './superadmin/pages/SuperAdminLeadsPage';
+import SuperAdminCampaignsPage from './superadmin/pages/SuperAdminCampaignsPage';
 import SuperAdminAutomationsPage from './superadmin/pages/SuperAdminAutomationsPage';
 import SuperAdminBookingsPage from './superadmin/pages/SuperAdminBookingsPage';
+import SuperAdminWhatsAppPage from './superadmin/pages/SuperAdminWhatsAppPage';
 import SuperAdminCustomersPage from './superadmin/pages/SuperAdminCustomersPage';
 import SuperAdminSalonsPage from './superadmin/pages/SuperAdminSalonsPage';
 import SuperAdminSubscriptionsPage from './superadmin/pages/SuperAdminSubscriptionsPage';
@@ -125,7 +127,9 @@ const App = () => (
           <Route path="workspaces/:id" element={<SuperAdminWorkspaceDetailPage />} />
           <Route path="users" element={<SuperAdminUsersPage />} />
           <Route path="leads" element={<SuperAdminLeadsPage />} />
+          <Route path="campaigns" element={<SuperAdminCampaignsPage />} />
           <Route path="bookings" element={<SuperAdminBookingsPage />} />
+          <Route path="whatsapp" element={<SuperAdminWhatsAppPage />} />
           <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />
           <Route path="billing" element={<SuperAdminBillingPage />} />
           <Route path="plans" element={<SuperAdminPlansPage />} />
