@@ -8,6 +8,26 @@ import { superAdminAPI } from '../../services/api';
 
 const MODULE_OPTIONS = ['Workspaces', 'Users', 'Leads', 'Subscriptions', 'Billing', 'Plans'];
 const STATUS_OPTIONS = ['Success', 'Warning', 'Failed'];
+const MODULE_COLORS = {
+  Workspaces: 'bg-violet-50 text-violet-600',
+  Users: 'bg-blue-50 text-blue-600',
+  Leads: 'bg-amber-50 text-amber-600',
+  Subscriptions: 'bg-emerald-50 text-emerald-600',
+  Billing: 'bg-pink-50 text-pink-600',
+  Plans: 'bg-indigo-50 text-indigo-600',
+};
+
+const timeAgo = (iso) => {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString('en-IN');
+};
 
 const SuperAdminActivityLogsPage = () => {
   const [logs, setLogs] = useState([]);
@@ -60,11 +80,15 @@ const SuperAdminActivityLogsPage = () => {
                 <tr><td colSpan={6} className="text-center text-gray-400 py-10">Loading…</td></tr>
               ) : logs.map(l => (
                 <tr key={l.id} className="border-b last:border-0 hover:bg-gray-50">
-                  <td className="px-4 py-3 text-gray-400">{new Date(l.created_at).toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3 text-gray-400" title={new Date(l.created_at).toLocaleString('en-IN')}>{timeAgo(l.created_at)}</td>
                   <td className="px-4 py-3 font-medium text-gray-800">{l.actor_name}</td>
                   <td className="px-4 py-3 text-gray-500">{l.workspace || '—'}</td>
                   <td className="px-4 py-3 text-gray-700">{l.action}</td>
-                  <td className="px-4 py-3 text-gray-500">{l.module}</td>
+                  <td className="px-4 py-3">
+                    <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${MODULE_COLORS[l.module] || 'bg-gray-100 text-gray-600'}`}>
+                      {l.module}
+                    </span>
+                  </td>
                   <td className="px-4 py-3"><StatusBadge status={l.status} /></td>
                 </tr>
               ))}

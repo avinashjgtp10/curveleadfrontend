@@ -38,8 +38,8 @@ const SuperAdminPlansPage = () => {
   const openEdit = (p) => {
     setEditModal(p);
     setForm({
-      price: p.price, max_users: p.max_users, max_leads: p.max_leads,
-      yearlyPrice: p.features?.yearlyPrice || 0,
+      price: Number(p.price) || 0, max_users: Number(p.max_users) || 0, max_leads: Number(p.max_leads) || 0,
+      yearlyPrice: Number(p.features?.yearlyPrice) || 0,
       whatsappLimit: p.features?.whatsappLimit || '',
       automationAccess: !!p.features?.automationAccess,
       aiFeatures: !!p.features?.aiFeatures,
@@ -121,22 +121,22 @@ const SuperAdminPlansPage = () => {
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly Price</label>
-              <input type="number" value={form.price} onChange={e => setForm({ ...form, price: Number(e.target.value) })}
+              <input type="number" value={form.price} onChange={e => { e.target.value = e.target.value.replace(/^0+(?=\d)/, ''); setForm({ ...form, price: Number(e.target.value) }); }}
                 className="w-full px-3 py-2 border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Yearly Price</label>
-              <input type="number" value={form.yearlyPrice} onChange={e => setForm({ ...form, yearlyPrice: Number(e.target.value) })}
+              <input type="number" value={form.yearlyPrice} onChange={e => { e.target.value = e.target.value.replace(/^0+(?=\d)/, ''); setForm({ ...form, yearlyPrice: Number(e.target.value) }); }}
                 className="w-full px-3 py-2 border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Max Team Members</label>
-              <input type="number" value={form.max_users} onChange={e => setForm({ ...form, max_users: Number(e.target.value) })}
+              <input type="number" value={form.max_users} onChange={e => { e.target.value = e.target.value.replace(/^0+(?=\d)/, ''); setForm({ ...form, max_users: Number(e.target.value) }); }}
                 className="w-full px-3 py-2 border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Max Leads (-1 = unlimited)</label>
-              <input type="number" value={form.max_leads} onChange={e => setForm({ ...form, max_leads: Number(e.target.value) })}
+              <input type="number" value={form.max_leads} onChange={e => { e.target.value = e.target.value.replace(/^0+(?=\d)/, ''); setForm({ ...form, max_leads: Number(e.target.value) }); }}
                 className="w-full px-3 py-2 border rounded-lg text-sm" />
             </div>
             <div className="col-span-2">
