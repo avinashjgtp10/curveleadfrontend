@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import BrandLogo from '../components/ui/BrandLogo';
 import { MOCK_SESSION_KEY } from './mockData';
+import { useAuth } from '../context/AuthContext';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 
 const NAV_ITEMS = [
   { path: '/super-admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -26,10 +28,16 @@ const NAV_ITEMS = [
 
 const SuperAdminLayout = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
+  const confirm = useConfirmDialog();
   const [menuOpen, setMenuOpen] = useState(false);
 
-  const handleLogout = () => {
-    localStorage.removeItem(MOCK_SESSION_KEY);
+  const handleLogout = async () => {
+    setMenuOpen(false);
+    const ok = await confirm({ title: 'Log out?', message: 'You will need to sign in again to access the Super Admin console.', confirmText: 'Log out' });
+    if (!ok) return;
+    logout(); // clears the real session (token, user, tenant)
+    localStorage.removeItem(MOCK_SESSION_KEY); // also clear the demo/mock session flag, if present
     navigate('/login');
   };
 
@@ -52,10 +60,14 @@ const SuperAdminLayout = () => {
         <div className="p-3 border-t border-white/10">
           <div className="flex items-center gap-2.5 px-2 py-2">
             <div className="w-9 h-9 rounded-full bg-indigo-500/30 flex items-center justify-center text-white font-semibold text-sm shrink-0">A</div>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-white truncate">Admin</p>
               <p className="text-[11px] text-indigo-200/70 truncate">Super Admin</p>
             </div>
+            <button onClick={handleLogout} title="Logout"
+              className="shrink-0 p-1.5 rounded-lg text-indigo-200/70 hover:bg-white/10 hover:text-white">
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </aside>

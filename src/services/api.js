@@ -46,6 +46,13 @@ export const authAPI = {
 };
 
 // ============================================
+// Support (public — Contact Us page)
+// ============================================
+export const supportAPI = {
+  submitTicket: (data) => api.post('/support/tickets', data),
+};
+
+// ============================================
 // Leads
 // ============================================
 export const leadAPI = {
@@ -266,9 +273,14 @@ export const superAdminAPI = {
   getRevenueTrend: () => api.get('/super-admin/trends/revenue'),
   getAutomations: () => api.get('/super-admin/automations'),
   getCampaigns: (params) => api.get('/super-admin/campaigns', { params }),
+  getBookings: (params) => api.get('/super-admin/bookings', { params }),
   getWhatsAppConversations: (params) => api.get('/super-admin/whatsapp/conversations', { params }),
   getWhatsAppMessages: (id) => api.get(`/super-admin/whatsapp/conversations/${id}/messages`),
   sendWhatsAppMessage: (id, text) => api.post(`/super-admin/whatsapp/conversations/${id}/send`, { text }),
+  getSettings: () => api.get('/super-admin/settings'),
+  updateSettings: (data) => api.put('/super-admin/settings', data),
+  getSupportTickets: (params) => api.get('/super-admin/support/tickets', { params }),
+  updateSupportTicket: (id, data) => api.put(`/super-admin/support/tickets/${id}`, data),
 };
 
 // ============================================
