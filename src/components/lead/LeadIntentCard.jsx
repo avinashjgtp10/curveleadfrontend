@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Gauge, Flame, Sun, Snowflake, ChevronDown } from 'lucide-react';
+import { Gauge, Flame, Sun, Snowflake, ChevronDown, Zap } from 'lucide-react';
 import { FOLLOWUP_HEALTH_STYLES, FOLLOWUP_HEALTH_ACTIONS } from '../../utils/followupHealth';
 
 const scoreStyles = {
@@ -29,7 +29,7 @@ const ScoreRing = ({ value, ringCls }) => {
   );
 };
 
-const LeadIntentCard = ({ lead, activities = [] }) => {
+const LeadIntentCard = ({ lead, activities = [], onRecalculate }) => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const score = scoreStyles[lead.lead_score] || scoreStyles.cold;
   const health = lead.followup_health || 'good';
@@ -40,9 +40,16 @@ const LeadIntentCard = ({ lead, activities = [] }) => {
 
   return (
     <div className="bg-white rounded-2xl border p-5">
-      <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
-        <Gauge size={16} /> Lead Intent
-      </h3>
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-semibold flex items-center gap-2 text-sm">
+          <Gauge size={16} /> Lead Intent
+        </h3>
+        {onRecalculate && (
+          <button onClick={onRecalculate} className="flex items-center gap-1 text-xs font-semibold text-purple-600 hover:text-purple-700 bg-purple-50 px-2.5 py-1.5 rounded-lg">
+            <Zap size={12} /> Recalculate
+          </button>
+        )}
+      </div>
 
       <div className="flex items-center gap-3">
         <ScoreRing value={lead.intent_score} ringCls={score.ring} />
