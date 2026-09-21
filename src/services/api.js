@@ -388,4 +388,14 @@ export const notificationsAPI = {
   markAllRead: () => api.put('/notifications/read-all'),
 };
 
+// ============================================
+// GBP Report (public landing page lead capture)
+// ============================================
+export const gbpReportAPI = {
+  submit: (data) => api.post('/gbp-leads', data),
+  getStatus: (id) => api.get(`/gbp-leads/${id}/status`),
+  searchBusiness: (query) => api.get('/gbp-leads/search-business', { params: { query } }),
+  getBusinessReport: (placeId) => api.get('/gbp-leads/business-report', { params: { place_id: placeId } }),
+};
+
 export default api;

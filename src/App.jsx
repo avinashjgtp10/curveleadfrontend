@@ -12,6 +12,7 @@ import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import AcceptInvitePage from './pages/AcceptInvitePage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
+import GbpReportPage from './pages/GbpReportPage';
 import TermsOfServicePage from './pages/TermsOfServicePage';
 import ContactUsPage from './pages/ContactUsPage';
 
@@ -66,6 +67,7 @@ const App = () => (
         <Route path="/reset-password" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
         <Route path="/accept-invite" element={<GuestRoute><AcceptInvitePage /></GuestRoute>} />
         <Route path="/q/:id" element={<QuotationPublicPage />} />
+        <Route path="/gbp-report" element={<GbpReportPage />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/contact" element={<ContactUsPage />} />

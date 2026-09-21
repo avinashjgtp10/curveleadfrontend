@@ -423,7 +423,7 @@ const DashboardPage = () => {
               <Sparkles size={16} className="text-gray-400" />
               Automation & AI
             </h3>
-            <button onClick={() => navigate('/settings')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+            <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
             </button>
           </div>
@@ -451,7 +451,7 @@ const DashboardPage = () => {
             <Zap size={16} className="text-gray-400" />
             Automated This Month
           </h3>
-          <button onClick={() => navigate('/settings')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+          <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
             View all <ChevronRight size={12} />
           </button>
         </div>

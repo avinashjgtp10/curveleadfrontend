@@ -99,6 +99,15 @@ const productStats = [
   { value: 'ROI', label: 'campaign reporting' },
 ];
 
+const trustStats = [
+  { value: '5 min', label: 'to get your team live on CurveLead' },
+  { value: '2x', label: 'faster first response on new leads' },
+  { value: '100%', label: 'free trial, no card required' },
+  { value: '24/7', label: 'Meta & Google lead capture' },
+];
+
+const industries = ['Salons', 'Clinics', 'Gyms', 'Real Estate', 'Coaching Institutes', 'Education', 'Home Services', 'Restaurants', 'Retail', 'And many more'];
+
 const LandingPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -127,6 +136,7 @@ const LandingPage = () => {
             <a href="#workflow" className="text-sm text-gray-600 hover:text-gray-950">Workflow</a>
             <a href="#features" className="text-sm text-gray-600 hover:text-gray-950">Features</a>
             <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-950">Pricing</a>
+            <a href="/gbp-report" className="text-sm text-gray-600 hover:text-gray-950">Free GBP Report</a>
             <a href="/login" className="text-sm font-semibold text-brand-700">Sign In</a>
             <a href="/signup" className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
               Start Free
@@ -143,6 +153,7 @@ const LandingPage = () => {
             <a href="#workflow" onClick={closeMenu} className="block py-2 text-gray-600">Workflow</a>
             <a href="#features" onClick={closeMenu} className="block py-2 text-gray-600">Features</a>
             <a href="#pricing" onClick={closeMenu} className="block py-2 text-gray-600">Pricing</a>
+            <a href="/gbp-report" onClick={closeMenu} className="block py-2 text-gray-600">Free GBP Report</a>
             <a href="/signup" className="block w-full rounded-lg bg-brand-600 px-5 py-2.5 text-center text-sm font-semibold text-white">Start Free</a>
           </div>
         )}
@@ -229,6 +240,29 @@ const LandingPage = () => {
                     <p className="text-xs leading-5 text-gray-500">Track campaign spend, won deals, and team conversion performance.</p>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="px-4 pb-20 sm:px-6">
+          <div className="mx-auto max-w-7xl rounded-2xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              {trustStats.map((stat) => (
+                <div key={stat.label} className="rounded-xl bg-brand-50 p-5 text-center">
+                  <p className="text-2xl font-extrabold text-brand-700 sm:text-3xl">{stat.value}</p>
+                  <p className="mt-1 text-sm text-gray-600">{stat.label}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-8 border-t border-gray-100 pt-6 text-center">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Works for any business</p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                {industries.map((name) => (
+                  <span key={name} className="rounded-full border border-gray-200 px-4 py-1.5 text-sm text-gray-700">
+                    {name}
+                  </span>
+                ))}
               </div>
             </div>
           </div>
