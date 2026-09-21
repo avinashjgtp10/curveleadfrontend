@@ -746,7 +746,7 @@ const LeadsPage = () => {
   const handleBulkSequence = async (sequenceId) => {
     if (!sequenceId || !selectedIds.size) return;
     const name = sequences.find(sq => sq.id === sequenceId)?.name;
-    const ok = await confirm({ title: `Apply "${name}" to ${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''}?`, message: 'Leads already enrolled in this sequence, opted out, or marked unresponsive are skipped.' });
+    const ok = await confirm({ title: `Apply "${name}" to ${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''}?`, message: 'Leads already enrolled in this sequence, opted out, or marked unresponsive are skipped.', confirmText: 'Apply', destructive: false });
     if (!ok) { setBulkSequence(''); return; }
     setBulkLoading(true);
     try {
