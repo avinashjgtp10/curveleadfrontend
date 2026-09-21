@@ -5,16 +5,20 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
+  Calendar,
   CheckCircle,
   ChevronDown,
   Clock,
   FileText,
   Gauge,
+  Globe,
   Lightbulb,
   Menu,
   MessageCircle,
   Megaphone,
   PhoneCall,
+  PieChart,
+  Plug,
   Send,
   Shuffle,
   Sparkles,
@@ -63,18 +67,22 @@ const workflow = [
 ];
 
 const features = [
-  { icon: Gauge, title: 'Lead Intent Index', desc: 'A live 0-100 score, Hot/Warm/Cold label, and follow-up health for every lead, with a plain-language reason and a suggested next action. Fully explainable, never a black box.' },
-  { icon: Timer, title: 'Response Time Tracking', desc: 'See exactly how fast each enquiry gets a first response, and get flagged before you breach your own SLA.' },
-  { icon: Clock, title: 'Follow-up Discipline', desc: 'Schedule, complete, and track callbacks so fewer enquiries slip away.' },
-  { icon: MessageCircle, title: 'Shared WhatsApp Inbox', desc: 'Reply, qualify, and keep conversation history tied to the right lead.' },
-  { icon: Megaphone, title: 'Campaign ROI', desc: 'Connect ad spend to leads, won deals, CPL, and revenue outcomes.' },
-  { icon: Lightbulb, title: 'AI Sales Coaching', desc: 'An AI-built playbook of best practices and objection handling, generated from your own team’s won and lost calls.' },
-  { icon: FileText, title: 'Quotations', desc: 'Create, send, accept, reject, and manage quotations inside the sales flow.' },
-  { icon: BookOpen, title: 'Brochures & Files', desc: 'Keep product material ready and share it with leads from the same workspace.' },
-  { icon: Users, title: 'Team Workspace', desc: 'Invite staff, assign ownership, monitor activity, and keep customer data separated by tenant.' },
-  { icon: Shuffle, title: 'Smart Lead Routing', desc: 'Auto-assign new leads to the right person, or round-robin across a team, based on source, campaign, or location — nothing sits unclaimed.' },
-  { icon: Workflow, title: 'Automation Sequences', desc: 'Auto-enroll matched leads into a scripted follow-up sequence the moment they land, so early nurture never depends on someone remembering.' },
-  { icon: PhoneCall, title: 'AI Calling Agent', desc: 'A configurable AI voice agent that calls new leads automatically — pick the voice, persona, and opening line.' },
+  { icon: Gauge, title: 'Lead Intent Index', desc: 'A live 0-100 score, Hot/Warm/Cold label, and follow-up health for every lead, with a plain-language reason and a suggested next action. Fully explainable, never a black box.', cls: 'bg-blue-500/15 text-blue-300' },
+  { icon: Timer, title: 'Response Time Tracking', desc: 'See exactly how fast each enquiry gets a first response, and get flagged before you breach your own SLA.', cls: 'bg-amber-500/15 text-amber-300' },
+  { icon: Clock, title: 'Follow-up Discipline', desc: 'Schedule, complete, and track callbacks so fewer enquiries slip away.', cls: 'bg-emerald-500/15 text-emerald-300' },
+  { icon: MessageCircle, title: 'Shared WhatsApp Inbox', desc: 'Reply, qualify, and keep conversation history tied to the right lead.', cls: 'bg-green-500/15 text-green-300' },
+  { icon: Megaphone, title: 'Campaign ROI', desc: 'Connect ad spend to leads, won deals, CPL, and revenue outcomes.', cls: 'bg-pink-500/15 text-pink-300' },
+  { icon: Lightbulb, title: 'AI Sales Coaching', desc: 'An AI-built playbook of best practices and objection handling, generated from your own team’s won and lost calls.', cls: 'bg-yellow-500/15 text-yellow-300' },
+  { icon: FileText, title: 'Quotations', desc: 'Create, send, accept, reject, and manage quotations inside the sales flow.', cls: 'bg-cyan-500/15 text-cyan-300' },
+  { icon: BookOpen, title: 'Brochures & Files', desc: 'Keep product material ready and share it with leads from the same workspace.', cls: 'bg-orange-500/15 text-orange-300' },
+  { icon: Users, title: 'Team Workspace', desc: 'Invite staff, assign ownership, monitor activity, and keep customer data separated by tenant.', cls: 'bg-indigo-500/15 text-indigo-300' },
+  { icon: Shuffle, title: 'Smart Lead Routing', desc: 'Auto-assign new leads to the right person, or round-robin across a team, based on source, campaign, or location — nothing sits unclaimed.', cls: 'bg-violet-500/15 text-violet-300' },
+  { icon: Workflow, title: 'Automation Sequences', desc: 'Auto-enroll matched leads into a scripted follow-up sequence the moment they land, so early nurture never depends on someone remembering.', cls: 'bg-teal-500/15 text-teal-300' },
+  { icon: PhoneCall, title: 'AI Calling Agent', desc: 'A configurable AI voice agent that calls new leads automatically — pick the voice, persona, and opening line.', cls: 'bg-rose-500/15 text-rose-300' },
+  { icon: Calendar, title: 'Appointments', desc: 'Schedule, track, and manage sales appointments tied to each lead, so nothing gets double-booked or forgotten.', cls: 'bg-sky-500/15 text-sky-300' },
+  { icon: PieChart, title: 'Reports & Analytics', desc: 'Conversion funnels, lead sources, staff performance, and campaign breakdowns, all in one reporting dashboard.', cls: 'bg-purple-500/15 text-purple-300' },
+  { icon: Globe, title: 'Market Intelligence', desc: 'AI-powered competitor and market analysis for your business, industry, and positioning.', cls: 'bg-lime-500/15 text-lime-300' },
+  { icon: Plug, title: 'Integrations', desc: 'Connect Meta, Google Ads, and other lead sources so new enquiries flow into CurveLead automatically.', cls: 'bg-fuchsia-500/15 text-fuchsia-300' },
 ];
 
 const plans = [
@@ -281,7 +289,9 @@ const LandingPage = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 {features.map((feature) => (
                   <div key={feature.title} className="rounded-lg border border-white/10 bg-white/[0.04] p-5">
-                    <feature.icon size={22} className="text-brand-300" />
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${feature.cls}`}>
+                      <feature.icon size={20} />
+                    </div>
                     <h3 className="mt-4 font-bold">{feature.title}</h3>
                     <p className="mt-2 text-sm leading-6 text-gray-300">{feature.desc}</p>
                   </div>
