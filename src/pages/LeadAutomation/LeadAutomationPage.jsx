@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Workflow, Search, ChevronDown, X, CheckCircle2, Clock, Circle, XCircle, Phone, Settings,
+  Workflow, Search, ChevronDown, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Circle, XCircle, Phone, Settings,
   MessageCircle, PhoneCall, Play, Pause, Download, Users, Sparkles, AlertTriangle,
 } from 'lucide-react';
 import EmptyState from '../../components/ui/EmptyState';
@@ -330,11 +330,14 @@ const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls, onReEnable }) => {
   );
 };
 
+const PAGE_SIZE = 25;
+
 const LeadAutomationPage = () => {
   const [tab, setTab] = useState('leads');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
   const [stepFilter, setStepFilter] = useState('All Steps');
+  const [page, setPage] = useState(1);
   const [selectedLead, setSelectedLead] = useState(null);
   const [chatLead, setChatLead] = useState(null);
   const [callLead, setCallLead] = useState(null);
@@ -348,7 +351,7 @@ const LeadAutomationPage = () => {
     const load = async () => {
       setLoading(true);
       try {
-        const { data } = await leadAPI.getAll({ limit: 50 });
+        const { data } = await leadAPI.getAll({ limit: 500 });
         const rawLeads = data.leads || [];
         if (cancelled) return;
         if (!rawLeads.length) { setLeads([]); return; }
@@ -403,6 +406,19 @@ const LeadAutomationPage = () => {
       return matchesSearch && matchesStatus && matchesStep;
     });
   }, [leads, search, statusFilter, stepFilter]);
+
+  useEffect(() => { setPage(1); }, [search, statusFilter, stepFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
+  const pagedLeads = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  const pageNumbers = () => {
+    const t = totalPages;
+    if (t <= 7) return Array.from({ length: t }, (_, i) => i + 1);
+    if (page <= 4) return [1, 2, 3, 4, 5, '…', t];
+    if (page >= t - 3) return [1, '…', t - 4, t - 3, t - 2, t - 1, t];
+    return [1, '…', page - 1, page, page + 1, '…', t];
+  };
 
   return (
     <div className="space-y-6">
@@ -492,7 +508,7 @@ const LeadAutomationPage = () => {
               </tr>
             </thead>
             <tbody>
-              {filteredLeads.map(lead => (
+              {pagedLeads.map(lead => (
                 <tr key={lead.id} className="border-b last:border-0 hover:bg-gray-50 transition-colors">
                   <td className="py-3 pr-4">
                     <div className="flex items-center gap-2.5">
@@ -535,6 +551,36 @@ const LeadAutomationPage = () => {
           </table>
           {filteredLeads.length === 0 && (
             <EmptyState message={leads.length === 0 ? 'No leads yet' : 'No leads match your filters'} />
+          )}
+
+          {filteredLeads.length > 0 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-wrap gap-3">
+              <p className="text-xs text-gray-500">
+                Showing {Math.min((page - 1) * PAGE_SIZE + 1, filteredLeads.length)}–{Math.min(page * PAGE_SIZE, filteredLeads.length)} of <span className="font-semibold text-gray-700">{filteredLeads.length}</span> leads
+              </p>
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronLeft size={16} />
+                  </button>
+                  {pageNumbers().map((n, i) =>
+                    n === '…' ? (
+                      <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+                    ) : (
+                      <button key={n} onClick={() => setPage(n)}
+                        className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${page === n ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                        {n}
+                      </button>
+                    )
+                  )}
+                  <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
+                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
         )}
