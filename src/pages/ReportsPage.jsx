@@ -128,9 +128,10 @@ const FilterDropdown = ({ label, value, options, onChange }) => {
   );
 };
 
-// The calendar-period selector at the top of the page — styled as a compact
-// pill dropdown instead of a native <select>, to match FilterDropdown's look.
-const PeriodDropdown = ({ value, onChange }) => {
+// Compact pill dropdown instead of a native <select>, to match FilterDropdown's
+// look. Reused for both the top-of-page calendar-period selector and the
+// Trends section's day-range selector — pass in whichever `options` apply.
+const PillDropdown = ({ value, onChange, options }) => {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -141,7 +142,7 @@ const PeriodDropdown = ({ value, onChange }) => {
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  const current = PERIOD_OPTIONS.find(o => o.value === value) || PERIOD_OPTIONS[0];
+  const current = options.find(o => o.value === value) || options[0];
 
   return (
     <div className="relative" ref={ref}>
@@ -155,7 +156,7 @@ const PeriodDropdown = ({ value, onChange }) => {
       </button>
       {open && (
         <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-40">
-          {PERIOD_OPTIONS.map(o => (
+          {options.map(o => (
             <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
               className={`w-full text-left px-3.5 py-2 text-sm ${o.value === value ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}>
               {o.label}
@@ -166,6 +167,12 @@ const PeriodDropdown = ({ value, onChange }) => {
     </div>
   );
 };
+
+const TREND_DAY_OPTIONS = [
+  { value: 7, label: 'Last 7 Days' },
+  { value: 30, label: 'Last 30 Days' },
+  { value: 90, label: 'Last 90 Days' },
+];
 
 const ReportsPage = () => {
   const confirm = useConfirmDialog();
@@ -575,7 +582,7 @@ const ReportsPage = () => {
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-gray-500">Track conversion, sources, and campaign performance</p>
         {!['leads', 'brochures', 'messages'].includes(activeTab) && (
-          <PeriodDropdown value={period} onChange={setPeriod} />
+          <PillDropdown value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
         )}
       </div>
 
@@ -770,12 +777,7 @@ const ReportsPage = () => {
 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="font-semibold text-gray-900">Trends</h3>
-            <select value={trendDays} onChange={e => setTrendDays(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-              <option value={7}>Last 7 Days</option>
-              <option value={30}>Last 30 Days</option>
-              <option value={90}>Last 90 Days</option>
-            </select>
+            <PillDropdown value={trendDays} onChange={setTrendDays} options={TREND_DAY_OPTIONS} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
