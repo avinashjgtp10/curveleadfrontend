@@ -955,7 +955,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             <div className="space-y-2">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-gray-500">Date & Time *</label>
+                  <label className="text-xs text-gray-500">Date & Time <span className="text-red-500">*</span></label>
                   <div className="relative">
                     <button type="button" onClick={() => setDateShortcutOpen(v => !v)}
                       className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md border bg-gray-50 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 text-gray-500 transition-colors">

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Trash2 } from 'lucide-react';
+import { Trash2, HelpCircle } from 'lucide-react';
 
 const ConfirmDialogContext = createContext(null);
 
@@ -9,6 +9,7 @@ const DEFAULT_CONFIRM = {
   message: 'This action cannot be undone.',
   confirmText: 'Delete',
   cancelText: 'Cancel',
+  destructive: true,
 };
 
 export const ConfirmDialogProvider = ({ children }) => {
@@ -37,8 +38,8 @@ export const ConfirmDialogProvider = ({ children }) => {
           <div className="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white shadow-2xl">
             <div className="p-4">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-50 text-red-600">
-                  <Trash2 size={17} />
+                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${dialog.destructive ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                  {dialog.destructive ? <Trash2 size={17} /> : <HelpCircle size={17} />}
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-sm font-bold text-gray-900">{dialog.title}</h2>
@@ -54,9 +55,9 @@ export const ConfirmDialogProvider = ({ children }) => {
                 </button>
                 <button
                   onClick={() => close(true)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white hover:bg-red-700"
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white ${dialog.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
                 >
-                  <Trash2 size={14} />
+                  {dialog.destructive && <Trash2 size={14} />}
                   {dialog.confirmText}
                 </button>
               </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI, authAPI } from '../services/api';
+import { automationAPI, leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI, authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
 import WhatsAppBroadcastModal from '../components/lead/WhatsAppBroadcastModal';
@@ -276,6 +276,8 @@ const LeadsPage = () => {
   const [bulkAssign, setBulkAssign] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [sequences, setSequences] = useState([]);
+  const [bulkSequence, setBulkSequence] = useState('');
   const PAGE_SIZE = 25;
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
@@ -732,6 +734,28 @@ const LeadsPage = () => {
       clearSelection();
       loadData();
     } catch (e) { toast.error('Failed'); }
+    finally { setBulkLoading(false); }
+  };
+
+  useEffect(() => {
+    automationAPI.getSequences()
+      .then(({ data }) => setSequences((data.sequences || []).filter(sq => sq.is_active && sq.steps?.length)))
+      .catch(() => {});
+  }, []);
+
+  const handleBulkSequence = async (sequenceId) => {
+    if (!sequenceId || !selectedIds.size) return;
+    const name = sequences.find(sq => sq.id === sequenceId)?.name;
+    const ok = await confirm({ title: `Apply "${name}" to ${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''}?`, message: 'Leads already enrolled in this sequence, opted out, or marked unresponsive are skipped.', confirmText: 'Apply', destructive: false });
+    if (!ok) { setBulkSequence(''); return; }
+    setBulkLoading(true);
+    try {
+      const { data } = await automationAPI.enrollBulk([...selectedIds], sequenceId);
+      toast.success(`Enrolled ${data.enrolled} lead${data.enrolled === 1 ? '' : 's'}${data.skipped ? `, ${data.skipped} skipped` : ''}.`);
+      clearSelection();
+      setBulkSequence('');
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to apply sequence'); setBulkSequence(''); }
     finally { setBulkLoading(false); }
   };
 
@@ -1193,6 +1217,19 @@ const LeadsPage = () => {
                         {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
+                    {sequences.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <Zap size={14} className="text-gray-500" />
+                        <select
+                          value={bulkSequence}
+                          onChange={e => { setBulkSequence(e.target.value); handleBulkSequence(e.target.value); }}
+                          disabled={bulkLoading}
+                          className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50">
+                          <option value="">Apply Sequence…</option>
+                          {sequences.map(sq => <option key={sq.id} value={sq.id}>{sq.name}</option>)}
+                        </select>
+                      </div>
+                    )}
                     <button
                       onClick={() => setShowBroadcastModal(true)}
                       disabled={bulkLoading}
