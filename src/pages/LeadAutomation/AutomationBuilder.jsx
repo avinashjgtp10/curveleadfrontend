@@ -4,6 +4,7 @@ import { automationAPI, stageAPI, statusAPI, campaignAPI, templateAPI, whatsappA
 import { useAuth } from '../../context/AuthContext';
 import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
+import AssignmentRulesSection from './AssignmentRulesSection';
 
 const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '' });
 
@@ -384,6 +385,8 @@ const AutomationBuilder = () => {
           </div>
         )}
       </div>
+
+      <AssignmentRulesSection />
 
       {seqModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
