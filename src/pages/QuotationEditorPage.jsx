@@ -14,6 +14,7 @@ const QuotationEditorPage = () => {
   const [leads, setLeads] = useState([]);
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(null);
+  const [errors, setErrors] = useState({ lead_id: '', items: [] });
   const [form, setForm] = useState({
     lead_id: isNew ? (searchParams.get('lead_id') || '') : '',
     title: '',
@@ -39,10 +40,18 @@ const QuotationEditorPage = () => {
     const items = [...form.items];
     items[i] = { ...items[i], [field]: val };
     setForm({ ...form, items });
+    if (errors.items[i]?.[field]) {
+      const itemErrors = [...errors.items];
+      itemErrors[i] = { ...itemErrors[i], [field]: undefined };
+      setErrors({ ...errors, items: itemErrors });
+    }
   };
 
   const addItem = () => setForm({ ...form, items: [...form.items, { name: '', description: '', quantity: 1, price: 0 }] });
-  const removeItem = (i) => setForm({ ...form, items: form.items.filter((_, idx) => idx !== i) });
+  const removeItem = (i) => {
+    setForm({ ...form, items: form.items.filter((_, idx) => idx !== i) });
+    setErrors({ ...errors, items: errors.items.filter((_, idx) => idx !== i) });
+  };
 
   const subtotal = form.items.reduce((sum, item) => sum + ((parseFloat(item.quantity) || 0) * (parseFloat(item.price) || 0)), 0);
   const discountAmount = (subtotal * (parseFloat(form.discount_percent) || 0)) / 100;
@@ -50,9 +59,20 @@ const QuotationEditorPage = () => {
   const taxAmount = (taxableAmount * (parseFloat(form.tax_percent) || 0)) / 100;
   const total = taxableAmount + taxAmount;
 
+  const validate = () => {
+    const newErrors = { lead_id: '', items: form.items.map(() => ({})) };
+    if (!form.lead_id) newErrors.lead_id = 'Please select a lead';
+    form.items.forEach((item, i) => {
+      if (!item.name?.trim()) newErrors.items[i].name = 'Item name is required';
+      if (!item.quantity || parseFloat(item.quantity) <= 0) newErrors.items[i].quantity = 'Qty must be greater than 0';
+      if (item.price === '' || item.price === null || parseFloat(item.price) < 0) newErrors.items[i].price = 'Price is required';
+    });
+    setErrors(newErrors);
+    return !newErrors.lead_id && newErrors.items.every(e => Object.keys(e).length === 0);
+  };
+
   const handleSave = async (send = false) => {
-    if (!form.lead_id) return toast.error('Please select a lead');
-    if (form.items.length === 0 || !form.items[0].name) return toast.error('Add at least one item');
+    if (!validate()) return toast.error('Please fix the highlighted fields');
 
     setLoading(true);
     try {
@@ -84,12 +104,14 @@ const QuotationEditorPage = () => {
       <div className="bg-white rounded-2xl border p-5 space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-medium text-gray-500 mb-1">Lead *</label>
-            <select value={form.lead_id} onChange={e => setForm({ ...form, lead_id: e.target.value })}
-              className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white" disabled={!isNew}>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Lead <span className="text-red-500">*</span></label>
+            <select value={form.lead_id}
+              onChange={e => { setForm({ ...form, lead_id: e.target.value }); if (errors.lead_id) setErrors({ ...errors, lead_id: '' }); }}
+              className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-white ${errors.lead_id ? 'border-red-500' : ''}`} disabled={!isNew}>
               <option value="">Select lead...</option>
               {leads.map(l => <option key={l.id} value={l.id}>{l.name} • {l.phone}</option>)}
             </select>
+            {errors.lead_id && <p className="text-xs text-red-500 mt-1">{errors.lead_id}</p>}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-500 mb-1">Title</label>
@@ -109,29 +131,59 @@ const QuotationEditorPage = () => {
           </button>
         </div>
 
+        {form.items.length > 0 && (
+          <div className="hidden sm:grid grid-cols-12 gap-2 px-3 mb-1">
+            <label className="col-span-4 text-xs font-medium text-gray-500">Item name <span className="text-red-500">*</span></label>
+            <label className="col-span-3 text-xs font-medium text-gray-500">Description</label>
+            <label className="col-span-2 text-xs font-medium text-gray-500 text-right">Qty <span className="text-red-500">*</span></label>
+            <label className="col-span-2 text-xs font-medium text-gray-500 text-right">Price <span className="text-red-500">*</span></label>
+            <span className="col-span-1" aria-hidden="true" />
+          </div>
+        )}
+
         <div className="space-y-2">
-          {form.items.map((item, i) => (
-            <div key={i} className="p-3 bg-gray-50 rounded-xl grid grid-cols-12 gap-2 items-start">
-              <input type="text" placeholder="Item name *" value={item.name}
-                onChange={e => updateItem(i, 'name', e.target.value)}
-                className="col-span-12 sm:col-span-4 px-2 py-1.5 border rounded text-sm" />
-              <input type="text" placeholder="Description" value={item.description}
-                onChange={e => updateItem(i, 'description', e.target.value)}
-                className="col-span-12 sm:col-span-3 px-2 py-1.5 border rounded text-sm" />
-              <input type="number" min="0" placeholder="Qty" value={item.quantity}
-                onChange={e => updateItem(i, 'quantity', e.target.value)}
-                className="col-span-4 sm:col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
-              <input type="number" min="0" placeholder="Price" value={item.price}
-                onChange={e => updateItem(i, 'price', e.target.value)}
-                className="col-span-5 sm:col-span-2 px-2 py-1.5 border rounded text-sm text-right" />
-              <button onClick={() => removeItem(i)} className="col-span-3 sm:col-span-1 p-2 hover:bg-red-50 rounded text-red-500 flex items-center justify-center">
-                <Trash2 size={14} />
-              </button>
-              <div className="col-span-12 text-right text-xs text-gray-500 -mt-1">
-                Subtotal: ₹{((parseFloat(item.quantity) || 0) * (parseFloat(item.price) || 0)).toFixed(2)}
+          {form.items.map((item, i) => {
+            const itemErrors = errors.items[i] || {};
+            return (
+              <div key={i} className="p-3 bg-gray-50 rounded-xl grid grid-cols-12 gap-2 items-start">
+                <div className="col-span-12 sm:col-span-4">
+                  <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Item name <span className="text-red-500">*</span></label>
+                  <input type="text" placeholder="Item name" value={item.name}
+                    onChange={e => updateItem(i, 'name', e.target.value)}
+                    className={`w-full px-2 py-1.5 border rounded text-sm ${itemErrors.name ? 'border-red-500' : ''}`} />
+                  {itemErrors.name && <p className="text-xs text-red-500 mt-1">{itemErrors.name}</p>}
+                </div>
+                <div className="col-span-12 sm:col-span-3">
+                  <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Description</label>
+                  <input type="text" placeholder="Description" value={item.description}
+                    onChange={e => updateItem(i, 'description', e.target.value)}
+                    className="w-full px-2 py-1.5 border rounded text-sm" />
+                </div>
+                <div className="col-span-4 sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Qty <span className="text-red-500">*</span></label>
+                  <input type="number" min="0" placeholder="Qty" value={item.quantity}
+                    onChange={e => updateItem(i, 'quantity', e.target.value)}
+                    onFocus={e => e.target.select()}
+                    className={`w-full px-2 py-1.5 border rounded text-sm text-right ${itemErrors.quantity ? 'border-red-500' : ''}`} />
+                  {itemErrors.quantity && <p className="text-xs text-red-500 mt-1">{itemErrors.quantity}</p>}
+                </div>
+                <div className="col-span-5 sm:col-span-2">
+                  <label className="block text-xs font-medium text-gray-500 mb-1 sm:hidden">Price <span className="text-red-500">*</span></label>
+                  <input type="number" min="0" placeholder="Price" value={item.price}
+                    onChange={e => updateItem(i, 'price', e.target.value)}
+                    onFocus={e => e.target.select()}
+                    className={`w-full px-2 py-1.5 border rounded text-sm text-right ${itemErrors.price ? 'border-red-500' : ''}`} />
+                  {itemErrors.price && <p className="text-xs text-red-500 mt-1">{itemErrors.price}</p>}
+                </div>
+                <button onClick={() => removeItem(i)} className="col-span-3 sm:col-span-1 p-2 hover:bg-red-50 rounded text-red-500 flex items-center justify-center">
+                  <Trash2 size={14} />
+                </button>
+                <div className="col-span-12 text-right text-xs text-gray-500 -mt-1">
+                  Subtotal: ₹{((parseFloat(item.quantity) || 0) * (parseFloat(item.price) || 0)).toFixed(2)}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -144,12 +196,14 @@ const QuotationEditorPage = () => {
               <label className="block text-xs font-medium text-gray-500 mb-1">Discount %</label>
               <input type="number" min="0" max="100" value={form.discount_percent}
                 onChange={e => setForm({ ...form, discount_percent: e.target.value })}
+                onFocus={e => e.target.select()}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Tax % (GST)</label>
               <input type="number" min="0" max="100" value={form.tax_percent}
                 onChange={e => setForm({ ...form, tax_percent: e.target.value })}
+                onFocus={e => e.target.select()}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
             </div>
             <div>
