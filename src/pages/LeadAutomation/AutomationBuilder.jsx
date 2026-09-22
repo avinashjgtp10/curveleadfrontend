@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, Clock, Power } from 'lucide-react';
+import { Plus, Edit2, Trash2, Clock, Power, X } from 'lucide-react';
 import { automationAPI, stageAPI, statusAPI, campaignAPI, templateAPI, whatsappAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
@@ -388,7 +388,12 @@ const AutomationBuilder = () => {
       {seqModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl p-5 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-xl">
-            <h3 className="font-bold text-base mb-4">{editingSeq ? 'Edit Sequence' : 'New Sequence'}</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-base">{editingSeq ? 'Edit Sequence' : 'New Sequence'}</h3>
+              <button onClick={() => { setSeqModal(false); setPendingRulePreset(null); }} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500">
+                <X size={18} />
+              </button>
+            </div>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
@@ -516,7 +521,12 @@ const AutomationBuilder = () => {
       {ruleModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
           <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl">
-            <h3 className="font-bold text-base mb-4">{editingRule ? 'Edit Rule' : 'New Rule'}</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-bold text-base">{editingRule ? 'Edit Rule' : 'New Rule'}</h3>
+              <button onClick={() => setRuleModal(false)} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500">
+                <X size={18} />
+              </button>
+            </div>
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
