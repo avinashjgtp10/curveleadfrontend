@@ -276,8 +276,9 @@ const GbpReportPage = () => {
                   />
                   <input
                     type="tel"
+                    inputMode="numeric"
                     value={form.phone}
-                    onChange={e => { setForm({ ...form, phone: e.target.value }); if (error) setError(''); }}
+                    onChange={e => { setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 15) }); if (error) setError(''); }}
                     placeholder="98765 43210"
                     className="w-full rounded-r-lg px-3 py-2.5 text-sm focus:outline-none"
                   />
