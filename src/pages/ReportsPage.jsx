@@ -1024,7 +1024,7 @@ const ReportsPage = () => {
                 </p>
                 <select value={gridPageSize} onChange={e => { setGridPage(1); setGridPageSize(Number(e.target.value)); }}
                   className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white">
-                  {REPORT_LEAD_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
+                  {REPORT_LEAD_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
               {gridPagination.pages > 1 && (
@@ -1179,7 +1179,7 @@ const ReportsPage = () => {
                 </p>
                 <select value={brochurePageSize} onChange={e => { setBrochurePage(1); setBrochurePageSize(Number(e.target.value)); }}
                   className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white">
-                  {BROCHURE_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
+                  {BROCHURE_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
               {brochureTotalPages > 1 && (
@@ -1347,7 +1347,7 @@ const ReportsPage = () => {
                 </p>
                 <select value={msgPageSize} onChange={e => { setMsgPage(1); setMsgPageSize(Number(e.target.value)); }}
                   className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white">
-                  {REPORT_LEAD_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
+                  {REPORT_LEAD_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
               {msgPagination.pages > 1 && (

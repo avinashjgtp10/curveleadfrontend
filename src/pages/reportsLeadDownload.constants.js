@@ -1,6 +1,6 @@
 import { FileSpreadsheet, FileText } from 'lucide-react';
 
-export const REPORT_LEAD_PAGE_SIZE_OPTIONS = [5, 10, 15, 20];
+export const REPORT_LEAD_PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
 
 export const REPORT_LEAD_COLUMNS = [
   { key: 'lead_number', label: 'Lead #' },
