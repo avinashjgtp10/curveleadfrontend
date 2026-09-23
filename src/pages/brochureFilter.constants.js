@@ -19,4 +19,4 @@ export const BROCHURE_SORT_OPTIONS = [
   { value: 'shares', label: 'Sort: Most Shared' },
 ];
 
-export const BROCHURE_PAGE_SIZE_OPTIONS = [5, 10, 15, 20];
+export const BROCHURE_PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
