@@ -7,7 +7,9 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': {
-        target: 'https://curvelead.com',
+        // Local dev talks to the local backend by default. Override with
+        // VITE_PROXY_TARGET=https://curvelead.com to point at prod instead.
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:3002',
         changeOrigin: true,
       },
     },

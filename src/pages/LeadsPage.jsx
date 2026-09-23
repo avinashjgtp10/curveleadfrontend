@@ -99,6 +99,7 @@ const LEADS_COLUMNS = [
   { key: 'score', label: 'Score' },
   { key: 'stage', label: 'Stage' },
   { key: 'status', label: 'Status' },
+  { key: 'followup_health', label: 'Follow-up Health' },
   { key: 'assigned_to', label: 'Assigned To' },
 ];
 const LEADS_COLUMNS_STORAGE_KEY = 'leadsTableVisibleColumns';
@@ -1267,6 +1268,7 @@ const LeadsPage = () => {
                       {visibleColumns.score && <SortTh sortKey="score" label="Score" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.stage && <SortTh sortKey="stage" label="Stage" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.status && <SortTh sortKey="status" label="Status" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.followup_health && <th className="px-3 py-3 text-left">Follow-up Health</th>}
                       {visibleColumns.assigned_to && <SortTh sortKey="assigned_to" label="Assigned To" sortState={sortState} onSort={handleSort} />}
                       <th className="text-right px-3 py-3">Actions</th>
                     </tr>
@@ -1357,6 +1359,19 @@ const LeadsPage = () => {
                               {l.lead_status || <span className="text-gray-300">—</span>}
                             </button>
                           )}
+                        </td>
+                        )}
+                        {visibleColumns.followup_health && (
+                        <td className="px-3 py-3">
+                          {(() => {
+                            const health = computeFollowupHealth(l.next_followup_at);
+                            const style = FOLLOWUP_HEALTH_STYLES[health];
+                            return (
+                              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${style.cls}`}>
+                                {style.label}
+                              </span>
+                            );
+                          })()}
                         </td>
                         )}
                         {visibleColumns.assigned_to && (

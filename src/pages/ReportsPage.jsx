@@ -752,6 +752,7 @@ const ReportsPage = () => {
                         <th className="text-right py-2">Won</th>
                         <th className="text-right py-2">Lost</th>
                         <th className="text-right py-2">Conv. Rate</th>
+                        <th className="text-right py-2">Stalled</th>
                         <th className="text-right py-2">AI Replies</th>
                         <th className="text-right py-2">Manual Replies</th>
                       </tr>
@@ -764,6 +765,7 @@ const ReportsPage = () => {
                           <td className="text-right text-green-600 font-semibold">{s.won}</td>
                           <td className="text-right text-red-500">{s.lost}</td>
                           <td className="text-right font-semibold">{s.total_leads > 0 ? ((s.won / s.total_leads) * 100).toFixed(1) : 0}%</td>
+                          <td className={`text-right font-semibold ${s.stalled_leads > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{s.stalled_leads}</td>
                           <td className="text-right text-brand-600">{s.ai_sent}</td>
                           <td className="text-right text-gray-500">{s.manual_sent}</td>
                         </tr>
