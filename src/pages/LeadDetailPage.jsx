@@ -56,6 +56,12 @@ const activityConfig = (type) => {
     automation_ai_failed:        { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
     automation_template_required:{ Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
     email:                       { Icon: Mail,          bg: 'bg-indigo-50',  color: 'text-indigo-600' },
+    // Contact SLA breaches (written by jobs/leadSlaMonitor.js) — escalating severity.
+    sla_risk:                    { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
+    sla_escalated:               { Icon: AlertTriangle, bg: 'bg-orange-50',  color: 'text-orange-600' },
+    sla_missed:                  { Icon: AlertTriangle, bg: 'bg-red-50',     color: 'text-red-600' },
+    sla_auto_reassigned:         { Icon: UserCheck,     bg: 'bg-amber-50',   color: 'text-amber-600' },
+    no_followup_scheduled:       { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
   };
   return map[type] || { Icon: StickyNote, bg: 'bg-gray-50', color: 'text-gray-400' };
 };

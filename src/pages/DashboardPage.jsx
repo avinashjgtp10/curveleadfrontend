@@ -300,7 +300,7 @@ const DashboardPage = () => {
               <GitBranch size={16} className="text-gray-400" />
               Lead Pipeline
             </h3>
-            <button onClick={() => navigate('/leads')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+            <button onClick={() => navigate('/leads?view=pipeline')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
             </button>
           </div>
@@ -309,7 +309,7 @@ const DashboardPage = () => {
               const pct = Math.round((stage.count / pipelineTotal) * 100);
               const bar = STAGE_COLOR[stage.color] || STAGE_COLOR.gray;
               return (
-                <button key={stage.name} onClick={() => navigate('/leads')}
+                <button key={stage.name} onClick={() => navigate('/leads?view=pipeline')}
                   className="text-left group border border-gray-100 rounded-xl p-2.5 hover:shadow-sm hover:border-gray-200 transition-all min-w-0">
                   <p className="text-[11px] font-semibold leading-snug flex items-start gap-0.5" style={{ color: bar }}>
                     <span className="break-words">{stage.name}</span>
@@ -423,13 +423,13 @@ const DashboardPage = () => {
               <Sparkles size={16} className="text-gray-400" />
               Automation & AI
             </h3>
-            <button onClick={() => navigate('/settings')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+            <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
             </button>
           </div>
           <div>
             {automationItems.map((item, i) => (
-              <button key={item.label} onClick={() => navigate('/settings')}
+              <button key={item.label} onClick={() => navigate('/lead-automation')}
                 className={`w-full flex items-center gap-3 py-3 hover:bg-gray-50 px-1 -mx-1 transition-colors text-left ${i > 0 ? 'border-t border-gray-100' : ''}`}>
                 <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
                   <item.icon size={16} />
@@ -451,7 +451,7 @@ const DashboardPage = () => {
             <Zap size={16} className="text-gray-400" />
             Automated This Month
           </h3>
-          <button onClick={() => navigate('/settings')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+          <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
             View all <ChevronRight size={12} />
           </button>
         </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI, leadAPI, staffAPI } from '../services/api';
@@ -31,7 +31,9 @@ const AppointmentsPage = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState(null);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [anchorRect, setAnchorRect] = useState(null);
+  const [menuPos, setMenuPos] = useState(null);
+  const menuRef = useRef(null);
   const [rescheduleId, setRescheduleId] = useState(null);
   const [rescheduleAt, setRescheduleAt] = useState('');
   const [saving, setSaving] = useState(false);
@@ -48,6 +50,8 @@ const AppointmentsPage = () => {
   const [leadSearchLoading, setLeadSearchLoading] = useState(false);
   const [newForm, setNewForm] = useState(EMPTY_NEW_APPOINTMENT_FORM);
   const [newErrors, setNewErrors] = useState({});
+  const [pageSize, setPageSize] = useState(100);
+  const PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
 
   useEffect(() => { load(); }, []);
 
@@ -157,15 +161,24 @@ const AppointmentsPage = () => {
 
   const toggleMenu = (id, e) => {
     if (openMenuId === id) { setOpenMenuId(null); return; }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const menuWidth = 190, menuHeight = 160;
-    const openUpward = rect.bottom + menuHeight > window.innerHeight;
-    setMenuPos({
-      top: openUpward ? rect.top - menuHeight - 4 : rect.bottom + 4,
-      left: Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
-    });
+    setAnchorRect(e.currentTarget.getBoundingClientRect());
+    setMenuPos(null);
     setOpenMenuId(id);
   };
+
+  // Position the menu after it renders, using its real (measured) height rather than
+  // a guessed constant, so rows with fewer actions (e.g. completed appointments) don't
+  // get flipped upward by a gap sized for the full menu.
+  useLayoutEffect(() => {
+    if (!openMenuId || !anchorRect || !menuRef.current) return;
+    const menuWidth = 190;
+    const menuHeight = menuRef.current.offsetHeight;
+    const openUpward = anchorRect.bottom + menuHeight + 4 > window.innerHeight;
+    setMenuPos({
+      top: openUpward ? anchorRect.top - menuHeight - 4 : anchorRect.bottom + 4,
+      left: Math.min(anchorRect.right - menuWidth, window.innerWidth - menuWidth - 8),
+    });
+  }, [openMenuId, anchorRect]);
 
   const upcomingCount = appointments.filter(a => getStatus(a) === 'upcoming').length;
   const todayCount = appointments.filter(a => !a.is_completed && localDay(a.next_followup_at) === todayISO()).length;
@@ -190,13 +203,13 @@ const AppointmentsPage = () => {
       const hay = `${a.lead_name || ''} ${TYPE_META[a.followup_type]?.label || ''} ${a.assigned_to_name || ''}`.toLowerCase();
       return hay.includes(searchLower);
     })
-    .sort((a, b) => new Date(b.next_followup_at) - new Date(a.next_followup_at));
+    .sort((a, b) => new Date(a.next_followup_at) - new Date(b.next_followup_at));
 
   const activeFilterCount = Object.values(apptFilters).filter(Boolean).length;
 
-  const pages = Math.max(1, Math.ceil(filtered.length / APPOINTMENTS_PAGE_LIMIT));
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages);
-  const pageRows = filtered.slice((currentPage - 1) * APPOINTMENTS_PAGE_LIMIT, currentPage * APPOINTMENTS_PAGE_LIMIT);
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const pageNumbers = () => {
     if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
@@ -427,7 +440,14 @@ const AppointmentsPage = () => {
                           <MoreVertical size={15} />
                         </button>
                         {openMenuId === a.id && createPortal(
-                          <div data-actions-menu style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: 190 }}
+                          <div ref={menuRef} data-actions-menu
+                            style={{
+                              position: 'fixed',
+                              top: menuPos ? menuPos.top : anchorRect?.bottom + 4,
+                              left: menuPos ? menuPos.left : anchorRect?.right - 190,
+                              width: 190,
+                              visibility: menuPos ? 'visible' : 'hidden',
+                            }}
                             className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
                             <button onClick={() => { setOpenMenuId(null); navigate('/leads', { state: { openLeadId: a.lead_id } }); }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700">
@@ -464,8 +484,17 @@ const AppointmentsPage = () => {
         )}
 
         {filtered.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-500">
-            <span>Showing {(currentPage - 1) * APPOINTMENTS_PAGE_LIMIT + 1} to {Math.min(currentPage * APPOINTMENTS_PAGE_LIMIT, filtered.length)} of {filtered.length} appointments</span>
+          <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-500 gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span>Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} appointments</span>
+              <select
+                value={pageSize}
+                onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }}
+                className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white"
+              >
+                {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
             <div className="flex items-center gap-1.5">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
                 className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
