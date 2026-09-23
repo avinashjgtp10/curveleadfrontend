@@ -300,7 +300,7 @@ const DashboardPage = () => {
               <GitBranch size={16} className="text-gray-400" />
               Lead Pipeline
             </h3>
-            <button onClick={() => navigate('/leads')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+            <button onClick={() => navigate('/leads?view=pipeline')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
             </button>
           </div>
@@ -309,7 +309,7 @@ const DashboardPage = () => {
               const pct = Math.round((stage.count / pipelineTotal) * 100);
               const bar = STAGE_COLOR[stage.color] || STAGE_COLOR.gray;
               return (
-                <button key={stage.name} onClick={() => navigate('/leads')}
+                <button key={stage.name} onClick={() => navigate('/leads?view=pipeline')}
                   className="text-left group border border-gray-100 rounded-xl p-2.5 hover:shadow-sm hover:border-gray-200 transition-all min-w-0">
                   <p className="text-[11px] font-semibold leading-snug flex items-start gap-0.5" style={{ color: bar }}>
                     <span className="break-words">{stage.name}</span>
