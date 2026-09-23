@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI, leadAPI, staffAPI } from '../services/api';
@@ -31,7 +31,9 @@ const AppointmentsPage = () => {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState(null);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [anchorRect, setAnchorRect] = useState(null);
+  const [menuPos, setMenuPos] = useState(null);
+  const menuRef = useRef(null);
   const [rescheduleId, setRescheduleId] = useState(null);
   const [rescheduleAt, setRescheduleAt] = useState('');
   const [saving, setSaving] = useState(false);
@@ -157,15 +159,24 @@ const AppointmentsPage = () => {
 
   const toggleMenu = (id, e) => {
     if (openMenuId === id) { setOpenMenuId(null); return; }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const menuWidth = 190, menuHeight = 160;
-    const openUpward = rect.bottom + menuHeight > window.innerHeight;
-    setMenuPos({
-      top: openUpward ? rect.top - menuHeight - 4 : rect.bottom + 4,
-      left: Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
-    });
+    setAnchorRect(e.currentTarget.getBoundingClientRect());
+    setMenuPos(null);
     setOpenMenuId(id);
   };
+
+  // Position the menu after it renders, using its real (measured) height rather than
+  // a guessed constant, so rows with fewer actions (e.g. completed appointments) don't
+  // get flipped upward by a gap sized for the full menu.
+  useLayoutEffect(() => {
+    if (!openMenuId || !anchorRect || !menuRef.current) return;
+    const menuWidth = 190;
+    const menuHeight = menuRef.current.offsetHeight;
+    const openUpward = anchorRect.bottom + menuHeight + 4 > window.innerHeight;
+    setMenuPos({
+      top: openUpward ? anchorRect.top - menuHeight - 4 : anchorRect.bottom + 4,
+      left: Math.min(anchorRect.right - menuWidth, window.innerWidth - menuWidth - 8),
+    });
+  }, [openMenuId, anchorRect]);
 
   const upcomingCount = appointments.filter(a => getStatus(a) === 'upcoming').length;
   const todayCount = appointments.filter(a => !a.is_completed && localDay(a.next_followup_at) === todayISO()).length;
@@ -427,7 +438,14 @@ const AppointmentsPage = () => {
                           <MoreVertical size={15} />
                         </button>
                         {openMenuId === a.id && createPortal(
-                          <div data-actions-menu style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: 190 }}
+                          <div ref={menuRef} data-actions-menu
+                            style={{
+                              position: 'fixed',
+                              top: menuPos ? menuPos.top : anchorRect?.bottom + 4,
+                              left: menuPos ? menuPos.left : anchorRect?.right - 190,
+                              width: 190,
+                              visibility: menuPos ? 'visible' : 'hidden',
+                            }}
                             className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
                             <button onClick={() => { setOpenMenuId(null); navigate('/leads', { state: { openLeadId: a.lead_id } }); }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700">
