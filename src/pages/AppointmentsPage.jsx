@@ -190,7 +190,7 @@ const AppointmentsPage = () => {
       const hay = `${a.lead_name || ''} ${TYPE_META[a.followup_type]?.label || ''} ${a.assigned_to_name || ''}`.toLowerCase();
       return hay.includes(searchLower);
     })
-    .sort((a, b) => new Date(b.next_followup_at) - new Date(a.next_followup_at));
+    .sort((a, b) => new Date(a.next_followup_at) - new Date(b.next_followup_at));
 
   const activeFilterCount = Object.values(apptFilters).filter(Boolean).length;
 
