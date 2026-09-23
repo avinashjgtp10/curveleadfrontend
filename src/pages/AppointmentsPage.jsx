@@ -48,6 +48,8 @@ const AppointmentsPage = () => {
   const [leadSearchLoading, setLeadSearchLoading] = useState(false);
   const [newForm, setNewForm] = useState(EMPTY_NEW_APPOINTMENT_FORM);
   const [newErrors, setNewErrors] = useState({});
+  const [pageSize, setPageSize] = useState(100);
+  const PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
 
   useEffect(() => { load(); }, []);
 
@@ -194,9 +196,9 @@ const AppointmentsPage = () => {
 
   const activeFilterCount = Object.values(apptFilters).filter(Boolean).length;
 
-  const pages = Math.max(1, Math.ceil(filtered.length / APPOINTMENTS_PAGE_LIMIT));
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages);
-  const pageRows = filtered.slice((currentPage - 1) * APPOINTMENTS_PAGE_LIMIT, currentPage * APPOINTMENTS_PAGE_LIMIT);
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const pageNumbers = () => {
     if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
@@ -464,8 +466,17 @@ const AppointmentsPage = () => {
         )}
 
         {filtered.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-500">
-            <span>Showing {(currentPage - 1) * APPOINTMENTS_PAGE_LIMIT + 1} to {Math.min(currentPage * APPOINTMENTS_PAGE_LIMIT, filtered.length)} of {filtered.length} appointments</span>
+          <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-500 gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span>Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} appointments</span>
+              <select
+                value={pageSize}
+                onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }}
+                className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white"
+              >
+                {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
             <div className="flex items-center gap-1.5">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
                 className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">

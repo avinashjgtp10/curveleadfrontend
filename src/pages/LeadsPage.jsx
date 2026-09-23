@@ -278,7 +278,8 @@ const LeadsPage = () => {
   const [showBroadcastModal, setShowBroadcastModal] = useState(false);
   const [sequences, setSequences] = useState([]);
   const [bulkSequence, setBulkSequence] = useState('');
-  const PAGE_SIZE = 25;
+  const [pageSize, setPageSize] = useState(100);
+  const PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
   const [newLeadErrors, setNewLeadErrors] = useState({});
@@ -460,7 +461,7 @@ const LeadsPage = () => {
   }, []);
 
   // Reload leads whenever filters, view, page, fuFilters, sortState, or hiddenStages change
-  useEffect(() => { fetchLeads(); }, [filters, view, page, fuFilters, sortState, hiddenStages]);
+  useEffect(() => { fetchLeads(); }, [filters, view, page, pageSize, fuFilters, sortState, hiddenStages]);
 
   const fetchLeads = async () => {
     setSelectedIds(new Set());
@@ -470,7 +471,7 @@ const LeadsPage = () => {
         const res = await leadAPI.getFollowupsToday(compactParams(getFollowupApiFilters(fuFilters)));
         setFollowups(filterFollowupsForScope(res.data.followups || [], fuFilters));
       } else {
-        const limit = view === 'pipeline' ? 500 : PAGE_SIZE;
+        const limit = view === 'pipeline' ? 500 : pageSize;
         const hideStagesParam = view === 'list' && hiddenStages.length ? hiddenStages.join(',') : undefined;
         const params = compactParams({ ...filters, ...sortState, page, limit, hide_stages: hideStagesParam });
         try {
@@ -484,8 +485,8 @@ const LeadsPage = () => {
           const fallbackParams = compactParams({ ...withoutLeadDateFilters(filters), page: 1, limit: fallbackLimit, hide_stages: hideStagesParam });
           const fallbackRes = await leadAPI.getAll(fallbackParams);
           const filteredLeads = filterLeadsByDate(fallbackRes.data.leads || [], filters);
-          const start = view === 'pipeline' ? 0 : (page - 1) * PAGE_SIZE;
-          const visibleLeads = view === 'pipeline' ? filteredLeads : filteredLeads.slice(start, start + PAGE_SIZE);
+          const start = view === 'pipeline' ? 0 : (page - 1) * pageSize;
+          const visibleLeads = view === 'pipeline' ? filteredLeads : filteredLeads.slice(start, start + pageSize);
 
           setLeads(visibleLeads);
           setPagination({
@@ -1411,9 +1412,18 @@ const LeadsPage = () => {
             {/* Pagination */}
             {pagination.total > 0 && (
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-wrap gap-3">
-                <p className="text-xs text-gray-500">
-                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, pagination.total)}–{Math.min(page * PAGE_SIZE, pagination.total)} of <span className="font-semibold text-gray-700">{pagination.total}</span> leads
-                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <p className="text-xs text-gray-500">
+                    Showing {Math.min((page - 1) * pageSize + 1, pagination.total)}–{Math.min(page * pageSize, pagination.total)} of <span className="font-semibold text-gray-700">{pagination.total}</span> leads
+                  </p>
+                  <select
+                    value={pageSize}
+                    onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }}
+                    className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white"
+                  >
+                    {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
                 {pagination.pages > 1 && (
                   <div className="flex items-center gap-1">
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
