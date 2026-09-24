@@ -1,6 +1,7 @@
 import {
   BarChart3,
   BookOpen,
+  Bot,
   CalendarCheck,
   CreditCard,
   Globe,
@@ -21,6 +22,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { path: '/leads', label: 'Leads', icon: Users, roles: ['admin', 'staff'] },
   { path: '/brochures', label: 'Brochures', icon: BookOpen, roles: ['admin', 'staff'] },
   { path: '/campaigns', label: 'Campaigns', icon: Megaphone, roles: ['admin'] },
+  { path: '/ai-agent', label: 'AI Agent', icon: Bot, roles: ['admin'] },
   { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
   { path: '/appointments', label: 'Appointments', icon: CalendarCheck, roles: ['admin', 'staff'] },
   { path: '/lead-automation', label: 'Lead Automation', icon: Workflow, roles: ['admin', 'staff'] },

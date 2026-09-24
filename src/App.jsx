@@ -21,6 +21,7 @@ import DashboardPage from './pages/DashboardPage';
 import LeadsPage from './pages/LeadsPage';
 import LeadDetailPage from './pages/LeadDetailPage';
 import CampaignsPage from './pages/CampaignsPage';
+import AiAgentPage from './pages/AiAgentPage';
 import CampaignDetailPage from './pages/CampaignDetailPage';
 import WhatsAppInboxPage from './pages/WhatsAppInboxPage';
 import FollowupsPage from './pages/FollowupsPage';
@@ -76,6 +77,7 @@ const App = () => (
           <Route path="leads/:id" element={<LeadDetailPage />} />
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="campaigns/:id" element={<CampaignDetailPage />} />
+          <Route path="ai-agent" element={<AiAgentPage />} />
           <Route path="whatsapp" element={<WhatsAppInboxPage />} />
           <Route path="followups" element={<FollowupsPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />
