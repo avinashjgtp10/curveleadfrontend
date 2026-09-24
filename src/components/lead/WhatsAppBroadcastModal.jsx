@@ -69,6 +69,8 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const [mapping, setMapping] = useState([]);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
+  const [sendMode, setSendMode] = useState('now'); // now | later
+  const [scheduleAt, setScheduleAt] = useState('');
 
 
 
@@ -111,9 +113,11 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   };
 
   const handleSend = async () => {
+    if (sendMode === 'later' && !scheduleAt) return toast.error('Pick a date and time to send.');
     setSending(true);
     try {
       const { data } = await whatsappAPI.sendBroadcast({
+        ...(sendMode === 'later' ? { scheduled_at: new Date(scheduleAt).toISOString() } : {}),
         lead_ids: leads.map(l => l.id),
         template_name: selectedTemplate.name,
         language_code: selectedTemplate.language,
@@ -266,12 +270,37 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
             </div>
           )}
 
+          {step === 'map' && selectedTemplate && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-medium text-gray-600">When to send</p>
+              <div className="flex gap-2">
+                {[['now', 'Send now'], ['later', 'Schedule for later']].map(([id, label]) => (
+                  <button key={id} onClick={() => setSendMode(id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${sendMode === id ? 'bg-brand-600 text-white border-brand-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {sendMode === 'later' && (
+                <div>
+                  <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}
+                    min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 120000).toISOString().slice(0, 16)}
+                    className="px-3 py-2 border rounded-lg text-sm" />
+                  <p className="text-[11px] text-gray-400 mt-1">Your local time. You can cancel it any time before it starts, from WhatsApp → Messages → Broadcasts.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {step === 'result' && result && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-3 rounded-lg text-sm">
-                <CheckCircle size={16} /> {result.sent} sent{result.failed > 0 ? `, ${result.failed} failed` : ''}
+                <CheckCircle size={16} />
+                {result.scheduled
+                  ? `Scheduled for ${new Date(result.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${result.count} lead${result.count > 1 ? 's' : ''}`
+                  : `${result.sent} sent${result.failed > 0 ? `, ${result.failed} failed` : ''}`}
               </div>
-              {result.failed > 0 && (
+              {!result.scheduled && result.failed > 0 && (
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {result.results.filter(r => !r.success).map(r => {
                     const lead = leads.find(l => l.id === r.lead_id);
@@ -293,7 +322,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
               <button onClick={() => setStep('pick')} className="px-4 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Back</button>
               <button onClick={handleSend} disabled={sending || !mappingComplete}
                 className="px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {sending ? 'Sending…' : <><Send size={14} /> Send to {leads.length} lead{leads.length > 1 ? 's' : ''}</>}
+                {sending ? (sendMode === 'later' ? 'Scheduling…' : 'Sending…') : <><Send size={14} /> {sendMode === 'later' ? 'Schedule for' : 'Send to'} {leads.length} lead{leads.length > 1 ? 's' : ''}</>}
               </button>
             </>
           )}

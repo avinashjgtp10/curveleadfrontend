@@ -59,7 +59,6 @@ const WhatsAppInboxPage = () => {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
-  const [labelsByLead, setLabelsByLead] = useState({});
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [labelFilter, setLabelFilter] = useState(null);
@@ -171,23 +170,27 @@ const WhatsAppInboxPage = () => {
     finally { if (!silent) setMsgLoading(false); }
   };
 
-  const activeLabels = labelsByLead[activeId] || ['Interested'];
+  // Labels are the lead's tags on the server, so they persist and the whole team sees them.
+  const activeLabels = conversations.find(c => c.lead_id === activeId)?.tags || [];
+
+  const changeLabels = async (add, remove) => {
+    if (!activeId) return;
+    const leadId = activeId;
+    try {
+      const { data } = await whatsappAPI.updateLabels(leadId, add, remove);
+      setConversations(prev => prev.map(c => (c.lead_id === leadId ? { ...c, tags: data.tags } : c)));
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update labels'); }
+  };
 
   const addLabel = (label) => {
     const text = label.trim();
-    if (!text || !activeId) return;
-    setLabelsByLead(prev => {
-      const existing = prev[activeId] || ['Interested'];
-      if (existing.includes(text)) return prev;
-      return { ...prev, [activeId]: [...existing, text] };
-    });
+    if (!text || activeLabels.includes(text)) return;
+    changeLabels([text], []);
     setCustomLabel('');
     setShowLabelPicker(false);
   };
 
-  const removeLabel = (label) => {
-    setLabelsByLead(prev => ({ ...prev, [activeId]: (prev[activeId] || ['Interested']).filter(l => l !== label) }));
-  };
+  const removeLabel = (label) => changeLabels([], [label]);
 
   const toggleStar = (leadId, e) => {
     e.stopPropagation();
@@ -220,8 +223,8 @@ const WhatsAppInboxPage = () => {
       (c.lead_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (c.lead_phone || '').includes(search)
     )
-    .filter(c => !labelFilter || (labelsByLead[c.lead_id] || ['Interested']).includes(labelFilter)),
-    [conversations, tab, search, starredIds, labelFilter, labelsByLead]);
+    .filter(c => !labelFilter || (c.tags || []).includes(labelFilter)),
+    [conversations, tab, search, starredIds, labelFilter]);
 
   const unreadCount = conversations.filter(c => c.unread_count > 0).length;
   const starredCount = starredIds.size;
@@ -305,7 +308,7 @@ const WhatsAppInboxPage = () => {
                       className={`w-full text-left px-3 py-1.5 text-xs font-medium ${!labelFilter ? 'text-brand-600 bg-brand-50' : 'text-gray-600 hover:bg-gray-50'}`}>
                       All labels
                     </button>
-                    {PRESET_LABELS.map(l => (
+                    {[...new Set([...PRESET_LABELS, ...conversations.flatMap(c => c.tags || [])])].map(l => (
                       <button key={l} onClick={() => { setLabelFilter(l); setShowFilterMenu(false); }}
                         className={`w-full text-left px-3 py-1.5 text-xs font-medium ${labelFilter === l ? 'text-brand-600 bg-brand-50' : 'text-gray-600 hover:bg-gray-50'}`}>
                         {l}
@@ -350,6 +353,14 @@ const WhatsAppInboxPage = () => {
                   <p className={`text-xs truncate mt-0.5 ${c.message ? 'text-gray-500' : 'italic text-gray-400'}`}>
                     {c.message || 'No messages yet — tap to start chatting'}
                   </p>
+                  {(c.tags || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {c.tags.slice(0, 3).map(t => (
+                        <span key={t} className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">{t}</span>
+                      ))}
+                      {c.tags.length > 3 && <span className="text-[10px] text-gray-400">+{c.tags.length - 3}</span>}
+                    </div>
+                  )}
                 </div>
                 {c.unread_count > 0 && (
                   <span className="bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0 mt-1">
