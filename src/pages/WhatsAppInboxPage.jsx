@@ -282,7 +282,7 @@ const WhatsAppInboxPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 h-[calc(100vh-180px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 h-[calc(100vh-290px)]">
         {/* Conversations */}
         <div className="bg-white border rounded-2xl flex flex-col overflow-hidden">
           <div className="p-4 pb-3 border-b">

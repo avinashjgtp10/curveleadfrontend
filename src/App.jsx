@@ -23,7 +23,7 @@ import LeadDetailPage from './pages/LeadDetailPage';
 import CampaignsPage from './pages/CampaignsPage';
 import AiAgentPage from './pages/AiAgentPage';
 import CampaignDetailPage from './pages/CampaignDetailPage';
-import WhatsAppInboxPage from './pages/WhatsAppInboxPage';
+import WhatsAppHubPage from './pages/WhatsAppHubPage';
 import FollowupsPage from './pages/FollowupsPage';
 import AppointmentsPage from './pages/AppointmentsPage';
 import LeadAutomationPage from './pages/LeadAutomation/LeadAutomationPage';
@@ -78,7 +78,8 @@ const App = () => (
           <Route path="campaigns" element={<CampaignsPage />} />
           <Route path="campaigns/:id" element={<CampaignDetailPage />} />
           <Route path="ai-agent" element={<AiAgentPage />} />
-          <Route path="whatsapp" element={<WhatsAppInboxPage />} />
+          <Route path="whatsapp" element={<WhatsAppHubPage />} />
+          <Route path="templates" element={<Navigate to="/whatsapp?tab=templates" replace />} />
           <Route path="followups" element={<FollowupsPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />
           <Route path="lead-automation" element={<LeadAutomationPage />} />
