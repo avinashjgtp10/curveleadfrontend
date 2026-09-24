@@ -100,6 +100,20 @@ const AssignmentRulesSection = () => {
   };
 
   const handleToggleRule = async (rule) => {
+    const confirmed = rule.is_active
+      ? await confirm({
+          title: `Pause "${rule.name}"?`,
+          message: 'New leads matching this rule will stop being auto-assigned until you reactivate it.',
+          confirmText: 'Pause',
+          destructive: false,
+        })
+      : await confirm({
+          title: `Activate "${rule.name}"?`,
+          message: 'New leads matching this rule will start being auto-assigned again.',
+          confirmText: 'Activate',
+          destructive: false,
+        });
+    if (!confirmed) return;
     try { await assignmentRuleAPI.update(rule.id, { is_active: !rule.is_active }); loadRules(); }
     catch (e) { toast.error('Failed to update'); }
   };

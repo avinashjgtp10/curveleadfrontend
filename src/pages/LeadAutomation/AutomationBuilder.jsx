@@ -6,7 +6,13 @@ import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 import AssignmentRulesSection from './AssignmentRulesSection';
 
-const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '' });
+const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, delay_unit: 'minutes', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '' });
+
+const DELAY_UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440 };
+const delayValueForStep = (step) => {
+  const factor = DELAY_UNIT_MINUTES[step.delay_unit || 'minutes'];
+  return step.delay_minutes ? Math.round(step.delay_minutes / factor) : '';
+};
 
 const SOURCE_OPTIONS = ['manual', 'website', 'meta_ads', 'google_ads', 'whatsapp', 'referral', 'walkin'];
 
@@ -431,11 +437,27 @@ const AutomationBuilder = () => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Delay after previous step (minutes)</label>
-                          <input type="number" min="0" value={step.delay_minutes || ''}
-                            onChange={e => updateStep(idx, { delay_minutes: parseInt(e.target.value, 10) || 0 })}
-                            onFocus={e => e.target.select()}
-                            className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="0" />
+                          <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Delay after previous step</label>
+                          <div className="flex gap-1.5">
+                            <input type="number" min="0" value={delayValueForStep(step)}
+                              onChange={e => {
+                                const factor = DELAY_UNIT_MINUTES[step.delay_unit || 'minutes'];
+                                updateStep(idx, { delay_minutes: (parseInt(e.target.value, 10) || 0) * factor });
+                              }}
+                              onFocus={e => e.target.select()}
+                              className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="0" />
+                            <select value={step.delay_unit || 'minutes'}
+                              onChange={e => {
+                                const newUnit = e.target.value;
+                                const currentValue = delayValueForStep(step) || 0;
+                                updateStep(idx, { delay_unit: newUnit, delay_minutes: currentValue * DELAY_UNIT_MINUTES[newUnit] });
+                              }}
+                              className="px-2 py-2 border rounded-lg text-xs bg-white shrink-0">
+                              <option value="minutes">Minutes</option>
+                              <option value="hours">Hours</option>
+                              <option value="days">Days</option>
+                            </select>
+                          </div>
                         </div>
                       </div>
                       {step.channel === 'email' && (
