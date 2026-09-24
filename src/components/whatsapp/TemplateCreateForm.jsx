@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
-import { CheckCircle, Upload, Sparkles, Trash2, ArrowLeft } from 'lucide-react';
+import { CheckCircle, Upload, Sparkles, Trash2, ArrowLeft, Copy, ExternalLink } from 'lucide-react';
 import { useToast } from '../ui/Toast';
 
 const CATEGORIES = ['MARKETING', 'UTILITY', 'AUTHENTICATION'];
@@ -30,6 +30,11 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
   const [aiBrief, setAiBrief] = useState('');
   const [drafting, setDrafting] = useState(false);
   const [imageIdea, setImageIdea] = useState('');
+  const [imageText, setImageText] = useState({ headline: '', subline: '', cta: '' });
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [genEnabled, setGenEnabled] = useState(false); // server has an image API key
+  const [generating, setGenerating] = useState(false);
+  const [generated, setGenerated] = useState([]); // [{ mime, base64 }]
   const [headerType, setHeaderType] = useState('NONE'); // NONE | IMAGE | VIDEO | DOCUMENT
   const [headerUploading, setHeaderUploading] = useState(false);
   const [headerMedia, setHeaderMedia] = useState(null); // { url, handle, media_type, fileName }
@@ -50,15 +55,13 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
       setCreateExamples(d.examples || []);
       setButtons(d.buttons || []);
       setImageIdea(d.image_idea || '');
+      setImageText({ headline: d.image_headline || '', subline: d.image_subline || '', cta: d.image_cta || '' });
       toast.success('Draft ready — review and edit it before submitting.');
     } catch (e) { setCreateError(e.response?.data?.error || 'Failed to draft template'); }
     finally { setDrafting(false); }
   };
 
-  const handleHeaderFileSelect = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
+  const uploadHeaderFile = async (file) => {
     setHeaderMedia(null);
     setCreateError('');
     setHeaderUploading(true);
@@ -67,6 +70,46 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
       setHeaderMedia({ ...data, fileName: file.name });
     } catch (e2) { setCreateError(e2.response?.data?.error || 'Failed to upload file'); }
     finally { setHeaderUploading(false); }
+  };
+
+  const handleHeaderFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (file) uploadHeaderFile(file);
+  };
+
+  // Header image prompt: rebuilt when the image header is chosen or the AI draft suggests a new scene.
+  const loadImagePrompt = async () => {
+    try {
+      const { data } = await whatsappAPI.imagePrompt({ idea: imageIdea, ...imageText });
+      setImagePrompt(data.prompt);
+      setGenEnabled(!!data.generation_enabled);
+    } catch { /* the panel still works with a hand-written prompt */ }
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (headerType === 'IMAGE') loadImagePrompt(); }, [headerType, imageIdea]);
+
+  const copyPrompt = async () => {
+    try { await navigator.clipboard.writeText(imagePrompt); toast.success('Prompt copied. Paste it into Ideogram.'); }
+    catch { toast.error('Could not copy — select the text and copy it manually.'); }
+  };
+
+  const handleGenerateImages = async () => {
+    setCreateError('');
+    setGenerating(true);
+    setGenerated([]);
+    try {
+      const { data } = await whatsappAPI.aiImage({ prompt: imagePrompt, count: 2 });
+      setGenerated(data.images || []);
+    } catch (e) { setCreateError(e.response?.data?.error || 'Failed to generate images'); }
+    finally { setGenerating(false); }
+  };
+
+  const useGeneratedImage = (img) => {
+    if (!/image\/(png|jpe?g)/.test(img.mime)) return setCreateError('Meta only accepts PNG or JPG headers. Download it from Ideogram as PNG/JPG and upload it instead.');
+    const bytes = Uint8Array.from(atob(img.base64), c => c.charCodeAt(0));
+    const ext = img.mime.includes('png') ? 'png' : 'jpg';
+    uploadHeaderFile(new File([bytes], `ai-header.${ext}`, { type: img.mime }));
   };
 
   const handleCreateTemplate = async () => {
@@ -158,6 +201,43 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
             )}
           </div>
         </div>
+        {headerType === 'IMAGE' && (
+          <div className="rounded-xl border border-violet-200 bg-violet-50/50 p-3 space-y-2">
+            <p className="flex items-center gap-1.5 text-xs font-semibold text-violet-700"><Sparkles size={13} /> AI header image</p>
+            <textarea value={imagePrompt} onChange={e => setImagePrompt(e.target.value)} rows={4}
+              className="w-full px-3 py-2 border border-violet-200 rounded-lg text-xs bg-white" />
+            <div className="flex flex-wrap gap-2">
+              <button onClick={copyPrompt} className="px-3 py-1.5 border border-violet-300 rounded-lg text-xs font-semibold text-violet-700 bg-white hover:bg-violet-50 flex items-center gap-1.5">
+                <Copy size={12} /> Copy prompt
+              </button>
+              <a href="https://ideogram.ai" target="_blank" rel="noreferrer"
+                className="px-3 py-1.5 border border-violet-300 rounded-lg text-xs font-semibold text-violet-700 bg-white hover:bg-violet-50 flex items-center gap-1.5">
+                <ExternalLink size={12} /> Open Ideogram
+              </a>
+              {genEnabled && (
+                <button onClick={handleGenerateImages} disabled={generating || imagePrompt.trim().length < 15}
+                  className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-semibold hover:bg-violet-700 disabled:opacity-50">
+                  {generating ? 'Generating… (up to a minute)' : 'Generate images'}
+                </button>
+              )}
+            </div>
+            {generated.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {generated.map((img, i) => (
+                  <button key={i} onClick={() => useGeneratedImage(img)} disabled={headerUploading}
+                    className="rounded-lg overflow-hidden border-2 border-transparent hover:border-violet-500 disabled:opacity-50">
+                    <img src={`data:${img.mime};base64,${img.base64}`} alt={`Option ${i + 1}`} className="w-full" />
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-gray-500">
+              {genEnabled
+                ? 'Pick an option to use it as the header. Or generate on ideogram.ai yourself and upload the file with "Choose file" above.'
+                : 'Paste this prompt into Ideogram, download the image as PNG or JPG, then upload it with "Choose file" above. One-click generation appears here once an Ideogram API key is added on the server.'}
+            </p>
+          </div>
+        )}
         <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Body Text</label>
           <textarea value={createForm.body_text} onChange={e => setCreateForm(f => ({ ...f, body_text: e.target.value }))}
@@ -201,6 +281,9 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
         {imageIdea && (
           <p className="text-[11px] text-violet-700 bg-violet-50 rounded-lg px-3 py-2">
             <span className="font-semibold">Header image idea:</span> {imageIdea}
+            {headerType !== 'IMAGE' && (
+              <button onClick={() => setHeaderType('IMAGE')} className="ml-2 font-semibold underline">Make an image header</button>
+            )}
           </p>
         )}
 
