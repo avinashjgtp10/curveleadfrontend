@@ -71,13 +71,28 @@ const WhatsAppInboxPage = () => {
   const [showBrochureModal, setShowBrochureModal] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const stickToBottomRef = useRef(true);
+  const prevActiveIdRef = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => { loadInbox(); }, []);
 
+  // Auto-scroll to the newest message on conversation switch or while the
+  // user is already near the bottom — but don't yank them back down if
+  // they've scrolled up to read older messages during a background poll.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: 'end' });
+    const switchedConversation = prevActiveIdRef.current !== activeId;
+    prevActiveIdRef.current = activeId;
+    if (switchedConversation) stickToBottomRef.current = true;
+    if (stickToBottomRef.current) messagesEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages, activeId]);
+
+  const handleMessagesScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   useEffect(() => {
     if (!showChatMenu) return;
@@ -391,7 +406,7 @@ const WhatsAppInboxPage = () => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-[#f8f7f4]">
+              <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-[#f8f7f4]">
                 {msgLoading ? (
                   <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
                 ) : messages.length === 0 ? (
