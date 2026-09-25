@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
-import { CheckCircle, Upload, Sparkles, Trash2, ArrowLeft, Copy, ExternalLink } from 'lucide-react';
+import { CheckCircle, Upload, Sparkles, Trash2, ArrowLeft, Copy, ExternalLink, Image as ImageIcon, Video, FileText as FileIcon, Reply } from 'lucide-react';
 import { useToast } from '../ui/Toast';
 
 const CATEGORIES = ['MARKETING', 'UTILITY', 'AUTHENTICATION'];
@@ -14,6 +14,16 @@ const countVars = (text) => {
   if (!text) return 0;
   const nums = [...text.matchAll(/\{\{(\d+)\}\}/g)].map(m => parseInt(m[1], 10));
   return nums.length ? Math.max(...nums) : 0;
+};
+
+// Renders {{n}} with its example value where one's been filled in, so the preview
+// reads like the real message instead of raw placeholders.
+const withExamples = (text, examples) => {
+  if (!text) return '';
+  return text.replace(/\{\{(\d+)\}\}/g, (match, n) => {
+    const val = examples[parseInt(n, 10) - 1];
+    return val?.trim() ? val : match;
+  });
 };
 
 const emptyCreateForm = () => ({ name: '', category: 'MARKETING', language: 'en_US', body_text: '', footer_text: '' });
@@ -101,7 +111,10 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
     try {
       const { data } = await whatsappAPI.aiImage({ prompt: imagePrompt, count: 2 });
       setGenerated(data.images || []);
-    } catch (e) { setCreateError(e.response?.data?.error || 'Failed to generate images'); }
+    } catch (e) {
+      const serverError = e.response?.data?.error;
+      setCreateError(serverError || 'Generation timed out or the connection dropped. Try again, or copy the prompt above and use it directly on ideogram.ai.');
+    }
     finally { setGenerating(false); }
   };
 
@@ -299,6 +312,42 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
             ))}
           </div>
         )}
+
+        <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Preview</label>
+          <div className="rounded-xl p-3" style={{ background: '#e5ddd5' }}>
+            <div className="max-w-[280px] rounded-lg rounded-tl-none bg-white shadow-sm overflow-hidden">
+              {headerType === 'IMAGE' && (
+                headerMedia ? <img src={headerMedia.url} alt="" className="w-full h-32 object-cover" />
+                  : <div className="w-full h-24 bg-gray-100 flex items-center justify-center text-gray-400"><ImageIcon size={28} /></div>
+              )}
+              {headerType === 'VIDEO' && (
+                <div className="w-full h-24 bg-gray-800 flex items-center justify-center text-white"><Video size={28} /></div>
+              )}
+              {headerType === 'DOCUMENT' && (
+                <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border-b text-gray-600 text-xs">
+                  <FileIcon size={16} /> {headerMedia?.fileName || 'Document'}
+                </div>
+              )}
+              <div className="px-3 py-2 space-y-1">
+                <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+                  {withExamples(createForm.body_text, createExamples) || <span className="text-gray-300">Body text will appear here…</span>}
+                </p>
+                {createForm.footer_text && <p className="text-xs text-gray-400">{createForm.footer_text}</p>}
+                <p className="text-[10px] text-gray-300 text-right">12:00 PM</p>
+              </div>
+              {buttons.filter(b => b.text.trim()).length > 0 && (
+                <div className="border-t divide-y">
+                  {buttons.filter(b => b.text.trim()).map((b, i) => (
+                    <div key={i} className="flex items-center justify-center gap-1.5 py-2 text-sm text-blue-600 font-medium">
+                      {b.type === 'URL' ? <ExternalLink size={13} /> : <Reply size={13} />} {b.text}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
 
         {createError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{createError}</p>}
       </div>
