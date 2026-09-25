@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { whatsappAPI } from '../../services/api';
+import { whatsappAPI, settingsAPI } from '../../services/api';
 import { CheckCircle, Upload, Sparkles, Trash2, ArrowLeft, Copy, ExternalLink, Image as ImageIcon, Video, FileText as FileIcon, Reply } from 'lucide-react';
 import { useToast } from '../ui/Toast';
 
@@ -48,11 +48,17 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
   const [headerType, setHeaderType] = useState('NONE'); // NONE | IMAGE | VIDEO | DOCUMENT
   const [headerUploading, setHeaderUploading] = useState(false);
   const [headerMedia, setHeaderMedia] = useState(null); // { url, handle, media_type, fileName }
+  const [businessLogoUrl, setBusinessLogoUrl] = useState(null);
+  const [addLogo, setAddLogo] = useState(false);
 
   const createVarCount = countVars(createForm.body_text);
   useEffect(() => {
     setCreateExamples(prev => Array.from({ length: createVarCount }, (_, i) => prev[i] || ''));
   }, [createVarCount]);
+
+  useEffect(() => {
+    settingsAPI.get().then(({ data }) => setBusinessLogoUrl(data.settings?.logo_url || null)).catch(() => {});
+  }, []);
 
   const handleAiDraft = async () => {
     setCreateError('');
@@ -76,7 +82,7 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
     setCreateError('');
     setHeaderUploading(true);
     try {
-      const { data } = await whatsappAPI.uploadBroadcastMedia(file, headerType);
+      const { data } = await whatsappAPI.uploadBroadcastMedia(file, headerType, headerType === 'IMAGE' && addLogo);
       setHeaderMedia({ ...data, fileName: file.name });
     } catch (e2) { setCreateError(e2.response?.data?.error || 'Failed to upload file'); }
     finally { setHeaderUploading(false); }
@@ -234,6 +240,15 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
                 </button>
               )}
             </div>
+            {businessLogoUrl ? (
+              <label className="flex items-center gap-2 text-xs font-medium text-violet-700 cursor-pointer">
+                <input type="checkbox" checked={addLogo} onChange={e => setAddLogo(e.target.checked)} />
+                <img src={businessLogoUrl} alt="" className="w-4 h-4 rounded object-contain border" />
+                Add my logo to this image
+              </label>
+            ) : (
+              <p className="text-[11px] text-gray-400">Upload a business logo in Settings → Business to stamp it on this image automatically.</p>
+            )}
             {generated.length > 0 && (
               <div className="grid grid-cols-2 gap-2">
                 {generated.map((img, i) => (
