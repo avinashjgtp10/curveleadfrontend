@@ -189,6 +189,8 @@ const DashboardPage = () => {
 
   const activityItems = [
     { label: 'New Leads', value: data?.leads_today || 0, icon: Users, cls: 'text-blue-500 bg-blue-100', valueCls: 'text-gray-900', to: `/leads?date_field=created_at&date_from=${today}&date_to=${today}` },
+    { label: 'Contacted Today', value: data?.leads_today_contacted || 0, icon: CheckCircle2, cls: 'text-emerald-500 bg-emerald-100', valueCls: 'text-emerald-600', to: `/leads?date_field=created_at&date_from=${today}&date_to=${today}` },
+    { label: 'Not Contacted', value: Math.max((data?.leads_today || 0) - (data?.leads_today_contacted || 0), 0), icon: UserX, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: `/leads?sla_status=uncontacted&date_field=created_at&date_from=${today}&date_to=${today}` },
     { label: 'Follow-ups', value: data?.followups_today || 0, icon: Calendar, cls: 'text-emerald-500 bg-emerald-100', valueCls: 'text-emerald-600', to: `/leads?view=followups&scope=today&category=followup&date_from=${today}&date_to=${today}` },
     { label: 'Demos', value: data?.demos_today || 0, icon: Video, cls: 'text-violet-500 bg-violet-100', valueCls: 'text-gray-900', to: '/appointments?scope=today' },
     { label: 'Overdue', value: data?.overdue_followups || 0, icon: AlertTriangle, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: '/leads?view=followups&scope=overdue' },

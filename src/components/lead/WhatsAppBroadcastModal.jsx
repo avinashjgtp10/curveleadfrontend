@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
 import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Image as ImageIcon, Film, FileText, Upload, Search, Megaphone, Wrench, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useToast } from '../ui/Toast';
+import TemplateCreateForm from '../whatsapp/TemplateCreateForm';
 
 const FIELD_OPTIONS = [
   { value: 'name', label: "Lead Name" },
@@ -57,8 +58,6 @@ const isSupported = (tmpl) => {
   return !!tmpl.media_url;
 };
 
-const emptyCreateForm = () => ({ name: '', category: 'MARKETING', language: 'en_US', body_text: '' });
-
 const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const toast = useToast();
   const [step, setStep] = useState('pick');
@@ -70,15 +69,10 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const [mapping, setMapping] = useState([]);
   const [sending, setSending] = useState(false);
   const [result, setResult] = useState(null);
+  const [sendMode, setSendMode] = useState('now'); // now | later
+  const [scheduleAt, setScheduleAt] = useState('');
 
-  const [createForm, setCreateForm] = useState(emptyCreateForm());
-  const [createExamples, setCreateExamples] = useState([]);
-  const [creating, setCreating] = useState(false);
-  const [createError, setCreateError] = useState('');
 
-  const [headerType, setHeaderType] = useState('NONE'); // NONE | IMAGE | VIDEO | DOCUMENT
-  const [headerUploading, setHeaderUploading] = useState(false);
-  const [headerMedia, setHeaderMedia] = useState(null); // { url, handle, media_type, fileName }
 
   const loadTemplates = () => {
     setLoading(true);
@@ -119,9 +113,11 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   };
 
   const handleSend = async () => {
+    if (sendMode === 'later' && !scheduleAt) return toast.error('Pick a date and time to send.');
     setSending(true);
     try {
       const { data } = await whatsappAPI.sendBroadcast({
+        ...(sendMode === 'later' ? { scheduled_at: new Date(scheduleAt).toISOString() } : {}),
         lead_ids: leads.map(l => l.id),
         template_name: selectedTemplate.name,
         language_code: selectedTemplate.language,
@@ -135,63 +131,6 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   };
 
   const mappingComplete = mapping.every(m => m.source === 'field' || (m.value || '').trim());
-
-  const createVarCount = countVars(createForm.body_text);
-  useEffect(() => {
-    setCreateExamples(prev => Array.from({ length: createVarCount }, (_, i) => prev[i] || ''));
-  }, [createVarCount]);
-
-  const openCreate = () => {
-    setCreateForm(emptyCreateForm());
-    setCreateExamples([]);
-    setCreateError('');
-    setHeaderType('NONE');
-    setHeaderMedia(null);
-    setStep('create');
-  };
-
-  const handleHeaderFileSelect = async (e) => {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setHeaderMedia(null);
-    setCreateError('');
-    setHeaderUploading(true);
-    try {
-      const { data } = await whatsappAPI.uploadBroadcastMedia(file, headerType);
-      setHeaderMedia({ ...data, fileName: file.name });
-    } catch (e2) { setCreateError(e2.response?.data?.error || 'Failed to upload file'); }
-    finally { setHeaderUploading(false); }
-  };
-
-  const handleCreateTemplate = async () => {
-    setCreateError('');
-    if (!/^[a-z0-9_]+$/.test(createForm.name)) {
-      return setCreateError('Name must be lowercase letters, numbers, and underscores only (e.g. order_update).');
-    }
-    if (!createForm.body_text.trim()) return setCreateError('Body text is required.');
-    if (createVarCount > 0 && createExamples.some(e => !e.trim())) {
-      return setCreateError('Provide an example value for every {{n}} variable — Meta requires this for review.');
-    }
-    if (headerType !== 'NONE' && !headerMedia) {
-      return setCreateError('Upload a file for the header, or set Header back to None.');
-    }
-    setCreating(true);
-    try {
-      const { data } = await whatsappAPI.createBroadcastTemplate({
-        name: createForm.name,
-        category: createForm.category,
-        language: createForm.language,
-        body_text: createForm.body_text,
-        examples: createExamples,
-        ...(headerMedia ? { header_type: headerType, header_handle: headerMedia.handle, header_media_url: headerMedia.url } : {}),
-      });
-      toast.success(`Template submitted — status: ${data.status}. Meta usually reviews within a few hours.`);
-      loadTemplates();
-      setStep('pick');
-    } catch (e) { setCreateError(e.response?.data?.error || 'Failed to submit template'); }
-    finally { setCreating(false); }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -208,7 +147,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
         <div className="flex-1 overflow-y-auto p-4">
           {step === 'pick' && (
             <div className="space-y-3">
-              <button onClick={openCreate}
+              <button onClick={() => setStep('create')}
                 className="w-full flex items-center justify-center gap-1.5 py-2 border border-dashed border-gray-300 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50">
                 <Plus size={14} /> Create New Template
               </button>
@@ -281,73 +220,10 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
           )}
 
           {step === 'create' && (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Template Name</label>
-                <input value={createForm.name}
-                  onChange={e => setCreateForm(f => ({ ...f, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '_') }))}
-                  placeholder="e.g. order_update" className="w-full px-3 py-2 border rounded-lg text-sm" />
-                <p className="text-[11px] text-gray-400 mt-1">Lowercase letters, numbers, underscores only — Meta rejects anything else.</p>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Category</label>
-                  <select value={createForm.category} onChange={e => setCreateForm(f => ({ ...f, category: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                    {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-600 mb-1">Language</label>
-                  <select value={createForm.language} onChange={e => setCreateForm(f => ({ ...f, language: e.target.value }))}
-                    className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-                    {LANGUAGES.map(l => <option key={l.value} value={l.value}>{l.label}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Header <span className="text-gray-400 font-normal">(optional)</span></label>
-                <div className="flex items-center gap-2">
-                  <select value={headerType}
-                    onChange={e => { setHeaderType(e.target.value); setHeaderMedia(null); setCreateError(''); }}
-                    className="px-2 py-1.5 border rounded-lg text-sm bg-white">
-                    <option value="NONE">None</option>
-                    <option value="IMAGE">Image</option>
-                    <option value="VIDEO">Video</option>
-                    <option value="DOCUMENT">Document</option>
-                  </select>
-                  {headerType !== 'NONE' && (
-                    <label className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 border border-dashed rounded-lg text-xs font-medium cursor-pointer ${headerMedia ? 'border-green-300 text-green-700 bg-green-50' : 'border-gray-300 text-gray-500 hover:bg-gray-50'}`}>
-                      <input type="file" className="hidden" onChange={handleHeaderFileSelect}
-                        accept={headerType === 'IMAGE' ? '.jpg,.jpeg,.png' : headerType === 'VIDEO' ? '.mp4,.3gp' : '.pdf'} />
-                      {headerUploading ? 'Uploading…' : headerMedia ? <><CheckCircle size={13} /> {headerMedia.fileName}</> : <><Upload size={13} /> Choose file</>}
-                    </label>
-                  )}
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Body Text</label>
-                <textarea value={createForm.body_text} onChange={e => setCreateForm(f => ({ ...f, body_text: e.target.value }))}
-                  rows={4} placeholder={'Hi {{1}}, your order is on its way. Track it here: {{2}}'}
-                  className="w-full px-3 py-2 border rounded-lg text-sm font-mono" />
-                <p className="text-[11px] text-gray-400 mt-1">Use <code className="bg-gray-100 px-1 rounded">{'{{1}}'}</code>, <code className="bg-gray-100 px-1 rounded">{'{{2}}'}</code>... for variables. Footer and buttons aren't supported yet.</p>
-              </div>
-
-              {createVarCount > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs font-medium text-gray-600">Example values <span className="font-normal text-gray-400">(required by Meta for review)</span></p>
-                  {createExamples.map((ex, i) => (
-                    <div key={i} className="flex items-center gap-2">
-                      <span className="text-xs font-mono bg-gray-100 px-1.5 py-1 rounded shrink-0">{`{{${i + 1}}}`}</span>
-                      <input value={ex} onChange={e => setCreateExamples(prev => prev.map((v, idx) => idx === i ? e.target.value : v))}
-                        placeholder="e.g. Priya" className="flex-1 px-2 py-1.5 border rounded-lg text-sm" />
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {createError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{createError}</p>}
-            </div>
+            <TemplateCreateForm
+              onCancel={() => setStep('pick')}
+              onCreated={() => { loadTemplates(); setStep('pick'); }}
+            />
           )}
 
           {step === 'map' && selectedTemplate && (
@@ -394,12 +270,37 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
             </div>
           )}
 
+          {step === 'map' && selectedTemplate && (
+            <div className="mt-4 space-y-2">
+              <p className="text-xs font-medium text-gray-600">When to send</p>
+              <div className="flex gap-2">
+                {[['now', 'Send now'], ['later', 'Schedule for later']].map(([id, label]) => (
+                  <button key={id} onClick={() => setSendMode(id)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium border ${sendMode === id ? 'bg-brand-600 text-white border-brand-600' : 'text-gray-600 hover:bg-gray-50'}`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {sendMode === 'later' && (
+                <div>
+                  <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}
+                    min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 120000).toISOString().slice(0, 16)}
+                    className="px-3 py-2 border rounded-lg text-sm" />
+                  <p className="text-[11px] text-gray-400 mt-1">Your local time. You can cancel it any time before it starts, from WhatsApp → Messages → Broadcasts.</p>
+                </div>
+              )}
+            </div>
+          )}
+
           {step === 'result' && result && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-3 rounded-lg text-sm">
-                <CheckCircle size={16} /> {result.sent} sent{result.failed > 0 ? `, ${result.failed} failed` : ''}
+                <CheckCircle size={16} />
+                {result.scheduled
+                  ? `Scheduled for ${new Date(result.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${result.count} lead${result.count > 1 ? 's' : ''}`
+                  : `${result.sent} sent${result.failed > 0 ? `, ${result.failed} failed` : ''}`}
               </div>
-              {result.failed > 0 && (
+              {!result.scheduled && result.failed > 0 && (
                 <div className="space-y-1 max-h-48 overflow-y-auto">
                   {result.results.filter(r => !r.success).map(r => {
                     const lead = leads.find(l => l.id === r.lead_id);
@@ -416,23 +317,12 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
         </div>
 
         <div className="p-4 border-t flex items-center justify-between gap-2">
-          {step === 'create' && (
-            <>
-              <button onClick={() => setStep('pick')} className="px-4 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50 flex items-center gap-1.5">
-                <ArrowLeft size={14} /> Back
-              </button>
-              <button onClick={handleCreateTemplate} disabled={creating || headerUploading}
-                className="px-4 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-                {creating ? 'Submitting…' : 'Submit for Approval'}
-              </button>
-            </>
-          )}
           {step === 'map' && (
             <>
               <button onClick={() => setStep('pick')} className="px-4 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Back</button>
               <button onClick={handleSend} disabled={sending || !mappingComplete}
                 className="px-4 py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {sending ? 'Sending…' : <><Send size={14} /> Send to {leads.length} lead{leads.length > 1 ? 's' : ''}</>}
+                {sending ? (sendMode === 'later' ? 'Scheduling…' : 'Sending…') : <><Send size={14} /> {sendMode === 'later' ? 'Schedule for' : 'Send to'} {leads.length} lead{leads.length > 1 ? 's' : ''}</>}
               </button>
             </>
           )}

@@ -59,7 +59,6 @@ const WhatsAppInboxPage = () => {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
 
-  const [labelsByLead, setLabelsByLead] = useState({});
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
   const [labelFilter, setLabelFilter] = useState(null);
@@ -71,13 +70,28 @@ const WhatsAppInboxPage = () => {
   const [showBrochureModal, setShowBrochureModal] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
+  const stickToBottomRef = useRef(true);
+  const prevActiveIdRef = useRef(null);
   const fileInputRef = useRef(null);
 
   useEffect(() => { loadInbox(); }, []);
 
+  // Auto-scroll to the newest message on conversation switch or while the
+  // user is already near the bottom — but don't yank them back down if
+  // they've scrolled up to read older messages during a background poll.
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ block: 'end' });
+    const switchedConversation = prevActiveIdRef.current !== activeId;
+    prevActiveIdRef.current = activeId;
+    if (switchedConversation) stickToBottomRef.current = true;
+    if (stickToBottomRef.current) messagesEndRef.current?.scrollIntoView({ block: 'end' });
   }, [messages, activeId]);
+
+  const handleMessagesScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    stickToBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
 
   useEffect(() => {
     if (!showChatMenu) return;
@@ -156,23 +170,27 @@ const WhatsAppInboxPage = () => {
     finally { if (!silent) setMsgLoading(false); }
   };
 
-  const activeLabels = labelsByLead[activeId] || ['Interested'];
+  // Labels are the lead's tags on the server, so they persist and the whole team sees them.
+  const activeLabels = conversations.find(c => c.lead_id === activeId)?.tags || [];
+
+  const changeLabels = async (add, remove) => {
+    if (!activeId) return;
+    const leadId = activeId;
+    try {
+      const { data } = await whatsappAPI.updateLabels(leadId, add, remove);
+      setConversations(prev => prev.map(c => (c.lead_id === leadId ? { ...c, tags: data.tags } : c)));
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update labels'); }
+  };
 
   const addLabel = (label) => {
     const text = label.trim();
-    if (!text || !activeId) return;
-    setLabelsByLead(prev => {
-      const existing = prev[activeId] || ['Interested'];
-      if (existing.includes(text)) return prev;
-      return { ...prev, [activeId]: [...existing, text] };
-    });
+    if (!text || activeLabels.includes(text)) return;
+    changeLabels([text], []);
     setCustomLabel('');
     setShowLabelPicker(false);
   };
 
-  const removeLabel = (label) => {
-    setLabelsByLead(prev => ({ ...prev, [activeId]: (prev[activeId] || ['Interested']).filter(l => l !== label) }));
-  };
+  const removeLabel = (label) => changeLabels([], [label]);
 
   const toggleStar = (leadId, e) => {
     e.stopPropagation();
@@ -205,8 +223,8 @@ const WhatsAppInboxPage = () => {
       (c.lead_name || '').toLowerCase().includes(search.toLowerCase()) ||
       (c.lead_phone || '').includes(search)
     )
-    .filter(c => !labelFilter || (labelsByLead[c.lead_id] || ['Interested']).includes(labelFilter)),
-    [conversations, tab, search, starredIds, labelFilter, labelsByLead]);
+    .filter(c => !labelFilter || (c.tags || []).includes(labelFilter)),
+    [conversations, tab, search, starredIds, labelFilter]);
 
   const unreadCount = conversations.filter(c => c.unread_count > 0).length;
   const starredCount = starredIds.size;
@@ -267,7 +285,7 @@ const WhatsAppInboxPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 h-[calc(100vh-180px)]">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 h-[calc(100vh-290px)]">
         {/* Conversations */}
         <div className="bg-white border rounded-2xl flex flex-col overflow-hidden">
           <div className="p-4 pb-3 border-b">
@@ -290,7 +308,7 @@ const WhatsAppInboxPage = () => {
                       className={`w-full text-left px-3 py-1.5 text-xs font-medium ${!labelFilter ? 'text-brand-600 bg-brand-50' : 'text-gray-600 hover:bg-gray-50'}`}>
                       All labels
                     </button>
-                    {PRESET_LABELS.map(l => (
+                    {[...new Set([...PRESET_LABELS, ...conversations.flatMap(c => c.tags || [])])].map(l => (
                       <button key={l} onClick={() => { setLabelFilter(l); setShowFilterMenu(false); }}
                         className={`w-full text-left px-3 py-1.5 text-xs font-medium ${labelFilter === l ? 'text-brand-600 bg-brand-50' : 'text-gray-600 hover:bg-gray-50'}`}>
                         {l}
@@ -335,6 +353,14 @@ const WhatsAppInboxPage = () => {
                   <p className={`text-xs truncate mt-0.5 ${c.message ? 'text-gray-500' : 'italic text-gray-400'}`}>
                     {c.message || 'No messages yet — tap to start chatting'}
                   </p>
+                  {(c.tags || []).length > 0 && (
+                    <div className="flex flex-wrap gap-1 mt-1.5">
+                      {c.tags.slice(0, 3).map(t => (
+                        <span key={t} className="px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700">{t}</span>
+                      ))}
+                      {c.tags.length > 3 && <span className="text-[10px] text-gray-400">+{c.tags.length - 3}</span>}
+                    </div>
+                  )}
                 </div>
                 {c.unread_count > 0 && (
                   <span className="bg-green-500 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1 shrink-0 mt-1">
@@ -391,7 +417,7 @@ const WhatsAppInboxPage = () => {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-[#f8f7f4]">
+              <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-[#f8f7f4]">
                 {msgLoading ? (
                   <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
                 ) : messages.length === 0 ? (
