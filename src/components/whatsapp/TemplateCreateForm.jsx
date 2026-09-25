@@ -155,7 +155,7 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
     finally { setCreating(false); }
   };
 
-  return (
+  const form = (
     <div className="space-y-4">
       <div className="space-y-3">
         <div className="rounded-xl border border-violet-200 bg-violet-50/60 p-3 space-y-2">
@@ -313,42 +313,6 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
           </div>
         )}
 
-        <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Preview</label>
-          <div className="rounded-xl p-3" style={{ background: '#e5ddd5' }}>
-            <div className="max-w-[280px] rounded-lg rounded-tl-none bg-white shadow-sm overflow-hidden">
-              {headerType === 'IMAGE' && (
-                headerMedia ? <img src={headerMedia.url} alt="" className="w-full h-32 object-cover" />
-                  : <div className="w-full h-24 bg-gray-100 flex items-center justify-center text-gray-400"><ImageIcon size={28} /></div>
-              )}
-              {headerType === 'VIDEO' && (
-                <div className="w-full h-24 bg-gray-800 flex items-center justify-center text-white"><Video size={28} /></div>
-              )}
-              {headerType === 'DOCUMENT' && (
-                <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border-b text-gray-600 text-xs">
-                  <FileIcon size={16} /> {headerMedia?.fileName || 'Document'}
-                </div>
-              )}
-              <div className="px-3 py-2 space-y-1">
-                <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
-                  {withExamples(createForm.body_text, createExamples) || <span className="text-gray-300">Body text will appear here…</span>}
-                </p>
-                {createForm.footer_text && <p className="text-xs text-gray-400">{createForm.footer_text}</p>}
-                <p className="text-[10px] text-gray-300 text-right">12:00 PM</p>
-              </div>
-              {buttons.filter(b => b.text.trim()).length > 0 && (
-                <div className="border-t divide-y">
-                  {buttons.filter(b => b.text.trim()).map((b, i) => (
-                    <div key={i} className="flex items-center justify-center gap-1.5 py-2 text-sm text-blue-600 font-medium">
-                      {b.type === 'URL' ? <ExternalLink size={13} /> : <Reply size={13} />} {b.text}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
         {createError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{createError}</p>}
       </div>
       <div className="flex gap-2 justify-end pt-1">
@@ -362,6 +326,65 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
           {creating ? 'Submitting…' : 'Submit for Approval'}
         </button>
       </div>
+    </div>
+  );
+
+  const preview = (
+    <div className="lg:sticky lg:top-0">
+      <p className="text-xs font-medium text-gray-600 mb-2 lg:text-center">Preview</p>
+      {/* Phone frame */}
+      <div className="mx-auto w-[280px] rounded-[2rem] border-[8px] border-gray-900 bg-gray-900 shadow-xl overflow-hidden">
+        <div className="relative bg-black h-5 flex items-center justify-center">
+          <div className="w-20 h-3.5 bg-black rounded-b-xl" />
+        </div>
+        {/* WhatsApp chat header */}
+        <div className="bg-[#075e54] px-3 py-2 flex items-center gap-2">
+          <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold shrink-0">
+            {createForm.name?.[0]?.toUpperCase() || 'B'}
+          </div>
+          <p className="text-white text-xs font-semibold truncate">{createForm.name || 'Your Business'}</p>
+        </div>
+        {/* Chat area */}
+        <div className="p-2.5 min-h-[280px]" style={{ background: '#e5ddd5' }}>
+          <div className="max-w-full rounded-lg rounded-tl-none bg-white shadow-sm overflow-hidden">
+            {headerType === 'IMAGE' && (
+              headerMedia ? <img src={headerMedia.url} alt="" className="w-full h-32 object-cover" />
+                : <div className="w-full h-24 bg-gray-100 flex items-center justify-center text-gray-400"><ImageIcon size={28} /></div>
+            )}
+            {headerType === 'VIDEO' && (
+              <div className="w-full h-24 bg-gray-800 flex items-center justify-center text-white"><Video size={28} /></div>
+            )}
+            {headerType === 'DOCUMENT' && (
+              <div className="flex items-center gap-2 px-3 py-2.5 bg-gray-50 border-b text-gray-600 text-xs">
+                <FileIcon size={16} /> {headerMedia?.fileName || 'Document'}
+              </div>
+            )}
+            <div className="px-3 py-2 space-y-1">
+              <p className="text-sm text-gray-800 whitespace-pre-wrap break-words">
+                {withExamples(createForm.body_text, createExamples) || <span className="text-gray-300">Body text will appear here…</span>}
+              </p>
+              {createForm.footer_text && <p className="text-xs text-gray-400">{createForm.footer_text}</p>}
+              <p className="text-[10px] text-gray-300 text-right">12:00 PM</p>
+            </div>
+            {buttons.filter(b => b.text.trim()).length > 0 && (
+              <div className="border-t divide-y">
+                {buttons.filter(b => b.text.trim()).map((b, i) => (
+                  <div key={i} className="flex items-center justify-center gap-1.5 py-2 text-sm text-blue-600 font-medium">
+                    {b.type === 'URL' ? <ExternalLink size={13} /> : <Reply size={13} />} {b.text}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="lg:flex lg:items-start lg:gap-6">
+      <div className="lg:flex-1 lg:min-w-0">{form}</div>
+      <div className="mt-4 lg:mt-0 lg:w-[280px] lg:shrink-0">{preview}</div>
     </div>
   );
 };
