@@ -185,6 +185,15 @@ export const staffAPI = {
 // ============================================
 // Teams
 // ============================================
+// ============================================
+// Google Business Profile (GMB)
+// ============================================
+export const gmbAPI = {
+  getSettings: () => api.get('/gmb/settings'),
+  updateSettings: (data) => api.put('/gmb/settings', data),
+  draftMessage: () => api.post('/gmb/draft-message'),
+};
+
 export const teamAPI = {
   getAll: () => api.get('/teams'),
   create: (data) => api.post('/teams', data),
