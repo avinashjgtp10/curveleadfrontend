@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext } from 'react-router-dom';
 import { reportsAPI } from '../services/api';
 import { AreaChart, Area, LineChart as RLineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import NotificationBell from '../components/layout/NotificationBell';
+import DatePicker from '../components/ui/DatePicker';
 import {
   Users, IndianRupee, Target, Coins,
   ArrowUpRight, ArrowDownRight, Minus,
@@ -240,11 +241,9 @@ const DashboardPage = () => {
           </div>
           {period === 'custom' && (
             <div className="flex items-center gap-2">
-              <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-200" />
+              <DatePicker value={customFrom} onChange={setCustomFrom} className="w-32" />
               <span className="text-xs text-gray-400">to</span>
-              <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-                className="px-2.5 py-1.5 border border-gray-200 rounded-lg text-xs bg-white focus:outline-none focus:ring-2 focus:ring-brand-200" />
+              <DatePicker value={customTo} onChange={setCustomTo} className="w-32" />
             </div>
           )}
           {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full" />}

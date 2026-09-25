@@ -9,6 +9,8 @@ import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft,
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import DatePicker from '../components/ui/DatePicker';
+import DateTimePicker from '../components/ui/DateTimePicker';
 
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
@@ -905,13 +907,13 @@ const LeadsPage = () => {
               <option value="email">Email</option>
               <option value="demo">Demo</option>
             </select>
-            <input type="date" value={fuFilters.date_from}
-              onChange={e => setFuFilters(f => ({ ...f, date_from: e.target.value }))}
-              className="h-10 bg-white border border-gray-200 rounded-lg px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+            <DatePicker value={fuFilters.date_from}
+              onChange={v => setFuFilters(f => ({ ...f, date_from: v }))}
+              className="w-36" />
             <span className="text-gray-400 text-sm">–</span>
-            <input type="date" value={fuFilters.date_to}
-              onChange={e => setFuFilters(f => ({ ...f, date_to: e.target.value }))}
-              className="h-10 bg-white border border-gray-200 rounded-lg px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+            <DatePicker value={fuFilters.date_to}
+              onChange={v => setFuFilters(f => ({ ...f, date_to: v }))}
+              className="w-36" />
             {(fuFilters.search || fuFilters.type || fuFilters.date_from || fuFilters.date_to || fuFilters.scope || fuFilters.category) && (
               <button onClick={() => setFuFilters(EMPTY_FU_FILTERS)}
                 className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
@@ -1110,13 +1112,13 @@ const LeadsPage = () => {
                       <option value="created_at">Created date</option>
                     </select>
                     <div className="flex items-center gap-1.5">
-                      <input type="date" value={filters.date_from}
-                        onChange={e => handleFilterChange(f => ({ ...f, date_from: e.target.value }))}
-                        className="h-10 flex-1 bg-white border border-gray-200 rounded-lg px-2 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-0" />
+                      <DatePicker value={filters.date_from}
+                        onChange={v => handleFilterChange(f => ({ ...f, date_from: v }))}
+                        className="flex-1 min-w-0" />
                       <span className="text-gray-400 text-xs shrink-0">–</span>
-                      <input type="date" value={filters.date_to}
-                        onChange={e => handleFilterChange(f => ({ ...f, date_to: e.target.value }))}
-                        className="h-10 flex-1 bg-white border border-gray-200 rounded-lg px-2 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-0" />
+                      <DatePicker value={filters.date_to}
+                        onChange={v => handleFilterChange(f => ({ ...f, date_to: v }))}
+                        className="flex-1 min-w-0" />
                     </div>
                   </div>
 
@@ -1580,9 +1582,9 @@ const LeadsPage = () => {
             <div className="p-5 space-y-3 overflow-y-auto">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Lead Date & Time</label>
-                <input type="datetime-local" value={newLead.lead_date}
-                  onChange={e => setNewLead({ ...newLead, lead_date: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                <DateTimePicker value={newLead.lead_date}
+                  onChange={v => setNewLead({ ...newLead, lead_date: v })}
+                  className="w-full" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>

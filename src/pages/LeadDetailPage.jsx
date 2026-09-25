@@ -9,6 +9,7 @@ import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { useToast } from '../components/ui/Toast';
+import DateTimePicker from '../components/ui/DateTimePicker';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2, Users, Workflow, PlayCircle, Ban, AlertTriangle } from 'lucide-react';
 
 // Mirrors WhatsApp's own delivery ticks for an outbound message.
@@ -980,12 +981,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     )}
                   </div>
                 </div>
-                <input
-                  type="datetime-local"
+                <DateTimePicker
                   value={followupForm.next_followup_at}
-                  onChange={e => setFollowupForm({ ...followupForm, next_followup_at: e.target.value })}
+                  onChange={v => setFollowupForm({ ...followupForm, next_followup_at: v })}
                   min={getLocalNow()}
-                  className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  className="w-full" />
               </div>
 
               <div>
@@ -1059,9 +1059,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   {followupHistory.map(f => (
                     editingFollowupId === f.id ? (
                       <div key={f.id} className="p-2.5 rounded-xl border border-brand-300 bg-brand-50/30 space-y-2">
-                        <input type="datetime-local" value={editFollowupForm.next_followup_at}
-                          onChange={e => setEditFollowupForm({ ...editFollowupForm, next_followup_at: e.target.value })}
-                          className="w-full px-2 py-1.5 border rounded-lg text-xs" />
+                        <DateTimePicker value={editFollowupForm.next_followup_at}
+                          onChange={v => setEditFollowupForm({ ...editFollowupForm, next_followup_at: v })}
+                          className="w-full" />
                         <div className="flex gap-1">
                           {['call', 'whatsapp', 'visit', 'demo'].map(t => (
                             <button key={t} type="button" onClick={() => setEditFollowupForm({ ...editFollowupForm, followup_type: t })}

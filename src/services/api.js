@@ -88,6 +88,7 @@ export const whatsappAPI = {
   getInbox: () => api.get('/whatsapp/inbox'),
   getConversation: (leadId) => api.get(`/whatsapp/conversation/${leadId}`),
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
+  sendAttachment: (leadId, attachmentId) => api.post('/whatsapp/send-attachment', { lead_id: leadId, attachment_id: attachmentId }),
   updateLabels: (leadId, add = [], remove = []) => api.post('/whatsapp/labels', { lead_id: leadId, add, remove }),
   getBroadcastTemplates: () => api.get('/whatsapp/broadcast/templates'),
   createBroadcastTemplate: (data) => api.post('/whatsapp/broadcast/templates', data),

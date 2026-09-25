@@ -5,6 +5,8 @@ import { followupAPI, leadAPI, staffAPI } from '../services/api';
 import { Calendar, Clock, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Plus, ChevronDown, Search, SlidersHorizontal, MoreVertical, Eye, CalendarClock, CheckCircle, XCircle, X } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import DatePicker from '../components/ui/DatePicker';
+import DateTimePicker from '../components/ui/DateTimePicker';
 import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM, TYPE_META, STATUS_META, APPOINTMENT_TABS, APPOINTMENTS_PAGE_LIMIT } from '../utils/constants';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -352,15 +354,15 @@ const AppointmentsPage = () => {
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">From Date</label>
-                <input type="date" value={apptFilters.date_from}
-                  onChange={e => { setApptFilters(f => ({ ...f, date_from: e.target.value })); setPage(1); }}
-                  className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white" />
+                <DatePicker value={apptFilters.date_from}
+                  onChange={v => { setApptFilters(f => ({ ...f, date_from: v })); setPage(1); }}
+                  className="w-full" />
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">To Date</label>
-                <input type="date" value={apptFilters.date_to}
-                  onChange={e => { setApptFilters(f => ({ ...f, date_to: e.target.value })); setPage(1); }}
-                  className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white" />
+                <DatePicker value={apptFilters.date_to}
+                  onChange={v => { setApptFilters(f => ({ ...f, date_to: v })); setPage(1); }}
+                  className="w-full" />
               </div>
             </div>
           </div>
@@ -525,8 +527,7 @@ const AppointmentsPage = () => {
           <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5">
             <h3 className="font-bold text-base mb-3">Reschedule Appointment</h3>
             <label className="block text-xs text-gray-500 mb-1">New Date & Time</label>
-            <input type="datetime-local" value={rescheduleAt} onChange={e => setRescheduleAt(e.target.value)}
-              className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+            <DateTimePicker value={rescheduleAt} onChange={setRescheduleAt} className="w-full" />
             <div className="flex gap-2 pt-4">
               <button onClick={() => setRescheduleId(null)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
               <button onClick={handleReschedule} disabled={saving}
@@ -579,9 +580,9 @@ const AppointmentsPage = () => {
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Date & Time <span className="text-red-500">*</span></label>
-                <input type="datetime-local" value={newForm.next_followup_at}
-                  onChange={e => { setNewForm(f => ({ ...f, next_followup_at: e.target.value })); if (newErrors.next_followup_at) setNewErrors(er => ({ ...er, next_followup_at: undefined })); }}
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newErrors.next_followup_at ? 'border-red-500' : ''}`} />
+                <DateTimePicker value={newForm.next_followup_at}
+                  onChange={v => { setNewForm(f => ({ ...f, next_followup_at: v })); if (newErrors.next_followup_at) setNewErrors(er => ({ ...er, next_followup_at: undefined })); }}
+                  className="w-full" />
                 {newErrors.next_followup_at && <p className="text-xs text-red-500 mt-1">{newErrors.next_followup_at}</p>}
               </div>
 
