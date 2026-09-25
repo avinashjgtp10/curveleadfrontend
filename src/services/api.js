@@ -108,6 +108,14 @@ export const whatsappAPI = {
   hubSaveAutoMessages: (data) => api.put('/whatsapp/hub/auto-messages', data),
   hubGetAiKnowledge: () => api.get('/whatsapp/hub/ai-knowledge'),
   hubSaveAiKnowledge: (data) => api.put('/whatsapp/hub/ai-knowledge', data),
+  hubDraftAiAgent: (data) => api.post('/whatsapp/hub/ai-agent/draft', data),
+  hubUploadAiShareFile: (action, file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('action', action);
+    return api.post('/whatsapp/hub/ai-agent/share-file', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  hubRemoveAiShareFile: (action) => api.delete(`/whatsapp/hub/ai-agent/share-file/${action}`),
   hubAiReplies: () => api.get('/whatsapp/hub/ai-replies'),
   uploadBroadcastMedia: (file, mediaType, addLogo = false) => {
     const fd = new FormData();
