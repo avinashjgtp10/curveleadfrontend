@@ -35,6 +35,7 @@ const SettingsPage = () => {
   });
   const [businessOriginal, setBusinessOriginal] = useState(null);
   const [editingBusiness, setEditingBusiness] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const [templates, setTemplates] = useState([]);
   const [tmplModal, setTmplModal] = useState(false);
@@ -120,6 +121,17 @@ const SettingsPage = () => {
   const handleCancelBusiness = () => {
     if (businessOriginal) setBusiness(businessOriginal);
     setEditingBusiness(false);
+  };
+
+  const handleLogoUpload = async (file) => {
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const { data } = await settingsAPI.uploadLogo(file);
+      setSettings(s => ({ ...s, logo_url: data.logo_url }));
+      toast.success('Logo updated.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to upload logo'); }
+    finally { setLogoUploading(false); }
   };
 
   const handleChangePassword = async () => {
@@ -392,6 +404,22 @@ const SettingsPage = () => {
                     {/* Basic Info */}
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Basic Info</p>
                     <div className="space-y-3 mb-5">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Business Logo</label>
+                        <div className="flex items-center gap-3">
+                          {settings.logo_url ? (
+                            <img src={settings.logo_url} alt="Logo" className="w-14 h-14 rounded-lg border object-contain bg-white" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-lg border border-dashed flex items-center justify-center text-gray-300 text-[10px]">No logo</div>
+                          )}
+                          <label className={`px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer hover:bg-gray-50 ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <input type="file" accept=".jpg,.jpeg,.png" className="hidden"
+                              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleLogoUpload(f); }} />
+                            {logoUploading ? 'Uploading…' : settings.logo_url ? 'Change logo' : 'Upload logo'}
+                          </label>
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-1">Used to watermark WhatsApp template header images. JPG or PNG.</p>
+                      </div>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                           <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>

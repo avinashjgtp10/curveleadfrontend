@@ -108,10 +108,11 @@ export const whatsappAPI = {
   hubGetAiKnowledge: () => api.get('/whatsapp/hub/ai-knowledge'),
   hubSaveAiKnowledge: (data) => api.put('/whatsapp/hub/ai-knowledge', data),
   hubAiReplies: () => api.get('/whatsapp/hub/ai-replies'),
-  uploadBroadcastMedia: (file, mediaType) => {
+  uploadBroadcastMedia: (file, mediaType, addLogo = false) => {
     const fd = new FormData();
     fd.append('file', file);
     fd.append('media_type', mediaType);
+    if (addLogo) fd.append('add_logo', 'true');
     return api.post('/whatsapp/broadcast/templates/media', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
@@ -204,6 +205,11 @@ export const reportsAPI = {
 export const settingsAPI = {
   get: () => api.get('/settings'),
   update: (data) => api.put('/settings', data),
+  uploadLogo: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/settings/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
 };
 
 // ============================================
