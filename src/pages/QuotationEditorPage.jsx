@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { quotationsAPI, leadAPI } from '../services/api';
 import { Plus, Trash2, Save, Send, ArrowLeft } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
+import DatePicker from '../components/ui/DatePicker';
 
 const QuotationEditorPage = () => {
   const toast = useToast();
@@ -208,9 +209,9 @@ const QuotationEditorPage = () => {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1">Valid Until</label>
-              <input type="date" value={form.valid_until}
-                onChange={e => setForm({ ...form, valid_until: e.target.value })}
-                className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+              <DatePicker value={form.valid_until}
+                onChange={v => setForm({ ...form, valid_until: v })}
+                className="w-full" />
             </div>
           </div>
 

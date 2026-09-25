@@ -1,9 +1,21 @@
-import { useState } from 'react';
-import { Sparkles, Globe, MessageSquare, X, Bot, Pencil, Trash2, ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Sparkles, Bot, ChevronDown, ArrowRight, RefreshCw } from 'lucide-react';
+import { whatsappAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
-import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { Card, Toggle, Loading, ErrorBox, useLoad } from '../components/whatsapp/hubUi';
 
 const BUSINESS_TYPES = ['E-commerce', 'Service Business', 'Real Estate', 'Restaurant', 'Education', 'Healthcare', 'Other'];
+
+const REVIEW_FIELDS = [
+  { key: 'about', label: 'About the business', rows: 3 },
+  { key: 'services_prices', label: 'Services and prices', rows: 5 },
+  { key: 'faqs', label: 'FAQs', rows: 5 },
+  { key: 'tone', label: 'Tone and style', rows: 2 },
+  { key: 'goal', label: 'Main goal', rows: 2 },
+  { key: 'never_say', label: 'Never say or promise', rows: 2 },
+  { key: 'handoff_rules', label: 'Hand off to a human when', rows: 2 },
+];
 
 // Renders its options inline (pushing content down) instead of a native <select> popup,
 // which can render in the wrong place inside a scrollable modal.
@@ -30,105 +42,119 @@ const InlineSelect = ({ value, onChange, options }) => {
   );
 };
 
-const emptyAiAgentForm = () => ({
-  website: '',
-  businessType: 'E-commerce',
-  groundRules: '',
-  businessContext: '',
-  agentName: '',
-  greeting: '',
+const emptySetupForm = () => ({
+  website: '', businessType: 'E-commerce', groundRules: '', businessContext: '', agentName: '', greeting: '',
 });
 
-const AiAgentSetupModal = ({ initial, onClose, onSave }) => {
+// Step 1: tell the AI about the business (website + a few setup answers).
+const SetupWizard = ({ onClose, onDrafted }) => {
   const toast = useToast();
-  const [form, setForm] = useState(initial || emptyAiAgentForm());
-  const [saving, setSaving] = useState(false);
-
+  const [form, setForm] = useState(emptySetupForm());
+  const [drafting, setDrafting] = useState(false);
   const set = (key) => (e) => setForm(f => ({ ...f, [key]: e.target.value }));
 
   const handleSubmit = async () => {
     if (!form.website.trim()) return toast.error('Website is required.');
-    setSaving(true);
+    setDrafting(true);
     try {
-      await onSave(form);
-      onClose();
-    } finally { setSaving(false); }
+      const { data } = await whatsappAPI.hubDraftAiAgent(form);
+      onDrafted(data.knowledge, form.agentName);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to read that website. Try again.');
+    } finally { setDrafting(false); }
   };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b shrink-0">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-brand-600 flex items-center justify-center">
-              <MessageSquare size={16} className="text-white" />
-            </div>
-            <h2 className="font-semibold text-gray-900">Set up your AI Agent</h2>
-          </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded"><X size={18} /></button>
+        <div className="p-5 border-b">
+          <h3 className="font-bold text-base flex items-center gap-2"><Sparkles size={16} className="text-brand-600" /> Set up your AI Agent</h3>
+          <p className="text-xs text-gray-500 mt-1">Give it your website and a few answers — it drafts everything else, and you review before it goes live.</p>
         </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
-          <div className="text-center pb-1">
-            <div className="w-11 h-11 mx-auto rounded-xl bg-brand-50 flex items-center justify-center mb-3">
-              <Globe size={20} className="text-brand-600" />
-            </div>
-            <h3 className="font-semibold text-gray-900">Let's build your agent from your website</h3>
-            <p className="text-xs text-gray-500 mt-1.5 leading-relaxed">
-              Tell us about your business — we'll read your pages in the background and have your agent ready to test.
-            </p>
-          </div>
-
+        <div className="p-5 space-y-3 overflow-y-auto">
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1.5">
-              Website <span className="text-red-500">*</span>
-            </label>
-            <input value={form.website} onChange={set('website')} placeholder="https://yourstore.com"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
-            <p className="text-xs text-gray-400 mt-1">We'll crawl this to build your agent's knowledge.</p>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Website <span className="text-red-500">*</span></label>
+            <input value={form.website} onChange={set('website')} placeholder="https://yourbusiness.com"
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1.5">Business type</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Business type</label>
             <InlineSelect value={form.businessType} onChange={v => setForm(f => ({ ...f, businessType: v }))} options={BUSINESS_TYPES} />
-            <p className="text-xs text-gray-400 mt-1">Your agent can recommend products and take payment with a checkout link.</p>
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1.5">Anything special it should know?</label>
-            <textarea value={form.groundRules} onChange={set('groundRules')} rows={3}
-              placeholder="Optional ground rules — e.g. Never promise same-day delivery. Always mention the festive 15% off above ₹1,000."
-              className="w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-brand-500 focus:outline-none" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1.5">Business context</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Anything the website won't tell it <span className="text-gray-400 font-normal">(optional)</span></label>
             <textarea value={form.businessContext} onChange={set('businessContext')} rows={2}
-              placeholder="Describe what the business does. Leave blank to draft it from your website."
-              className="w-full px-3 py-2 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+              placeholder="e.g. we only serve women, walk-ins need a 10-min wait on weekends"
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
           </div>
-
           <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1.5">Agent / business name</label>
-            <input value={form.agentName} onChange={set('agentName')} placeholder="How the agent introduces itself"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            <label className="block text-xs font-medium text-gray-600 mb-1">Ground rules <span className="text-gray-400 font-normal">(optional)</span></label>
+            <textarea value={form.groundRules} onChange={set('groundRules')} rows={2}
+              placeholder="e.g. never discuss competitors, always ask for the customer's name first"
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-800 mb-1.5">Greeting message</label>
-            <input value={form.greeting} onChange={set('greeting')} placeholder="Sent word-for-word as the first message (optional)"
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Agent name <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input value={form.agentName} onChange={set('agentName')} placeholder="e.g. Priya"
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Greeting <span className="text-gray-400 font-normal">(optional)</span></label>
+              <input value={form.greeting} onChange={set('greeting')} placeholder="e.g. Hi! How can I help?"
+                className="w-full px-3 py-2 border rounded-lg text-sm" />
+            </div>
           </div>
         </div>
+        <div className="p-4 border-t flex justify-end gap-2">
+          <button onClick={onClose} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
+          <button onClick={handleSubmit} disabled={drafting}
+            className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 flex items-center gap-1.5">
+            <Sparkles size={14} /> {drafting ? 'Reading your website…' : 'Draft my AI Agent'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
 
-        {/* Footer */}
-        <div className="flex justify-end px-5 py-4 border-t shrink-0">
-          <button onClick={handleSubmit} disabled={saving}
-            className="flex items-center gap-1.5 px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-            <Sparkles size={14} />
-            {saving ? 'Creating…' : 'Create agent'}
+// Step 2: review/edit what the AI drafted before it goes live.
+const ReviewDraft = ({ draft, onBack, onActivated }) => {
+  const toast = useToast();
+  const [k, setK] = useState(draft);
+  const [saving, setSaving] = useState(false);
+
+  const activate = async () => {
+    setSaving(true);
+    try {
+      await whatsappAPI.hubSaveAiKnowledge({ enabled: true, knowledge: k });
+      toast.success('AI Agent is live on WhatsApp.');
+      onActivated();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save'); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[85vh] flex flex-col">
+        <div className="p-5 border-b">
+          <h3 className="font-bold text-base">Review before it goes live</h3>
+          <p className="text-xs text-gray-500 mt-1">Drafted from your website — edit anything that's off, especially prices.</p>
+        </div>
+        <div className="p-5 space-y-3 overflow-y-auto">
+          {REVIEW_FIELDS.map(f => (
+            <div key={f.key}>
+              <label className="block text-xs font-medium text-gray-600 mb-1">{f.label}</label>
+              <textarea value={k[f.key] || ''} onChange={e => setK(prev => ({ ...prev, [f.key]: e.target.value }))}
+                rows={f.rows} className="w-full px-3 py-2 border rounded-lg text-sm" />
+            </div>
+          ))}
+        </div>
+        <div className="p-4 border-t flex justify-between gap-2">
+          <button onClick={onBack} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Back</button>
+          <button onClick={activate} disabled={saving}
+            className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+            {saving ? 'Activating…' : 'Activate AI Agent'}
           </button>
         </div>
       </div>
@@ -138,74 +164,59 @@ const AiAgentSetupModal = ({ initial, onClose, onSave }) => {
 
 const AiAgentPage = () => {
   const toast = useToast();
-  const confirm = useConfirmDialog();
-  const [agents, setAgents] = useState([]);
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(null);
+  const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubGetAiKnowledge());
+  const [showWizard, setShowWizard] = useState(false);
+  const [draft, setDraft] = useState(null);
 
-  const openNew = () => { setEditing(null); setShowModal(true); };
-  const openEdit = (a) => { setEditing(a); setShowModal(true); };
+  const hasAgent = !!(data?.knowledge?.about || '').trim();
 
-  const handleSave = async (form) => {
-    // Wire up to a real endpoint when the backend is ready — for now the agent lives in local state.
-    if (editing) {
-      setAgents(list => list.map(a => a.id === editing.id ? { ...a, ...form } : a));
-      toast.error('Agent updated.');
-    } else {
-      setAgents(list => [...list, { id: Date.now(), ...form }]);
-      toast.error('AI agent created — it will finish learning your website shortly.');
-    }
+  const toggleEnabled = async (enabled) => {
+    try {
+      await whatsappAPI.hubSaveAiKnowledge({ enabled, knowledge: data.knowledge });
+      reload();
+      toast.success(enabled ? 'AI Agent turned on.' : 'AI Agent turned off.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save'); }
   };
 
-  const handleDelete = async (id) => {
-    if (!await confirm({ title: 'Delete this AI agent?' })) return;
-    setAgents(list => list.filter(a => a.id !== id));
-  };
+  if (loading && !data) return <Loading />;
+  if (error) return <ErrorBox>{error}</ErrorBox>;
 
   return (
-    <div className="max-w-5xl mx-auto space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">Build a WhatsApp AI agent from your website that chats with leads and answers questions automatically.</p>
-        <button onClick={openNew}
-          className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 flex items-center gap-2">
-          <Sparkles size={16} /> Create agent
-        </button>
-      </div>
-
-      {agents.length === 0 ? (
+    <div className="max-w-3xl mx-auto space-y-4">
+      {!hasAgent ? (
         <div className="bg-white rounded-2xl border p-12 text-center">
           <Bot size={40} className="mx-auto text-gray-300 mb-3" />
-          <p className="text-gray-500">No AI agents yet. Create one from your website to start chatting with leads.</p>
+          <p className="text-gray-500 max-w-sm mx-auto mb-4">Build a WhatsApp AI agent from your website that chats with leads and answers questions automatically.</p>
+          <button onClick={() => setShowWizard(true)}
+            className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 inline-flex items-center gap-2">
+            <Sparkles size={16} /> Set up my AI Agent
+          </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {agents.map(a => (
-            <div key={a.id} className="bg-white rounded-2xl border p-4 flex flex-col gap-3">
-              <div className="flex items-start justify-between">
-                <div className="w-10 h-10 rounded-xl bg-brand-50 flex items-center justify-center">
-                  <Bot size={20} className="text-brand-600" />
-                </div>
-                <div className="flex gap-1">
-                  <button onClick={() => openEdit(a)} className="p-1.5 text-gray-400 hover:text-brand-600 rounded"><Pencil size={14} /></button>
-                  <button onClick={() => handleDelete(a.id)} className="p-1.5 text-gray-400 hover:text-red-500 rounded"><Trash2 size={14} /></button>
-                </div>
-              </div>
-              <div>
-                <h3 className="font-semibold text-gray-900 text-sm">{a.agentName || 'Untitled agent'}</h3>
-                <p className="text-xs text-gray-500 mt-0.5 truncate">{a.website}</p>
-              </div>
-              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 w-fit">{a.businessType}</span>
-            </div>
-          ))}
-        </div>
+        <Card
+          title="Your AI Agent"
+          action={<Toggle checked={!!data.enabled} onChange={toggleEnabled} />}
+        >
+          <p className="text-sm text-gray-700 whitespace-pre-wrap mb-4">{data.knowledge.about}</p>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setShowWizard(true)}
+              className="px-3 py-1.5 border rounded-lg text-xs font-semibold text-gray-600 hover:bg-gray-50 flex items-center gap-1.5">
+              <RefreshCw size={12} /> Regenerate from website
+            </button>
+            <Link to="/whatsapp?tab=ai"
+              className="px-3 py-1.5 border rounded-lg text-xs font-semibold text-brand-700 hover:bg-brand-50 flex items-center gap-1.5">
+              Fine-tune manually <ArrowRight size={12} />
+            </Link>
+          </div>
+        </Card>
       )}
 
-      {showModal && (
-        <AiAgentSetupModal
-          initial={editing || undefined}
-          onClose={() => setShowModal(false)}
-          onSave={handleSave}
-        />
+      {showWizard && !draft && (
+        <SetupWizard onClose={() => setShowWizard(false)} onDrafted={(k) => setDraft(k)} />
+      )}
+      {draft && (
+        <ReviewDraft draft={draft} onBack={() => setDraft(null)}
+          onActivated={() => { setDraft(null); setShowWizard(false); reload(); }} />
       )}
     </div>
   );

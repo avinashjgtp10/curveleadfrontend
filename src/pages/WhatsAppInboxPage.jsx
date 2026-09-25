@@ -7,7 +7,7 @@ import { useToast } from '../components/ui/Toast';
 import {
   MessageCircle, Search, SlidersHorizontal, Star, MoreVertical,
   Paperclip, Send, Smile, Check, CheckCheck, AlertCircle, UserCircle2, X,
-  FileText, Image as ImageIcon,
+  FileText, Image as ImageIcon, Layers, Download,
 } from 'lucide-react';
 
 const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😎','🤔','😅','😉','🙂','😢','😭','😡','👍','👎','🙏','👏','💪','🔥','🎉','❤️','💯'];
@@ -22,6 +22,51 @@ const fmtClock = (dt) => {
 const fmtDate = (dt) => {
   const d = new Date(dt);
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+};
+
+// Renders a message bubble's content by type — an inline image/video/audio
+// player or a document link for media, a styled badge for a template send,
+// otherwise just the plain text. Falls back to plain text if media_url is
+// missing (e.g. an older message sent before media rendering existed).
+const MessageBody = ({ m }) => {
+  const templateMatch = m.message_type === 'template' && typeof m.message === 'string' && m.message.match(/^\[Template: (.+)\]$/);
+  if (templateMatch) {
+    return (
+      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 px-2 py-1 rounded-lg">
+        <Layers size={12} /> Template: {templateMatch[1]}
+      </span>
+    );
+  }
+  if (m.media_url && m.message_type === 'image') {
+    return (
+      <a href={m.media_url} target="_blank" rel="noreferrer" className="block">
+        <img src={m.media_url} alt={m.message || 'Image'} className="rounded-lg max-w-full max-h-64 mb-1" />
+        {m.message && !/^\[.*\]$/.test(m.message) && <p>{m.message}</p>}
+      </a>
+    );
+  }
+  if (m.media_url && m.message_type === 'video') {
+    return (
+      <div>
+        <video controls src={m.media_url} className="rounded-lg max-w-full max-h-64 mb-1" />
+        {m.message && !/^\[.*\]$/.test(m.message) && <p>{m.message}</p>}
+      </div>
+    );
+  }
+  if (m.media_url && m.message_type === 'audio') {
+    return <audio controls src={m.media_url} className="max-w-full" />;
+  }
+  if (m.media_url && m.message_type === 'document') {
+    return (
+      <a href={m.media_url} target="_blank" rel="noreferrer"
+        className="flex items-center gap-2 bg-white/60 rounded-lg px-2.5 py-2 hover:bg-white">
+        <FileText size={16} className="text-gray-500 shrink-0" />
+        <span className="text-xs font-medium truncate">{m.message || 'Document'}</span>
+        <Download size={13} className="text-gray-400 shrink-0" />
+      </a>
+    );
+  }
+  return <p>{m.message}</p>;
 };
 
 const PRESET_LABELS = ['Interested', 'Hot Lead', 'Follow-up', 'Not Interested', 'VIP'];
@@ -254,14 +299,14 @@ const WhatsAppInboxPage = () => {
       formData.append('file', file);
       const { data: uploadData } = await attachmentsAPI.upload(activeId, formData);
       const attachment = uploadData.attachment;
-      const { data: shareData } = await attachmentsAPI.shareWhatsApp(activeId, attachment.id);
-      if (shareData.whatsapp_url) window.open(shareData.whatsapp_url, '_blank');
-      setMessages(prev => [...prev, {
-        id: `tmp-file-${Date.now()}`, direction: 'outbound', message: `📎 ${file.name}`,
-        sent_at: new Date().toISOString(), status: 'sent',
-      }]);
-      toast.success('File shared on WhatsApp');
-    } catch (err) { toast.error(err.response?.data?.error || 'Failed to share file'); }
+      // Actually sends the file as a WhatsApp media message via the Business API —
+      // previously this just opened a wa.me deep-link with a text-only download
+      // link, which the browser's popup blocker often silently swallowed, so
+      // nothing was ever really sent despite the app reporting success.
+      const { data } = await whatsappAPI.sendAttachment(activeId, attachment.id);
+      setMessages(prev => [...prev, data.message]);
+      toast.success('File sent on WhatsApp');
+    } catch (err) { toast.error(err.response?.data?.error || 'Failed to send file'); }
     finally { setUploadingFile(false); }
   };
 
@@ -432,7 +477,7 @@ const WhatsAppInboxPage = () => {
                       return (
                         <div key={m.id || i} className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${outbound ? 'bg-green-100 text-gray-800 rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm shadow-sm'}`}>
-                            <p>{m.message}</p>
+                            <MessageBody m={m} />
                             <div className={`flex items-center gap-1 mt-1 ${outbound ? 'justify-end' : ''}`}>
                               <span className="text-[10px] text-gray-400">
                                 {fmtClock(m.sent_at)}

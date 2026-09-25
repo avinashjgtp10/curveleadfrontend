@@ -3,6 +3,7 @@ import { whatsappAPI } from '../../services/api';
 import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Image as ImageIcon, Film, FileText, Upload, Search, Megaphone, Wrench, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useToast } from '../ui/Toast';
 import TemplateCreateForm from '../whatsapp/TemplateCreateForm';
+import DateTimePicker from '../ui/DateTimePicker';
 
 const FIELD_OPTIONS = [
   { value: 'name', label: "Lead Name" },
@@ -283,9 +284,9 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
               </div>
               {sendMode === 'later' && (
                 <div>
-                  <input type="datetime-local" value={scheduleAt} onChange={e => setScheduleAt(e.target.value)}
+                  <DateTimePicker value={scheduleAt} onChange={setScheduleAt}
                     min={new Date(Date.now() - new Date().getTimezoneOffset() * 60000 + 120000).toISOString().slice(0, 16)}
-                    className="px-3 py-2 border rounded-lg text-sm" />
+                    className="w-56" />
                   <p className="text-[11px] text-gray-400 mt-1">Your local time. You can cancel it any time before it starts, from WhatsApp → Messages → Broadcasts.</p>
                 </div>
               )}

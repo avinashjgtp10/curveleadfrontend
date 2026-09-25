@@ -4,6 +4,7 @@ import { campaignAPI, integrationsAPI } from '../services/api';
 import { Plus, Megaphone, IndianRupee, Users, TrendingUp, X, Edit2, Trash2, RotateCcw, Eye, MousePointerClick, Target } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import DatePicker from '../components/ui/DatePicker';
 
 const statusColors = {
   active: 'bg-green-100 text-green-700',
@@ -258,14 +259,14 @@ const CampaignsPage = () => {
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Start Date</label>
-                  <input type="date" value={form.start_date} onChange={e => setForm({ ...form, start_date: e.target.value })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  <DatePicker value={form.start_date} onChange={v => setForm({ ...form, start_date: v })}
+                    className="w-full" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">End Date</label>
-                  <input type="date" value={form.end_date}
-                    onChange={e => { setForm({ ...form, end_date: e.target.value }); if (errors.end_date) setErrors(er => ({ ...er, end_date: undefined })); }}
-                    className={`w-full px-3 py-2.5 border rounded-lg text-sm ${errors.end_date ? 'border-red-500' : ''}`} />
+                  <DatePicker value={form.end_date}
+                    onChange={v => { setForm({ ...form, end_date: v }); if (errors.end_date) setErrors(er => ({ ...er, end_date: undefined })); }}
+                    className="w-full" />
                   {errors.end_date && <p className="text-xs text-red-500 mt-1">{errors.end_date}</p>}
                 </div>
               </div>

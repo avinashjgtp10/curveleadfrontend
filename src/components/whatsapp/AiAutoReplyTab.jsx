@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
+import { Upload, FileText, Trash2 } from 'lucide-react';
 import { Card, Empty, ErrorBox, Loading, Toggle, fmtDateTime, useLoad } from './hubUi';
+
+const SHARE_FILE_ACTIONS = [
+  { key: 'send_demo', label: 'Demo video / images', hint: 'Sent when the AI judges a lead is interested and would benefit from seeing the product/service.' },
+  { key: 'send_pricing', label: 'Pricing brochure', hint: 'Sent when the AI judges a lead is ready for pricing details.' },
+];
 
 const FIELDS = [
   { key: 'about', label: 'About the business', rows: 3, placeholder: 'What you do, where you are, who your customers are.' },
@@ -21,8 +27,27 @@ const AiAutoReplyTab = () => {
   const [enabled, setEnabled] = useState(false);
   const [k, setK] = useState({});
   const [saving, setSaving] = useState(false);
+  const [shareFiles, setShareFiles] = useState({});
+  const [uploadingAction, setUploadingAction] = useState(null);
 
-  useEffect(() => { if (data) { setEnabled(data.enabled); setK(data.knowledge || {}); } }, [data]);
+  useEffect(() => { if (data) { setEnabled(data.enabled); setK(data.knowledge || {}); setShareFiles(data.share_files || {}); } }, [data]);
+
+  const uploadShareFile = async (action, file) => {
+    setUploadingAction(action);
+    try {
+      const { data: res } = await whatsappAPI.hubUploadAiShareFile(action, file);
+      setShareFiles(res.share_files);
+      toast.success('File saved.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to upload file'); }
+    finally { setUploadingAction(null); }
+  };
+
+  const removeShareFile = async (action) => {
+    try {
+      const { data: res } = await whatsappAPI.hubRemoveAiShareFile(action);
+      setShareFiles(res.share_files);
+    } catch (e) { toast.error('Failed to remove file'); }
+  };
 
   if (loading && !data) return <Loading />;
   if (error) return <ErrorBox>{error}</ErrorBox>;
@@ -41,6 +66,39 @@ const AiAutoReplyTab = () => {
       <Card>
         <Toggle checked={enabled} onChange={setEnabled} label="AI auto-reply on WhatsApp"
           hint="When on, the AI answers incoming messages from leads, qualifies them, and hands off to your team when it isn't sure. A human reply from the inbox pauses it for that lead." />
+      </Card>
+
+      <Card title="Files the AI can share">
+        <p className="text-xs text-gray-500 mb-4">
+          When the AI decides a lead is ready for it, it sends the matching file below right after its text reply — no staff needed. Leave a slot empty and the AI simply won't attach anything for that moment.
+        </p>
+        <div className="space-y-3">
+          {SHARE_FILE_ACTIONS.map(a => {
+            const file = shareFiles[a.key];
+            const uploading = uploadingAction === a.key;
+            return (
+              <div key={a.key} className="flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-800">{a.label}</p>
+                  <p className="text-[11px] text-gray-400">{a.hint}</p>
+                </div>
+                {file ? (
+                  <div className="flex items-center gap-2 bg-gray-50 border rounded-lg px-2.5 py-1.5 shrink-0">
+                    <FileText size={13} className="text-gray-400" />
+                    <span className="text-xs font-medium max-w-[140px] truncate">{file.name}</span>
+                    <button onClick={() => removeShareFile(a.key)} className="text-gray-400 hover:text-red-500"><Trash2 size={13} /></button>
+                  </div>
+                ) : (
+                  <label className={`shrink-0 px-3 py-1.5 border border-dashed rounded-lg text-xs font-medium cursor-pointer hover:bg-gray-50 flex items-center gap-1.5 ${uploading ? 'opacity-50 pointer-events-none' : 'text-gray-600'}`}>
+                    <input type="file" className="hidden" accept=".jpg,.jpeg,.png,.mp4,.3gp,.pdf"
+                      onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) uploadShareFile(a.key, f); }} />
+                    <Upload size={12} /> {uploading ? 'Uploading…' : 'Upload'}
+                  </label>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </Card>
 
       <Card title={`Train your AI (${filled}/${FIELDS.length} filled)`}

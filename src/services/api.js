@@ -88,6 +88,7 @@ export const whatsappAPI = {
   getInbox: () => api.get('/whatsapp/inbox'),
   getConversation: (leadId) => api.get(`/whatsapp/conversation/${leadId}`),
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
+  sendAttachment: (leadId, attachmentId) => api.post('/whatsapp/send-attachment', { lead_id: leadId, attachment_id: attachmentId }),
   updateLabels: (leadId, add = [], remove = []) => api.post('/whatsapp/labels', { lead_id: leadId, add, remove }),
   getBroadcastTemplates: () => api.get('/whatsapp/broadcast/templates'),
   createBroadcastTemplate: (data) => api.post('/whatsapp/broadcast/templates', data),
@@ -107,6 +108,14 @@ export const whatsappAPI = {
   hubSaveAutoMessages: (data) => api.put('/whatsapp/hub/auto-messages', data),
   hubGetAiKnowledge: () => api.get('/whatsapp/hub/ai-knowledge'),
   hubSaveAiKnowledge: (data) => api.put('/whatsapp/hub/ai-knowledge', data),
+  hubDraftAiAgent: (data) => api.post('/whatsapp/hub/ai-agent/draft', data),
+  hubUploadAiShareFile: (action, file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('action', action);
+    return api.post('/whatsapp/hub/ai-agent/share-file', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  hubRemoveAiShareFile: (action) => api.delete(`/whatsapp/hub/ai-agent/share-file/${action}`),
   hubAiReplies: () => api.get('/whatsapp/hub/ai-replies'),
   uploadBroadcastMedia: (file, mediaType, addLogo = false) => {
     const fd = new FormData();
