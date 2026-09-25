@@ -192,6 +192,8 @@ export const gmbAPI = {
   getSettings: () => api.get('/gmb/settings'),
   updateSettings: (data) => api.put('/gmb/settings', data),
   draftMessage: () => api.post('/gmb/draft-message'),
+  connect: () => api.get('/gmb/oauth/connect'),
+  disconnect: () => api.post('/gmb/oauth/disconnect'),
 };
 
 export const teamAPI = {
