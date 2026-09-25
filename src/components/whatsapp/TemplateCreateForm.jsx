@@ -101,7 +101,10 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
     try {
       const { data } = await whatsappAPI.aiImage({ prompt: imagePrompt, count: 2 });
       setGenerated(data.images || []);
-    } catch (e) { setCreateError(e.response?.data?.error || 'Failed to generate images'); }
+    } catch (e) {
+      const serverError = e.response?.data?.error;
+      setCreateError(serverError || 'Generation timed out or the connection dropped. Try again, or copy the prompt above and use it directly on ideogram.ai.');
+    }
     finally { setGenerating(false); }
   };
 
