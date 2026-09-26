@@ -304,6 +304,14 @@ export const paymentAPI = {
 };
 
 // ============================================
+// ⭐ NEW: Support Tickets (tenant-facing)
+// ============================================
+export const supportAPI = {
+  getMyTickets: () => api.get('/support/tickets'),
+  createTicket: (data) => api.post('/support/tickets', data),
+};
+
+// ============================================
 // ⭐ NEW: Notes
 // ============================================
 export const notesAPI = {
