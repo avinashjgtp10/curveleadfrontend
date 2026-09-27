@@ -442,6 +442,7 @@ export const notificationsAPI = {
   getCount: () => api.get('/notifications/count'),
   markRead: (id) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/read-all'),
+  getGroups: () => api.get('/notifications/groups'),
 };
 
 export default api;
