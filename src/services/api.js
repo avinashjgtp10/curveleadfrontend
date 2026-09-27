@@ -93,6 +93,8 @@ export const whatsappAPI = {
   setConversationAi: (leadId, paused) => api.put(`/whatsapp/conversation/${leadId}/ai`, { paused }),
   sendAttachment: (leadId, attachmentId) => api.post('/whatsapp/send-attachment', { lead_id: leadId, attachment_id: attachmentId }),
   updateLabels: (leadId, add = [], remove = []) => api.post('/whatsapp/labels', { lead_id: leadId, add, remove }),
+  deleteConversations: (leadIds) => api.delete('/whatsapp/conversations', { data: { lead_ids: leadIds } }),
+  markConversationsRead: (leadIds) => api.put('/whatsapp/conversations/read', { lead_ids: leadIds }),
   getBroadcastTemplates: () => api.get('/whatsapp/broadcast/templates'),
   createBroadcastTemplate: (data) => api.post('/whatsapp/broadcast/templates', data),
   aiDraftTemplate: (data) => api.post('/whatsapp/broadcast/templates/ai-draft', data),

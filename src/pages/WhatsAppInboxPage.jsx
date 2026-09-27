@@ -6,10 +6,12 @@ import { AVATAR_COLORS } from '../utils/constants';
 import LeadDetailPage from './LeadDetailPage';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { useToast } from '../components/ui/Toast';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
   MessageCircle, Search, SlidersHorizontal, Star, MoreVertical,
   Check, CheckCheck, AlertCircle, UserCircle2, X,
   FileText, Layers, Download, Clock, Bot,
+  ListChecks, Trash2, CheckSquare, Square, MailOpen,
 } from 'lucide-react';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -110,6 +112,7 @@ const TABS = [
 
 const WhatsAppInboxPage = () => {
   const toast = useToast();
+  const confirm = useConfirmDialog();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const [conversations, setConversations] = useState([]);
@@ -118,6 +121,9 @@ const WhatsAppInboxPage = () => {
   const [tab, setTab] = useState('all');
   const [starredIds, setStarredIds] = useState(new Set());
   const [activeId, setActiveId] = useState(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
 
   const [messages, setMessages] = useState([]);
   const [msgLoading, setMsgLoading] = useState(false);
@@ -259,11 +265,22 @@ const WhatsAppInboxPage = () => {
     setShowChatMenu(false);
   };
 
-  const handleDeleteConversation = () => {
-    setConversations(prev => prev.filter(c => c.lead_id !== activeId));
-    setActiveId(null);
-    setMessages([]);
+  const handleDeleteConversation = async () => {
+    const leadId = activeId;
     setShowChatMenu(false);
+    const ok = await confirm({
+      title: 'Delete this conversation?',
+      message: 'All messages in this chat are permanently deleted. The lead itself is not affected.',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
+    try {
+      await whatsappAPI.deleteConversations([leadId]);
+      setConversations(prev => prev.filter(c => c.lead_id !== leadId));
+      setActiveId(null);
+      setMessages([]);
+      toast.success('Conversation deleted.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete conversation'); }
   };
 
   const filtered = useMemo(() => conversations
@@ -315,6 +332,53 @@ const WhatsAppInboxPage = () => {
     loadConversation(activeId, true);
   };
 
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+
+  const toggleSelected = (leadId) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(leadId) ? next.delete(leadId) : next.add(leadId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    setSelectedIds(prev => (prev.size === filtered.length ? new Set() : new Set(filtered.map(c => c.lead_id))));
+  };
+
+  const handleBulkDelete = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    const ok = await confirm({
+      title: `Delete ${ids.length} conversation${ids.length > 1 ? 's' : ''}?`,
+      message: 'All messages in the selected chats are permanently deleted. The leads themselves are not affected.',
+      confirmText: 'Delete',
+    });
+    if (!ok) return;
+    setBulkBusy(true);
+    try {
+      await whatsappAPI.deleteConversations(ids);
+      setConversations(prev => prev.filter(c => !selectedIds.has(c.lead_id)));
+      if (selectedIds.has(activeId)) { setActiveId(null); setMessages([]); }
+      toast.success(`Deleted ${ids.length} conversation${ids.length > 1 ? 's' : ''}.`);
+      exitSelectMode();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete conversations'); }
+    finally { setBulkBusy(false); }
+  };
+
+  const handleBulkMarkRead = async () => {
+    const ids = [...selectedIds];
+    if (!ids.length) return;
+    setBulkBusy(true);
+    try {
+      await whatsappAPI.markConversationsRead(ids);
+      setConversations(prev => prev.map(c => (selectedIds.has(c.lead_id) ? { ...c, unread_count: 0 } : c)));
+      toast.success('Marked as read.');
+      exitSelectMode();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to mark as read'); }
+    finally { setBulkBusy(false); }
+  };
+
   return (
     <div className="h-full">
       <div className="flex items-center gap-3 mb-5">
@@ -359,7 +423,33 @@ const WhatsAppInboxPage = () => {
                   </div>
                 )}
               </div>
+              <button onClick={() => (selectMode ? exitSelectMode() : setSelectMode(true))}
+                title={selectMode ? 'Cancel selection' : 'Select conversations'}
+                className={`p-2 border rounded-lg shrink-0 ${selectMode ? 'bg-brand-50 text-brand-600 border-brand-300' : 'text-gray-500 hover:bg-gray-50'}`}>
+                <ListChecks size={15} />
+              </button>
             </div>
+            {selectMode ? (
+              <div className="flex items-center justify-between gap-2 mt-3">
+                <button onClick={toggleSelectAll} className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900">
+                  {selectedIds.size === filtered.length && filtered.length > 0 ? <CheckSquare size={15} className="text-brand-600" /> : <Square size={15} />}
+                  {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+                </button>
+                <div className="flex items-center gap-1">
+                  <button onClick={handleBulkMarkRead} disabled={!selectedIds.size || bulkBusy}
+                    title="Mark as read" className="p-1.5 text-gray-500 hover:bg-gray-100 rounded-lg disabled:opacity-30">
+                    <MailOpen size={15} />
+                  </button>
+                  <button onClick={handleBulkDelete} disabled={!selectedIds.size || bulkBusy}
+                    title="Delete" className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg disabled:opacity-30">
+                    <Trash2 size={15} />
+                  </button>
+                  <button onClick={exitSelectMode} title="Cancel" className="p-1.5 text-gray-400 hover:bg-gray-100 rounded-lg">
+                    <X size={15} />
+                  </button>
+                </div>
+              </div>
+            ) : (
             <div className="flex gap-4 mt-3">
               {TABS.map(t => {
                 const count = t.id === 'unread' ? unreadCount : t.id === 'starred' ? starredCount : conversations.length;
@@ -371,6 +461,7 @@ const WhatsAppInboxPage = () => {
                 );
               })}
             </div>
+            )}
           </div>
 
           <div className="flex-1 overflow-y-auto">
@@ -382,8 +473,13 @@ const WhatsAppInboxPage = () => {
                 <p className="text-gray-500 text-sm font-medium">No conversations found</p>
               </div>
             ) : filtered.map(c => (
-              <button key={c.lead_id} onClick={() => setActiveId(c.lead_id)}
-                className={`w-full p-4 text-left flex items-start gap-3 border-b transition-colors ${activeId === c.lead_id ? 'bg-brand-50' : 'hover:bg-gray-50'}`}>
+              <button key={c.lead_id} onClick={() => (selectMode ? toggleSelected(c.lead_id) : setActiveId(c.lead_id))}
+                className={`w-full p-4 text-left flex items-start gap-3 border-b transition-colors ${activeId === c.lead_id && !selectMode ? 'bg-brand-50' : selectedIds.has(c.lead_id) ? 'bg-brand-50/60' : 'hover:bg-gray-50'}`}>
+                {selectMode && (
+                  selectedIds.has(c.lead_id)
+                    ? <CheckSquare size={18} className="text-brand-600 shrink-0 mt-1" />
+                    : <Square size={18} className="text-gray-300 shrink-0 mt-1" />
+                )}
                 <div className={`relative w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(c.lead_name)}`}>
                   {initials(c.lead_name)}
                 </div>
