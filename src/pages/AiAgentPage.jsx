@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Sparkles, Bot, ChevronDown, ArrowRight, RefreshCw } from 'lucide-react';
 import { whatsappAPI } from '../services/api';

@@ -1,16 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { whatsappAPI, leadAPI, attachmentsAPI } from '../services/api';
+import { whatsappAPI, leadAPI, staffAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import InboxComposer, { lastInboundAt, fmtRemaining } from '../components/whatsapp/InboxComposer';
 import { AVATAR_COLORS } from '../utils/constants';
 import LeadDetailPage from './LeadDetailPage';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { useToast } from '../components/ui/Toast';
 import {
   MessageCircle, Search, SlidersHorizontal, Star, MoreVertical,
-  Paperclip, Send, Smile, Check, CheckCheck, AlertCircle, UserCircle2, X,
-  FileText, Image as ImageIcon, Layers, Download,
+  Check, CheckCheck, AlertCircle, UserCircle2, X,
+  FileText, Layers, Download, Clock, Bot,
 } from 'lucide-react';
-
-const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😎','🤔','😅','😉','🙂','😢','😭','😡','👍','👎','🙏','👏','💪','🔥','🎉','❤️','💯'];
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
@@ -29,12 +29,19 @@ const fmtDate = (dt) => {
 // otherwise just the plain text. Falls back to plain text if media_url is
 // missing (e.g. an older message sent before media rendering existed).
 const MessageBody = ({ m }) => {
-  const templateMatch = m.message_type === 'template' && typeof m.message === 'string' && m.message.match(/^\[Template: (.+)\]$/);
-  if (templateMatch) {
+  if (m.message_type === 'template') {
+    const legacy = typeof m.message === 'string' && m.message.match(/^\[Template: (.+)\]$/);
+    const name = m.template_name || legacy?.[1];
+    const body = legacy ? null : m.message;
+    const headerIsImage = m.media_url && /\.(png|jpe?g)(\?|$)/i.test(m.media_url);
     return (
-      <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-700 bg-brand-50 px-2 py-1 rounded-lg">
-        <Layers size={12} /> Template: {templateMatch[1]}
-      </span>
+      <div>
+        {headerIsImage && <img src={m.media_url} alt="" className="rounded-lg max-w-full max-h-48 mb-1.5" />}
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-lg">
+          <Layers size={11} /> Template{name ? `: ${name}` : ''}
+        </span>
+        {body && <p className="mt-1.5 whitespace-pre-wrap break-words">{body}</p>}
+      </div>
     );
   }
   if (m.media_url && m.message_type === 'image') {
@@ -66,7 +73,18 @@ const MessageBody = ({ m }) => {
       </a>
     );
   }
-  return <p>{m.message}</p>;
+  return <p className="whitespace-pre-wrap break-words">{m.message}</p>;
+};
+
+const dayKey = (dt) => { const d = new Date(dt); return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+const dayLabel = (dt) => {
+  const d = new Date(dt);
+  if (isNaN(d.getTime())) return '';
+  const today = new Date();
+  const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
+  if (dayKey(d) === dayKey(today)) return 'Today';
+  if (dayKey(d) === dayKey(yesterday)) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
 const PRESET_LABELS = ['Interested', 'Hot Lead', 'Follow-up', 'Not Interested', 'VIP'];
@@ -92,6 +110,8 @@ const TABS = [
 
 const WhatsAppInboxPage = () => {
   const toast = useToast();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -101,8 +121,8 @@ const WhatsAppInboxPage = () => {
 
   const [messages, setMessages] = useState([]);
   const [msgLoading, setMsgLoading] = useState(false);
-  const [draft, setDraft] = useState('');
-  const [sending, setSending] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
+  const [staff, setStaff] = useState([]);
 
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
@@ -110,17 +130,18 @@ const WhatsAppInboxPage = () => {
   const [customLabel, setCustomLabel] = useState('');
   const [viewLeadId, setViewLeadId] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showBrochureModal, setShowBrochureModal] = useState(false);
-  const [uploadingFile, setUploadingFile] = useState(false);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const stickToBottomRef = useRef(true);
   const prevActiveIdRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   useEffect(() => { loadInbox(); }, []);
+  useEffect(() => {
+    if (!isAdmin) return;
+    staffAPI.getAll().then(({ data }) => setStaff(data.staff || [])).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin]);
 
   // Auto-scroll to the newest message on conversation switch or while the
   // user is already near the bottom — but don't yank them back down if
@@ -146,20 +167,6 @@ const WhatsAppInboxPage = () => {
   }, [showChatMenu]);
 
   useEffect(() => {
-    if (!showAttachMenu) return;
-    const handler = (e) => { if (!e.target.closest('[data-attach-menu]')) setShowAttachMenu(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showAttachMenu]);
-
-  useEffect(() => {
-    if (!showEmojiPicker) return;
-    const handler = (e) => { if (!e.target.closest('[data-emoji-menu]')) setShowEmojiPicker(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showEmojiPicker]);
-
-  useEffect(() => {
     if (!showFilterMenu) return;
     const handler = (e) => { if (!e.target.closest('[data-filter-menu]')) setShowFilterMenu(false); };
     document.addEventListener('mousedown', handler);
@@ -173,6 +180,7 @@ const WhatsAppInboxPage = () => {
         whatsappAPI.getInbox(),
         leadAPI.getAll({ limit: 50 }).catch(() => ({ data: { leads: [] } })),
       ]);
+      setAiEnabled(!!inboxData.ai_enabled);
       const convList = inboxData.conversations || [];
       const convIds = new Set(convList.map(c => c.lead_id));
       const extraContacts = (leadData.leads || [])
@@ -276,38 +284,27 @@ const WhatsAppInboxPage = () => {
 
   const active = conversations.find(c => c.lead_id === activeId);
 
-  const handleSend = async () => {
-    const text = draft.trim();
-    if (!text || !activeId) return;
-    setSending(true);
-    const optimistic = { id: `tmp-${Date.now()}`, direction: 'outbound', message: text, sent_at: new Date().toISOString(), status: 'sent' };
-    setMessages(prev => [...prev, optimistic]);
-    setDraft('');
+  const patchConversation = (leadId, patch) =>
+    setConversations(prev => prev.map(c => (c.lead_id === leadId ? { ...c, ...patch } : c)));
+
+  const handleToggleAi = async (paused) => {
+    if (!activeId) return;
+    const leadId = activeId;
     try {
-      await whatsappAPI.send(activeId, text);
-    } catch (e) { console.error(e); }
-    finally { setSending(false); }
+      await whatsappAPI.setConversationAi(leadId, paused);
+      patchConversation(leadId, { ai_paused: paused });
+      toast.success(paused ? 'You took over — the AI will stay quiet on this chat.' : 'AI will reply to this lead again.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update AI setting'); }
   };
 
-  const handleFileSelected = async (e) => {
-    const file = e.target.files[0];
-    e.target.value = '';
-    if (!file || !activeId) return;
-    setUploadingFile(true);
+  const handleAssign = async (staffId) => {
+    if (!activeId) return;
+    const leadId = activeId;
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const { data: uploadData } = await attachmentsAPI.upload(activeId, formData);
-      const attachment = uploadData.attachment;
-      // Actually sends the file as a WhatsApp media message via the Business API —
-      // previously this just opened a wa.me deep-link with a text-only download
-      // link, which the browser's popup blocker often silently swallowed, so
-      // nothing was ever really sent despite the app reporting success.
-      const { data } = await whatsappAPI.sendAttachment(activeId, attachment.id);
-      setMessages(prev => [...prev, data.message]);
-      toast.success('File sent on WhatsApp');
-    } catch (err) { toast.error(err.response?.data?.error || 'Failed to send file'); }
-    finally { setUploadingFile(false); }
+      await leadAPI.update(leadId, { assigned_to: staffId || null });
+      patchConversation(leadId, { assigned_to: staffId || null, assigned_to_name: staff.find(s => s.id === staffId)?.name || null });
+      toast.success('Conversation reassigned.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to reassign'); }
   };
 
   const handleBrochureShared = (brochure) => {
@@ -433,10 +430,23 @@ const WhatsAppInboxPage = () => {
                   </div>
                   <div>
                     <p className="font-semibold text-sm text-gray-900">{active.lead_name || 'Unknown'}</p>
-                    <p className="text-xs text-gray-400">{active.lead_phone}{active.sent_at ? ` · Last message ${relTime(active.sent_at)}` : ''}</p>
+                    <p className="text-xs text-gray-400">{active.lead_phone}{active.sent_at ? ` · Last message ${relTime(active.sent_at)}` : ''}{active.assigned_to_name ? ` · ${active.assigned_to_name}` : ''}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
+                  {aiEnabled && (
+                    active.ai_paused ? (
+                      <button onClick={() => handleToggleAi(false)} title="The AI is paused on this chat — click to let it reply again"
+                        className="mr-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 hover:bg-violet-50 hover:text-violet-700 flex items-center gap-1">
+                        <Bot size={12} /> AI paused · Resume
+                      </button>
+                    ) : (
+                      <button onClick={() => handleToggleAi(true)} title="The AI is replying here — click to take over"
+                        className="mr-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 flex items-center gap-1">
+                        <Bot size={12} /> AI replying · Take over
+                      </button>
+                    )
+                  )}
                   <button onClick={(e) => toggleStar(active.lead_id, e)} className="p-2 hover:bg-gray-50 rounded-lg">
                     <Star size={16} className={starredIds.has(active.lead_id) ? 'text-amber-400 fill-amber-400' : 'text-gray-400'} />
                   </button>
@@ -469,13 +479,17 @@ const WhatsAppInboxPage = () => {
                   <div className="flex items-center justify-center h-full text-sm text-gray-400">No messages yet</div>
                 ) : (
                   <>
-                    <div className="flex justify-center">
-                      <span className="text-xs text-gray-400 bg-white px-3 py-1 rounded-full border">Today</span>
-                    </div>
                     {messages.map((m, i) => {
                       const outbound = m.direction === 'outbound';
+                      const newDay = i === 0 || dayKey(m.sent_at) !== dayKey(messages[i - 1].sent_at);
                       return (
-                        <div key={m.id || i} className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
+                        <div key={m.id || i}>
+                          {newDay && (
+                            <div className="flex justify-center mb-4">
+                              <span className="text-xs text-gray-400 bg-white px-3 py-1 rounded-full border">{dayLabel(m.sent_at)}</span>
+                            </div>
+                          )}
+                        <div className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
                           <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${outbound ? 'bg-green-100 text-gray-800 rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm shadow-sm'}`}>
                             <MessageBody m={m} />
                             <div className={`flex items-center gap-1 mt-1 ${outbound ? 'justify-end' : ''}`}>
@@ -483,13 +497,15 @@ const WhatsAppInboxPage = () => {
                                 {fmtClock(m.sent_at)}
                               </span>
                               {outbound && (
-                                m.status === 'failed' ? <AlertCircle size={13} className="text-red-500" title="Failed to send" />
+                                m.status === 'sending' ? <Clock size={12} className="text-gray-300" title="Sending…" />
+                                : m.status === 'failed' ? <AlertCircle size={13} className="text-red-500" title="Failed to send" />
                                 : m.status === 'read' ? <CheckCheck size={13} className="text-blue-500" title="Read" />
                                 : m.status === 'delivered' ? <CheckCheck size={13} className="text-gray-400" title="Delivered" />
                                 : <Check size={13} className="text-gray-400" title="Sent" />
                               )}
                             </div>
                           </div>
+                        </div>
                         </div>
                       );
                     })}
@@ -498,53 +514,10 @@ const WhatsAppInboxPage = () => {
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="flex items-center gap-2 px-4 py-3 border-t">
-                <div className="relative" data-emoji-menu>
-                  <button onClick={() => setShowEmojiPicker(v => !v)}
-                    className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg"><Smile size={18} /></button>
-                  {showEmojiPicker && (
-                    <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border rounded-lg shadow-lg z-30 p-2 grid grid-cols-8 gap-1">
-                      {EMOJIS.map(emoji => (
-                        <button key={emoji}
-                          onClick={() => { setDraft(d => d + emoji); setShowEmojiPicker(false); }}
-                          className="text-lg hover:bg-gray-100 rounded p-1">
-                          {emoji}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <input value={draft} onChange={e => setDraft(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleSend()}
-                  placeholder="Type a message..."
-                  className="flex-1 px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
-                <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected}
-                  accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" />
-                <div className="relative" data-attach-menu>
-                  <button onClick={() => setShowAttachMenu(v => !v)} disabled={uploadingFile}
-                    className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg disabled:opacity-50">
-                    <Paperclip size={18} />
-                  </button>
-                  {showAttachMenu && (
-                    <div className="absolute right-0 bottom-full mb-1 w-48 bg-white border rounded-lg shadow-lg z-30 py-1">
-                      <button
-                        onClick={() => { setShowAttachMenu(false); fileInputRef.current?.click(); }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2">
-                        <ImageIcon size={14} /> Attach File
-                      </button>
-                      <button
-                        onClick={() => { setShowAttachMenu(false); setShowBrochureModal(true); }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2">
-                        <FileText size={14} /> Send Brochure
-                      </button>
-                    </div>
-                  )}
-                </div>
-                <button onClick={handleSend} disabled={sending || !draft.trim()}
-                  className="w-10 h-10 bg-brand-600 text-white rounded-full flex items-center justify-center hover:bg-brand-700 disabled:opacity-50 shrink-0">
-                  <Send size={16} />
-                </button>
-              </div>
+              <InboxComposer
+                leadId={activeId} leadName={active.lead_name} messages={messages} messagesLoading={msgLoading}
+                setMessages={setMessages} onSent={() => patchConversation(activeId, { ai_paused: true })}
+                onOpenBrochure={() => setShowBrochureModal(true)} />
             </>
           )}
         </div>
@@ -576,7 +549,38 @@ const WhatsAppInboxPage = () => {
                   <div className="flex justify-between"><span className="text-gray-400">First Message</span><span className="text-gray-700 font-medium">{messages[0]?.sent_at ? fmtDate(messages[0].sent_at) : '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-400">Last Message</span><span className="text-gray-700 font-medium">{active.sent_at ? fmtClock(active.sent_at) || '—' : '—'}</span></div>
                   <div className="flex justify-between"><span className="text-gray-400">Total Messages</span><span className="text-gray-700 font-medium">{messages.length}</span></div>
-                  <div className="flex justify-between items-center"><span className="text-gray-400">Status</span><span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Active</span></div>
+                  {(() => {
+                    const lastIn = lastInboundAt(messages);
+                    const left = lastIn ? lastIn + 24 * 60 * 60 * 1000 - Date.now() : -1;
+                    return (
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-400">Reply window</span>
+                        {left > 0
+                          ? <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">Open · {fmtRemaining(left)} left</span>
+                          : <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">Closed · template only</span>}
+                      </div>
+                    );
+                  })()}
+                  {aiEnabled && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-400">AI replies</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${active.ai_paused ? 'bg-gray-100 text-gray-600' : 'bg-violet-100 text-violet-700'}`}>
+                        {active.ai_paused ? 'Paused' : 'Active'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-gray-400 shrink-0">Assigned to</span>
+                    {isAdmin ? (
+                      <select value={active.assigned_to || ''} onChange={e => handleAssign(e.target.value)}
+                        className="min-w-0 max-w-[140px] px-1.5 py-1 border rounded-lg text-xs bg-white text-gray-700">
+                        <option value="">Unassigned</option>
+                        {staff.map(st => <option key={st.id} value={st.id}>{st.name}</option>)}
+                      </select>
+                    ) : (
+                      <span className="text-gray-700 font-medium truncate">{active.assigned_to_name || 'Unassigned'}</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
