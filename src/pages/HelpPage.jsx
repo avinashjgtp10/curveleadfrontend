@@ -1,9 +1,12 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Users, Gauge, Clock, FileText, BookOpen, Megaphone,
   MessageCircle, UserCog, BarChart3, Lightbulb, Globe, Plug, Settings,
   CreditCard, HelpCircle, Flame, CheckCircle, AlertTriangle,
+  LifeBuoy, Mail, Send, Inbox,
 } from 'lucide-react';
+import { supportAPI } from '../services/api';
+import { useToast } from '../components/ui/Toast';
 
 const GROUPS = [
   {
@@ -70,8 +73,179 @@ const Section = ({ id, icon: Icon, title, children }) => (
   </section>
 );
 
+const TICKET_CATEGORIES = ['General', 'Technical', 'Billing', 'Feature Request', 'Bug Report'];
+const TICKET_PRIORITIES = [
+  { id: 'low', label: 'Low', dot: 'bg-gray-400', active: 'border-gray-400 bg-gray-50 text-gray-700' },
+  { id: 'medium', label: 'Medium', dot: 'bg-amber-500', active: 'border-amber-400 bg-amber-50 text-amber-700' },
+  { id: 'high', label: 'High', dot: 'bg-red-500', active: 'border-red-400 bg-red-50 text-red-700' },
+];
+const TICKET_STATUS_STYLES = {
+  open: 'bg-blue-50 text-blue-600',
+  in_progress: 'bg-amber-50 text-amber-600',
+  resolved: 'bg-emerald-50 text-emerald-600',
+  closed: 'bg-gray-100 text-gray-500',
+};
+
+const emptyTicketForm = () => ({ subject: '', category: 'General', priority: 'medium', message: '' });
+
+const SupportTicketForm = ({ onSubmitted }) => {
+  const toast = useToast();
+  const [form, setForm] = useState(emptyTicketForm());
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async () => {
+    if (!form.subject.trim()) return toast.error('Subject is required.');
+    if (!form.message.trim()) return toast.error('Please describe your issue.');
+    setSubmitting(true);
+    try {
+      await supportAPI.createTicket(form);
+      toast.success('Support request submitted — our team typically responds within 24 hours.');
+      setForm(emptyTicketForm());
+      onSubmitted?.();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Failed to submit request.');
+    } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="bg-white rounded-2xl border p-5">
+      <h2 className="font-semibold text-gray-900">New Support Request</h2>
+      <p className="text-xs text-gray-500 mt-0.5 mb-4">Our team typically responds within 24 hours</p>
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Subject <span className="text-red-500">*</span></label>
+          <input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+            placeholder="Briefly describe your issue..."
+            className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
+            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+              className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none">
+              {TICKET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Priority</label>
+            <div className="flex gap-2">
+              {TICKET_PRIORITIES.map(p => (
+                <button key={p.id} type="button" onClick={() => setForm(f => ({ ...f, priority: p.id }))}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
+                    form.priority === p.id ? p.active : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                  }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${p.dot}`} /> {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">Message <span className="text-red-500">*</span></label>
+          <textarea value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value.slice(0, 1000) }))}
+            rows={5} maxLength={1000}
+            placeholder="Describe your issue in detail — include any error messages, steps you've already tried, etc."
+            className="w-full px-3 py-2.5 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+          <p className="text-right text-[11px] text-gray-400 mt-1">{form.message.length} / 1000</p>
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={handleSubmit} disabled={submitting}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+            <Send size={14} /> {submitting ? 'Submitting…' : 'Submit Request'}
+          </button>
+          <button onClick={() => setForm(emptyTicketForm())}
+            className="px-4 py-2.5 border rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-50">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const SupportSidebar = () => (
+  <div className="space-y-4">
+    <div className="bg-white rounded-2xl border p-4">
+      <h3 className="font-semibold text-sm text-gray-900 flex items-center gap-1.5 mb-3"><Clock size={14} className="text-brand-600" /> Support Hours</h3>
+      <dl className="space-y-2 text-xs">
+        <div className="flex justify-between"><dt className="text-gray-500">Monday – Friday</dt><dd className="font-semibold text-gray-800">9:00 AM – 8:00 PM</dd></div>
+        <div className="flex justify-between"><dt className="text-gray-500">Saturday</dt><dd className="font-semibold text-gray-800">10:00 AM – 5:00 PM</dd></div>
+        <div className="flex justify-between"><dt className="text-gray-500">Sunday</dt><dd className="font-semibold text-gray-800">Closed</dd></div>
+      </dl>
+    </div>
+
+    <div className="bg-white rounded-2xl border p-4">
+      <h3 className="font-semibold text-sm text-gray-900 flex items-center gap-1.5 mb-3"><Clock size={14} className="text-brand-600" /> Average Response Time</h3>
+      <dl className="space-y-2 text-xs">
+        <div className="flex justify-between"><dt className="text-gray-500">High priority</dt><dd className="font-semibold text-gray-800">~2 hours</dd></div>
+        <div className="flex justify-between"><dt className="text-gray-500">Medium priority</dt><dd className="font-semibold text-gray-800">~8 hours</dd></div>
+        <div className="flex justify-between"><dt className="text-gray-500">Low priority</dt><dd className="font-semibold text-gray-800">~24 hours</dd></div>
+      </dl>
+    </div>
+
+    <div className="bg-white rounded-2xl border p-4">
+      <h3 className="font-semibold text-sm text-gray-900 mb-3">Contact Us</h3>
+      <div className="space-y-2.5">
+        <a href="mailto:support@curvelead.com" className="flex items-center gap-2 text-xs text-gray-700 hover:text-brand-600">
+          <Mail size={14} className="text-gray-400 shrink-0" />
+          <div><p className="text-[10px] text-gray-400 uppercase">Email</p><p className="font-semibold">support@curvelead.com</p></div>
+        </a>
+      </div>
+    </div>
+  </div>
+);
+
+const MyTickets = ({ tickets, loading }) => {
+  if (loading) return <div className="text-center text-gray-400 py-16 bg-white rounded-2xl border">Loading…</div>;
+  if (!tickets.length) return (
+    <div className="text-center py-16 bg-white rounded-2xl border">
+      <Inbox size={32} className="mx-auto text-gray-300 mb-3" />
+      <p className="text-sm text-gray-500 font-medium">No support requests yet</p>
+      <p className="text-xs text-gray-400 mt-1">Submit a request and it'll show up here.</p>
+    </div>
+  );
+  return (
+    <div className="bg-white rounded-2xl border divide-y">
+      {tickets.map(t => (
+        <div key={t.id} className="p-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="font-medium text-sm text-gray-900 truncate">{t.subject}</p>
+            <p className="text-xs text-gray-400 mt-0.5">{t.category} · {new Date(t.created_at).toLocaleDateString('en-IN')}</p>
+          </div>
+          <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${TICKET_STATUS_STYLES[t.status] || 'bg-gray-100 text-gray-500'}`}>
+            {(t.status || 'open').replace('_', ' ')}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+const PAGE_TABS = [
+  { id: 'submit', label: 'Submit a Request' },
+  { id: 'tickets', label: 'My Tickets' },
+  { id: 'guide', label: 'User Guide' },
+];
+
 const HelpPage = () => {
   const [activeId, setActiveId] = useState('overview');
+  const [page, setPage] = useState('submit');
+  const [tickets, setTickets] = useState([]);
+  const [ticketsLoading, setTicketsLoading] = useState(false);
+
+  const loadTickets = () => {
+    setTicketsLoading(true);
+    supportAPI.getMyTickets()
+      .then(({ data }) => setTickets(data.tickets || []))
+      .catch(() => setTickets([]))
+      .finally(() => setTicketsLoading(false));
+  };
+
+  useEffect(() => { if (page === 'tickets') loadTickets(); }, [page]);
 
   const goTo = (id) => {
     setActiveId(id);
@@ -79,7 +253,39 @@ const HelpPage = () => {
   };
 
   return (
-    <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
+    <div className="max-w-6xl mx-auto space-y-5">
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-xl bg-brand-50 flex items-center justify-center shrink-0">
+          <LifeBuoy size={22} className="text-brand-600" />
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Help &amp; Support</h1>
+          <p className="text-sm text-gray-500">Need assistance? Submit a support request or browse the user guide.</p>
+        </div>
+      </div>
+
+      <div className="flex gap-2 flex-wrap">
+        {PAGE_TABS.map(t => (
+          <button key={t.id} onClick={() => setPage(t.id)}
+            className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors ${
+              page === t.id ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {page === 'submit' && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2"><SupportTicketForm onSubmitted={() => setPage('tickets')} /></div>
+          <SupportSidebar />
+        </div>
+      )}
+
+      {page === 'tickets' && <MyTickets tickets={tickets} loading={ticketsLoading} />}
+
+      {page === 'guide' && (
+    <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
       {/* Topic nav */}
       <nav className="lg:sticky lg:top-0 lg:self-start lg:max-h-[calc(100vh-6rem)] lg:overflow-y-auto">
         <div className="flex lg:flex-col gap-4 overflow-x-auto lg:overflow-visible pb-2 lg:pb-0">
@@ -239,6 +445,8 @@ const HelpPage = () => {
           <Tip>If you've paid but your plan hasn't updated, don't pay again — contact support@curvelead.com with your payment ID. Verification happens right after payment and can occasionally lag.</Tip>
         </Section>
       </div>
+    </div>
+      )}
     </div>
   );
 };

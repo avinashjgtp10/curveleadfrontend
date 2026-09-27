@@ -35,5 +35,5 @@ export const SIDEBAR_NAV_ITEMS = [
   { path: '/integrations', label: 'Integrations', icon: Plug, roles: ['admin'] },
   { path: '/billing', label: 'Billing', icon: CreditCard, roles: ['admin'] },
   { path: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
-  { path: '/help', label: 'User Guide', icon: HelpCircle, roles: ['admin', 'staff'] },
+  { path: '/help', label: 'Help & Support', icon: HelpCircle, roles: ['admin', 'staff'] },
 ];
