@@ -568,7 +568,7 @@ const WhatsAppInboxPage = () => {
                 </div>
               </div>
 
-              <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-[#f8f7f4]">
+              <div ref={messagesContainerRef} onScroll={handleMessagesScroll} className="flex-1 overflow-y-auto px-4 py-4 bg-[#f8f7f4]">
                 {msgLoading ? (
                   <div className="flex items-center justify-center h-full"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
                 ) : messages.length === 0 ? (
@@ -577,16 +577,28 @@ const WhatsAppInboxPage = () => {
                   <>
                     {messages.map((m, i) => {
                       const outbound = m.direction === 'outbound';
-                      const newDay = i === 0 || dayKey(m.sent_at) !== dayKey(messages[i - 1].sent_at);
+                      const prev = messages[i - 1];
+                      const next = messages[i + 1];
+                      const newDay = i === 0 || dayKey(m.sent_at) !== dayKey(prev.sent_at);
+                      // Consecutive messages from the same side, close together in time, are
+                      // visually grouped (tight spacing, rounded tail only on the last one) —
+                      // rather than every message getting identical full-bubble spacing.
+                      const sameGroup = (a, b) => a && b && a.direction === b.direction
+                        && dayKey(a.sent_at) === dayKey(b.sent_at)
+                        && Math.abs(new Date(b.sent_at) - new Date(a.sent_at)) < 5 * 60 * 1000;
+                      const groupStart = newDay || !sameGroup(prev, m);
+                      const groupEnd = !sameGroup(m, next);
                       return (
-                        <div key={m.id || i}>
+                        <div key={m.id || i} className={groupStart ? 'pt-3 first:pt-0' : 'pt-0.5'}>
                           {newDay && (
                             <div className="flex justify-center mb-4">
-                              <span className="text-xs text-gray-400 bg-white px-3 py-1 rounded-full border">{dayLabel(m.sent_at)}</span>
+                              <span className="text-[11px] font-medium text-gray-500 bg-white px-3 py-1 rounded-full border shadow-sm">{dayLabel(m.sent_at)}</span>
                             </div>
                           )}
                         <div className={`flex ${outbound ? 'justify-end' : 'justify-start'}`}>
-                          <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm ${outbound ? 'bg-green-100 text-gray-800 rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm shadow-sm'}`}>
+                          <div className={`max-w-[70%] rounded-2xl px-3.5 py-2 text-sm border ${
+                            outbound ? 'bg-emerald-50 border-emerald-100 text-gray-800' : 'bg-white border-gray-100 shadow-sm text-gray-800'
+                          } ${groupEnd ? (outbound ? 'rounded-br-md' : 'rounded-bl-md') : ''}`}>
                             <MessageBody m={m} />
                             <div className={`flex items-center gap-1 mt-1 ${outbound ? 'justify-end' : ''}`}>
                               <span className="text-[10px] text-gray-400">
