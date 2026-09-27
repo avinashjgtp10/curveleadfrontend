@@ -88,6 +88,9 @@ export const whatsappAPI = {
   getInbox: () => api.get('/whatsapp/inbox'),
   getConversation: (leadId) => api.get(`/whatsapp/conversation/${leadId}`),
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
+  sendTemplate: (leadId, payload) => api.post('/whatsapp/send', { lead_id: leadId, ...payload }),
+  getSendableTemplates: () => api.get('/whatsapp/templates/sendable'),
+  setConversationAi: (leadId, paused) => api.put(`/whatsapp/conversation/${leadId}/ai`, { paused }),
   sendAttachment: (leadId, attachmentId) => api.post('/whatsapp/send-attachment', { lead_id: leadId, attachment_id: attachmentId }),
   updateLabels: (leadId, add = [], remove = []) => api.post('/whatsapp/labels', { lead_id: leadId, add, remove }),
   getBroadcastTemplates: () => api.get('/whatsapp/broadcast/templates'),
@@ -301,6 +304,14 @@ export const paymentAPI = {
   getPlans: () => api.get('/payments/plans'),
   createSubscription: (planName, billingPeriod) => api.post('/payments/create-subscription', { planName, billingPeriod }),
   verifySubscription: (data) => api.post('/payments/verify-subscription', data),
+};
+
+// ============================================
+// ⭐ NEW: Support Tickets (tenant-facing)
+// ============================================
+export const supportAPI = {
+  getMyTickets: () => api.get('/support/tickets'),
+  createTicket: (data) => api.post('/support/tickets', data),
 };
 
 // ============================================
