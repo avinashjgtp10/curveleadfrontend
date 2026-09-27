@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog, UserPlus } from 'lucide-react';
-import { notificationsAPI } from '../../services/api';
+import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog, UserPlus, Settings } from 'lucide-react';
+import { notificationsAPI, authAPI } from '../../services/api';
+import NotificationSettingsModal from './NotificationSettingsModal';
 import { useNavigate } from 'react-router-dom';
 
 const typeIcon = (type) => {
@@ -17,8 +18,8 @@ const typeIcon = (type) => {
 
 // Fires a real OS-level desktop notification (separate from the in-app bell dropdown).
 // No-ops silently if the browser doesn't support it or the user hasn't granted permission.
-const showBrowserNotification = (n, onClick) => {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+const showBrowserNotification = (n, onClick, desktopEnabled) => {
+  if (!desktopEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
   const popup = new Notification(n.title, { body: n.message || '', tag: n.id });
   popup.onclick = () => { window.focus(); onClick(n); popup.close(); };
 };
@@ -39,6 +40,8 @@ const NotificationBell = () => {
   const ref = useRef();
   const navigate = useNavigate();
   const seenIdsRef = useRef(null); // null until the first poll completes
+  const [showSettings, setShowSettings] = useState(false);
+  const [desktopEnabled, setDesktopEnabled] = useState(true);
 
   const fetchAll = async () => {
     setLoading(true);
@@ -62,7 +65,7 @@ const NotificationBell = () => {
       if (seenIdsRef.current) {
         list
           .filter(n => !n.is_read && !seenIdsRef.current.has(n.id))
-          .forEach(n => showBrowserNotification(n, handleMarkRead));
+          .forEach(n => showBrowserNotification(n, handleMarkRead, desktopEnabled));
       }
       seenIdsRef.current = new Set(list.map(n => n.id));
       if (open) setNotifications(list);
@@ -73,6 +76,9 @@ const NotificationBell = () => {
     if ('Notification' in window && Notification.permission === 'default') {
       Notification.requestPermission();
     }
+    authAPI.getPreferences().then(({ data }) => {
+      setDesktopEnabled(data.preferences?.desktop_notifications !== false);
+    }).catch(() => {});
     pollNotifications();
     const interval = setInterval(pollNotifications, 30000);
     return () => clearInterval(interval);
@@ -123,11 +129,17 @@ const NotificationBell = () => {
         <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h3 className="font-semibold text-sm">Notifications</h3>
-            {unread > 0 && (
-              <button onClick={handleMarkAll} className="text-xs text-brand-600 hover:underline flex items-center gap-1">
-                <CheckCheck size={12} /> Mark all read
+            <div className="flex items-center gap-3">
+              {unread > 0 && (
+                <button onClick={handleMarkAll} className="text-xs text-brand-600 hover:underline flex items-center gap-1">
+                  <CheckCheck size={12} /> Mark all read
+                </button>
+              )}
+              <button onClick={() => { setOpen(false); setShowSettings(true); }}
+                title="Notification settings" className="p-1 text-gray-400 hover:text-gray-700 rounded">
+                <Settings size={14} />
               </button>
-            )}
+            </div>
           </div>
 
           <div className="max-h-96 overflow-y-auto">
@@ -151,6 +163,13 @@ const NotificationBell = () => {
             )}
           </div>
         </div>
+      )}
+
+      {showSettings && (
+        <NotificationSettingsModal
+          onClose={() => setShowSettings(false)}
+          onSaved={(prefs) => setDesktopEnabled(prefs.desktop_notifications !== false)}
+        />
       )}
     </div>
   );
