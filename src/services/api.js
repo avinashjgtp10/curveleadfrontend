@@ -91,6 +91,7 @@ export const whatsappAPI = {
   sendTemplate: (leadId, payload) => api.post('/whatsapp/send', { lead_id: leadId, ...payload }),
   getSendableTemplates: () => api.get('/whatsapp/templates/sendable'),
   setConversationAi: (leadId, paused) => api.put(`/whatsapp/conversation/${leadId}/ai`, { paused }),
+  startChat: (phone, name) => api.post('/whatsapp/start-chat', { phone, name }),
   sendAttachment: (leadId, attachmentId) => api.post('/whatsapp/send-attachment', { lead_id: leadId, attachment_id: attachmentId }),
   updateLabels: (leadId, add = [], remove = []) => api.post('/whatsapp/labels', { lead_id: leadId, add, remove }),
   deleteConversations: (leadIds) => api.delete('/whatsapp/conversations', { data: { lead_ids: leadIds } }),
