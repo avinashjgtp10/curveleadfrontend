@@ -269,7 +269,7 @@ const InboxComposer = ({ leadId, leadName, messages, messagesLoading, setMessage
         </div>
       )}
 
-      <div className="relative flex items-end gap-2 px-4 py-3">
+      <div className="relative px-4 py-3">
         {popoverOpen && (
           <div className="absolute left-4 bottom-full mb-1 w-80 max-h-64 overflow-y-auto bg-white border rounded-xl shadow-lg z-30">
             {!slashMode && (
@@ -293,46 +293,48 @@ const InboxComposer = ({ leadId, leadName, messages, messagesLoading, setMessage
           </div>
         )}
 
-        <div className="relative">
-          <button onClick={() => { setShowEmoji(v => !v); setShowAttach(false); setShowSaved(false); }} disabled={!windowOpen}
-            className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg disabled:opacity-40"><Smile size={18} /></button>
-          {showEmoji && (
-            <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border rounded-lg shadow-lg z-30 p-2 grid grid-cols-8 gap-1">
-              {EMOJIS.map(emoji => (
-                <button key={emoji} onClick={() => { setDraft(d => d + emoji); setShowEmoji(false); textareaRef.current?.focus(); }}
-                  className="text-lg hover:bg-gray-100 rounded p-1">{emoji}</button>
-              ))}
-            </div>
-          )}
+        <div className="flex items-end gap-0.5 bg-white border border-gray-200 rounded-2xl shadow-sm px-2 py-1.5 focus-within:ring-2 focus-within:ring-brand-300 focus-within:border-brand-300 transition-shadow">
+          <div className="relative">
+            <button onClick={() => { setShowEmoji(v => !v); setShowAttach(false); setShowSaved(false); }} disabled={!windowOpen}
+              className="p-2 text-gray-400 hover:bg-gray-100 rounded-full disabled:opacity-40"><Smile size={18} /></button>
+            {showEmoji && (
+              <div className="absolute left-0 bottom-full mb-1 w-64 bg-white border rounded-lg shadow-lg z-30 p-2 grid grid-cols-8 gap-1">
+                {EMOJIS.map(emoji => (
+                  <button key={emoji} onClick={() => { setDraft(d => d + emoji); setShowEmoji(false); textareaRef.current?.focus(); }}
+                    className="text-lg hover:bg-gray-100 rounded p-1">{emoji}</button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <button onClick={() => { setShowSaved(v => !v); setShowEmoji(false); setShowAttach(false); }} disabled={!windowOpen}
+            title="Saved replies (or type /)" className="p-2 text-gray-400 hover:bg-gray-100 rounded-full disabled:opacity-40"><Zap size={18} /></button>
+          <button onClick={() => setShowTemplates(true)} title="Send a template"
+            className="p-2 text-gray-400 hover:bg-gray-100 rounded-full"><Layers size={18} /></button>
+
+          <textarea ref={textareaRef} value={draft} rows={1} onChange={e => setDraft(e.target.value)} onKeyDown={handleKeyDown}
+            disabled={windowKnown && !windowOpen}
+            placeholder={windowKnown && !windowOpen ? 'Window closed — send a template to reply' : 'Type a message… (Shift+Enter for a new line, / for saved replies)'}
+            className="flex-1 min-w-0 px-1.5 py-2 bg-transparent text-sm resize-none focus:outline-none disabled:text-gray-400" />
+
+          <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected} accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" />
+          <div className="relative">
+            <button onClick={() => { setShowAttach(v => !v); setShowEmoji(false); setShowSaved(false); }} disabled={uploading || !windowOpen}
+              className="p-2 text-gray-400 hover:bg-gray-100 rounded-full disabled:opacity-40"><Paperclip size={18} /></button>
+            {showAttach && (
+              <div className="absolute right-0 bottom-full mb-1 w-48 bg-white border rounded-lg shadow-lg z-30 py-1">
+                <button onClick={() => { setShowAttach(false); fileInputRef.current?.click(); }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2"><ImageIcon size={14} /> Attach File</button>
+                <button onClick={() => { setShowAttach(false); onOpenBrochure(); }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2"><FileText size={14} /> Send Brochure</button>
+              </div>
+            )}
+          </div>
+          <button onClick={handleSend} disabled={!draft.trim() || !windowOpen}
+            className="w-9 h-9 bg-brand-600 text-white rounded-full flex items-center justify-center hover:bg-brand-700 disabled:opacity-50 shrink-0 ml-0.5">
+            <Send size={15} />
+          </button>
         </div>
-
-        <button onClick={() => { setShowSaved(v => !v); setShowEmoji(false); setShowAttach(false); }} disabled={!windowOpen}
-          title="Saved replies (or type /)" className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg disabled:opacity-40"><Zap size={18} /></button>
-        <button onClick={() => setShowTemplates(true)} title="Send a template"
-          className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg"><Layers size={18} /></button>
-
-        <textarea ref={textareaRef} value={draft} rows={1} onChange={e => setDraft(e.target.value)} onKeyDown={handleKeyDown}
-          disabled={windowKnown && !windowOpen}
-          placeholder={windowKnown && !windowOpen ? 'Window closed — send a template to reply' : 'Type a message… (Shift+Enter for a new line, / for saved replies)'}
-          className="flex-1 px-3 py-2.5 border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-brand-300 disabled:bg-gray-50 disabled:text-gray-400" />
-
-        <input ref={fileInputRef} type="file" hidden onChange={handleFileSelected} accept="image/*,application/pdf,.doc,.docx,.xls,.xlsx" />
-        <div className="relative">
-          <button onClick={() => { setShowAttach(v => !v); setShowEmoji(false); setShowSaved(false); }} disabled={uploading || !windowOpen}
-            className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg disabled:opacity-40"><Paperclip size={18} /></button>
-          {showAttach && (
-            <div className="absolute right-0 bottom-full mb-1 w-48 bg-white border rounded-lg shadow-lg z-30 py-1">
-              <button onClick={() => { setShowAttach(false); fileInputRef.current?.click(); }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2"><ImageIcon size={14} /> Attach File</button>
-              <button onClick={() => { setShowAttach(false); onOpenBrochure(); }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 text-gray-700 flex items-center gap-2"><FileText size={14} /> Send Brochure</button>
-            </div>
-          )}
-        </div>
-        <button onClick={handleSend} disabled={!draft.trim() || !windowOpen}
-          className="w-10 h-10 bg-brand-600 text-white rounded-full flex items-center justify-center hover:bg-brand-700 disabled:opacity-50 shrink-0">
-          <Send size={16} />
-        </button>
       </div>
 
       {showTemplates && (
