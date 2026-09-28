@@ -11,7 +11,7 @@ import {
   MessageCircle, Search, SlidersHorizontal, Star, MoreVertical,
   Check, CheckCheck, AlertCircle, UserCircle2, X,
   FileText, Layers, Download, Clock, Bot,
-  ListChecks, Trash2, CheckSquare, Square, MailOpen,
+  ListChecks, Trash2, CheckSquare, Square, MailOpen, MessageSquarePlus,
 } from 'lucide-react';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
@@ -89,6 +89,51 @@ const dayLabel = (dt) => {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
+const NewChatModal = ({ onClose, onStart }) => {
+  const toast = useToast();
+  const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const [starting, setStarting] = useState(false);
+
+  const submit = async () => {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length < 10) return toast.error('Enter a valid phone number.');
+    setStarting(true);
+    try { await onStart(digits, name); }
+    catch (e) { toast.error(e.response?.data?.error || 'Failed to start chat'); }
+    finally { setStarting(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/50" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5">
+        <h3 className="font-bold text-base mb-1">New chat</h3>
+        <p className="text-xs text-gray-500 mb-4">Message a number that isn't in your leads yet — a lead is created automatically so replies aren't lost.</p>
+        <div className="space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Phone number</label>
+            <input value={phone} onChange={e => setPhone(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
+              placeholder="e.g. 9876543210" autoFocus className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-gray-400 font-normal">(optional)</span></label>
+            <input value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && submit()}
+              placeholder="e.g. Priya" className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 mt-5">
+          <button onClick={onClose} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
+          <button onClick={submit} disabled={starting}
+            className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
+            {starting ? 'Starting…' : 'Start chat'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const PRESET_LABELS = ['Interested', 'Hot Lead', 'Follow-up', 'Not Interested', 'VIP'];
 
 const relTime = (dt) => {
@@ -137,6 +182,7 @@ const WhatsAppInboxPage = () => {
   const [viewLeadId, setViewLeadId] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showBrochureModal, setShowBrochureModal] = useState(false);
+  const [showNewChat, setShowNewChat] = useState(false);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const stickToBottomRef = useRef(true);
@@ -324,6 +370,15 @@ const WhatsAppInboxPage = () => {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to reassign'); }
   };
 
+  const handleStartChat = async (phone, name) => {
+    const { data } = await whatsappAPI.startChat(phone, name);
+    // Reload regardless of whether a new lead was created — an existing lead with
+    // no messages yet may not be in the currently-loaded list (it's capped at 50).
+    await loadInbox(true);
+    setActiveId(data.lead_id);
+    setShowNewChat(false);
+  };
+
   const handleBrochureShared = (brochure) => {
     setMessages(prev => [...prev, {
       id: `tmp-brochure-${Date.now()}`, direction: 'outbound', message: `📄 ${brochure.name}`,
@@ -395,7 +450,13 @@ const WhatsAppInboxPage = () => {
         {/* Conversations */}
         <div className="bg-white border rounded-2xl flex flex-col overflow-hidden">
           <div className="p-4 pb-3 border-b">
-            <h2 className="font-bold text-gray-900 mb-3">Conversations</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-bold text-gray-900">Conversations</h2>
+              <button onClick={() => setShowNewChat(true)} title="Message a number that isn't a lead yet"
+                className="flex items-center gap-1 text-xs font-semibold text-brand-600 hover:text-brand-700">
+                <MessageSquarePlus size={14} /> New chat
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -762,6 +823,10 @@ const WhatsAppInboxPage = () => {
           onClose={() => setShowBrochureModal(false)}
           onShared={handleBrochureShared}
         />
+      )}
+
+      {showNewChat && (
+        <NewChatModal onClose={() => setShowNewChat(false)} onStart={handleStartChat} />
       )}
     </div>
   );
