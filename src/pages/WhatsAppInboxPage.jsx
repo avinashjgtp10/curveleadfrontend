@@ -606,7 +606,7 @@ const WhatsAppInboxPage = () => {
                               </span>
                               {outbound && (
                                 m.status === 'sending' ? <Clock size={12} className="text-gray-300" title="Sending…" />
-                                : m.status === 'failed' ? <AlertCircle size={13} className="text-red-500" title="Failed to send" />
+                                : m.status === 'failed' ? <AlertCircle size={13} className="text-red-500" title={m.error_detail || 'Failed to send'} />
                                 : m.status === 'read' ? <CheckCheck size={13} className="text-blue-500" title="Read" />
                                 : m.status === 'delivered' ? <CheckCheck size={13} className="text-gray-400" title="Delivered" />
                                 : <Check size={13} className="text-gray-400" title="Sent" />
