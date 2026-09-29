@@ -30,11 +30,17 @@ const fmtDate = (dt) => {
 // player or a document link for media, a styled badge for a template send,
 // otherwise just the plain text. Falls back to plain text if media_url is
 // missing (e.g. an older message sent before media rendering existed).
-const MessageBody = ({ m }) => {
+const MessageBody = ({ m, templateBody }) => {
   if (m.message_type === 'template') {
     const legacy = typeof m.message === 'string' && m.message.match(/^\[Template: (.+)\]$/);
     const name = m.template_name || legacy?.[1];
-    const body = legacy ? null : m.message;
+    // Older/automation-sent rows only ever stored the "[Template: name]" placeholder,
+    // never the actual rendered text — fall back to the template's current approved
+    // body (looked up by name) so the chat shows real content instead of just the badge.
+    // It won't reflect variables exactly as sent (e.g. the lead's name at the time),
+    // only the template's current shape, so it's marked as a reconstruction.
+    const body = legacy ? (templateBody || null) : m.message;
+    const isReconstructed = legacy && !!templateBody;
     const headerIsImage = m.media_url && /\.(png|jpe?g)(\?|$)/i.test(m.media_url);
     return (
       <div>
@@ -43,6 +49,7 @@ const MessageBody = ({ m }) => {
           <Layers size={11} /> Template{name ? `: ${name}` : ''}
         </span>
         {body && <p className="mt-1.5 whitespace-pre-wrap break-words">{body}</p>}
+        {isReconstructed && <p className="text-[10px] text-gray-400 mt-1">Reconstructed from the current template — may not match exactly what was sent.</p>}
       </div>
     );
   }
@@ -174,6 +181,7 @@ const WhatsAppInboxPage = () => {
   const [msgLoading, setMsgLoading] = useState(false);
   const [aiEnabled, setAiEnabled] = useState(false);
   const [staff, setStaff] = useState([]);
+  const [templateBodyByName, setTemplateBodyByName] = useState(new Map());
 
   const [showLabelPicker, setShowLabelPicker] = useState(false);
   const [showFilterMenu, setShowFilterMenu] = useState(false);
@@ -189,6 +197,14 @@ const WhatsAppInboxPage = () => {
   const prevActiveIdRef = useRef(null);
 
   useEffect(() => { loadInbox(); }, []);
+  // Open to any team member (same endpoint the template picker uses) — used to
+  // reconstruct old/automation-sent template messages that only ever stored the
+  // "[Template: name]" placeholder instead of the real body text.
+  useEffect(() => {
+    whatsappAPI.getSendableTemplates()
+      .then(({ data }) => setTemplateBodyByName(new Map((data.templates || []).map(t => [t.name, t.body_text]))))
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     if (!isAdmin) return;
     staffAPI.getAll().then(({ data }) => setStaff(data.staff || [])).catch(() => {});
@@ -660,7 +676,7 @@ const WhatsAppInboxPage = () => {
                           <div className={`max-w-[70%] rounded-2xl px-3.5 py-2 text-sm border ${
                             outbound ? 'bg-emerald-50 border-emerald-100 text-gray-800' : 'bg-white border-gray-100 shadow-sm text-gray-800'
                           } ${groupEnd ? (outbound ? 'rounded-br-md' : 'rounded-bl-md') : ''}`}>
-                            <MessageBody m={m} />
+                            <MessageBody m={m} templateBody={m.template_name ? templateBodyByName.get(m.template_name) : undefined} />
                             <div className={`flex items-center gap-1 mt-1 ${outbound ? 'justify-end' : ''}`}>
                               <span className="text-[10px] text-gray-400">
                                 {fmtClock(m.sent_at)}
