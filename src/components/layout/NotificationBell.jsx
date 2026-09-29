@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog, UserPlus, Settings } from 'lucide-react';
+import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog, UserPlus, Settings, MessageCircle } from 'lucide-react';
 import { notificationsAPI, authAPI } from '../../services/api';
 import NotificationSettingsModal from './NotificationSettingsModal';
 import { useNavigate } from 'react-router-dom';
 
 const typeIcon = (type) => {
   if (type === 'new_lead')    return <UserPlus size={14} className="text-green-500" />;
+  if (type === 'whatsapp')    return <MessageCircle size={14} className="text-emerald-500" />;
   if (type === 'demo_due')    return <Video    size={14} className="text-violet-500" />;
   if (type === 'followup_due') return <Calendar size={14} className="text-amber-500" />;
   if (type === 'ai_score')    return <Zap      size={14} className="text-purple-500" />;
