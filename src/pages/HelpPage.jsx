@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Users, Gauge, Clock, FileText, BookOpen, Megaphone,
   MessageCircle, UserCog, BarChart3, Lightbulb, Globe, Plug, Settings,
   CreditCard, HelpCircle, Flame, CheckCircle, AlertTriangle,
-  LifeBuoy, Mail, Send, Inbox,
+  LifeBuoy, Mail, Send, Inbox, RefreshCw, Bell,
 } from 'lucide-react';
 import { supportAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -196,34 +196,72 @@ const SupportSidebar = () => (
         </a>
       </div>
     </div>
+
+    <div className="bg-white rounded-2xl border p-4">
+      <h3 className="font-semibold text-sm text-gray-900 flex items-center gap-1.5 mb-3"><Bell size={14} className="text-brand-600" /> Recent Updates</h3>
+      <ul className="space-y-3">
+        {RECENT_UPDATES.map((u, i) => (
+          <li key={i} className="flex items-start gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-brand-500 mt-1.5 shrink-0" />
+            <div>
+              <p className="text-xs font-medium text-gray-800">{u.title}</p>
+              <p className="text-[11px] text-gray-400">{u.date}</p>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   </div>
 );
 
-const MyTickets = ({ tickets, loading }) => {
-  if (loading) return <div className="text-center text-gray-400 py-16 bg-white rounded-2xl border">Loading…</div>;
-  if (!tickets.length) return (
-    <div className="text-center py-16 bg-white rounded-2xl border">
-      <Inbox size={32} className="mx-auto text-gray-300 mb-3" />
-      <p className="text-sm text-gray-500 font-medium">No support requests yet</p>
-      <p className="text-xs text-gray-400 mt-1">Submit a request and it'll show up here.</p>
+const RECENT_UPDATES = [
+  { title: 'Lead Intent Index launched', date: '2 days ago' },
+  { title: 'WhatsApp inbox performance improvements', date: '1 week ago' },
+  { title: 'New quotation templates added', date: '2 weeks ago' },
+];
+
+const MyTickets = ({ tickets, loading, onRefresh, onSubmitFirst }) => (
+  <div className="bg-white rounded-2xl border">
+    <div className="flex items-center justify-between px-5 py-4 border-b">
+      <div>
+        <h2 className="font-semibold text-gray-900">Your Support Tickets</h2>
+        <p className="text-xs text-gray-500 mt-0.5">{tickets.length} ticket{tickets.length === 1 ? '' : 's'} found</p>
+      </div>
+      <button onClick={onRefresh} disabled={loading}
+        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 disabled:opacity-50">
+        <RefreshCw size={12} className={loading ? 'animate-spin' : ''} /> Refresh
+      </button>
     </div>
-  );
-  return (
-    <div className="bg-white rounded-2xl border divide-y">
-      {tickets.map(t => (
-        <div key={t.id} className="p-4 flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="font-medium text-sm text-gray-900 truncate">{t.subject}</p>
-            <p className="text-xs text-gray-400 mt-0.5">{t.category} · {new Date(t.created_at).toLocaleDateString('en-IN')}</p>
-          </div>
-          <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${TICKET_STATUS_STYLES[t.status] || 'bg-gray-100 text-gray-500'}`}>
-            {(t.status || 'open').replace('_', ' ')}
-          </span>
+
+    {loading ? (
+      <div className="text-center text-gray-400 py-16">Loading…</div>
+    ) : !tickets.length ? (
+      <div className="text-center py-16 px-5">
+        <div className="w-14 h-14 rounded-xl bg-gray-50 flex items-center justify-center mx-auto mb-3">
+          <Inbox size={24} className="text-gray-300" />
         </div>
-      ))}
-    </div>
-  );
-};
+        <p className="text-sm text-gray-700 font-medium">No tickets yet</p>
+        <button onClick={onSubmitFirst} className="text-sm text-brand-600 font-medium hover:underline mt-1">
+          Submit your first request
+        </button>
+      </div>
+    ) : (
+      <div className="divide-y">
+        {tickets.map(t => (
+          <div key={t.id} className="p-4 flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-medium text-sm text-gray-900 truncate">{t.subject}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t.category} · {new Date(t.created_at).toLocaleDateString('en-IN')}</p>
+            </div>
+            <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${TICKET_STATUS_STYLES[t.status] || 'bg-gray-100 text-gray-500'}`}>
+              {(t.status || 'open').replace('_', ' ')}
+            </span>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+);
 
 const PAGE_TABS = [
   { id: 'submit', label: 'Submit a Request' },
@@ -260,7 +298,7 @@ const HelpPage = () => {
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">Help &amp; Support</h1>
-          <p className="text-sm text-gray-500">Need assistance? Submit a support request or browse the user guide.</p>
+          <p className="text-sm text-gray-500">Need assistance? Submit a support request or track your existing tickets.</p>
         </div>
       </div>
 
@@ -282,7 +320,14 @@ const HelpPage = () => {
         </div>
       )}
 
-      {page === 'tickets' && <MyTickets tickets={tickets} loading={ticketsLoading} />}
+      {page === 'tickets' && (
+        <MyTickets
+          tickets={tickets}
+          loading={ticketsLoading}
+          onRefresh={loadTickets}
+          onSubmitFirst={() => setPage('submit')}
+        />
+      )}
 
       {page === 'guide' && (
     <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-5">
