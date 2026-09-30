@@ -1,3 +1,8 @@
+import EmptyState from '../components/ui/EmptyState';
+import { metricLeadLink, activityLeadLink } from '../utils/dashboardLinks';
+import { OnboardingChecklist, WhatsAppStatus } from '../components/workspace/Overview';
+import OverdueReview from '../components/workspace/OverdueReview';
+import PageLoader from '../components/ui/PageLoader';
 import IntegrationHealthBanner from '../components/IntegrationHealthBanner';
 import { sourceLabel } from '../utils/leadData.js';
 import { initials } from '../utils/leadData.js';
@@ -126,26 +131,24 @@ const DashboardPage = () => {
   const navigate = useNavigate();
   const { onMenuClick } = useOutletContext() || {};
   const [data, setData] = useState(null);
+  const [loadError,setLoadError]=useState('');
   const [loading, setLoading] = useState(true);
+  const [refresh,setRefresh]=useState(0);
   const [period, setPeriod] = useState('this_month');
   const [customFrom, setCustomFrom] = useState(todayISO());
   const [customTo, setCustomTo] = useState(todayISO());
 
   useEffect(() => {
     if (period === 'custom' && (!customFrom || !customTo)) return;
-    setLoading(true);
+    setLoading(true);setLoadError('');
     const params = period === 'custom' ? { period, date_from: customFrom, date_to: customTo } : { period };
     reportsAPI.dashboard(params)
       .then(({ data }) => setData(data))
-      .catch(console.error)
+      .catch(()=>setLoadError('Could not load dashboard.'))
       .finally(() => setLoading(false));
-  }, [period, customFrom, customTo]);
+  }, [period, customFrom, customTo, refresh]);
 
-  if (loading && !data) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full" />
-    </div>
-  );
+  if (loading && !data) return <PageLoader message="Loading dashboard"/>;
 
   const today = todayISO();
   const pipelineTotal = (data?.pipeline || []).reduce((s, p) => s + p.count, 0) || 1;
@@ -193,34 +196,35 @@ const DashboardPage = () => {
   ];
 
   const activityItems = [
-    { label: 'New Leads', value: data?.leads_today || 0, icon: Users, cls: 'text-blue-500 bg-blue-100', valueCls: 'text-gray-900', to: `/leads?date_field=created_at&date_from=${today}&date_to=${today}` },
-    { label: 'Contacted Today', value: data?.leads_today_contacted || 0, icon: CheckCircle2, cls: 'text-emerald-500 bg-emerald-100', valueCls: 'text-emerald-600', to: `/leads?date_field=created_at&date_from=${today}&date_to=${today}` },
-    { label: 'Not Contacted', value: Math.max((data?.leads_today || 0) - (data?.leads_today_contacted || 0), 0), icon: UserX, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: `/leads?sla_status=uncontacted&date_field=created_at&date_from=${today}&date_to=${today}` },
-    { label: 'Follow-ups', value: data?.followups_today || 0, icon: Calendar, cls: 'text-emerald-500 bg-emerald-100', valueCls: 'text-emerald-600', to: `/leads?view=followups&scope=today&category=followup&date_from=${today}&date_to=${today}` },
-    { label: 'Demos', value: data?.demos_today || 0, icon: Video, cls: 'text-violet-500 bg-violet-100', valueCls: 'text-gray-900', to: '/appointments?scope=today' },
-    { label: 'Overdue', value: data?.overdue_followups || 0, icon: AlertTriangle, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: '/leads?view=followups&scope=overdue' },
-    { label: 'Hot Leads', value: data?.hot_leads || 0, icon: Flame, cls: 'text-orange-500 bg-orange-100', valueCls: 'text-orange-500', to: '/leads?score=hot' },
-    { label: 'Critical Follow-ups', value: data?.critical_followups || 0, icon: AlertTriangle, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: '/leads?followup_health=critical' },
+    { label: 'New Leads', value: data?.leads_today || 0, icon: Users, cls: 'text-blue-500 bg-blue-100', valueCls: 'text-gray-900', to: activityLeadLink('new_today') },
+    { label: 'Contacted Today', value: data?.leads_today_contacted || 0, icon: CheckCircle2, cls: 'text-emerald-500 bg-emerald-100', valueCls: 'text-emerald-600', to: activityLeadLink('contacted_today') },
+    { label: 'Not Contacted', value: Math.max((data?.leads_today || 0) - (data?.leads_today_contacted || 0), 0), icon: UserX, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: activityLeadLink('new_today')+'&sla_status=uncontacted' },
+    { label: 'Follow-ups', value: data?.followups_today || 0, icon: Calendar, cls: 'text-emerald-500 bg-emerald-100', valueCls: 'text-emerald-600', to: `/leads?view=followups&scope=today&date_from=${today}&date_to=${today}` },
+    { label: 'Demos', value: data?.demos_today || 0, icon: Video, cls: 'text-violet-500 bg-violet-100', valueCls: 'text-gray-900', to: `/leads?view=followups&scope=today&type=demo&date_from=${today}&date_to=${today}` },
+    { label: 'Overdue', value: data?.overdue_followups || 0, icon: AlertTriangle, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: '/leads?view=followups&scope=overdue', period: 'Current' },
+    { label: 'Hot Leads', value: data?.hot_leads || 0, icon: Flame, cls: 'text-orange-500 bg-orange-100', valueCls: 'text-orange-500', to: '/leads?score=hot&include_all_stages=1', period: 'Current' },
+    { label: 'Critical Follow-ups', value: data?.critical_followups || 0, icon: AlertTriangle, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: '/leads?view=followups&scope=critical', period: 'Current' },
   ];
 
   const automationItems = [
-    { label: 'Active in Sequence', value: data?.active_enrollments || 0, icon: Zap, cls: 'text-emerald-500 bg-emerald-100' },
-    { label: 'Completed This Month', value: data?.completed_this_month || 0, icon: CheckCircle2, cls: 'text-emerald-500 bg-emerald-100' },
-    { label: 'AI Replies This Week', value: data?.ai_replies_this_week || 0, icon: Sparkles, cls: 'text-violet-500 bg-violet-100' },
+    { label: 'Active in Sequence', activity:'active_sequence', period:'Current', value: data?.active_enrollments || 0, icon: Zap, cls: 'text-emerald-500 bg-emerald-100' },
+    { label: 'Completed This Month', activity:'completed_sequence', period:'This month', value: data?.completed_this_month || 0, icon: CheckCircle2, cls: 'text-emerald-500 bg-emerald-100' },
+    { label: 'AI Replies · Leads', activity:'ai_replies', period:'Last 7 days', value: data?.ai_replies_this_week || 0, icon: Sparkles, cls: 'text-violet-500 bg-violet-100' },
   ];
 
   const automatedItems = [
-    { label: 'Meta Leads Today', value: data?.meta_leads_today || 0, icon: Megaphone, cls: 'text-blue-500 bg-blue-100' },
-    { label: 'Completed This Month', value: data?.completed_this_month || 0, icon: CheckCircle2, cls: 'text-emerald-500 bg-emerald-100' },
-    { label: 'AI Replies This Week', value: data?.ai_replies_this_week || 0, icon: MessageCircle, cls: 'text-violet-500 bg-violet-100' },
-    { label: 'Automated Sends', value: data?.automated_sends_this_week || 0, icon: Send, cls: 'text-indigo-500 bg-indigo-100' },
-    { label: 'Opt-outs', value: data?.opt_outs_this_week || 0, icon: UserX, cls: 'text-red-500 bg-red-100' },
-    { label: 'Escalations', value: data?.escalations_this_week || 0, icon: AlertTriangle, cls: 'text-amber-500 bg-amber-100' },
+    { label: 'Meta Leads Today', activity:'meta_today', period:'Today', value: data?.meta_leads_today || 0, icon: Megaphone, cls: 'text-blue-500 bg-blue-100' },
+    { label: 'Automated Sends · Leads', activity:'automated_sends', period:'Last 7 days', value: data?.automated_sends_this_week || 0, icon: Send, cls: 'text-indigo-500 bg-indigo-100' },
+    { label: 'Opt-outs', activity:'opt_outs', period:'Last 7 days', value: data?.opt_outs_this_week || 0, icon: UserX, cls: 'text-red-500 bg-red-100' },
+    { label: 'Escalated Leads', activity:'escalations', period:'Last 7 days', value: data?.escalations_this_week || 0, icon: AlertTriangle, cls: 'text-amber-500 bg-amber-100' },
   ];
 
   return (
     <div className="space-y-5 max-w-[1536px] mx-auto pb-4">
+      {loadError&&<p role="alert" className="text-red-600">{loadError} <button className="underline" onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
       <IntegrationHealthBanner/>
+      <OnboardingChecklist/>
+      <OverdueReview onChanged={()=>setRefresh(n=>n+1)}/>
 
       {/* ── Page Header ── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -231,7 +235,7 @@ const DashboardPage = () => {
             <p className="text-sm text-gray-500 mt-0.5">Track your leads, team activity and business performance.</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center bg-white rounded-xl border border-gray-200 shadow-sm divide-x divide-gray-200 overflow-hidden">
             {PERIOD_OPTIONS.map(opt => (
               <button key={opt.id} onClick={() => setPeriod(opt.id)}
@@ -252,14 +256,14 @@ const DashboardPage = () => {
             </div>
           )}
           {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full" />}
-          <NotificationBell />
+          <WhatsAppStatus/><NotificationBell />
         </div>
       </div>
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map(s => (
-          <div key={s.label} className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm relative overflow-hidden">
+          <button onClick={()=>navigate(metricLeadLink(data?.metrics,{metric:s.label==='Total Leads'?'created':'won'}))} key={s.label} className="text-left bg-white rounded-2xl p-5 border border-gray-100 shadow-sm relative overflow-hidden">
             <div className="flex items-center justify-between">
               <div className={`w-11 h-11 ${s.iconBg} rounded-full flex items-center justify-center shrink-0`}>
                 <s.icon size={20} strokeWidth={2} className="w-5 h-5 shrink-0" />
@@ -280,7 +284,7 @@ const DashboardPage = () => {
                 </ResponsiveContainer>
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-3">{s.label}</p>
+            <p className="text-sm text-gray-500 mt-3">{s.label}</p><p className="text-xs text-gray-400">{period==='custom'?`${customFrom} – ${customTo}`:period.replace(/_/g,' ')}</p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-2xl font-bold text-gray-900 tracking-tight">{s.value}</p>
             </div>
@@ -292,7 +296,7 @@ const DashboardPage = () => {
             ) : (
               <p className="text-[11px] text-gray-400 mt-1">{s.sub}</p>
             )}
-          </div>
+          </button>
         ))}
       </div>
 
@@ -315,7 +319,7 @@ const DashboardPage = () => {
               const pct = Math.round((stage.count / pipelineTotal) * 100);
               const bar = STAGE_COLOR[stage.color] || STAGE_COLOR.gray;
               return (
-                <button key={stage.name} onClick={() => navigate('/leads?view=pipeline')}
+                <button key={stage.name} onClick={() => navigate(metricLeadLink(data?.metrics,{stage:stage.name}))}
                   className="text-left group border border-gray-100 rounded-xl p-2.5 hover:shadow-sm hover:border-gray-200 transition-all min-w-0">
                   <p className="text-[11px] font-semibold leading-snug flex items-start gap-0.5" style={{ color: bar }}>
                     <span className="break-words">{stage.name}</span>
@@ -415,7 +419,7 @@ const DashboardPage = () => {
                   <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
                     <item.icon size={14} />
                   </span>
-                  <span className="text-xs text-gray-500">{item.label}</span>
+                  <span className="min-w-0 text-xs text-gray-500">{item.label}<span className="block text-[10px] text-gray-400">{item.period || 'Today'}</span></span>
                 </div>
                 <p className={`text-xl font-bold mt-1.5 ${item.value > 0 ? item.valueCls : 'text-gray-900'}`}>{item.value}</p>
               </button>
@@ -435,13 +439,13 @@ const DashboardPage = () => {
           </div>
           <div>
             {automationItems.map((item, i) => (
-              <button key={item.label} onClick={() => navigate('/lead-automation')}
+              <button key={item.label} onClick={() => navigate(activityLeadLink(item.activity))}
                 className={`w-full flex items-center gap-3 py-3 hover:bg-gray-50 px-1 -mx-1 transition-colors text-left ${i > 0 ? 'border-t border-gray-100' : ''}`}>
                 <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
                   <item.icon size={16} />
                 </span>
                 <div>
-                  <p className="text-xs text-gray-500">{item.label}</p>
+                  <p className="text-xs text-gray-500">{item.label}</p><p className="text-[10px] text-gray-400">{item.period || 'Today'}</p>
                   <p className="text-lg font-bold text-gray-900 leading-tight">{item.value}</p>
                 </div>
               </button>
@@ -450,42 +454,42 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* ── Automated This Month ── */}
+      {/* ── Automation activity · unique leads ── */}
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
             <Zap size={16} className="text-gray-400" />
-            Automated This Month
+            Automation activity · unique leads
           </h3>
           <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
             View all <ChevronRight size={12} />
           </button>
         </div>
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
           {automatedItems.map(item => (
-            <div key={item.label} className="border border-gray-100 rounded-xl p-3">
+            <button onClick={()=>navigate(activityLeadLink(item.activity))} key={item.label} className="text-left border border-gray-100 rounded-xl p-3">
               <div className="flex items-center gap-2">
                 <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
                   <item.icon size={14} />
                 </span>
-                <span className="text-xs text-gray-500 truncate">{item.label}</span>
+                <span className="min-w-0 text-xs text-gray-500">{item.label}<span className="block text-[10px] text-gray-400">{item.period || 'Today'}</span></span>
               </div>
               <p className="text-xl font-bold mt-1.5 text-gray-900">{item.value}</p>
-            </div>
+            </button>
           ))}
         </div>
       </div>
 
       {/* ── Unassigned Leads Alert ── */}
       {(data?.unassigned_leads || 0) > 0 && (
-        <button onClick={() => navigate('/leads?assigned_to=unassigned')}
+        <button onClick={() => navigate(metricLeadLink(data?.metrics,{assigned_to:'unassigned'}))}
           className="w-full flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl hover:shadow-md transition-all duration-200 text-left">
           <AlertTriangle size={18} className="text-amber-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-800">
               {data.unassigned_leads} unassigned lead{data.unassigned_leads !== 1 ? 's' : ''}
             </p>
-            <p className="text-xs text-amber-600">Assign these leads to your team to avoid missing opportunities.</p>
+            <p className="text-xs text-amber-600">Selected period · Assign these leads to your team.</p>
           </div>
           <ChevronRight size={16} className="text-amber-400 shrink-0" />
         </button>
@@ -553,7 +557,7 @@ const DashboardPage = () => {
               </table>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-8">No source data yet</p>
+            <EmptyState message="No source data yet" actionLabel="Add leads"/>
           )}
         </div>
 

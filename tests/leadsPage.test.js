@@ -24,6 +24,7 @@ test('Leads waits for preferences, debounces, aborts stale results, shows filter
  vm.runInNewContext(code,{module,exports:module.exports,console,URLSearchParams,Date,setTimeout,clearTimeout,setInterval,clearInterval,requestAnimationFrame:noop,cancelAnimationFrame:noop,
   localStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},document:{addEventListener:noop,removeEventListener:noop},window:{addEventListener:noop,removeEventListener:noop},
   require(name){
+   if(name.includes('PageLoader'))return {__esModule:true,default:()=>null};
    if(name==='react')return React;
    if(name==='react/jsx-runtime')return jsxRuntime;
    if(name==='react-dom')return{createPortal:x=>x};
@@ -47,7 +48,7 @@ test('Leads waits for preferences, debounces, aborts stale results, shows filter
  await act(async()=>prefs.resolve({data:{preferences:{hidden_lead_stages:['unqualified','lost']}}}));
  assert.equal(calls.length,1);assert.equal(calls[0].params.hide_stages,'unqualified,lost');
  assert.equal(renderer.root.findAllByProps({'aria-label':'Show lost leads'}).length,1);
- const input=()=>renderer.root.findByProps({placeholder:'Search by name, phone or lead ID...'});
+ const input=()=>renderer.root.findByProps({placeholder:'Name, phone or lead ID'});
  await act(async()=>input().props.onChange({target:{value:'Har'}}));assert.equal(calls[0].signal.aborted,true);
  await act(async()=>{await sleep(50);input().props.onChange({target:{value:'Harish'}});});
  assert.equal(calls.length,1);

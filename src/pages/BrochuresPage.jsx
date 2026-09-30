@@ -1,3 +1,4 @@
+import PageLoader from '../components/ui/PageLoader';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { brochuresAPI } from '../services/api';
 import {
@@ -7,7 +8,7 @@ import {
   SlidersHorizontal,
 } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
-import { BROCHURE_FILTER_CATEGORIES, BROCHURE_SORT_OPTIONS } from './brochureFilter.constants';
+import { brochureCategory, brochureMatches, brochureCounts, BROCHURE_FILTER_CATEGORIES, BROCHURE_SORT_OPTIONS } from './brochureFilter.constants';
 import { useToast } from '../components/ui/Toast';
 
 const CATEGORY_BADGE = {
@@ -87,16 +88,12 @@ const BrochuresPage = () => {
     setLoading(true);
     try {
       const { data } = await brochuresAPI.getAll();
-      setBrochures(data.brochures || []);
+      setBrochures((data.brochures || []).map(b=>({...b,category:brochureCategory(b.category)})));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
 
-  const categoryCounts = useMemo(() => {
-    const counts = {};
-    brochures.forEach(b => { counts[b.category] = (counts[b.category] || 0) + 1; });
-    return counts;
-  }, [brochures]);
+  const categoryCounts = useMemo(()=>brochureCounts(brochures,search,statFilter),[brochures,search,statFilter]);
 
   const stats = useMemo(() => {
     const totalViews = brochures.reduce((sum, b) => sum + (b.views || 0), 0);
@@ -108,9 +105,7 @@ const BrochuresPage = () => {
   const filtered = useMemo(() => {
     let list = brochures.filter(b =>
       (!category || b.category === category) &&
-      (!search || b.name.toLowerCase().includes(search.toLowerCase())) &&
-      (statFilter !== 'shared' || (b.times_shared || 0) > 0) &&
-      (statFilter !== 'viewed' || (b.views || 0) > 0)
+      brochureMatches(b,search,statFilter)
     );
     if (statFilter === 'viewed') list = [...list].sort((a, b) => (b.views || 0) - (a.views || 0));
     else if (statFilter === 'shared') list = [...list].sort((a, b) => (b.times_shared || 0) - (a.times_shared || 0));
@@ -296,13 +291,13 @@ const BrochuresPage = () => {
         {BROCHURE_FILTER_CATEGORIES.map(c => (
           <button key={c.value} onClick={() => setCategory(c.value)}
             className={`px-3 py-1.5 rounded-lg text-xs font-medium ${category === c.value ? 'bg-brand-600 text-white' : 'bg-white text-gray-600 border'}`}>
-            {c.label} ({c.value ? (categoryCounts[c.value] || 0) : brochures.length})
+            {c.label} ({categoryCounts[c.value] || 0})
           </button>
         ))}
       </div>
 
       {loading ? (
-        <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+        <PageLoader message="Loading brochures"/>
       ) : (
         <div className={viewMode === 'grid' ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4' : 'space-y-2'}>
           {filtered.map((b, i) => {
