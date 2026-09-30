@@ -27,7 +27,7 @@ test('Leads waits for preferences, debounces, aborts stale results, shows filter
    if(name==='react')return React;
    if(name==='react/jsx-runtime')return jsxRuntime;
    if(name==='react-dom')return{createPortal:x=>x};
-   if(name==='react-router-dom')return{useLocation:()=>location};
+   if(name==='react-router-dom')return{useLocation:()=>location,useNavigate:()=>()=>{}};
    if(name==='lucide-react')return new Proxy({},{get:()=> 'span'});
    if(name.includes('services/api'))return apis;
    if(name.includes('queryCache'))return{isRequestCancelled};
