@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Users, Gauge, Clock, FileText, BookOpen, Megaphone,
@@ -250,7 +251,7 @@ const MyTickets = ({ tickets, loading, onRefresh, onSubmitFirst }) => (
           <div key={t.id} className="p-4 flex items-start justify-between gap-3">
             <div className="min-w-0">
               <p className="font-medium text-sm text-gray-900 truncate">{t.subject}</p>
-              <p className="text-xs text-gray-400 mt-0.5">{t.category} · {new Date(t.created_at).toLocaleDateString('en-IN')}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{t.category} · {formatDateTime(t.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</p>
             </div>
             <span className={`shrink-0 text-[10px] font-semibold px-2 py-0.5 rounded-full capitalize ${TICKET_STATUS_STYLES[t.status] || 'bg-gray-100 text-gray-500'}`}>
               {(t.status || 'open').replace('_', ' ')}

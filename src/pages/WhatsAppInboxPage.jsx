@@ -1,3 +1,4 @@
+import { formatDateTime, toDateTimeInput } from '../utils/dateTime.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { whatsappAPI, leadAPI, staffAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -19,11 +20,11 @@ const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w =
 
 const fmtClock = (dt) => {
   const d = new Date(dt);
-  return isNaN(d.getTime()) ? '' : d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  return isNaN(d.getTime()) ? '' : formatDateTime(dt, undefined, { dateStyle: undefined, timeStyle: 'short' });
 };
 const fmtDate = (dt) => {
   const d = new Date(dt);
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return isNaN(d.getTime()) ? '—' : formatDateTime(dt, undefined, { timeStyle: undefined });
 };
 
 // Renders a message bubble's content by type — an inline image/video/audio
@@ -85,7 +86,7 @@ const MessageBody = ({ m, templateBody }) => {
   return <p className="whitespace-pre-wrap break-words">{m.message}</p>;
 };
 
-const dayKey = (dt) => { const d = new Date(dt); return isNaN(d.getTime()) ? '' : `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; };
+const dayKey = dt => toDateTimeInput(dt).slice(0, 10);
 const dayLabel = (dt) => {
   const d = new Date(dt);
   if (isNaN(d.getTime())) return '';
@@ -93,7 +94,7 @@ const dayLabel = (dt) => {
   const yesterday = new Date(); yesterday.setDate(today.getDate() - 1);
   if (dayKey(d) === dayKey(today)) return 'Today';
   if (dayKey(d) === dayKey(yesterday)) return 'Yesterday';
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' });
+  return formatDateTime(dt, undefined, { timeStyle: undefined });
 };
 
 const NewChatModal = ({ onClose, onStart }) => {
@@ -153,7 +154,7 @@ const relTime = (dt) => {
   if (hr < 24) return `${hr}h ago`;
   const day = Math.round(hr / 24);
   if (day === 1) return 'Yesterday';
-  return new Date(dt).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+  return formatDateTime(dt, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short' });
 };
 
 const TABS = [

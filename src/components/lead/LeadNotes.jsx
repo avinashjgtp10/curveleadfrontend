@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { notesAPI } from '../../services/api';
 import { Plus, Edit2, Trash2, X, MessageSquare, Phone, Calendar, FileText } from 'lucide-react';
@@ -118,7 +119,7 @@ const LeadNotes = ({ leadId, onActivityAdded }) => {
               </div>
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{n.note}</p>
               <p className="text-[10px] text-gray-400 mt-2">
-                {n.created_by_name || 'Unknown'} • {new Date(n.created_at).toLocaleString('en-IN')}
+                {n.created_by_name || 'Unknown'} • {formatDateTime(n.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}
               </p>
             </div>
           ))}

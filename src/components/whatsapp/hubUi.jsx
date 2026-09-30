@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 
 export const Stat = ({ label, value, sub, tone = 'text-gray-900' }) => (
@@ -62,7 +63,7 @@ export const useLoad = (fn, deps = []) => {
   return { data, error, loading, reload, setData };
 };
 
-export const fmtDateTime = (v) => (v ? new Date(v).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
-export const fmtDate = (v) => (v ? new Date(v).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+export const fmtDateTime = (v) => (v ? formatDateTime(v, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—');
+export const fmtDate = (v) => (v ? formatDateTime(v, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short', year: 'numeric' }) : '—');
 export const fmtDuration = (s) => (s == null ? '—' : s < 60 ? `${s}s` : s < 3600 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`);
 export const pct = (a, b) => (b ? `${Math.round((a / b) * 100)}%` : '—');

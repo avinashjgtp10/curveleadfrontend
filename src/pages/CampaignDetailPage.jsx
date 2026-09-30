@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { campaignAPI, stageAPI } from '../services/api';
@@ -157,7 +158,7 @@ const CampaignDetailPage = () => {
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="text-xs text-gray-400">
-                    {l.created_at ? new Date(l.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                    {l.created_at ? formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                   </span>
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                     l.lead_score === 'hot' ? 'bg-red-100 text-red-700' :
