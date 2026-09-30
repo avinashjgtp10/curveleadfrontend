@@ -1,3 +1,4 @@
+import IntegrationHealthBanner from '../components/IntegrationHealthBanner';
 import { sourceLabel } from '../utils/leadData.js';
 import { initials } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
@@ -219,6 +220,7 @@ const DashboardPage = () => {
 
   return (
     <div className="space-y-5 max-w-[1536px] mx-auto pb-4">
+      <IntegrationHealthBanner/>
 
       {/* ── Page Header ── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">

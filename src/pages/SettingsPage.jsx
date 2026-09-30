@@ -1,3 +1,5 @@
+import FeatureSettings from '../components/FeatureSettings';
+import AssignmentRulesSection from './LeadAutomation/AssignmentRulesSection';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, campaignAPI } from '../services/api';
@@ -300,6 +302,7 @@ const SettingsPage = () => {
     { id: 'profile', label: 'My Profile', icon: User },
     { id: 'business', label: 'Business', icon: Building },
     { id: 'templates', label: 'Templates', icon: MessageSquare },
+    ...(['admin','super_admin'].includes(user?.role) ? [{id:'assignment',label:'Assignment',icon:User},{id:'messaging',label:'Messaging',icon:MessageSquare},{id:'developer',label:'Developer',icon:Building}] : []),
     { id: 'pipeline', label: 'Pipeline', icon: Layers },
   ];
 
@@ -324,6 +327,9 @@ const SettingsPage = () => {
         </div>
 
         <div className="bg-white rounded-2xl border p-5">
+          {tab === 'assignment' && <><AssignmentRulesSection/><div className="mt-5"><FeatureSettings assignment/></div></>}
+          {tab === 'messaging' && <FeatureSettings/>}
+          {tab === 'developer' && <FeatureSettings developer/>}
           {tab === 'profile' && (
             <>
               <h2 className="text-lg font-bold mb-4">My Profile</h2>

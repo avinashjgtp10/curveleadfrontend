@@ -1,3 +1,4 @@
+import BroadcastReports from '../components/BroadcastReports';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import WhatsAppInboxPage from './WhatsAppInboxPage';
@@ -80,6 +81,7 @@ const WhatsAppHubPage = () => {
         </div>
       )}
       <Active />
+      {isAdmin && tab.id==='broadcasts' && <BroadcastReports/>}
     </div>
   );
 };
