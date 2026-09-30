@@ -1,10 +1,18 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
 
-const PublicPageLayout = ({ children }) => {
+const PublicPageLayout = ({ children, title }) => {
   const [mobileMenu, setMobileMenu] = useState(false);
+
+  useEffect(() => {
+    if (!title) return;
+    const previousTitle = document.title;
+    document.title = title;
+    window.scrollTo(0, 0);
+    return () => { document.title = previousTitle; };
+  }, [title]);
 
   return (
     <div className="min-h-screen bg-white text-gray-950">
@@ -14,6 +22,9 @@ const PublicPageLayout = ({ children }) => {
             <BrandLogo className="site-logo" />
           </Link>
           <div className="hidden items-center gap-7 md:flex">
+            <a href="/#workflow" className="text-sm text-gray-600 hover:text-gray-950">Workflow</a>
+            <a href="/#features" className="text-sm text-gray-600 hover:text-gray-950">Features</a>
+            <a href="/#pricing" className="text-sm text-gray-600 hover:text-gray-950">Pricing</a>
             <Link to="/login" className="text-sm font-semibold text-brand-700">Sign In</Link>
             <Link to="/signup" className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
               Start Free
@@ -25,6 +36,9 @@ const PublicPageLayout = ({ children }) => {
         </div>
         {mobileMenu && (
           <div className="space-y-3 border-t bg-white p-4 md:hidden">
+            <a href="/#workflow" className="block py-2 text-gray-600">Workflow</a>
+            <a href="/#features" className="block py-2 text-gray-600">Features</a>
+            <a href="/#pricing" className="block py-2 text-gray-600">Pricing</a>
             <Link to="/login" onClick={() => setMobileMenu(false)} className="block py-2 text-sm font-semibold text-brand-700">Sign In</Link>
             <Link to="/signup" onClick={() => setMobileMenu(false)} className="block w-full rounded-lg bg-brand-600 px-5 py-2.5 text-center text-sm font-semibold text-white">
               Start Free
@@ -33,9 +47,9 @@ const PublicPageLayout = ({ children }) => {
         )}
       </nav>
 
-      <div className="pt-16">
+      <main className="pt-16">
         {children}
-      </div>
+      </main>
 
       <footer className="border-t border-gray-200 bg-white px-4 py-10 sm:px-6">
         <div className="mx-auto max-w-7xl">
@@ -44,8 +58,8 @@ const PublicPageLayout = ({ children }) => {
               <BrandLogo className="w-28 h-auto" />
             </Link>
             <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-500">
-              <Link to="/privacy-policy" className="hover:text-gray-950 transition-colors">Privacy Policy</Link>
-              <Link to="/terms-of-service" className="hover:text-gray-950 transition-colors">Terms of Service</Link>
+              <Link to="/privacy" className="hover:text-gray-950 transition-colors">Privacy Policy</Link>
+              <Link to="/terms" className="hover:text-gray-950 transition-colors">Terms of Service</Link>
               <Link to="/contact" className="hover:text-gray-950 transition-colors">Contact Us</Link>
               <a href="mailto:support@curvelead.com" className="hover:text-gray-950 transition-colors">support@curvelead.com</a>
             </nav>
