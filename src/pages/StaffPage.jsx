@@ -274,12 +274,12 @@ const StaffPage = () => {
           {myWhatsApp?.configured && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>}
         </div>
         <p className="text-xs text-gray-400 -mt-2">Connect your own WhatsApp Business number so messages to leads assigned to you send from it instead of the shared number.</p>
-        <div className="grid grid-cols-2 gap-2">
-          <input type="text" placeholder="Phone number ID"
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input type="text" name="whatsapp_phone_number_id" autoComplete="off" inputMode="numeric" placeholder="Phone number ID"
             value={myWaForm.whatsapp_phone_number_id !== '' ? myWaForm.whatsapp_phone_number_id : (myWhatsApp?.whatsapp_phone_number_id || '')}
             onChange={e => setMyWaForm({ ...myWaForm, whatsapp_phone_number_id: e.target.value })}
             className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" />
-          <input type="password" placeholder={myWhatsApp?.whatsapp_access_token ? 'Access token (saved — leave blank to keep)' : 'Access token'}
+          <input type="password" name="whatsapp_access_token" autoComplete="new-password" placeholder={myWhatsApp?.whatsapp_access_token ? 'Access token (saved — leave blank to keep)' : 'Access token'}
             value={myWaForm.whatsapp_access_token}
             onChange={e => setMyWaForm({ ...myWaForm, whatsapp_access_token: e.target.value })}
             className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" />
@@ -621,10 +621,10 @@ const StaffPage = () => {
               <button onClick={() => setWaModalStaff(null)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3">
-              <input type="text" placeholder="Phone number ID" value={waForm.whatsapp_phone_number_id}
+              <input type="text" name="whatsapp_phone_number_id" autoComplete="off" inputMode="numeric" placeholder="Phone number ID" value={waForm.whatsapp_phone_number_id}
                 onChange={e => setWaForm({ ...waForm, whatsapp_phone_number_id: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-              <input type="password" placeholder="Access token (leave blank to keep existing)" value={waForm.whatsapp_access_token}
+              <input type="password" name="whatsapp_access_token" autoComplete="new-password" placeholder="Access token (leave blank to keep existing)" value={waForm.whatsapp_access_token}
                 onChange={e => setWaForm({ ...waForm, whatsapp_access_token: e.target.value })}
                 className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               <div className="flex gap-2 pt-2">

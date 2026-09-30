@@ -10,6 +10,7 @@ export const TYPE_META = {
 };
 
 export const STATUS_META = {
+  dismissed: { label: 'Dismissed', cls: 'bg-gray-100 text-gray-500' },
   upcoming: { label: 'Upcoming',  cls: 'bg-green-50 text-green-700' },
   overdue:  { label: 'Overdue',   cls: 'bg-red-50 text-red-600' },
   completed:{ label: 'Completed', cls: 'bg-blue-50 text-blue-600' },

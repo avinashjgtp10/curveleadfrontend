@@ -34,6 +34,7 @@ export function dateTimeInputToUTC(value, tz = workspaceTimezone) {
   return new Date(instant).toISOString();
 }
 export function appointmentStatus(appointment, now = Date.now()) {
+  if (appointment.dismissed_at || appointment.actionable === false && !appointment.is_completed) return 'dismissed';
   if (appointment.is_completed) return 'completed';
   const date = parseTimestamp(appointment.next_followup_at);
   return date && date.getTime() < now ? 'overdue' : 'upcoming';

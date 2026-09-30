@@ -110,7 +110,7 @@ const FollowupsPage = () => {
           {pagination.pages > 1 && (
             <div className="flex items-center justify-between px-1">
               <p className="text-xs text-gray-500">
-                {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, pagination.total)} of {pagination.total}
+                {pagination.total ? (page - 1) * LIMIT + 1 : 0}–{Math.min(page * LIMIT, pagination.total)} of {pagination.total}
               </p>
               <div className="flex items-center gap-1">
                 <button onClick={() => setPage(p => p - 1)} disabled={page === 1}

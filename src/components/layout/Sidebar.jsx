@@ -4,7 +4,7 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { LogOut, X } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
-import { SIDEBAR_NAV_ITEMS } from './sidebar.constants';
+import { SIDEBAR_NAV_ITEMS, SIDEBAR_GROUPS } from './sidebar.constants';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, tenant, logout } = useAuth();
@@ -31,12 +31,14 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         <nav className="flex-1 px-2 py-3 overflow-y-auto">
-          {SIDEBAR_NAV_ITEMS.filter(item => item.roles.includes(role)).map(item => (
+          {SIDEBAR_GROUPS.map(group => <details key={group.label} open className="mb-3 group">
+            <summary className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400 cursor-pointer lg:pointer-events-none">{group.label}</summary>
+            <div className="lg:!block">{group.paths.map(path => SIDEBAR_NAV_ITEMS.find(item => item.path === path)).filter(item => item?.roles.includes(role)).map(item => (
             <NavLink key={item.path} to={item.path} onClick={onClose}
               className={({ isActive }) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-50'}`}>
               <item.icon size={18} /> {item.label}
             </NavLink>
-          ))}
+          ))}</div></details>)}
         </nav>
 
         <div className="border-t p-3">

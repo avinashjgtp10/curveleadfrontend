@@ -26,7 +26,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
   { path: '/gmb', label: 'GMB', icon: Star, roles: ['admin'] },
   { path: '/appointments', label: 'Appointments', icon: CalendarCheck, roles: ['admin', 'staff'] },
-  { path: '/lead-automation', label: 'Lead Automation', icon: Workflow, roles: ['admin', 'staff'] },
+  { path: '/automations', label: 'Automations', icon: Workflow, roles: ['admin', 'staff'] },
   { path: '/staff', label: 'Team', icon: UserCog, roles: ['admin'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
   { path: '/coaching', label: 'Sales Coaching', icon: Lightbulb, roles: ['admin'] },
@@ -34,4 +34,11 @@ export const SIDEBAR_NAV_ITEMS = [
   { path: '/billing', label: 'Billing', icon: CreditCard, roles: ['admin'] },
   { path: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
   { path: '/help', label: 'Help & Support', icon: HelpCircle, roles: ['admin', 'staff'] },
+];
+
+export const SIDEBAR_GROUPS = [
+ { label:'Sell', paths:['/dashboard','/leads','/appointments','/staff'] },
+ { label:'Engage', paths:['/whatsapp','/campaigns','/brochures','/ai-agent'] },
+ { label:'Grow', paths:['/gmb','/coaching','/reports'] },
+ { label:'Setup', paths:['/automations','/integrations','/billing','/settings','/help'] },
 ];

@@ -1,3 +1,4 @@
+import ChartLegend from '../components/ui/ChartLegend';
 import { sourceLabel } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
@@ -616,7 +617,7 @@ const ReportsPage = () => {
                         {bySource.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
                       <Tooltip />
-                      <Legend />
+                      <Legend content={<ChartLegend/>}/>
                     </PieChart>
                   </ResponsiveContainer>
                 )}
@@ -649,7 +650,8 @@ const ReportsPage = () => {
             </div>
 
             <div className="bg-white rounded-2xl border p-5">
-              <h3 className="font-semibold mb-4">Sales Funnel Drop-off</h3>
+              <h3 className="font-semibold mb-4">Sales Funnel · New → Won</h3>
+              {!!funnel.terminal_stages?.length&&<div className="flex flex-wrap gap-4 mb-4" aria-label="Outside active pipeline">{funnel.terminal_stages.map(stage=><span key={stage.name} className="rounded bg-gray-100 px-3 py-2 text-sm">{stage.name}: {stage.count}</span>)}</div>}
               {funnel.stages.length === 0 ? <EmptyState /> : (
                 <>
                   <ResponsiveContainer width="100%" height={Math.max(180, funnel.stages.length * 40)}>
@@ -817,7 +819,7 @@ const ReportsPage = () => {
                     <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Legend content={<ChartLegend/>}/>
                     <Line type="monotone" dataKey="Scheduled" stroke="#f59e0b" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="Completed" stroke="#10b981" strokeWidth={2} dot={false} />
                   </LineChart>
