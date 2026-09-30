@@ -1,6 +1,7 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { automationAPI, leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI, authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
@@ -218,6 +219,7 @@ const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
 
 const LeadsPage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const confirm = useConfirmDialog();
   const toast = useToast();
   const queryConfig = getQueryConfig(location.search, location.state);
@@ -350,8 +352,21 @@ const LeadsPage = () => {
   const [renderedLeadId, setRenderedLeadId] = useState(null); // stays set during the exit fade
   const [modalEntered, setModalEntered] = useState(false);     // drives enter/exit transition classes
   const [externalSequence, setExternalSequence] = useState(queryConfig.leadSequence || null);
+  // True while the modal was opened via a deep link (e.g. from Appointments/Dashboard/
+  // Followups navigating here with state.openLeadId) rather than by clicking a row in
+  // this page's own table — closing it should then return to that originating page
+  // instead of stranding the user on the Leads list.
+  const [cameFromDeepLink, setCameFromDeepLink] = useState(!!location.state?.openLeadId);
   const closeTimerRef = useRef(null);
-  const closeLeadModal = () => { setOpenLeadId(null); setExternalSequence(null); fetchLeads(); };
+  const closeLeadModal = () => {
+    setOpenLeadId(null);
+    setExternalSequence(null);
+    fetchLeads();
+    if (cameFromDeepLink) {
+      setCameFromDeepLink(false);
+      navigate(-1);
+    }
+  };
 
   useEffect(() => {
     if (openLeadId) {
@@ -422,6 +437,7 @@ const LeadsPage = () => {
     if (next.openLeadId) {
       setOpenLeadId(next.openLeadId);
       setExternalSequence(next.leadSequence || null);
+      setCameFromDeepLink(!!location.state?.openLeadId);
     }
   }, [location.search, location.state]);
 
@@ -1293,7 +1309,7 @@ const LeadsPage = () => {
                         <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}>{l.name}</td>
                         {visibleColumns.date && (
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
-                          {l.created_at ? new Date(l.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
+                          {l.created_at ? formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                         </td>
                         )}
                         {visibleColumns.phone && <td className="px-3 py-3 text-gray-700">{l.phone}</td>}
@@ -1516,7 +1532,7 @@ const LeadsPage = () => {
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-1.5">
                               <span className={`text-xs font-semibold ${health === 'good' ? 'text-amber-600' : 'text-red-600'}`}>
-                                {health !== 'good' ? '⚠ ' : ''}{new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                {health !== 'good' ? '⚠ ' : ''}{formatDateTime(f.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                               </span>
                               <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${healthStyle.cls}`}>
                                 {healthStyle.label}

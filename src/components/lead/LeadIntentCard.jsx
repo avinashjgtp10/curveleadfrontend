@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useState } from 'react';
 import { Gauge, Flame, Sun, Snowflake, ChevronDown, Zap } from 'lucide-react';
 import { FOLLOWUP_HEALTH_STYLES, FOLLOWUP_HEALTH_ACTIONS } from '../../utils/followupHealth';
@@ -89,7 +90,7 @@ const LeadIntentCard = ({ lead, activities = [], onRecalculate }) => {
                   <p className="font-medium text-gray-700">{a.title}</p>
                   {a.description && <p className="text-gray-400 mt-0.5">{a.description}</p>}
                   <p className="text-[10px] text-gray-300 mt-0.5">
-                    {new Date(a.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    {formatDateTime(a.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               ))}

@@ -1,3 +1,4 @@
+import { setWorkspaceTimezone } from '../utils/dateTime';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI } from '../services/api';
 
@@ -64,6 +65,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setTenant(null);
   };
+
+  setWorkspaceTimezone(tenant?.settings?.timezone || tenant?.timezone || 'Asia/Kolkata');
 
   return (
     <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, signup, acceptInvite, logout, refreshProfile }}>

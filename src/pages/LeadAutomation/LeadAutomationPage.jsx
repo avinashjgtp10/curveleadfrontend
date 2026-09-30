@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { formatDateTime } from '../../utils/dateTime.js';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Workflow, Search, ChevronDown, ChevronLeft, ChevronRight, X, CheckCircle2, Clock, Circle, XCircle, Phone, Settings,
@@ -38,27 +39,6 @@ const STATUS_DOT = {
 };
 
 const STATUS_OPTIONS = ['All Status', 'Not Enrolled', 'In Progress', 'Completed', 'Cancelled', 'Converted', 'Lost'];
-
-// A lead's automation status is derived from its own outcome first (won/lost
-// leads keep that label regardless of what their enrollment says), then from
-// its most recent automation_enrollments row.
-const computeStatus = (lead, enrollment) => {
-  if (lead.won_at) return 'Converted';
-  if (lead.lost_at) return 'Lost';
-  if (!enrollment) return 'Not Enrolled';
-  if (enrollment.status === 'active') return 'In Progress';
-  if (enrollment.status === 'completed') return 'Completed';
-  if (enrollment.status === 'cancelled') return 'Cancelled';
-  return 'Not Enrolled';
-};
-
-const stepLabel = (enrollment) => {
-  if (!enrollment) return 'Not Enrolled';
-  const total = enrollment.steps.length;
-  return enrollment.status === 'cancelled'
-    ? `Cancelled — Step ${enrollment.current_step + 1} of ${total}`
-    : `Step ${enrollment.current_step + 1} of ${total}`;
-};
 
 // Real per-lead journey, built from automation_enrollments + its sequence's
 // steps. Verified against automationSequenceRunner.js: while active,
@@ -198,7 +178,7 @@ const WhatsAppChatModal = ({ lead, onClose }) => {
             <div className={`max-w-[80%] rounded-lg px-3 py-2 text-sm shadow-sm ${m.direction === 'outbound' ? 'bg-[#dcf8c6] text-gray-800' : 'bg-white text-gray-800'}`}>
               <p>{m.message}</p>
               <p className="text-[10px] text-gray-400 text-right mt-1">
-                {new Date(m.sent_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                {formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined,  hour: '2-digit', minute: '2-digit' })}
               </p>
             </div>
           </div>
@@ -231,7 +211,7 @@ const CallRecordingModal = ({ lead, onClose }) => {
             <div key={rec.id} className="border rounded-xl p-3 hover:shadow-sm transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-medium text-gray-800">{rec.title || 'Call Recording'}</p>
-                <span className="text-[11px] text-gray-400">{new Date(rec.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</span>
+                <span className="text-[11px] text-gray-400">{formatDateTime(rec.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short' })}</span>
               </div>
               <div className="flex items-center gap-3">
                 <button
@@ -346,71 +326,38 @@ const LeadAutomationPage = () => {
   const [loading, setLoading] = useState(true);
   const [enrollmentError, setEnrollmentError] = useState(false);
 
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      setLoading(true);
-      try {
-        const { data } = await leadAPI.getAll({ limit: 500 });
-        const rawLeads = data.leads || [];
-        if (cancelled) return;
-        if (!rawLeads.length) { setLeads([]); return; }
-
-        const leadIds = rawLeads.map(l => l.id);
-        const enrollResult = await automationAPI.getEnrollments(leadIds).catch(() => null);
-        if (cancelled) return;
-        setEnrollmentError(!enrollResult);
-        const enrollments = enrollResult?.data?.enrollments || {};
-
-        setLeads(rawLeads.map(l => {
-          const enrollment = enrollments[l.id] || null;
-          return {
-            id: l.id,
-            name: l.name,
-            phone: l.phone,
-            won_at: l.won_at,
-            lost_at: l.lost_at,
-            opted_out: l.opted_out,
-            enrollment,
-            status: computeStatus(l, enrollment),
-            step: stepLabel(enrollment),
-          };
-        }));
-      } catch {
-        if (!cancelled) setLeads([]);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, []);
-
-  const summary = useMemo(() => ({
-    total: leads.length,
-    inProgress: leads.filter(l => l.status === 'In Progress').length,
-    converted: leads.filter(l => l.status === 'Converted').length,
-    lost: leads.filter(l => l.status === 'Lost').length,
-  }), [leads]);
-
-  const stepOptions = useMemo(() => {
-    const set = new Set(leads.map(l => l.step));
-    return ['All Steps', ...Array.from(set).sort()];
-  }, [leads]);
-
-  const filteredLeads = useMemo(() => {
-    return leads.filter(lead => {
-      const matchesSearch = lead.name.toLowerCase().includes(search.toLowerCase()) || (lead.phone || '').includes(search);
-      const matchesStatus = statusFilter === 'All Status' || lead.status === statusFilter;
-      const matchesStep = stepFilter === 'All Steps' || lead.step === stepFilter;
-      return matchesSearch && matchesStatus && matchesStep;
-    });
-  }, [leads, search, statusFilter, stepFilter]);
-
+  const [summary, setSummary] = useState({ total: '…', inProgress: '…', converted: '…', lost: '…' });
+  const [total, setTotal] = useState(0);
+  const [stepOptions, setStepOptions] = useState(['All Steps']);
+  const [retry, setRetry] = useState(0);
   useEffect(() => { setPage(1); }, [search, statusFilter, stepFilter]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
-  const pagedLeads = filteredLeads.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setEnrollmentError(false);
+    const timer = setTimeout(async () => {
+      try {
+        const { data } = await automationAPI.getLeads({ page, limit: PAGE_SIZE, search,
+          status: statusFilter === 'All Status' ? undefined : statusFilter,
+          step: stepFilter === 'All Steps' ? undefined : stepFilter }, controller.signal);
+        if (controller.signal.aborted) return;
+        setLeads(data.leads);
+        setTotal(data.pagination.total);
+        setSummary(data.summary);
+        setStepOptions(['All Steps', ...data.steps]);
+      } catch {
+        if (!controller.signal.aborted) {
+          setEnrollmentError(true);
+          setLeads([]);
+          setTotal(0);
+          setSummary({ total: 'Unavailable', inProgress: 'Unavailable', converted: 'Unavailable', lost: 'Unavailable' });
+        }
+      } finally { if (!controller.signal.aborted) setLoading(false); }
+    }, 300);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [page, search, statusFilter, stepFilter, retry]);
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const pagedLeads = leads;
 
   const pageNumbers = () => {
     const t = totalPages;
@@ -438,7 +385,7 @@ const LeadAutomationPage = () => {
 
       {enrollmentError && !loading && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-          <AlertTriangle size={16} className="shrink-0" /> Could not load automation status for these leads — showing them as Not Enrolled until this loads.
+          <AlertTriangle size={16} className="shrink-0" /> Could not load automation leads. <button onClick={() => setRetry(v => v + 1)} className="underline">Retry</button>
         </div>
       )}
 
@@ -549,14 +496,14 @@ const LeadAutomationPage = () => {
               ))}
             </tbody>
           </table>
-          {filteredLeads.length === 0 && (
-            <EmptyState message={leads.length === 0 ? 'No leads yet' : 'No leads match your filters'} />
+          {total === 0 && !enrollmentError && (
+            <EmptyState message={search || statusFilter !== 'All Status' || stepFilter !== 'All Steps' ? 'No leads match your filters' : 'No leads yet'} />
           )}
 
-          {filteredLeads.length > 0 && (
+          {total > 0 && (
             <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-wrap gap-3">
               <p className="text-xs text-gray-500">
-                Showing {Math.min((page - 1) * PAGE_SIZE + 1, filteredLeads.length)}–{Math.min(page * PAGE_SIZE, filteredLeads.length)} of <span className="font-semibold text-gray-700">{filteredLeads.length}</span> leads
+                Showing {Math.min((page - 1) * PAGE_SIZE + 1, total)}–{Math.min(page * PAGE_SIZE, total)} of <span className="font-semibold text-gray-700">{total}</span> leads
               </p>
               {totalPages > 1 && (
                 <div className="flex items-center gap-1">

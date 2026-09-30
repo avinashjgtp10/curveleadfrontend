@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { followupAPI } from '../services/api';
@@ -92,7 +93,7 @@ const FollowupsPage = () => {
                     {f.notes && <p className="text-sm mt-1 text-gray-700">{f.notes}</p>}
                     <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                       <Calendar size={12} />
-                      {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {formatDateTime(f.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                   {!f.is_completed && (

@@ -1,3 +1,4 @@
+import { formatDateTime, appointmentStatus, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -12,14 +13,9 @@ import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM, TYPE_MET
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
-const localDay = (dt) => { const d = new Date(dt); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const localDay = dt => toDateTimeInput(dt).slice(0, 10);
 const todayISO = () => localDay(new Date());
-
-const getStatus = (a) => {
-  if (a.is_completed) return 'completed';
-  if (new Date(a.next_followup_at) < new Date()) return 'overdue';
-  return 'upcoming';
-};
+const getStatus = appointmentStatus;
 
 const AppointmentsPage = () => {
   const navigate = useNavigate();
@@ -29,7 +25,8 @@ const AppointmentsPage = () => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
-  const [tab, setTab] = useState(new URLSearchParams(location.search).get('scope') === 'today' ? 'today' : 'all');
+  const initialScope = new URLSearchParams(location.search).get('scope');
+  const [tab, setTab] = useState(APPOINTMENT_TABS.some(t => t.id === initialScope) ? initialScope : 'all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -45,6 +42,15 @@ const AppointmentsPage = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [apptFilters, setApptFilters] = useState(EMPTY_APPT_FILTERS);
   const [filterStaff, setFilterStaff] = useState([]);
+
+  // Keeps the URL's `scope` param in sync with the active tab (replace, no extra history
+  // entry) so that leaving to view a lead's details and closing that modal — which returns
+  // here via browser back — restores the same tab instead of resetting to "All Appointments".
+  const selectTab = (id) => {
+    setTab(id);
+    setPage(1);
+    navigate(id === 'all' ? '/appointments' : `/appointments?scope=${id}`, { replace: true });
+  };
 
   const [newModal, setNewModal] = useState(false);
   const [leadOptions, setLeadOptions] = useState([]);
@@ -116,7 +122,7 @@ const AppointmentsPage = () => {
     setSaving(true);
     try {
       await leadAPI.addFollowup(newForm.lead_id, {
-        next_followup_at: new Date(newForm.next_followup_at).toISOString(),
+        next_followup_at: dateTimeInputToUTC(newForm.next_followup_at),
         followup_type: newForm.followup_type,
         reminder_minutes: newForm.reminder_minutes === 'none' ? null : Number(newForm.reminder_minutes),
         notes: newForm.notes.trim() || null,
@@ -144,9 +150,7 @@ const AppointmentsPage = () => {
 
   const openReschedule = (a) => {
     setOpenMenuId(null);
-    const d = new Date(a.next_followup_at);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    setRescheduleAt(d.toISOString().slice(0, 16));
+    setRescheduleAt(toDateTimeInput(a.next_followup_at));
     setRescheduleId(a.id);
   };
 
@@ -154,7 +158,7 @@ const AppointmentsPage = () => {
     if (!rescheduleAt) return;
     setSaving(true);
     try {
-      await followupAPI.update(rescheduleId, { next_followup_at: new Date(rescheduleAt).toISOString() });
+      await followupAPI.update(rescheduleId, { next_followup_at: dateTimeInputToUTC(rescheduleAt) });
       setRescheduleId(null);
       load();
     } catch (e) { toast.error('Failed to reschedule'); }
@@ -246,7 +250,7 @@ const AppointmentsPage = () => {
             </button>
             {showAllMenuOpen && (
               <div className="absolute right-0 top-full mt-1 w-44 bg-white border rounded-lg shadow-lg z-30 py-1 text-left">
-                <button onClick={() => { setHideCompleted(false); setTab('all'); setSearch(''); setPage(1); setShowAllMenuOpen(false); }}
+                <button onClick={() => { setHideCompleted(false); selectTab('all'); setSearch(''); setShowAllMenuOpen(false); }}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!hideCompleted ? 'text-brand-600 font-medium' : 'text-gray-700'}`}>
                   Show All
                 </button>
@@ -297,7 +301,7 @@ const AppointmentsPage = () => {
         <div className="flex items-center justify-between flex-wrap gap-3 px-4 pt-4">
           <div className="flex gap-1 flex-wrap">
             {APPOINTMENT_TABS.map(t => (
-              <button key={t.id} onClick={() => { setTab(t.id); setPage(1); }}
+              <button key={t.id} onClick={() => selectTab(t.id)}
                 className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}>
@@ -426,11 +430,11 @@ const AppointmentsPage = () => {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 text-gray-700">
                           <Calendar size={12} className="text-gray-400" />
-                          {new Date(a.next_followup_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {formatDateTime(a.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short', year: 'numeric' })}
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
                           <Clock size={11} />
-                          {new Date(a.next_followup_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTime(a.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -451,7 +455,11 @@ const AppointmentsPage = () => {
                               visibility: menuPos ? 'visible' : 'hidden',
                             }}
                             className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
-                            <button onClick={() => { setOpenMenuId(null); navigate('/leads', { state: { openLeadId: a.lead_id } }); }}
+                            <button onClick={() => {
+                                setOpenMenuId(null);
+                                const leadSequence = [...new Set(pageRows.map(r => r.lead_id))];
+                                navigate('/leads', { state: { openLeadId: a.lead_id, leadSequence } });
+                              }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700">
                               <Eye size={13} /> View Details
                             </button>

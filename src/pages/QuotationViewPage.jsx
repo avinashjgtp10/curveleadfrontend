@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { quotationsAPI } from '../services/api';
@@ -81,8 +82,8 @@ const QuotationViewPage = () => {
           <div className="text-right">
             <h2 className="text-2xl font-bold">QUOTATION</h2>
             <p className="text-sm text-gray-600 mt-1">#{data.quote_number}</p>
-            <p className="text-xs text-gray-500">Date: {new Date(data.created_at).toLocaleDateString('en-IN')}</p>
-            {data.valid_until && <p className="text-xs text-gray-500">Valid Until: {new Date(data.valid_until).toLocaleDateString('en-IN')}</p>}
+            <p className="text-xs text-gray-500">Date: {formatDateTime(data.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</p>
+            {data.valid_until && <p className="text-xs text-gray-500">Valid Until: {formatDateTime(data.valid_until, undefined, { dateStyle: undefined, timeStyle: undefined, })}</p>}
           </div>
         </div>
 

@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
 import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Image as ImageIcon, Film, FileText, Upload, Search, Megaphone, Wrench, ShieldCheck, ChevronRight } from 'lucide-react';
@@ -298,7 +299,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
               <div className="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-3 rounded-lg text-sm">
                 <CheckCircle size={16} />
                 {result.scheduled
-                  ? `Scheduled for ${new Date(result.scheduled_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${result.count} lead${result.count > 1 ? 's' : ''}`
+                  ? `Scheduled for ${formatDateTime(result.scheduled_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${result.count} lead${result.count > 1 ? 's' : ''}`
                   : `${result.sent} sent${result.failed > 0 ? `, ${result.failed} failed` : ''}`}
               </div>
               {!result.scheduled && result.failed > 0 && (

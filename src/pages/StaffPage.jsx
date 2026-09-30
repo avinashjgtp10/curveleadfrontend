@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { staffAPI, teamAPI } from '../services/api';
 import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, Phone, Calendar, RotateCcw, RefreshCw, MessageCircle, KeyRound, ShieldCheck, MoreVertical } from 'lucide-react';
@@ -336,7 +337,7 @@ const StaffPage = () => {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{inv.name || inv.email}</p>
-                    <p className="text-xs text-gray-400 truncate">{inv.email} · {inv.role}{inv.team_name ? ` · ${inv.team_name}` : ''} · expires {new Date(inv.expires_at).toLocaleDateString('en-IN')}</p>
+                    <p className="text-xs text-gray-400 truncate">{inv.email} · {inv.role}{inv.team_name ? ` · ${inv.team_name}` : ''} · expires {formatDateTime(inv.expires_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</p>
                   </div>
                 </div>
                 <div className="flex gap-1 shrink-0">
@@ -458,7 +459,7 @@ const StaffPage = () => {
                 {profileStaff.created_at && (
                   <div className="flex items-center gap-2.5">
                     <Calendar size={14} className="text-gray-400 shrink-0" />
-                    <span className="text-gray-700">Joined {new Date(profileStaff.created_at).toLocaleDateString('en-IN')}</span>
+                    <span className="text-gray-700">Joined {formatDateTime(profileStaff.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</span>
                   </div>
                 )}
               </div>

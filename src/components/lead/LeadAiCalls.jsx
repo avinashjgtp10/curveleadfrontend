@@ -1,9 +1,10 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useState, useEffect, useRef } from 'react';
 import { Phone, PhoneCall, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp, PhoneMissed, AlertCircle } from 'lucide-react';
 import { aiCallingAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 
-const fmtDate = (d) => new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+const fmtDate = (d) => formatDateTime(d, undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 const fmtDuration = (s) => {
   if (!s) return '';

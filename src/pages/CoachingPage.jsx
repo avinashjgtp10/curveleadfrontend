@@ -1,8 +1,9 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { playbookAPI } from '../services/api';
 import { Lightbulb, CheckCircle, MessageSquareWarning, ThumbsUp, ThumbsDown, RefreshCw, TrendingUp, TrendingDown } from 'lucide-react';
 
-const fmtDate = (d) => new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+const fmtDate = (d) => formatDateTime(d, undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 const InsightCard = ({ icon: Icon, color, bg, title, children }) => (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 hover:shadow-md transition-shadow">

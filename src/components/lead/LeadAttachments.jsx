@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useState, useRef } from 'react';
 import { attachmentsAPI } from '../../services/api';
 import { Paperclip, Upload, FileText, Image as ImageIcon, FileAudio, FileVideo, File as FileIcon, Download, Trash2, Send, X, ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
@@ -232,7 +233,7 @@ const LeadAttachments = ({ leadId, onActivityAdded }) => {
                   </a>
                   {f.description && <p className="text-xs text-gray-500 truncate">{f.description}</p>}
                   <p className="text-[10px] text-gray-400">
-                    {formatBytes(f.file_size)} • {f.uploaded_by_name} • {new Date(f.uploaded_at).toLocaleDateString('en-IN')}
+                    {formatBytes(f.file_size)} • {f.uploaded_by_name} • {formatDateTime(f.uploaded_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}
                   </p>
                 </div>
                 <div className="flex gap-1 shrink-0">
