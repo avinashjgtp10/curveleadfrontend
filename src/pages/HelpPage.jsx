@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import {
   LayoutDashboard, Users, Gauge, Clock, FileText, BookOpen, Megaphone,
-  MessageCircle, UserCog, BarChart3, Lightbulb, Globe, Plug, Settings,
+  MessageCircle, UserCog, BarChart3, Lightbulb, Plug, Settings,
   CreditCard, HelpCircle, Flame, CheckCircle, AlertTriangle,
   LifeBuoy, Mail, Send, Inbox, RefreshCw, Bell,
 } from 'lucide-react';
@@ -44,7 +44,6 @@ const GROUPS = [
       { id: 'team', label: 'Team', icon: UserCog },
       { id: 'reports', label: 'Reports', icon: BarChart3 },
       { id: 'coaching', label: 'Sales Coaching', icon: Lightbulb },
-      { id: 'market', label: 'Market Intelligence', icon: Globe },
     ],
   },
   {
@@ -455,11 +454,6 @@ const HelpPage = () => {
         <Section id="coaching" icon={Lightbulb} title="Sales Coaching">
           <p>An AI-generated playbook — best practices, common objections and how to handle them, phrases that work vs. don't — built from your team's won/lost calls, plus a per-rep coaching table comparing each rep's average call score to the team average.</p>
           <Tip>You need a few leads marked Won or Lost with analyzed calls attached before there's enough data to generate a playbook. Click "Regenerate Now" once you do.</Tip>
-        </Section>
-
-        <Section id="market" icon={Globe} title="Market Intelligence">
-          <p>Fill in your industry, product/service, and target market to get an AI-generated market overview, ideal customer profile, competitor breakdown, opportunities/threats, and strategic recommendations.</p>
-          <Tip>This is based on the AI's general training data, not live research — treat it as a starting point, not real-time competitive intelligence. Results aren't saved; "New Analysis" discards the current one.</Tip>
         </Section>
 
         <Section id="integrations" icon={Plug} title="Integrations">
