@@ -171,7 +171,10 @@ const AutomationBuilder = () => {
   const handleSaveSeq = async () => {
     const errors = {};
     if (!seqForm.name.trim()) errors.name = 'Sequence name is required';
-    if (!seqForm.steps.some(s => s.ai_generated || s.message.trim())) errors.steps = 'At least one step needs a message';
+    // The server drops steps without a message, so flag each one rather than
+    // letting a save silently lose them.
+    const emptySteps = seqForm.steps.map((s, i) => (s.ai_generated || s.message?.trim() ? null : i + 1)).filter(Boolean);
+    if (emptySteps.length) errors.steps = `Add a message to step ${emptySteps.join(', ')} (or use AI), or remove ${emptySteps.length > 1 ? 'them' : 'it'}. The message is sent inside the 24h window; the approved template is only used outside it.`;
     setSeqErrors(errors);
     if (Object.keys(errors).length) return;
     try {

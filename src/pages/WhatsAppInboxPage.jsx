@@ -195,6 +195,7 @@ const WhatsAppInboxPage = () => {
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [showBrochureModal, setShowBrochureModal] = useState(false);
   const [showNewChat, setShowNewChat] = useState(false);
+  const startedChatRef = useRef(null);
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
   const stickToBottomRef = useRef(true);
@@ -266,6 +267,10 @@ const WhatsAppInboxPage = () => {
           unread_count: 0,
         }));
       const list = [...convList, ...extraContacts];
+      // A chat started via "New chat" has no messages yet and may be an older
+      // lead outside the recent 50 — keep it listed so it stays open.
+      const started = startedChatRef.current;
+      if (started && !list.some(c => c.lead_id === started.lead_id)) list.unshift(started);
       setConversations(list);
 
     } catch (e) { console.error(e); }
@@ -392,9 +397,15 @@ const WhatsAppInboxPage = () => {
 
   const handleStartChat = async (phone, name) => {
     const { data } = await whatsappAPI.startChat(phone, name);
+    startedChatRef.current = {
+      lead_id: data.lead_id, lead_name: data.lead_name || name || 'Unknown', lead_phone: data.lead_phone || phone,
+      assigned_to: data.assigned_to || null, message: null, sent_at: null, unread_count: 0,
+    };
     // Reload regardless of whether a new lead was created — an existing lead with
     // no messages yet may not be in the currently-loaded list (it's capped at 50).
     await loadInbox(true);
+    // loadInbox leaves the list untouched if it fails, so add the contact here too.
+    setConversations(prev => prev.some(c => c.lead_id === data.lead_id) ? prev : [startedChatRef.current, ...prev]);
     setActiveId(data.lead_id);
     setShowNewChat(false);
   };

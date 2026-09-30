@@ -2,15 +2,28 @@ import { initials } from '../../utils/leadData.js';
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { LogOut, X } from 'lucide-react';
+import { ChevronDown, LogOut, X } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
 import { SIDEBAR_NAV_ITEMS, SIDEBAR_GROUPS } from './sidebar.constants';
+
+const COLLAPSED_KEY = 'curvelead.sidebar.collapsed';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, tenant, logout } = useAuth();
   const navigate = useNavigate();
   const role = user?.role === 'super_admin' ? 'admin' : user?.role;
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  // Collapsed group labels, remembered per browser. Storage can be unavailable
+  // (private mode, blocked site data), so fall back to everything expanded.
+  const [collapsed, setCollapsed] = useState(() => {
+    try { const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY)); return Array.isArray(saved) ? saved : []; }
+    catch { return []; }
+  });
+  const toggleGroup = (label) => setCollapsed(prev => {
+    const next = prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label];
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)); } catch { /* not persisted */ }
+    return next;
+  });
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
@@ -31,14 +44,24 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         <nav className="flex-1 px-2 py-3 overflow-y-auto">
-          {SIDEBAR_GROUPS.map(group => <details key={group.label} open className="mb-3 group">
-            <summary className="px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400 cursor-pointer lg:pointer-events-none">{group.label}</summary>
-            <div className="lg:!block">{group.paths.map(path => SIDEBAR_NAV_ITEMS.find(item => item.path === path)).filter(item => item?.roles.includes(role)).map(item => (
-            <NavLink key={item.path} to={item.path} onClick={onClose}
-              className={({ isActive }) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-50'}`}>
-              <item.icon size={18} /> {item.label}
-            </NavLink>
-          ))}</div></details>)}
+          {SIDEBAR_GROUPS.map(group => {
+            const items = group.paths.map(path => SIDEBAR_NAV_ITEMS.find(item => item.path === path)).filter(item => item?.roles.includes(role));
+            if (!items.length) return null;
+            const isCollapsed = collapsed.includes(group.label);
+            return <div key={group.label} className="mb-3">
+              <button type="button" onClick={() => toggleGroup(group.label)} aria-expanded={!isCollapsed}
+                className="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-600">
+                {group.label}
+                <ChevronDown size={14} className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+              </button>
+              {!isCollapsed && items.map(item => (
+                <NavLink key={item.path} to={item.path} onClick={onClose}
+                  className={({ isActive }) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <item.icon size={18} /> {item.label}
+                </NavLink>
+              ))}
+            </div>;
+          })}
         </nav>
 
         <div className="border-t p-3">
