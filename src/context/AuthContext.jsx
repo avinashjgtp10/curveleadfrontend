@@ -1,6 +1,6 @@
 import { setWorkspaceTimezone } from '../utils/dateTime';
 import { createContext, useContext, useState, useEffect } from 'react';
-import { authAPI } from '../services/api';
+import { authAPI, clearApiCache } from '../services/api';
 
 const AuthContext = createContext();
 
@@ -10,19 +10,22 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let active = true;
     const token = localStorage.getItem('token');
+    const current = () => active && localStorage.getItem('token') === token;
     if (token) {
       authAPI.me()
-        .then(({ data }) => { setUser(data.user); setTenant(data.tenant); })
-        .catch(() => localStorage.removeItem('token'))
-        .finally(() => setLoading(false));
+        .then(({ data }) => { if (current()) { setUser(data.user); setTenant(data.tenant); } })
+        .catch(() => { if (current()) { clearApiCache(); localStorage.removeItem('token'); } })
+        .finally(() => { if (active) setLoading(false); });
     } else {
       setLoading(false);
     }
+    return () => { active = false; };
   }, []);
 
   const refreshProfile = async () => {
-    const { data } = await authAPI.me();
+    const { data } = await authAPI.me({ force: true });
     setUser(data.user);
     setTenant(data.tenant);
     return data;
@@ -30,6 +33,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (credentials) => {
     const { data } = await authAPI.login(credentials);
+    clearApiCache();
     localStorage.setItem('token', data.token);
     setUser(data.user);
     setTenant(data.tenant);
@@ -38,6 +42,7 @@ export const AuthProvider = ({ children }) => {
 
   const verifyOtp = async (payload) => {
     const { data } = await authAPI.verifyOtp(payload);
+    clearApiCache();
     localStorage.setItem('token', data.token);
     setUser(data.user);
     setTenant(data.tenant);
@@ -46,6 +51,7 @@ export const AuthProvider = ({ children }) => {
 
   const signup = async (formData) => {
     const { data } = await authAPI.signup(formData);
+    clearApiCache();
     localStorage.setItem('token', data.token);
     setUser(data.user);
     setTenant(data.tenant);
@@ -54,6 +60,7 @@ export const AuthProvider = ({ children }) => {
 
   const acceptInvite = async (payload) => {
     const { data } = await authAPI.acceptInvite(payload);
+    clearApiCache();
     localStorage.setItem('token', data.token);
     setUser(data.user);
     setTenant(data.tenant);
@@ -61,6 +68,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = () => {
+    clearApiCache();
     localStorage.removeItem('token');
     setUser(null);
     setTenant(null);
