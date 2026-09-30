@@ -1,3 +1,4 @@
+import PageLoader from '../components/ui/PageLoader';
 import {IMPORT_FIELDS,presetMapping} from '../utils/importPresets';
 import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { DEFAULT_HIDDEN_STAGES, normalizeHiddenStages, effectiveHiddenStages, createLatestRequest } from '../utils/leadSearch';
@@ -5,7 +6,7 @@ import { isRequestCancelled } from '../services/queryCache';
 import SearchHighlight from '../components/ui/SearchHighlight';
 import { normalizePhone } from '../utils/leadData.js';
 import { sourceLabel } from '../utils/leadData.js';
-import { formatDateTime } from '../utils/dateTime.js';
+import { formatDateTime, toDateTimeInput, parseTimestamp } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -84,7 +85,7 @@ const FilterDropdown = ({ value, onChange, options, className }) => {
   );
 };
 
-const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const EMPTY_FILTERS = { metric:'',from:'',to:'',activity:'',include_all_stages:'', search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
 const FOLLOWUP_HEALTH_OPTIONS = [
   { value: '', label: 'All' },
   { value: 'good', label: '🟢 Good' },
@@ -162,19 +163,15 @@ const getQueryConfig = (search, state = {}) => {
   return { view, filters, fuFilters, sortState, openLeadId, leadSequence };
 };
 
-const isSameLocalDay = (value, day) => {
-  if (!value || !day) return true;
-  const d = new Date(value);
-  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  return local === day;
-};
+const isSameLocalDay = (value,day) => !!value && toDateTimeInput(value).slice(0,10)===day;
 
 const filterFollowupsForScope = (items, filters) => {
-  const today = filters.date_from || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const today = filters.date_from || toDateTimeInput(new Date()).slice(0,10);
 
   return items.filter(f => {
+    if (filters.scope === 'critical' && parseTimestamp(f.next_followup_at)?.getTime() >= Date.now()-120*3600000) return false;
     if (filters.scope === 'today' && !isSameLocalDay(f.next_followup_at, today)) return false;
-    if (filters.scope === 'overdue' && new Date(f.next_followup_at) >= new Date()) return false;
+    if (filters.scope === 'overdue' && parseTimestamp(f.next_followup_at) >= new Date()) return false;
     if (filters.category === 'followup' && f.followup_type === 'demo') return false;
     return true;
   });
@@ -403,8 +400,8 @@ const LeadsPage = () => {
   const goPrevLead = () => { if (prevLeadId) setOpenLeadId(prevLeadId); };
   const goNextLead = () => { if (nextLeadId) setOpenLeadId(nextLeadId); };
 
-  const appliedHiddenStages = view === 'list' ? effectiveHiddenStages(hiddenStages, filters.stage) : [];
-  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length + appliedHiddenStages.length;
+  const appliedHiddenStages = view === 'list' && filters.include_all_stages !== '1' ? effectiveHiddenStages(hiddenStages, filters.stage) : [];
+  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field', 'from', 'to', 'include_all_stages'].includes(k) && v).length + appliedHiddenStages.length;
   const toggleColumn = (key) => setVisibleColumns(v => ({ ...v, [key]: !v[key] }));
   const saveHiddenStages = async (value) => {
     if (!preferencesReady || savingHiddenStages) return;
@@ -934,10 +931,10 @@ const LeadsPage = () => {
         {view !== 'followups' && (
           <div className="border-b border-gray-100">
             {/* Search row */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <div className="relative flex-1 max-w-sm">
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <div className="relative w-full sm:flex-1 sm:max-w-sm">
                 <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input type="text" placeholder="Search by name, phone or lead ID..."
+                <input type="text" placeholder="Name, phone or lead ID"
                   value={filters.search} onChange={e => handleFilterChange(f => ({ ...f, search: e.target.value }))}
                   className={`${inputClass} pl-9`} />
               </div>
@@ -1139,10 +1136,10 @@ const LeadsPage = () => {
 
         {view !== 'followups' && (activeFilterCount > 0 || filters.search) && (
           <div className="flex flex-wrap gap-2 px-4 py-3" aria-label="Active lead filters">
-            {Object.entries(filters).filter(([key, value]) => key !== 'date_field' && value).map(([key, value]) => (
+            {Object.entries(filters).filter(([key, value]) => !['date_field','from','to','include_all_stages'].includes(key) && value).map(([key, value]) => (
               <span key={key} className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs px-2.5 py-1 rounded-full">
-                {key.replace(/_/g, ' ')}: {key === 'source' ? sourceLabel(value) : key === 'assigned_to' ? staff.find(s => s.id === value)?.name || value : value}
-                <button aria-label={`Remove ${key.replace(/_/g, ' ')} filter`} onClick={() => handleFilterChange(f => ({ ...f, [key]: '' }))}><X size={11} /></button>
+                {key === 'metric' ? `Period: ${value === 'won' ? 'Won' : 'Created'} · ${formatDateTime(filters.from)} – ${formatDateTime(filters.to)} (end exclusive)` : key === 'activity' ? `Activity: ${value.replace(/_/g,' ')}` : `${key.replace(/_/g, ' ')}: ${key === 'source' ? sourceLabel(value) : key === 'assigned_to' ? staff.find(s => s.id === value)?.name || value : value}`}
+                <button aria-label={`Remove ${key.replace(/_/g, ' ')} filter`} onClick={() => handleFilterChange(f => ({ ...f, [key]: '', ...(key==='metric'?{from:'',to:''}:{}) }))}><X size={11} /></button>
               </span>
             ))}
             {appliedHiddenStages.map(stage => (
@@ -1165,13 +1162,10 @@ const LeadsPage = () => {
               </div>
             )}
             {loading && leads.length === 0 ? (
-              <div className="flex items-center justify-center h-48 gap-3 text-gray-400">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
-                <span className="text-sm font-medium">Loading leads…</span>
-              </div>
+              <PageLoader message="Loading leads"/>
             ) : leads.length === 0 ? (
               <div className="border-t border-gray-200 p-12 text-center text-gray-400">
-                <p>No leads found. {activeFilterCount > 0 ? 'Try adjusting your filters.' : 'Add your first lead to get started!'}</p>
+                <p>No leads found. Try adjusting your filters or add your first lead.</p><button onClick={clearFilters} className="btn-primary mt-3">Clear filters</button>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1233,7 +1227,11 @@ const LeadsPage = () => {
                   </div>
                 )}
 
-                <table className="w-full text-sm">
+                <div className="md:hidden space-y-3">{leads.map(lead=><article key={lead.id} className="border rounded-xl p-3">
+                  <button onClick={()=>setOpenLeadId(lead.id)} className="w-full text-left space-y-1"><p className="font-semibold break-words">{lead.name}</p><p className="text-sm text-gray-500">{lead.phone||'No phone'}</p><p className="text-xs capitalize">{lead.stage} · Score: {lead.lead_score||'Unscored'}</p><p className="text-xs text-gray-500">Next follow-up: {lead.next_followup_at?formatDateTime(lead.next_followup_at):'Not scheduled'}</p></button>
+                  <label className="text-xs flex gap-2 mt-2"><input type="checkbox" checked={selectedIds.has(lead.id)} onChange={()=>toggleSelect(lead.id)}/>Select lead</label>
+                </article>)}</div>
+                <table className="hidden md:table w-full text-sm">
                   <thead className="border-y border-gray-200 text-xs uppercase text-gray-500">
                     <tr>
                       <th className="px-3 py-3 w-8">

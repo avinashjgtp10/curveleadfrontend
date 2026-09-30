@@ -180,6 +180,7 @@ export const aiAPI = {
 // Followups
 // ============================================
 export const followupAPI = {
+  summary:()=>api.get("/followups/summary"), review:(id,data)=>api.put(`/followups/${id}/review`,data),
   getAll: (params) => api.get('/followups', { params }),
   update: (id, data) => api.put(`/followups/${id}`, data),
   complete: (id, data) => api.put(`/followups/${id}/complete`, data),
@@ -462,6 +463,7 @@ export const playbookAPI = {
 // Notifications
 // ============================================
 export const notificationsAPI = {
+ markVisible:ids=>api.put("/notifications/read-visible",{ids}),
   getAll: () => api.get('/notifications'),
   getCount: () => api.get('/notifications/count'),
   markRead: (id) => api.put(`/notifications/${id}/read`),
@@ -472,6 +474,7 @@ export const notificationsAPI = {
 export default api;
 
 export const featureAPI = {
+ overview:()=>api.get("/features/overview"), onboarding:data=>api.put("/features/onboarding",data),
  config:()=>api.get('/features/config'), saveConfig:data=>api.put('/features/config',data),
  health:()=>api.get('/features/health'), cannedReplies:()=>api.get('/features/canned-replies'),
  capiEvents:()=>api.get('/features/capi-events'), webhooks:()=>api.get('/features/webhooks'),

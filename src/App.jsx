@@ -1,4 +1,7 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { documentTitle } from './utils/pageTitles';
+import AutomationsPage from './pages/AutomationsPage';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import PageLoader from './components/ui/PageLoader';
 import { ConfirmDialogProvider } from './components/ui/ConfirmDialog';
@@ -55,10 +58,13 @@ const GuestRoute = ({ children }) => {
   return user ? <Navigate to="/dashboard" replace /> : children;
 };
 
+function RouteTitle() { const { pathname } = useLocation(); useEffect(() => { document.title = documentTitle(pathname); }, [pathname]); return null; }
+
 const App = () => (
   <AuthProvider>
     <ToastProvider>
     <ConfirmDialogProvider>
+      <RouteTitle />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
@@ -85,6 +91,7 @@ const App = () => (
           <Route path="templates" element={<Navigate to="/whatsapp?tab=templates" replace />} />
           <Route path="followups" element={<FollowupsPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />
+          <Route path="automations" element={<AutomationsPage />} />
           <Route path="lead-automation" element={<LeadAutomationPage />} />
           <Route path="brochures" element={<BrochuresPage />} />
           <Route path="quotations" element={<QuotationsPage />} />

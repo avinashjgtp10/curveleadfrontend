@@ -1,14 +1,20 @@
-import BrandLogo from './BrandLogo';
-
-const PageLoader = ({ message = 'Loading data...', minHeight = 'h-64' }) => (
-  <div className={`flex flex-col items-center justify-center ${minHeight} text-center`}>
-    <BrandLogo className="mb-5 w-40 h-auto" />
-    <div className="relative h-12 w-12">
-      <div className="absolute inset-0 rounded-full border-4 border-brand-100" />
-      <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-brand-600 animate-spin" />
+const PageLoader = ({ message = "Loading data…", minHeight = "min-h-64" }) => (
+  <div role="status" aria-label={message} className={`w-full p-4 ${minHeight}`}>
+    <span className="sr-only">{message}</span>
+    <div
+      aria-hidden="true"
+      className="animate-pulse motion-reduce:animate-none space-y-5"
+    >
+      <div className="h-6 w-1/3 rounded bg-gray-200" />
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        {[0, 1, 2, 3].map((i) => (
+          <div key={i} className="h-24 rounded-xl bg-gray-100" />
+        ))}
+      </div>
+      {[0, 1, 2, 3, 4].map((i) => (
+        <div key={i} className="h-10 rounded bg-gray-100" />
+      ))}
     </div>
-    <p className="mt-4 text-sm font-medium text-gray-600">{message}</p>
   </div>
 );
-
 export default PageLoader;

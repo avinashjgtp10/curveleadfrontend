@@ -1,3 +1,5 @@
+import PageLoader from '../ui/PageLoader';
+import { groupNotifications } from '../../utils/notifications';
 import { parseTimestamp, formatDateTime } from '../../utils/dateTime';
 import { useState, useEffect, useRef } from 'react';
 import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog, UserPlus, Settings, MessageCircle } from 'lucide-react';
@@ -47,13 +49,17 @@ const NotificationBell = () => {
   const [showSettings, setShowSettings] = useState(false);
   const [desktopEnabled, setDesktopEnabled] = useState(true);
 
+  const current = useRef({open,desktopEnabled}); current.current={open,desktopEnabled};
+  const [error,setError]=useState('');
   const fetchAll = async () => {
     setLoading(true);
     try {
       const { data } = await notificationsAPI.getAll();
       setNotifications(data.notifications || []);
-      setUnread(data.unreadCount || 0);
-    } catch { }
+      await notificationsAPI.markVisible((data.notifications||[]).filter(n=>!n.is_read).map(n=>n.id));
+      setNotifications((data.notifications||[]).map(n=>({...n,is_read:true})));
+      setUnread((await notificationsAPI.getCount()).data.count||0);setError('');
+    } catch { setError('Could not update notifications. Please retry.'); }
     finally { setLoading(false); }
   };
 
@@ -69,17 +75,14 @@ const NotificationBell = () => {
       if (seenIdsRef.current) {
         list
           .filter(n => !n.is_read && !seenIdsRef.current.has(n.id))
-          .forEach(n => showBrowserNotification(n, handleMarkRead, desktopEnabled));
+          .forEach(n => showBrowserNotification(n, handleMarkRead, current.current.desktopEnabled));
       }
       seenIdsRef.current = new Set(list.map(n => n.id));
-      if (open) setNotifications(list);
+      if (current.current.open) fetchAll();
     } catch { }
   };
 
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
     authAPI.getPreferences().then(({ data }) => {
       setDesktopEnabled(data.preferences?.desktop_notifications !== false);
     }).catch(() => {});
@@ -102,9 +105,8 @@ const NotificationBell = () => {
 
   const handleMarkRead = async (n) => {
     if (!n.is_read) {
-      await notificationsAPI.markRead(n.id).catch(() => {});
-      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
-      setUnread(c => Math.max(0, c - 1));
+      try { await notificationsAPI.markRead(n.id); await fetchAll(); }
+      catch {setError('Could not mark notification read.');return;}
     }
     if (n.reference_type === 'lead' && n.reference_id) {
       setOpen(false);
@@ -113,24 +115,23 @@ const NotificationBell = () => {
   };
 
   const handleMarkAll = async () => {
-    await notificationsAPI.markAllRead().catch(() => {});
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-    setUnread(0);
+    try {await notificationsAPI.markAllRead();await fetchAll();}
+    catch {setError('Could not mark all read. Please retry.');}
   };
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={handleOpen} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+      <button aria-label={`Notifications, ${unread} unread`} aria-expanded={open} onClick={handleOpen} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
         <Bell size={20} className="text-gray-600" />
         {unread > 0 && (
           <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
-            {unread > 99 ? '99+' : unread}
+            {unread}
           </span>
         )}
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
+        <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-32px)] bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h3 className="font-semibold text-sm">Notifications</h3>
             <div className="flex items-center gap-3">
@@ -147,12 +148,13 @@ const NotificationBell = () => {
           </div>
 
           <div className="max-h-96 overflow-y-auto">
+            {error&&<button role="alert" onClick={fetchAll} className="p-3 text-sm text-red-600">{error}</button>}
             {loading ? (
-              <p className="text-center text-sm text-gray-400 py-8">Loading...</p>
+              <PageLoader message="Loading notifications"/>
             ) : notifications.length === 0 ? (
               <p className="text-center text-sm text-gray-400 py-8">No notifications yet</p>
             ) : (
-              notifications.map(n => (
+              groupNotifications(notifications).map(([type,items])=><section key={type}><h4 className="px-4 py-2 text-xs font-semibold bg-gray-50 capitalize">{type.replace(/_/g,' ')}</h4>{items.map(n => (
                 <button key={n.id} onClick={() => handleMarkRead(n)}
                   className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-gray-50 transition-colors border-b last:border-0 ${!n.is_read ? 'bg-blue-50/50' : ''}`}>
                   <div className="mt-0.5 shrink-0">{typeIcon(n.type)}</div>
@@ -163,7 +165,7 @@ const NotificationBell = () => {
                   </div>
                   {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />}
                 </button>
-              ))
+              ))}</section>)
             )}
           </div>
         </div>

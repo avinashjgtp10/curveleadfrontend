@@ -174,6 +174,8 @@ const WhatsAppInboxPage = () => {
   const [search, setSearch] = useState('');
   const [tab, setTab] = useState('all');
   const [starredIds, setStarredIds] = useState(new Set());
+  const [detailsOpen,setDetailsOpen]=useState(false);
+  useEffect(()=>{if(!detailsOpen)return;const close=e=>{if(e.key==='Escape')setDetailsOpen(false);};window.addEventListener('keydown',close);return()=>window.removeEventListener('keydown',close);},[detailsOpen]);
   const [activeId, setActiveId] = useState(null);
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState(new Set());
@@ -265,7 +267,7 @@ const WhatsAppInboxPage = () => {
         }));
       const list = [...convList, ...extraContacts];
       setConversations(list);
-      if (list.length && !activeId) setActiveId(list[0].lead_id);
+
     } catch (e) { console.error(e); }
     finally { if (!silent) setLoading(false); }
   };
@@ -464,9 +466,9 @@ const WhatsAppInboxPage = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_300px] gap-4 h-[calc(100vh-290px)]">
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_280px] gap-4 h-[calc(100dvh-250px)] min-h-[420px]">
         {/* Conversations */}
-        <div className="bg-white border rounded-2xl flex flex-col overflow-hidden">
+        <div className={`min-w-0 bg-white border rounded-2xl flex-col overflow-hidden ${activeId ? 'hidden min-[900px]:flex' : 'flex'}`}>
           <div className="p-4 pb-3 border-b">
             <div className="flex items-center justify-between mb-3">
               <h2 className="font-bold text-gray-900">Conversations</h2>
@@ -590,7 +592,7 @@ const WhatsAppInboxPage = () => {
         </div>
 
         {/* Chat panel */}
-        <div className="bg-white border rounded-2xl flex flex-col overflow-hidden">
+        <div className={`min-w-0 bg-white border rounded-2xl flex-col overflow-hidden ${activeId ? 'flex' : 'hidden min-[900px]:flex'}`}>
           {!active ? (
             <div className="flex-1 flex flex-col items-center justify-center text-gray-400">
               <MessageCircle size={40} className="mb-3 text-gray-300" />
@@ -598,7 +600,9 @@ const WhatsAppInboxPage = () => {
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between px-4 py-3 border-b">
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b">
+                <button className="min-[900px]:hidden text-sm text-brand-600" onClick={()=>setActiveId(null)}>← Conversations</button>
+                <button className="xl:hidden text-sm text-brand-600" aria-expanded={detailsOpen} onClick={()=>setDetailsOpen(true)}>Contact details</button>
                 <div className="flex items-center gap-3">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${avatarColor(active.lead_name)}`}>
                     {initials(active.lead_name)}
@@ -710,7 +714,9 @@ const WhatsAppInboxPage = () => {
         </div>
 
         {/* Contact details */}
-        <div className="bg-white border rounded-2xl overflow-y-auto p-4 hidden lg:block">
+        {detailsOpen&&<button aria-label="Close contact details" className="fixed inset-0 z-40 bg-black/40 xl:hidden" onClick={()=>setDetailsOpen(false)}/>}
+        <div role={detailsOpen?'dialog':undefined} aria-label="Contact details" className={`bg-white border rounded-2xl overflow-y-auto p-4 xl:static xl:block xl:w-auto xl:z-auto ${detailsOpen?'fixed inset-y-0 right-0 z-50 w-80 max-w-[90vw]':'hidden'}`}>
+          <button className="xl:hidden mb-3 text-sm text-brand-600" onClick={()=>setDetailsOpen(false)}>Close details</button>
           {!active ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-300">
               <UserCircle2 size={40} />

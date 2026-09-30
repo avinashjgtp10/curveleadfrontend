@@ -1,3 +1,6 @@
+import { allAppointmentPages } from '../utils/appointmentPages';
+import PageLoader from '../components/ui/PageLoader';
+import OverdueReview from '../components/workspace/OverdueReview';
 import { initials } from '../utils/leadData.js';
 import { formatDateTime, appointmentStatus, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
@@ -22,7 +25,9 @@ const AppointmentsPage = () => {
   const location = useLocation();
   const confirm = useConfirmDialog();
   const toast = useToast();
+  const [summary, setSummary] = useState({});
   const [appointments, setAppointments] = useState([]);
+  const [loadError,setLoadError]=useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
   const initialScope = new URLSearchParams(location.search).get('scope');
@@ -97,11 +102,11 @@ const AppointmentsPage = () => {
   }, [leadSearch, newModal]);
 
   const load = async () => {
-    setLoading(true);
+    setLoading(true);setLoadError('');
     try {
-      const { data } = await followupAPI.getAll({ status: 'all', page: 1, limit: 500 });
-      setAppointments(data.followups || []);
-    } catch (e) { console.error(e); }
+      const [rows,counts] = await Promise.all([allAppointmentPages(followupAPI.getAll),followupAPI.summary()]);
+      setSummary(counts.data);setAppointments(rows);
+    } catch (e) { setLoadError('Could not load appointments. Please retry.'); }
     finally { setLoading(false); }
   };
 
@@ -186,15 +191,15 @@ const AppointmentsPage = () => {
     });
   }, [openMenuId, anchorRect]);
 
-  const upcomingCount = appointments.filter(a => getStatus(a) === 'upcoming').length;
-  const todayCount = appointments.filter(a => !a.is_completed && localDay(a.next_followup_at) === todayISO()).length;
-  const overdueCount = appointments.filter(a => getStatus(a) === 'overdue').length;
+  const upcomingCount = summary.upcoming || 0;
+  const todayCount = summary.today || 0;
+  const overdueCount = summary.overdue || 0;
 
   const searchLower = search.trim().toLowerCase();
   const filtered = appointments
     .filter(a => {
       if (tab === 'upcoming') return getStatus(a) === 'upcoming';
-      if (tab === 'today') return !a.is_completed && localDay(a.next_followup_at) === todayISO();
+      if (tab === 'today') return a.actionable !== false && !a.dismissed_at && !a.is_completed && localDay(a.next_followup_at) === todayISO();
       if (tab === 'overdue') return getStatus(a) === 'overdue';
       if (tab === 'completed') return a.is_completed;
       return true;
@@ -230,6 +235,8 @@ const AppointmentsPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
+      <OverdueReview onChanged={load}/>
+      {loadError&&<button role="alert" onClick={load} className="text-red-600 text-sm">{loadError}</button>}
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Appointments</h1>
@@ -375,11 +382,11 @@ const AppointmentsPage = () => {
         <div className="border-b mt-3" />
 
         {loading ? (
-          <div className="text-center py-16 text-gray-400 text-sm">Loading...</div>
+          <PageLoader message="Loading appointments"/>
         ) : pageRows.length === 0 ? (
           <div className="text-center py-16">
             <Calendar size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500 font-medium">No appointments found</p>
+            <p className="text-gray-500 font-medium">No appointments found</p><button className="btn-primary mt-3" onClick={openNewModal}>Schedule appointment</button>
           </div>
         ) : (
           <div className="overflow-x-auto">
