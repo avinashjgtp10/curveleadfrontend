@@ -77,21 +77,18 @@ const BillingPage = () => {
     return tenant?.plan_name || tenant?.planName || '';
   }, [subscriptionStatus, tenant]);
 
-  useEffect(() => {
-    const loadPlans = async () => {
-      try {
-        const { data } = await paymentAPI.getPlans();
-        setPlans(data.plans || []);
-        setRazorpayKeyId(data.razorpayKeyId || '');
-      } catch (err) {
-        setError(err.response?.data?.error || 'Failed to load billing plans.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadPlans();
-  }, []);
+  const loadPlans = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await paymentAPI.getPlans();
+      setPlans(data.plans || []);
+      setRazorpayKeyId(data.razorpayKeyId || '');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load billing plans.');
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { loadPlans(); }, []);
 
   const handleCheckout = async (planName) => {
     setError('');
@@ -198,6 +195,7 @@ const BillingPage = () => {
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+          <button type="button" onClick={loadPlans} disabled={loading} className="ml-3 underline font-semibold">Retry loading plans</button>
         </div>
       )}
 

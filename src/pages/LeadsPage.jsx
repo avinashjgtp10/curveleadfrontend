@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation } from 'react-router-dom';
@@ -1293,7 +1294,7 @@ const LeadsPage = () => {
                         <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}>{l.name}</td>
                         {visibleColumns.date && (
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
-                          {l.created_at ? new Date(l.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
+                          {l.created_at ? formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                         </td>
                         )}
                         {visibleColumns.phone && <td className="px-3 py-3 text-gray-700">{l.phone}</td>}
@@ -1516,7 +1517,7 @@ const LeadsPage = () => {
                           <td className="px-3 py-3">
                             <div className="flex items-center gap-1.5">
                               <span className={`text-xs font-semibold ${health === 'good' ? 'text-amber-600' : 'text-red-600'}`}>
-                                {health !== 'good' ? '⚠ ' : ''}{new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                                {health !== 'good' ? '⚠ ' : ''}{formatDateTime(f.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                               </span>
                               <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${healthStyle.cls}`}>
                                 {healthStyle.label}

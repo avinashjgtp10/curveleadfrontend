@@ -1,3 +1,4 @@
+import { formatDateTime, appointmentStatus, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -12,14 +13,9 @@ import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM, TYPE_MET
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
 const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
-const localDay = (dt) => { const d = new Date(dt); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const localDay = dt => toDateTimeInput(dt).slice(0, 10);
 const todayISO = () => localDay(new Date());
-
-const getStatus = (a) => {
-  if (a.is_completed) return 'completed';
-  if (new Date(a.next_followup_at) < new Date()) return 'overdue';
-  return 'upcoming';
-};
+const getStatus = appointmentStatus;
 
 const AppointmentsPage = () => {
   const navigate = useNavigate();
@@ -116,7 +112,7 @@ const AppointmentsPage = () => {
     setSaving(true);
     try {
       await leadAPI.addFollowup(newForm.lead_id, {
-        next_followup_at: new Date(newForm.next_followup_at).toISOString(),
+        next_followup_at: dateTimeInputToUTC(newForm.next_followup_at),
         followup_type: newForm.followup_type,
         reminder_minutes: newForm.reminder_minutes === 'none' ? null : Number(newForm.reminder_minutes),
         notes: newForm.notes.trim() || null,
@@ -144,9 +140,7 @@ const AppointmentsPage = () => {
 
   const openReschedule = (a) => {
     setOpenMenuId(null);
-    const d = new Date(a.next_followup_at);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    setRescheduleAt(d.toISOString().slice(0, 16));
+    setRescheduleAt(toDateTimeInput(a.next_followup_at));
     setRescheduleId(a.id);
   };
 
@@ -154,7 +148,7 @@ const AppointmentsPage = () => {
     if (!rescheduleAt) return;
     setSaving(true);
     try {
-      await followupAPI.update(rescheduleId, { next_followup_at: new Date(rescheduleAt).toISOString() });
+      await followupAPI.update(rescheduleId, { next_followup_at: dateTimeInputToUTC(rescheduleAt) });
       setRescheduleId(null);
       load();
     } catch (e) { toast.error('Failed to reschedule'); }
@@ -426,11 +420,11 @@ const AppointmentsPage = () => {
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-1.5 text-gray-700">
                           <Calendar size={12} className="text-gray-400" />
-                          {new Date(a.next_followup_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          {formatDateTime(a.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short', year: 'numeric' })}
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
                           <Clock size={11} />
-                          {new Date(a.next_followup_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTime(a.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  hour: '2-digit', minute: '2-digit' })}
                         </div>
                       </td>
                       <td className="px-4 py-3">

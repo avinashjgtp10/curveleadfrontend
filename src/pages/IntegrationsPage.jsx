@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI } from '../services/api';
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff, Infinity as InfinityIcon } from 'lucide-react';
@@ -669,7 +670,7 @@ const ApiKeyConfig = ({ settings, newKeyValue, handleGenerateKey, handleRevokeKe
             <span className="text-[10px] text-green-600 font-medium">Active</span>
           </div>
           {settings.api_key_created_at && (
-            <p className="text-[10px] text-gray-400">Created {new Date(settings.api_key_created_at).toLocaleString('en-IN')}</p>
+            <p className="text-[10px] text-gray-400">Created {formatDateTime(settings.api_key_created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</p>
           )}
           <div className="flex gap-2">
             <button onClick={handleGenerateKey}
@@ -920,8 +921,8 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
       <div className="bg-white rounded-2xl border p-5 space-y-3">
         <h2 className="font-semibold">Connection Status</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-500">
-          <div>Last test received: <span className="text-gray-800 font-medium">{integration.last_test_received_at ? new Date(integration.last_test_received_at).toLocaleString('en-IN') : 'Never'}</span></div>
-          <div>Last live lead received: <span className="text-gray-800 font-medium">{integration.last_live_lead_received_at ? new Date(integration.last_live_lead_received_at).toLocaleString('en-IN') : 'Never'}</span></div>
+          <div>Last test received: <span className="text-gray-800 font-medium">{integration.last_test_received_at ? formatDateTime(integration.last_test_received_at, undefined, { dateStyle: undefined, timeStyle: undefined, }) : 'Never'}</span></div>
+          <div>Last live lead received: <span className="text-gray-800 font-medium">{integration.last_live_lead_received_at ? formatDateTime(integration.last_live_lead_received_at, undefined, { dateStyle: undefined, timeStyle: undefined, }) : 'Never'}</span></div>
         </div>
         {checking && (
           <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2 text-xs text-blue-700">

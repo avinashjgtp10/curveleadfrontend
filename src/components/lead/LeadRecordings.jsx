@@ -1,3 +1,4 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useState, useEffect, useRef } from 'react';
 import { Mic, Video, Upload, Loader2, CheckCircle, XCircle, Clock, ChevronDown, ChevronUp, Trash2, AlertCircle, RefreshCw } from 'lucide-react';
 import { recordingAPI } from '../../services/api';
@@ -10,7 +11,7 @@ const fmtSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const fmtDate = (d) => new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+const fmtDate = (d) => formatDateTime(d, undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 const StatusChip = ({ status }) => {
   const map = {

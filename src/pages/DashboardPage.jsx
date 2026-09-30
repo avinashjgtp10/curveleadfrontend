@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { reportsAPI } from '../services/api';
@@ -147,7 +148,7 @@ const DashboardPage = () => {
   const pipelineTotal = (data?.pipeline || []).reduce((s, p) => s + p.count, 0) || 1;
 
   const trendData = (data?.trend || []).map(t => ({
-    day: new Date(t.day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    day: formatDateTime(t.day, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short' }),
     Leads: parseInt(t.count),
   }));
   const sparkDataRaw = trendData.length ? trendData.slice(-10) : [{ Leads: 0 }, { Leads: 0 }];

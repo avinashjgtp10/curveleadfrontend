@@ -1,3 +1,4 @@
+import { formatDateTime, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
@@ -168,8 +169,8 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
 
   // Follow-up
   const [followups, setFollowups] = useState([]);
-  const getLocalNow = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-  const getDateShortcut = (daysOffset, hour = 10) => { const d = new Date(); d.setDate(d.getDate() + daysOffset); d.setHours(hour, 0, 0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+  const getLocalNow = () => toDateTimeInput(new Date());
+  const getDateShortcut = (daysOffset, hour = 10) => { const d = new Date(toDateTimeInput(new Date()).slice(0, 10) + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + daysOffset); return `${d.toISOString().slice(0, 10)}T${String(hour).padStart(2, '0')}:00`; };
   const [followupForm, setFollowupForm] = useState({
     next_followup_at: getLocalNow(),
     followup_type: 'call',
@@ -348,7 +349,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     setSavingFollowup(true);
     try {
       // Convert local datetime string to UTC ISO so the server (UTC) stores it correctly
-      const utcAt = new Date(followupForm.next_followup_at).toISOString();
+      const utcAt = dateTimeInputToUTC(followupForm.next_followup_at);
       await leadAPI.addFollowup(id, {
         ...followupForm,
         next_followup_at: utcAt,
@@ -362,10 +363,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     finally { setSavingFollowup(false); }
   };
 
-  const toLocalInputValue = (isoString) => {
-    const d = new Date(isoString);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  };
+  const toLocalInputValue = toDateTimeInput;
 
   const startEditFollowup = (f) => {
     setEditingFollowupId(f.id);
@@ -383,7 +381,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     if (!editFollowupForm.next_followup_at) return toast.error('Please pick a date and time');
     setSavingFollowupEdit(true);
     try {
-      const utcAt = new Date(editFollowupForm.next_followup_at).toISOString();
+      const utcAt = dateTimeInputToUTC(editFollowupForm.next_followup_at);
       await followupAPI.update(editingFollowupId, {
         ...editFollowupForm,
         next_followup_at: utcAt,
@@ -579,7 +577,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     { id: 'activity', label: 'Activity' },
   ];
 
-  const fmtDateTime = (d) => d ? new Date(d).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const fmtDateTime = (d) => d ? formatDateTime(d, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
   const automationStatusStyle = {
     active:    { label: 'Active',    cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
     completed: { label: 'Completed', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500' },
@@ -843,7 +841,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     <p className="text-xs text-gray-500">Lead Date</p>
                     <p className="font-medium flex items-center gap-1.5">
                       <Calendar size={13} className="text-gray-400" />
-                      {new Date(lead.lead_date || lead.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {formatDateTime(lead.lead_date || lead.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                   <div className="pt-2 border-t">
@@ -901,7 +899,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   }
                 />
                 {stageSince && (
-                  <p className="text-[10px] text-gray-400 mt-1" title={new Date(stageSince).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}>
+                  <p className="text-[10px] text-gray-400 mt-1" title={formatDateTime(stageSince, undefined, { dateStyle: 'medium', timeStyle: 'short' })}>
                     In this stage for {formatDuration(stageSince)}
                   </p>
                 )}
@@ -953,7 +951,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   {nextFollowup.followup_type === 'demo' ? '🎥 Demo scheduled:' : 'Next scheduled:'}
                 </p>
                 <p className={`text-xs mt-0.5 ${nextFollowup.followup_type === 'demo' ? 'text-violet-600' : 'text-amber-600'}`}>
-                  {new Date(nextFollowup.next_followup_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                  {formatDateTime(nextFollowup.next_followup_at, undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                   {' '}· <span className="capitalize">{nextFollowup.followup_type}</span>
                 </p>
               </div>
@@ -1111,7 +1109,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                         </div>
                         {f.notes && <p className="text-xs text-gray-500 mt-1 truncate">{f.notes}</p>}
                         <p className="text-[10px] text-gray-400 mt-1">
-                          {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTime(f.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     )
@@ -1188,7 +1186,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm ${m.direction === 'outbound' ? 'bg-brand-600 text-white' : 'bg-gray-100'}`}>
                     <p>{m.message}</p>
                     <p className={`text-[10px] mt-1 flex items-center gap-1 ${m.direction === 'outbound' ? 'text-white/70 justify-end' : 'text-gray-400'}`}>
-                      {new Date(m.sent_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                      {formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined,  hour: '2-digit', minute: '2-digit' })}
                       {m.direction === 'outbound' && <MessageStatus status={m.status} />}
                     </p>
                   </div>
@@ -1413,7 +1411,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                               <span className="text-[10px] text-gray-400">by {a.created_by_name}</span>
                             )}
                           </div>
-                          {a.description && <p className="text-xs text-gray-500 mt-0.5">{a.description}</p>}
+                          {a.description && <p className="text-xs text-gray-500 mt-0.5">{a.metadata?.scheduled_at
+                            ? `Scheduled for ${formatDateTime(a.metadata.scheduled_at)}${a.metadata.meeting_url ? ` · Link: ${a.metadata.meeting_url}` : ''}`
+                            : a.description}</p>}
                           {a.old_value && a.new_value && (
                             <p className="text-xs text-gray-400 mt-0.5">
                               <span className="line-through">{a.old_value}</span>
@@ -1425,7 +1425,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                             <p className="text-xs text-gray-500 mt-1 bg-green-50 px-2 py-1 rounded-lg italic">"{a.whatsapp_message}"</p>
                           )}
                           <p className="text-[10px] text-gray-400 mt-1">
-                            {new Date(a.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                            {formatDateTime(a.created_at, undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                           </p>
                         </div>
                       </div>

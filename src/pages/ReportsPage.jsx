@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { reportsAPI, leadAPI, stageAPI, brochuresAPI } from '../services/api';
 import {
@@ -61,7 +62,7 @@ const Spinner = () => (
 
 const formatReportValue = (lead, key) => {
   const value = lead[key];
-  if (key === 'created_at') return value ? new Date(value).toLocaleDateString('en-IN') : '';
+  if (key === 'created_at') return value ? formatDateTime(value, undefined, { dateStyle: undefined, timeStyle: undefined, }) : '';
   return value ?? '';
 };
 
@@ -567,12 +568,12 @@ const ReportsPage = () => {
   ];
 
   const responseTrendChartData = responseTrend.map(t => ({
-    day: new Date(t.period).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    day: formatDateTime(t.period, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short' }),
     'Avg Response (min)': t.avg_response_seconds ? Math.round(t.avg_response_seconds / 60) : 0,
   }));
 
   const followupTrendChartData = followupTrend.map(t => ({
-    day: new Date(t.period).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    day: formatDateTime(t.period, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short' }),
     Scheduled: t.scheduled,
     Completed: t.completed,
   }));
@@ -1011,7 +1012,7 @@ const ReportsPage = () => {
                       <td>{l.phone}</td>
                       <td className="capitalize">{l.stage}</td>
                       <td>{l.assigned_to_name || '—'}</td>
-                      <td className="text-right text-gray-500">{new Date(l.created_at).toLocaleDateString('en-IN')}</td>
+                      <td className="text-right text-gray-500">{formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1165,7 +1166,7 @@ const ReportsPage = () => {
                       <td className="text-right">{b.views || 0}</td>
                       <td className="text-right">{b.times_shared || 0}</td>
                       <td className="text-right text-gray-500">{fmtSize(b.file_size)}</td>
-                      <td className="text-right text-gray-500">{b.created_at ? new Date(b.created_at).toLocaleDateString('en-IN') : '—'}</td>
+                      <td className="text-right text-gray-500">{b.created_at ? formatDateTime(b.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, }) : '—'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1334,7 +1335,7 @@ const ReportsPage = () => {
                           {m.status?.toUpperCase()}
                         </span>
                       </td>
-                      <td className="text-right text-gray-500">{new Date(m.sent_at).toLocaleString('en-IN')}</td>
+                      <td className="text-right text-gray-500">{formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</td>
                     </tr>
                   ))}
                 </tbody>
