@@ -255,8 +255,9 @@ export default function FeatureSettings({
             />
           </label>
           <p className="text-xs text-gray-500">
-            Use the limit shown in WhatsApp Manager. Broadcasts remain blocked
-            until this is set; Meta may impose additional limits.
+            Use the limit shown in WhatsApp Manager. The stricter of this cap and
+            Meta’s live tier applies. This cap is required when Meta’s tier is
+            unavailable. Meta may impose additional limits.
           </p>
           <label className="flex gap-2">
             <input

@@ -374,7 +374,7 @@ const WhatsAppInboxPage = () => {
     try {
       await whatsappAPI.setConversationAi(leadId, paused);
       patchConversation(leadId, { ai_paused: paused });
-      toast.success(paused ? 'You took over — the AI will stay quiet on this chat.' : 'AI will reply to this lead again.');
+      toast.success(paused ? 'You took over — AI and automated sequences are paused.' : 'AI and automated sequences can reply to this lead again.');
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to update AI setting'); }
   };
 
@@ -611,12 +611,12 @@ const WhatsAppInboxPage = () => {
                 <div className="flex items-center gap-1">
                   {true && (
                     active.ai_paused ? (
-                      <button onClick={() => handleToggleAi(false)} title="The AI is paused on this chat — click to let it reply again"
+                      <button onClick={() => handleToggleAi(false)} title="AI and automation are paused — click to resume"
                         className="mr-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 hover:bg-violet-50 hover:text-violet-700 flex items-center gap-1">
                         <Bot size={12} /> Human took over · Resume
                       </button>
                     ) : (
-                      <button onClick={() => handleToggleAi(true)} title="The AI is replying here — click to take over"
+                      <button onClick={() => handleToggleAi(true)} title="Pause AI and automation for this lead"
                         className="mr-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 flex items-center gap-1">
                         <Bot size={12} /> Take over
                       </button>
@@ -751,7 +751,7 @@ const WhatsAppInboxPage = () => {
                   })()}
                   {true && (
                     <div className="flex justify-between items-center">
-                      <span className="text-gray-400">AI replies</span>
+                      <span className="text-gray-400">Automation</span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${active.ai_paused ? 'bg-gray-100 text-gray-600' : 'bg-violet-100 text-violet-700'}`}>
                         {active.ai_paused ? 'Paused' : 'Active'}
                       </span>

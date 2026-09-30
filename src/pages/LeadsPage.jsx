@@ -556,13 +556,14 @@ const LeadsPage = () => {
     }
   };
 
+  const [previewing,setPreviewing]=useState(false);
   const [importCheck,setImportCheck]=useState(null),[importMapping,setImportMapping]=useState({}),[importHeaders,setImportHeaders]=useState([]);
   const importVersion=useRef(0);
   const previewImport=async(file,mapping)=>{
-    const version=++importVersion.current;setImportCheck(null);setImporting(true);
+    const version=++importVersion.current;setImportCheck(null);setPreviewing(true);
     try{const {data}=await leadImportAPI.import(file,{dryRun:true,mapping});if(version!==importVersion.current)return;setImportCheck(data);setImportHeaders(data.headers);setImportMapping(data.mapping);}
     catch(e){if(version===importVersion.current)toast.error(e.response?.data?.error||'Preview failed.');}
-    finally{if(version===importVersion.current)setImporting(false);}
+    finally{if(version===importVersion.current)setPreviewing(false);}
   };
   const handleImportFile = (file) => {
     if (!file) return;
@@ -591,7 +592,7 @@ const LeadsPage = () => {
   };
 
   const closeImport = () => {
-    importVersion.current++;setImportCheck(null);setImportMapping({});setImportHeaders([]);
+    importVersion.current++;setPreviewing(false);setImportCheck(null);setImportMapping({});setImportHeaders([]);
     setShowImport(false);
     setImportFile(null);
     setImportPreview(null);
@@ -1808,7 +1809,7 @@ const LeadsPage = () => {
                   </div>
 
                   {/* CSV Preview */}
-                  {importFile && importHeaders.length>0 && <div className="space-y-3"><label className="text-sm font-medium">Column mapping preset<select className="border rounded-lg p-2 ml-2" defaultValue="auto" onChange={e=>{setImportMapping(presetMapping(importHeaders,e.target.value));setImportCheck(null);}}>{['auto','privyr','aisensy','interakt'].map(x=><option key={x} value={x}>{x==='auto'?'Auto-detect':`Import from ${x==='privyr'?'Privyr':x==='aisensy'?'AiSensy':'Interakt'}`}</option>)}</select></label>{importHeaders.map(h=><label key={h} className="flex items-center gap-3 text-sm">{h}<select className="border rounded-lg p-2 ml-auto" value={importMapping[h]||''} onChange={e=>{const m={...importMapping};if(e.target.value)m[h]=e.target.value;else delete m[h];setImportMapping(m);setImportCheck(null);}}><option value="">Ignore</option>{IMPORT_FIELDS.map(f=><option key={f} value={f}>{f.replaceAll('_',' ')}</option>)}</select></label>)}<button disabled={importing} className="text-brand-600 text-sm" onClick={()=>previewImport(importFile,importMapping)}>Validate mapping & preview duplicates</button>{importCheck&&<><p className="text-sm">{importCheck.total} rows · {importCheck.duplicates} duplicates to merge · {importCheck.invalid} invalid</p><div className="max-h-48 overflow-auto">{importCheck.preview.slice(0,100).map(r=><p className="text-xs py-1" key={r.row}>Row {r.row}: {r.name} · {r.phone} · {r.error||r.action}</p>)}</div></>}</div>}
+                  {importFile && importHeaders.length>0 && <div className="space-y-3"><label className="text-sm font-medium">Column mapping preset<select className="border rounded-lg p-2 ml-2" defaultValue="auto" onChange={e=>{setImportMapping(presetMapping(importHeaders,e.target.value));setImportCheck(null);}}>{['auto','privyr','aisensy','interakt'].map(x=><option key={x} value={x}>{x==='auto'?'Auto-detect':`Import from ${x==='privyr'?'Privyr':x==='aisensy'?'AiSensy':'Interakt'}`}</option>)}</select></label>{importHeaders.map(h=><label key={h} className="flex items-center gap-3 text-sm">{h}<select className="border rounded-lg p-2 ml-auto" value={importMapping[h]||''} onChange={e=>{const m={...importMapping};if(e.target.value)m[h]=e.target.value;else delete m[h];setImportMapping(m);setImportCheck(null);}}><option value="">Ignore</option>{IMPORT_FIELDS.map(f=><option key={f} value={f}>{f.replaceAll('_',' ')}</option>)}</select></label>)}<button disabled={previewing || importing} className="text-brand-600 text-sm" onClick={()=>previewImport(importFile,importMapping)}>Validate mapping & preview duplicates</button>{importCheck&&<><p className="text-sm">{importCheck.total} rows · {importCheck.duplicates} duplicates to merge · {importCheck.invalid} invalid</p><div className="max-h-48 overflow-auto">{importCheck.preview.slice(0,100).map(r=><p className="text-xs py-1" key={r.row}>Row {r.row}: {r.name} · {r.phone} · {r.error||r.action}</p>)}</div></>}</div>}
                   {importPreview && (
                     <div className="rounded-xl border overflow-hidden">
                       <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b">
@@ -1843,9 +1844,9 @@ const LeadsPage = () => {
 
                   <div className="flex gap-2">
                     <button onClick={closeImport} className="flex-1 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-                    <button onClick={handleImport} disabled={!importFile || importing || !importCheck || importCheck.invalid>0}
+                    <button onClick={handleImport} disabled={!importFile || importing || previewing || !importCheck || importCheck.invalid>0}
                       className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
-                      {importing
+                      {previewing ? 'Validating…' : importing
                         ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Importing...</>
                         : <><Upload size={15} /> Import Leads</>}
                     </button>
