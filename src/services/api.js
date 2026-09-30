@@ -159,9 +159,11 @@ export const whatsappAPI = {
 // Lead Import
 // ============================================
 export const leadImportAPI = {
-  import: (file) => {
+  import: (file, options = {}) => {
     const fd = new FormData();
     fd.append('file', file);
+    if(options.mapping) fd.append('column_mapping',JSON.stringify(options.mapping));
+    if(options.dryRun) fd.append('dry_run','true');
     return api.post('/leads/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
   downloadTemplate: () => api.get('/leads/import/template', { responseType: 'blob' }),
@@ -468,3 +470,12 @@ export const notificationsAPI = {
 };
 
 export default api;
+
+export const featureAPI = {
+ config:()=>api.get('/features/config'), saveConfig:data=>api.put('/features/config',data),
+ health:()=>api.get('/features/health'), cannedReplies:()=>api.get('/features/canned-replies'),
+ capiEvents:()=>api.get('/features/capi-events'), webhooks:()=>api.get('/features/webhooks'),
+ createWebhook:data=>api.post('/features/webhooks',data), disableWebhook:id=>api.delete(`/features/webhooks/${id}`),
+ deliveries:()=>api.get('/features/deliveries'), broadcasts:()=>api.get('/features/broadcasts'),
+ attributes:(id,data)=>api.put(`/whatsapp/conversation/${id}/attributes`,data),
+};

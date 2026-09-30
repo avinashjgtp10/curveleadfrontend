@@ -11,7 +11,7 @@ const AssignmentRulesSection = () => {
   const { user } = useAuth();
   const confirm = useConfirmDialog();
   const toast = useToast();
-  const isAdmin = user?.role === 'admin';
+  const isAdmin = ['admin','super_admin'].includes(user?.role);
 
   const [rules, setRules] = useState([]);
   const [staff, setStaff] = useState([]);
@@ -20,7 +20,7 @@ const AssignmentRulesSection = () => {
   const [sequences, setSequences] = useState([]);
   const [ruleModal, setRuleModal] = useState(false);
   const [editingRule, setEditingRule] = useState(null);
-  const emptyRuleForm = { name: '', sources: [], campaign_ids: [], location_contains: '', target_type: 'user', assign_to_user_id: '', assign_to_team_id: '', sequence_id: '' };
+  const emptyRuleForm = { name: '', sources: [], campaign_ids: [], location_contains: '', staff_ids: [], target_type: 'user', assign_to_user_id: '', assign_to_team_id: '', sequence_id: '' };
   const [ruleForm, setRuleForm] = useState(emptyRuleForm);
   const [ruleErrors, setRuleErrors] = useState({});
 
@@ -61,7 +61,7 @@ const AssignmentRulesSection = () => {
       sources: r.sources || [],
       campaign_ids: r.campaign_ids || [],
       location_contains: r.location_contains || '',
-      target_type: r.assign_to_team_id ? 'team' : 'user',
+      staff_ids: r.staff_ids || [], target_type: r.staff_ids?.length ? 'selected' : r.assign_to_team_id ? 'team' : 'user',
       assign_to_user_id: r.assign_to_user_id || '',
       assign_to_team_id: r.assign_to_team_id || '',
       sequence_id: r.sequence_id || '',
@@ -72,15 +72,17 @@ const AssignmentRulesSection = () => {
   const handleSaveRule = async () => {
     const newErrors = {};
     if (!ruleForm.name.trim()) newErrors.name = 'Rule name is required';
+    if (ruleForm.target_type === 'selected' && !ruleForm.staff_ids.length) newErrors.target = 'Select staff';
     if (ruleForm.target_type === 'user' && !ruleForm.assign_to_user_id) newErrors.target = 'Pick a team member to assign to';
     if (ruleForm.target_type === 'team' && !ruleForm.assign_to_team_id) newErrors.target = 'Pick a team to assign to';
     setRuleErrors(newErrors);
     if (Object.keys(newErrors).length) return;
     const payload = {
       name: ruleForm.name,
+      staff_ids: ruleForm.target_type === 'selected' ? ruleForm.staff_ids : undefined,
       sources: ruleForm.sources,
       campaign_ids: ruleForm.campaign_ids,
-      location_contains: ruleForm.location_contains || undefined,
+      location_contains: ruleForm.location_contains || '',
       assign_to_user_id: ruleForm.target_type === 'user' ? ruleForm.assign_to_user_id : undefined,
       assign_to_team_id: ruleForm.target_type === 'team' ? ruleForm.assign_to_team_id : undefined,
       sequence_id: ruleForm.sequence_id || undefined,
@@ -137,7 +139,7 @@ const AssignmentRulesSection = () => {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-lg font-bold text-gray-800 flex items-center gap-2"><Shuffle size={18} className="text-brand-600" /> Lead Assignment Rules</h2>
-          <p className="text-xs text-gray-400 mt-0.5">Auto-assign new leads to a person or team based on source, campaign, or location.</p>
+          <p className="text-xs text-gray-400 mt-0.5">Auto-assign new leads to a person or team based on source, campaign, or city.</p>
         </div>
         {isAdmin && (
           <button onClick={openCreateRule}
@@ -148,7 +150,7 @@ const AssignmentRulesSection = () => {
       </div>
 
       {rules.length === 0 ? (
-        <p className="text-sm text-gray-400 text-center py-8">No rules yet — auto-assign new leads to a person or team based on source, campaign, or location.</p>
+        <p className="text-sm text-gray-400 text-center py-8">No rules yet — auto-assign new leads to a person or team based on source, campaign, or city.</p>
       ) : (
         <div className="space-y-2">
           {rules.map((r, i) => (
@@ -158,8 +160,8 @@ const AssignmentRulesSection = () => {
                   <span className="text-sm font-semibold">{r.name}</span>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {r.sources?.length ? `source: ${r.sources.join(', ')}` : 'any source'}
-                    {r.location_contains ? ` · location: "${r.location_contains}"` : ''}
-                    {' → '}{r.assign_to_user_name || r.assign_to_team_name}
+                    {r.location_contains ? ` · city: "${r.location_contains}"` : ''}
+                    {' → '}{r.staff_ids?.length ? r.staff_ids.map(id=>staff.find(s=>s.id===id)?.name || 'Unavailable staff').join(', ') : r.assign_to_user_name || r.assign_to_team_name}
                     {r.sequence_name ? ` · starts "${r.sequence_name}"` : ''}
                   </p>
                 </div>
@@ -221,7 +223,7 @@ const AssignmentRulesSection = () => {
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Location</label>
-                <input type="text" placeholder="Location contains (e.g. Downtown)" value={ruleForm.location_contains}
+                <input type="text" placeholder="City contains (e.g. Mumbai)" value={ruleForm.location_contains}
                   onChange={e => setRuleForm({ ...ruleForm, location_contains: e.target.value })}
                   className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               </div>
@@ -232,9 +234,9 @@ const AssignmentRulesSection = () => {
                   <select value={ruleForm.target_type} onChange={e => setRuleForm({ ...ruleForm, target_type: e.target.value })}
                     className="px-3 py-2.5 border rounded-lg text-sm bg-white">
                     <option value="user">Assign to person</option>
-                    <option value="team">Round-robin team</option>
+                    <option value="team">Round-robin team</option><option value="selected">Round-robin selected staff</option>
                   </select>
-                  {ruleForm.target_type === 'user' ? (
+                  {ruleForm.target_type === 'selected' ? <select aria-label="Selected staff" multiple className="border rounded-lg min-h-24 flex-1" value={ruleForm.staff_ids} onChange={e=>setRuleForm({...ruleForm,staff_ids:Array.from(e.target.selectedOptions,o=>o.value)})}>{staff.map(s=><option key={s.id} value={s.id}>{s.name}</option>)}</select> : ruleForm.target_type === 'user' ? (
                     <select value={ruleForm.assign_to_user_id}
                       onChange={e => { setRuleForm({ ...ruleForm, assign_to_user_id: e.target.value }); if (ruleErrors.target) setRuleErrors(er => ({ ...er, target: undefined })); }}
                       className={`flex-1 px-3 py-2.5 border rounded-lg text-sm bg-white ${ruleErrors.target ? 'border-red-500' : ''}`}>

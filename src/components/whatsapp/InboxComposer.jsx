@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { whatsappAPI, attachmentsAPI, templateAPI } from '../../services/api';
+import { whatsappAPI, attachmentsAPI, templateAPI, featureAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Paperclip, Send, Smile, Zap, Layers, X, Search, Clock, Image as ImageIcon, FileText, Lock } from 'lucide-react';
 
@@ -133,6 +133,8 @@ const TemplatePickerModal = ({ leadId, leadName, onClose, onSent }) => {
 
 const InboxComposer = ({ leadId, leadName, messages, messagesLoading, setMessages, onSent, onOpenBrochure }) => {
   const toast = useToast();
+  const [canned,setCanned]=useState([]);
+  useEffect(()=>{featureAPI.cannedReplies().then(({data})=>setCanned(data.replies||[])).catch(()=>{});},[]);
   const [draft, setDraft] = useState('');
   const [showEmoji, setShowEmoji] = useState(false);
   const [showAttach, setShowAttach] = useState(false);
@@ -312,6 +314,7 @@ const InboxComposer = ({ leadId, leadName, messages, messagesLoading, setMessage
           <button onClick={() => setShowTemplates(true)} title="Send a template"
             className="p-2 text-gray-400 hover:bg-gray-100 rounded-full"><Layers size={18} /></button>
 
+          {draft.startsWith('/') && <div className="absolute bottom-full left-0 bg-white border rounded-lg shadow-lg max-h-48 overflow-auto z-10">{canned.filter(r=>r.name.toLowerCase().includes(draft.slice(1).toLowerCase())).map((r,i)=><button key={i} className="block text-left p-3 text-sm w-full hover:bg-gray-50" onClick={()=>setDraft(r.text)}>{r.name} — {r.text}</button>)}</div>}
           <textarea ref={textareaRef} value={draft} rows={1} onChange={e => setDraft(e.target.value)} onKeyDown={handleKeyDown}
             disabled={windowKnown && !windowOpen}
             placeholder={windowKnown && !windowOpen ? 'Window closed — send a template to reply' : 'Type a message… (Shift+Enter for a new line, / for saved replies)'}
