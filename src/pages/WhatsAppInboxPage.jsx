@@ -1,3 +1,4 @@
+import ChatAttributes from '../components/ChatAttributes';
 import { initials } from '../utils/leadData.js';
 import { formatDateTime, toDateTimeInput } from '../utils/dateTime.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -47,7 +48,7 @@ const MessageBody = ({ m, templateBody }) => {
       <div>
         {headerIsImage && <img src={m.media_url} alt="" className="rounded-lg max-w-full max-h-48 mb-1.5" />}
         <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-lg">
-          <Layers size={11} /> Template{name ? `: ${name}` : ''}
+          <Layers size={11} /> Template{name ? `: ${name.replace(/_+/g,' ').replace(/\b\w/g,c=>c.toUpperCase())}` : ''}
         </span>
         {body && <p className="mt-1.5 whitespace-pre-wrap break-words">{body}</p>}
         {isReconstructed && <p className="text-[10px] text-gray-400 mt-1">Reconstructed from the current template — may not match exactly what was sent.</p>}
@@ -608,16 +609,16 @@ const WhatsAppInboxPage = () => {
                   </div>
                 </div>
                 <div className="flex items-center gap-1">
-                  {aiEnabled && (
+                  {true && (
                     active.ai_paused ? (
                       <button onClick={() => handleToggleAi(false)} title="The AI is paused on this chat — click to let it reply again"
                         className="mr-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 hover:bg-violet-50 hover:text-violet-700 flex items-center gap-1">
-                        <Bot size={12} /> AI paused · Resume
+                        <Bot size={12} /> Human took over · Resume
                       </button>
                     ) : (
                       <button onClick={() => handleToggleAi(true)} title="The AI is replying here — click to take over"
                         className="mr-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-violet-100 text-violet-700 hover:bg-violet-200 flex items-center gap-1">
-                        <Bot size={12} /> AI replying · Take over
+                        <Bot size={12} /> Take over
                       </button>
                     )
                   )}
@@ -729,6 +730,7 @@ const WhatsAppInboxPage = () => {
                 <UserCircle2 size={15} /> View Contact
               </button>
 
+              <ChatAttributes key={activeId} lead={active} onSave={data=>patchConversation(activeId,data)}/>
               <div className="mb-5">
                 <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">About</p>
                 <div className="space-y-2 text-sm">
@@ -747,7 +749,7 @@ const WhatsAppInboxPage = () => {
                       </div>
                     );
                   })()}
-                  {aiEnabled && (
+                  {true && (
                     <div className="flex justify-between items-center">
                       <span className="text-gray-400">AI replies</span>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${active.ai_paused ? 'bg-gray-100 text-gray-600' : 'bg-violet-100 text-violet-700'}`}>
