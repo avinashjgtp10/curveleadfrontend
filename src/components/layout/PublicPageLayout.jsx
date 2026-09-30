@@ -58,8 +58,8 @@ const PublicPageLayout = ({ children, title }) => {
               <BrandLogo className="w-28 h-auto" />
             </Link>
             <nav className="flex flex-wrap gap-x-6 gap-y-2 text-sm text-gray-500">
-              <Link to="/privacy" className="hover:text-gray-950 transition-colors">Privacy Policy</Link>
-              <Link to="/terms" className="hover:text-gray-950 transition-colors">Terms of Service</Link>
+              <Link to="/privacy-policy" className="hover:text-gray-950 transition-colors">Privacy Policy</Link>
+              <Link to="/terms-of-service" className="hover:text-gray-950 transition-colors">Terms of Service</Link>
               <Link to="/contact" className="hover:text-gray-950 transition-colors">Contact Us</Link>
               <a href="mailto:support@curvelead.com" className="hover:text-gray-950 transition-colors">support@curvelead.com</a>
             </nav>

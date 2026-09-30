@@ -19,6 +19,24 @@ jobs:
           npm ci
           npm run build
 
+      - name: Copy nginx legal redirect installer
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          source: "scripts/install-legal-redirects.py"
+          target: "/tmp/curvelead-legal-redirects"
+          strip_components: 1
+
+      - name: Install and verify nginx legal redirects
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: sudo -n python3 /tmp/curvelead-legal-redirects/install-legal-redirects.py
+
       - name: Clean old build
         uses: appleboy/ssh-action@v1
         with:

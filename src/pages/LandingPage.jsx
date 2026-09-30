@@ -322,6 +322,27 @@ const LandingPage = () => {
           </div>
         </section>
 
+        <section id="google-business-profile" aria-labelledby="gbp-heading" className="border-y border-gray-200 bg-gray-50 px-4 py-16 sm:px-6 scroll-mt-16">
+          <div className="mx-auto max-w-7xl">
+            <h2 id="gbp-heading" className="text-3xl font-bold sm:text-4xl">Manage your Google Business Profile</h2>
+            <p className="mt-4 max-w-2xl text-lg leading-8 text-gray-600">Connect your Google account securely and manage your listing without leaving CurveLead.</p>
+            <ul className="mt-8 grid gap-6 md:grid-cols-3">
+              {[
+                { icon: Globe, title: 'Update listing info', description: 'Edit hours, phone, website and description for your business.' },
+                { icon: MessageCircle, title: 'Reply to Google reviews', description: 'See new reviews and respond to customers from one inbox.' },
+                { icon: BarChart3, title: 'Track profile performance', description: 'Calls, direction requests, website clicks and search views.' },
+              ].map(({ icon: Icon, title, description }) => (
+                <li key={title} className="rounded-2xl border border-gray-200 bg-white p-6">
+                  <Icon size={24} className="text-brand-600" aria-hidden="true" />
+                  <h3 className="mt-4 text-lg font-bold">{title}</h3>
+                  <p className="mt-2 leading-7 text-gray-600">{description}</p>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-6 text-sm leading-6 text-gray-600">Uses secure Google sign-in. CurveLead only accesses the Business Profiles you manage. See our <a href="/privacy-policy" className="text-brand-600 underline hover:text-brand-700">Privacy Policy</a>.</p>
+          </div>
+        </section>
+
         <section className="px-4 py-20 sm:px-6">
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[1fr_0.9fr] lg:items-center">
             <div>
@@ -426,26 +447,6 @@ const LandingPage = () => {
           </div>
         </section>
 
-        <section id="google-business-profile" aria-labelledby="gbp-heading" className="border-y border-gray-200 bg-gray-50 px-4 py-16 sm:px-6 mb-16">
-          <div className="mx-auto max-w-7xl">
-            <h2 id="gbp-heading" className="text-3xl font-bold sm:text-4xl">Manage your Google Business Profile</h2>
-            <p className="mt-4 max-w-2xl text-lg leading-8 text-gray-600">Connect with secure Google sign-in to manage your own Business Profile inside CurveLead.</p>
-            <ul className="mt-8 grid gap-6 md:grid-cols-3">
-              {[
-                { icon: Globe, title: 'Update listing info', description: 'Keep your business details and opening hours up to date.' },
-                { icon: MessageCircle, title: 'Reply to Google reviews', description: 'Read customer reviews and respond from one workspace.' },
-                { icon: BarChart3, title: 'View profile performance', description: 'Track calls, searches, and website clicks from your Business Profile.' },
-              ].map(({ icon: Icon, title, description }) => (
-                <li key={title} className="rounded-2xl border border-gray-200 bg-white p-6">
-                  <Icon size={24} className="text-brand-600" aria-hidden="true" />
-                  <h3 className="mt-4 text-lg font-bold">{title}</h3>
-                  <p className="mt-2 leading-7 text-gray-600">{description}</p>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </section>
-
         <section className="px-4 pb-20 sm:px-6">
           <div className="mx-auto max-w-5xl rounded-2xl bg-brand-600 px-6 py-12 text-center text-white sm:px-10">
             <h2 className="text-3xl font-bold sm:text-4xl">Ready to stop losing leads after the first enquiry?</h2>
@@ -466,8 +467,9 @@ const LandingPage = () => {
               <BrandLogo className="w-28 h-auto" />
             </div>
             <nav className="flex flex-wrap gap-x-6 gap-y-2">
-              <a href="/privacy" className="hover:text-gray-950 transition-colors">Privacy Policy</a>
-              <a href="/terms" className="hover:text-gray-950 transition-colors">Terms of Service</a>
+              <a href="#google-business-profile" className="hover:text-gray-950 transition-colors">Google Business Profile</a>
+              <a href="/privacy-policy" className="hover:text-gray-950 transition-colors">Privacy Policy</a>
+              <a href="/terms-of-service" className="hover:text-gray-950 transition-colors">Terms of Service</a>
               <a href="/contact" className="hover:text-gray-950 transition-colors">Contact Us</a>
               <a href="mailto:support@curvelead.com" className="hover:text-gray-950 transition-colors">support@curvelead.com</a>
             </nav>

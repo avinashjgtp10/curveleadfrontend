@@ -68,10 +68,10 @@ const App = () => (
         <Route path="/reset-password" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
         <Route path="/accept-invite" element={<GuestRoute><AcceptInvitePage /></GuestRoute>} />
         <Route path="/q/:id" element={<QuotationPublicPage />} />
-        <Route path="/privacy" element={<PrivacyPolicyPage />} />
-        <Route path="/privacy-policy" element={<Navigate to="/privacy" replace />} />
-        <Route path="/terms" element={<TermsOfServicePage />} />
-        <Route path="/terms-of-service" element={<Navigate to="/terms" replace />} />
+        <Route path="/privacy" element={<Navigate to="/privacy-policy" replace />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<Navigate to="/terms-of-service" replace />} />
+        <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/contact" element={<ContactUsPage />} />
 
         <Route path="/" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
