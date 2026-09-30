@@ -21,7 +21,6 @@ const Layout = () => {
     '/reports': 'Reports',
     '/billing': 'Billing',
     '/settings': 'Settings',
-    '/market-intelligence': 'Market Intelligence',
     '/help': 'Help & Support',
   };
 
