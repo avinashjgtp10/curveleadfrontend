@@ -8,6 +8,7 @@ import { useToast } from '../ui/Toast';
 // backend/utils/notificationTypes.js.
 const FALLBACK_GROUPS = [
   { key: 'new_leads', label: 'New leads', description: 'A new lead came in from any source.' },
+  { key: 'new_messages', label: 'New WhatsApp messages', description: 'A lead sends you a new WhatsApp message.' },
   { key: 'assigned_to_me', label: 'Leads assigned to me', description: 'A lead is assigned or reassigned to you.' },
   { key: 'sla_alerts', label: 'Uncontacted lead alerts', description: 'A lead has gone too long without a first response.' },
   { key: 'followups', label: 'Follow-up & demo reminders', description: 'A follow-up or demo is due soon, overdue, or was never scheduled.' },
