@@ -29,7 +29,8 @@ const AppointmentsPage = () => {
   const [appointments, setAppointments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
-  const [tab, setTab] = useState(new URLSearchParams(location.search).get('scope') === 'today' ? 'today' : 'all');
+  const initialScope = new URLSearchParams(location.search).get('scope');
+  const [tab, setTab] = useState(APPOINTMENT_TABS.some(t => t.id === initialScope) ? initialScope : 'all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState(null);
@@ -45,6 +46,15 @@ const AppointmentsPage = () => {
   const [showFilters, setShowFilters] = useState(false);
   const [apptFilters, setApptFilters] = useState(EMPTY_APPT_FILTERS);
   const [filterStaff, setFilterStaff] = useState([]);
+
+  // Keeps the URL's `scope` param in sync with the active tab (replace, no extra history
+  // entry) so that leaving to view a lead's details and closing that modal — which returns
+  // here via browser back — restores the same tab instead of resetting to "All Appointments".
+  const selectTab = (id) => {
+    setTab(id);
+    setPage(1);
+    navigate(id === 'all' ? '/appointments' : `/appointments?scope=${id}`, { replace: true });
+  };
 
   const [newModal, setNewModal] = useState(false);
   const [leadOptions, setLeadOptions] = useState([]);
@@ -246,7 +256,7 @@ const AppointmentsPage = () => {
             </button>
             {showAllMenuOpen && (
               <div className="absolute right-0 top-full mt-1 w-44 bg-white border rounded-lg shadow-lg z-30 py-1 text-left">
-                <button onClick={() => { setHideCompleted(false); setTab('all'); setSearch(''); setPage(1); setShowAllMenuOpen(false); }}
+                <button onClick={() => { setHideCompleted(false); selectTab('all'); setSearch(''); setShowAllMenuOpen(false); }}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!hideCompleted ? 'text-brand-600 font-medium' : 'text-gray-700'}`}>
                   Show All
                 </button>
@@ -297,7 +307,7 @@ const AppointmentsPage = () => {
         <div className="flex items-center justify-between flex-wrap gap-3 px-4 pt-4">
           <div className="flex gap-1 flex-wrap">
             {APPOINTMENT_TABS.map(t => (
-              <button key={t.id} onClick={() => { setTab(t.id); setPage(1); }}
+              <button key={t.id} onClick={() => selectTab(t.id)}
                 className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}>
@@ -451,7 +461,11 @@ const AppointmentsPage = () => {
                               visibility: menuPos ? 'visible' : 'hidden',
                             }}
                             className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
-                            <button onClick={() => { setOpenMenuId(null); navigate('/leads', { state: { openLeadId: a.lead_id } }); }}
+                            <button onClick={() => {
+                                setOpenMenuId(null);
+                                const leadSequence = [...new Set(pageRows.map(r => r.lead_id))];
+                                navigate('/leads', { state: { openLeadId: a.lead_id, leadSequence } });
+                              }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700">
                               <Eye size={13} /> View Details
                             </button>

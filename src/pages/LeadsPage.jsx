@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useLocation } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { automationAPI, leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI, authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
@@ -218,6 +218,7 @@ const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
 
 const LeadsPage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const confirm = useConfirmDialog();
   const toast = useToast();
   const queryConfig = getQueryConfig(location.search, location.state);
@@ -350,8 +351,21 @@ const LeadsPage = () => {
   const [renderedLeadId, setRenderedLeadId] = useState(null); // stays set during the exit fade
   const [modalEntered, setModalEntered] = useState(false);     // drives enter/exit transition classes
   const [externalSequence, setExternalSequence] = useState(queryConfig.leadSequence || null);
+  // True while the modal was opened via a deep link (e.g. from Appointments/Dashboard/
+  // Followups navigating here with state.openLeadId) rather than by clicking a row in
+  // this page's own table — closing it should then return to that originating page
+  // instead of stranding the user on the Leads list.
+  const [cameFromDeepLink, setCameFromDeepLink] = useState(!!location.state?.openLeadId);
   const closeTimerRef = useRef(null);
-  const closeLeadModal = () => { setOpenLeadId(null); setExternalSequence(null); fetchLeads(); };
+  const closeLeadModal = () => {
+    setOpenLeadId(null);
+    setExternalSequence(null);
+    fetchLeads();
+    if (cameFromDeepLink) {
+      setCameFromDeepLink(false);
+      navigate(-1);
+    }
+  };
 
   useEffect(() => {
     if (openLeadId) {
@@ -422,6 +436,7 @@ const LeadsPage = () => {
     if (next.openLeadId) {
       setOpenLeadId(next.openLeadId);
       setExternalSequence(next.leadSequence || null);
+      setCameFromDeepLink(!!location.state?.openLeadId);
     }
   }, [location.search, location.state]);
 
