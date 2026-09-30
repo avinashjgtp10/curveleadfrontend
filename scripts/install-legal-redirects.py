@@ -43,16 +43,21 @@ def update_config(source):
         block = source[tokens[i + 1].end():end]
         rules = []
         for old, new in REDIRECTS.items():
+            destination = 'https://curvelead.com' + new
+            rule = 'location = ' + old + ' { return 301 ' + destination + '; }'
             existing = re.search(r'location\s*=\s*' + re.escape(old) + r'\s*\{([^{}]*)\}', block)
             if existing:
-                if not re.search(r'return\s+301\s+' + re.escape(new) + r'\s*;', existing[1]):
+                if re.fullmatch(r'\s*return\s+301\s+' + re.escape(new) + r'\s*;\s*', existing[1]):
+                    offset = tokens[i + 1].end()
+                    additions.append((offset + existing.start(), offset + existing.end(), rule))
+                elif not re.fullmatch(r'\s*return\s+301\s+' + re.escape(destination) + r'\s*;\s*', existing[1]):
                     raise RuntimeError('Conflicting existing redirect for ' + old)
             else:
-                rules.append('    location = ' + old + ' { return 301 ' + new + '; }\n')
+                rules.append('    ' + rule + '\n')
         if rules:
-            additions.append((end, '\n    # CurveLead public legal URLs\n' + ''.join(rules)))
-    for offset, text in reversed(additions):
-        source = source[:offset] + text + source[offset:]
+            additions.append((end, end, '\n    # CurveLead public legal URLs\n' + ''.join(rules)))
+    for start, end, text in sorted(additions, reverse=True):
+        source = source[:start] + text + source[end:]
     return source, matches
 
 
