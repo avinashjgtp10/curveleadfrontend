@@ -1,3 +1,4 @@
+import { createApiCache, invalidatedPaths } from './queryCache.js';
 import { normalizePhone } from '../utils/leadData.js';
 import axios from 'axios';
 
@@ -5,6 +6,17 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
 });
+
+const readCache = createApiCache({
+  getSession: () => localStorage.getItem('token'),
+  fetcher: async (url, params, signal) => {
+    const response = await api.get(url, { params, signal });
+    return { data: response.data };
+  },
+});
+export const clearApiCache = () => readCache.clear();
+export const invalidateApiCache = paths => readCache.invalidate(paths);
+const cachedGet = (url, params, options) => readCache.read(url, params, options);
 
 // Auto-attach JWT
 api.interceptors.request.use((config) => {
@@ -15,9 +27,13 @@ api.interceptors.request.use((config) => {
 
 // Handle 401 (auto logout) and 402 (trial expired)
 api.interceptors.response.use(
-  (res) => res,
+  async (res) => {
+    if (res.config?.method && res.config.method !== 'get') await readCache.invalidate(invalidatedPaths(res.config.url));
+    return res;
+  },
   (err) => {
     if (err.response?.status === 401 && !window.location.pathname.includes('/login')) {
+      clearApiCache();
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
@@ -38,13 +54,13 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   requestOtp: (email) => api.post('/auth/request-otp', { email }),
   verifyOtp: (data) => api.post('/auth/verify-otp', data),
-  me: () => api.get('/auth/me'),
+  me: (options) => cachedGet('/auth/me', {}, options),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (data) => api.post('/auth/reset-password', data),
   changePassword: (data) => api.post('/auth/change-password', data),
   getInviteInfo: (token) => api.get(`/auth/invite/${token}`),
   acceptInvite: (data) => api.post('/auth/accept-invite', data),
-  getPreferences: () => api.get('/auth/preferences'),
+  getPreferences: (options) => cachedGet('/auth/preferences', {}, options),
   updatePreferences: (patch) => api.put('/auth/preferences', patch),
 };
 
@@ -52,15 +68,15 @@ export const authAPI = {
 // Leads
 // ============================================
 export const leadAPI = {
-  getAll: (params) => api.get('/leads', { params }),
+  getAll: (params, options) => cachedGet('/leads', params, options),
   getOne: (id) => api.get(`/leads/${id}`),
   create: async (data) => api.post('/leads', { ...data, phone: normalizePhone(data.phone) }),
   update: async (id, data) => api.put(`/leads/${id}`, data.phone === undefined ? data : { ...data, phone: normalizePhone(data.phone) }),
   delete: (id) => api.delete(`/leads/${id}`),
   score: (id) => api.post(`/leads/${id}/score`),
-  getStages: () => api.get('/leads/stages/all'),
+  getStages: (options) => cachedGet('/leads/stages/all', {}, options),
   addFollowup: (id, data) => api.post(`/leads/${id}/followups`, data),
-  getFollowupsToday: (params) => api.get('/leads/followups/today', { params }),
+  getFollowupsToday: (params, options) => cachedGet('/leads/followups/today', params, options),
   bulkUpdate: (data) => api.put('/leads/bulk', data),
   bulkDelete: (ids) => api.delete('/leads/bulk', { data: { ids } }),
   findDuplicates: () => api.get('/leads/duplicates'),
@@ -172,7 +188,7 @@ export const followupAPI = {
 // Staff
 // ============================================
 export const staffAPI = {
-  getAll: () => api.get('/staff'),
+  getAll: (options) => cachedGet('/staff', {}, options),
   create: (data) => api.post('/staff', data),
   invite: (data) => api.post('/staff/invite', data),
   getInvitations: () => api.get('/staff/invitations'),
@@ -196,7 +212,7 @@ export const staffAPI = {
 // Google Business Profile (GMB)
 // ============================================
 export const gmbAPI = {
-  getSettings: () => api.get('/gmb/settings'),
+  getSettings: (options) => cachedGet('/gmb/settings', {}, options),
   updateSettings: (data) => api.put('/gmb/settings', data),
   draftMessage: () => api.post('/gmb/draft-message'),
   connect: () => api.get('/gmb/oauth/connect'),
@@ -243,7 +259,7 @@ export const settingsAPI = {
 // Lead Stages
 // ============================================
 export const stageAPI = {
-  getAll: () => api.get('/lead-stages'),
+  getAll: (options) => cachedGet('/lead-stages', {}, options),
   create: (data) => api.post('/lead-stages', data),
   update: (id, data) => api.put(`/lead-stages/${id}`, data),
   delete: (id) => api.delete(`/lead-stages/${id}`),
@@ -255,7 +271,7 @@ export const stageAPI = {
 // ============================================
 export const statusAPI = {
   getAll: (params) => api.get('/lead-statuses', { params }),
-  byStage: () => api.get('/lead-statuses/by-stage'),
+  byStage: (options) => cachedGet('/lead-statuses/by-stage', {}, options),
   history: (leadId) => api.get(`/lead-statuses/history/${leadId}`),
   create: (data) => api.post('/lead-statuses', data),
   update: (id, data) => api.put(`/lead-statuses/${id}`, data),
@@ -378,6 +394,7 @@ export const integrationsAPI = {
   getEmbedScript: () => api.get('/integrations/embed-script'),
   facebookAuth: (user_token) => api.post('/integrations/facebook/auth', { user_token }),
   facebookConnectPage: (data) => api.post('/integrations/facebook/connect-page', data),
+  facebookSyncStatus: (options) => cachedGet('/integrations/facebook/sync-status', {}, options),
   facebookSyncLeads: () => api.post('/integrations/facebook/sync-leads'),
   getCapiStats: () => api.get('/integrations/meta/capi-stats'),
   getAdAccounts: () => api.get('/integrations/facebook/ad-accounts'),

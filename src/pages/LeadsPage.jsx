@@ -1,3 +1,7 @@
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { DEFAULT_HIDDEN_STAGES, normalizeHiddenStages, effectiveHiddenStages, createLatestRequest } from '../utils/leadSearch';
+import { isRequestCancelled } from '../services/queryCache';
+import SearchHighlight from '../components/ui/SearchHighlight';
 import { normalizePhone } from '../utils/leadData.js';
 import { sourceLabel } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
@@ -116,12 +120,12 @@ const loadVisibleColumns = () => {
   return Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true]));
 };
 const LEADS_HIDDEN_STAGES_STORAGE_KEY = 'leadsHiddenStages';
-const loadHiddenStages = () => {
+const loadHiddenStages = (key) => {
   try {
-    const saved = JSON.parse(localStorage.getItem(LEADS_HIDDEN_STAGES_STORAGE_KEY));
-    if (Array.isArray(saved)) return saved;
+    const saved = JSON.parse(localStorage.getItem(key));
+    if (Array.isArray(saved)) return normalizeHiddenStages(saved);
   } catch { /* ignore invalid/missing value */ }
-  return [];
+  return [...DEFAULT_HIDDEN_STAGES];
 };
 const SLA_STATUS_LABELS = {
   uncontacted: 'Uncontacted',
@@ -181,30 +185,6 @@ const compactParams = (params) => Object.fromEntries(
   Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
 );
 
-const withoutLeadDateFilters = ({ date_field, date_from, date_to, ...rest }) => rest;
-
-const getLeadDateValue = (lead, dateField) => {
-  if (dateField === 'created_at') return lead.created_at;
-  return lead.lead_date || lead.created_at;
-};
-
-const filterLeadsByDate = (items, activeFilters) => {
-  if (!activeFilters.date_from && !activeFilters.date_to) return items;
-
-  const from = activeFilters.date_from ? new Date(activeFilters.date_from) : null;
-  const to = activeFilters.date_to ? new Date(activeFilters.date_to) : null;
-  if (to) to.setDate(to.getDate() + 1);
-
-  return items.filter(lead => {
-    const value = getLeadDateValue(lead, activeFilters.date_field);
-    if (!value) return false;
-    const leadDate = new Date(value);
-    if (from && leadDate < from) return false;
-    if (to && leadDate >= to) return false;
-    return true;
-  });
-};
-
 const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
   const active = sortState.sort === sortKey;
   const Icon = active ? (sortState.dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
@@ -225,7 +205,8 @@ const LeadsPage = () => {
   const confirm = useConfirmDialog();
   const toast = useToast();
   const queryConfig = getQueryConfig(location.search, location.state);
-  const { user } = useAuth();
+  const { user, tenant } = useAuth();
+  const preferenceKey = `${LEADS_HIDDEN_STAGES_STORAGE_KEY}:${tenant?.id || user?.tenant_id}:${user?.id}`;
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [leads, setLeads] = useState([]);
   const [stages, setStages] = useState([]);
@@ -236,7 +217,10 @@ const LeadsPage = () => {
   const [filters, setFilters] = useState(queryConfig.filters);
   const [showFilters, setShowFilters] = useState(Object.values(queryConfig.filters).some(Boolean));
   const [visibleColumns, setVisibleColumns] = useState(loadVisibleColumns);
-  const [hiddenStages, setHiddenStages] = useState(loadHiddenStages);
+  const [hiddenStages, setHiddenStages] = useState(() => loadHiddenStages(preferenceKey));
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const preferenceOwner = useRef(preferenceKey);
+  const [savingHiddenStages, setSavingHiddenStages] = useState(false);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const columnSettingsRef = useRef(null);
   const [view, setView] = useState(queryConfig.view);
@@ -247,6 +231,15 @@ const LeadsPage = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
+  const [searchMode, setSearchMode] = useState('none');
+  const [displayedSearch, setDisplayedSearch] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const requestManager = useRef(null);
+  if (!requestManager.current) requestManager.current = createLatestRequest();
+  const rawSearch = view === 'followups' ? fuFilters.search : filters.search;
+  const debouncedSearch = useDebouncedValue(rawSearch);
+  const searchPending = rawSearch !== debouncedSearch;
+
   const [editingStageId, setEditingStageId] = useState(null);
   const [editingAssignId, setEditingAssignId] = useState(null);
   const [openActionMenuId, setOpenActionMenuId] = useState(null);
@@ -304,18 +297,27 @@ const LeadsPage = () => {
 
   // Manual Facebook lead sync (mirrors Integrations > Sync Leads, same endpoint)
   const [syncing, setSyncing] = useState(false);
-  const [lastSyncedAt, setLastSyncedAt] = useState(() => {
-    const v = Number(localStorage.getItem('meta_leads_last_sync') || 0);
-    return v ? new Date(v) : null;
-  });
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('loading');
+  const [, setSyncClock] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => integrationsAPI.facebookSyncStatus().then(({ data }) => {
+      if (!active) return;
+      setLastSyncedAt(data.last_synced_at ? new Date(data.last_synced_at) : null);
+      setSyncStatus(data.configured ? 'connected' : 'disconnected');
+    }).catch(() => { if (active) setSyncStatus('unavailable'); });
+    refresh();
+    const timer = setInterval(() => { setSyncClock(v => v + 1); refresh(); }, 60_000);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
 
   const handleManualSync = async () => {
     setSyncing(true);
     try {
       const { data } = await integrationsAPI.facebookSyncLeads();
-      const now = new Date();
-      localStorage.setItem('meta_leads_last_sync', String(now.getTime()));
-      setLastSyncedAt(now);
+      setLastSyncedAt(data.last_synced_at ? new Date(data.last_synced_at) : null);
+      setSyncStatus('connected');
       toast.success(data.message || 'Leads synced.');
       if (data.created) fetchLeads();
     } catch (e) {
@@ -400,35 +402,49 @@ const LeadsPage = () => {
   const goPrevLead = () => { if (prevLeadId) setOpenLeadId(prevLeadId); };
   const goNextLead = () => { if (nextLeadId) setOpenLeadId(nextLeadId); };
 
-  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length;
-
+  const appliedHiddenStages = view === 'list' ? effectiveHiddenStages(hiddenStages, filters.stage) : [];
+  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length + appliedHiddenStages.length;
   const toggleColumn = (key) => setVisibleColumns(v => ({ ...v, [key]: !v[key] }));
-  const toggleHiddenStage = (stageName) => {
+  const saveHiddenStages = async (value) => {
+    if (!preferencesReady || savingHiddenStages) return;
+    const previous = hiddenStages;
+    const next = normalizeHiddenStages(value);
+    requestManager.current.cancel();
+    setPage(1); setHiddenStages(next); setSavingHiddenStages(true);
+    try { await authAPI.updatePreferences({ hidden_lead_stages: next }); }
+    catch { setHiddenStages(previous); toast.error('Could not save hidden stages.'); }
+    finally { setSavingHiddenStages(false); }
+  };
+  const toggleHiddenStage = stageName => {
     const key = stageName.toLowerCase();
-    const next = hiddenStages.includes(key) ? hiddenStages.filter(s => s !== key) : [...hiddenStages, key];
-    setHiddenStages(next);
-    authAPI.updatePreferences({ hidden_lead_stages: next }).catch(() => setHiddenStages(hiddenStages));
+    return saveHiddenStages(hiddenStages.includes(key) ? hiddenStages.filter(s => s !== key) : [...hiddenStages, key]);
   };
 
   useEffect(() => {
     localStorage.setItem(LEADS_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
-
-  // Hidden stages are synced server-side (per user) so web and mobile stay in sync;
-  // localStorage here is just a fast local cache for the next page load.
   useEffect(() => {
-    localStorage.setItem(LEADS_HIDDEN_STAGES_STORAGE_KEY, JSON.stringify(hiddenStages));
-  }, [hiddenStages]);
-
+    if (preferencesReady && preferenceOwner.current === preferenceKey) localStorage.setItem(preferenceKey, JSON.stringify(hiddenStages));
+  }, [hiddenStages, preferencesReady, preferenceKey]);
   useEffect(() => {
-    authAPI.getPreferences()
-      .then(({ data }) => { if (Array.isArray(data?.preferences?.hidden_lead_stages)) setHiddenStages(data.preferences.hidden_lead_stages); })
-      .catch(() => {}); // fall back to whatever loadHiddenStages() seeded from localStorage
-  }, []);
+    let active = true;
+    setPreferencesReady(false);
+    preferenceOwner.current = preferenceKey;
+    authAPI.getPreferences().then(({ data }) => {
+      if (active) setHiddenStages(normalizeHiddenStages(data?.preferences?.hidden_lead_stages));
+    }).catch(() => { if (active) setHiddenStages(loadHiddenStages(preferenceKey)); })
+      .finally(() => { if (active) setPreferencesReady(true); });
+    return () => { active = false; };
+  }, [preferenceKey]);
 
   useClickOutside(columnSettingsRef, () => setShowColumnSettings(false));
 
+  const routeKey = JSON.stringify([location.search, location.state]);
+  const previousRoute = useRef(routeKey);
   useEffect(() => {
+    if (previousRoute.current === routeKey) return;
+    previousRoute.current = routeKey;
+    requestManager.current.cancel();
     const next = getQueryConfig(location.search, location.state);
     setView(next.view);
     setFilters(next.filters);
@@ -441,7 +457,7 @@ const LeadsPage = () => {
       setExternalSequence(next.leadSequence || null);
       setCameFromDeepLink(!!location.state?.openLeadId);
     }
-  }, [location.search, location.state]);
+  }, [routeKey]);
 
   // Load stages, statuses & staff once on mount
   useEffect(() => {
@@ -465,61 +481,36 @@ const LeadsPage = () => {
     });
   }, []);
 
-  // Auto-pull Facebook leads whenever this page is opened, so leads show up without
-  // a manual trip to Integrations > Sync Leads. Throttled so switching tabs back and
-  // forth doesn't hammer the Graph API — at most once every 2 minutes.
+  const requestKey = JSON.stringify([preferenceKey, view, { ...filters, search: debouncedSearch }, { ...fuFilters, search: debouncedSearch }, page, pageSize, sortState, appliedHiddenStages]);
   useEffect(() => {
-    const META_SYNC_THROTTLE_MS = 2 * 60 * 1000;
-    const lastSync = Number(localStorage.getItem('meta_leads_last_sync') || 0);
-    if (Date.now() - lastSync < META_SYNC_THROTTLE_MS) return;
-    const now = new Date();
-    localStorage.setItem('meta_leads_last_sync', String(now.getTime()));
-    setLastSyncedAt(now);
-
-    integrationsAPI.facebookSyncLeads()
-      .then(({ data }) => { if (data?.created) fetchLeads(); })
-      .catch(() => {}); // silently ignore — e.g. no Facebook page connected for this tenant
-  }, []);
-
-  // Reload leads whenever filters, view, page, fuFilters, sortState, or hiddenStages change
-  useEffect(() => { fetchLeads(); }, [filters, view, page, pageSize, fuFilters, sortState, hiddenStages]);
+    if (preferencesReady && !searchPending) fetchLeads();
+    return () => requestManager.current.cancel();
+  }, [requestKey, preferencesReady, searchPending]);
 
   const fetchLeads = async () => {
-    setSelectedIds(new Set());
-    setLoading(true);
+    if (!preferencesReady || searchPending) return;
+    const request = requestManager.current.begin();
+    setSelectedIds(new Set()); setLoading(true); setLoadError('');
     try {
       if (view === 'followups') {
-        const res = await leadAPI.getFollowupsToday(compactParams(getFollowupApiFilters(fuFilters)));
-        setFollowups(filterFollowupsForScope(res.data.followups || [], fuFilters));
+        const currentFilters = { ...fuFilters, search: debouncedSearch };
+        const res = await leadAPI.getFollowupsToday(compactParams(getFollowupApiFilters(currentFilters)), { signal: request.signal });
+        if (!request.isCurrent()) return;
+        setFollowups(filterFollowupsForScope(res.data.followups || [], currentFilters));
+        setSearchMode('none');
       } else {
         const limit = view === 'pipeline' ? 500 : pageSize;
-        const hideStagesParam = view === 'list' && hiddenStages.length ? hiddenStages.join(',') : undefined;
-        const params = compactParams({ ...filters, ...sortState, page, limit, hide_stages: hideStagesParam });
-        try {
-          const leadsRes = await leadAPI.getAll(params);
-          setLeads(leadsRes.data.leads || []);
-          setPagination({ total: leadsRes.data.pagination?.total || 0, pages: leadsRes.data.pagination?.pages || 1 });
-        } catch (dateError) {
-          if ((!filters.date_from && !filters.date_to) || dateError.response?.status !== 500) throw dateError;
-
-          const fallbackLimit = view === 'pipeline' ? 500 : 1000;
-          const fallbackParams = compactParams({ ...withoutLeadDateFilters(filters), page: 1, limit: fallbackLimit, hide_stages: hideStagesParam });
-          const fallbackRes = await leadAPI.getAll(fallbackParams);
-          const filteredLeads = filterLeadsByDate(fallbackRes.data.leads || [], filters);
-          const start = view === 'pipeline' ? 0 : (page - 1) * pageSize;
-          const visibleLeads = view === 'pipeline' ? filteredLeads : filteredLeads.slice(start, start + pageSize);
-
-          setLeads(visibleLeads);
-          setPagination({
-            total: filteredLeads.length,
-            page,
-            limit,
-            pages: Math.max(1, Math.ceil(filteredLeads.length / limit)),
-          });
-        }
+        const params = compactParams({ ...filters, search: debouncedSearch, ...sortState, page, limit, hide_stages: appliedHiddenStages.join(',') });
+        const res = await leadAPI.getAll(params, { signal: request.signal });
+        if (!request.isCurrent()) return;
+        setLeads(res.data.leads || []);
+        setSearchMode(res.data.search_mode || 'none');
+        setPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
       }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      setDisplayedSearch(debouncedSearch);
+    } catch (error) {
+      if (request.isCurrent() && !isRequestCancelled(error)) setLoadError(error.response?.data?.error || 'Could not load leads. Please retry.');
+    } finally { if (request.isCurrent()) setLoading(false); }
   };
 
   const loadData = fetchLeads;
@@ -529,14 +520,14 @@ const LeadsPage = () => {
     catch (e) { toast.error('Failed to mark follow-up as done'); }
   };
 
-  const handleFilterChange = (updater) => { setPage(1); setFilters(updater); };
+  const handleFilterChange = (updater) => { requestManager.current.cancel(); setPage(1); setFilters(updater); };
   const handleSort = (key) => {
     setPage(1);
     setSortState(prev => prev.sort === key
       ? { sort: key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
       : { sort: key, dir: 'asc' });
   };
-  const clearFilters = () => handleFilterChange(f => ({ ...EMPTY_FILTERS, search: f.search }));
+  const clearFilters = () => { handleFilterChange({ ...EMPTY_FILTERS }); saveHiddenStages([]); };
 
   const pageNumbers = () => {
     const t = pagination.pages;
@@ -845,7 +836,7 @@ const LeadsPage = () => {
           <p className="text-xs font-bold uppercase text-cyan-600">Global lead workspace</p>
           <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
           <p className="mt-1 text-xs text-gray-400">
-            {lastSyncedAt ? `Facebook leads last synced ${timeAgo(lastSyncedAt)}` : 'Facebook leads not synced yet'}
+            {syncStatus === 'loading' ? 'Checking Facebook sync status…' : syncStatus === 'unavailable' ? 'Facebook sync status unavailable' : syncStatus === 'disconnected' ? 'Facebook is not connected' : lastSyncedAt ? `Facebook leads last synced ${timeAgo(lastSyncedAt)}` : 'Facebook leads have not synced yet'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -911,7 +902,7 @@ const LeadsPage = () => {
             <div className="relative min-w-[220px] flex-1">
               <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input type="text" placeholder="Search by name or phone..."
-                value={fuFilters.search} onChange={e => setFuFilters(f => ({ ...f, search: e.target.value }))}
+                value={fuFilters.search} onChange={e => { requestManager.current.cancel(); setFuFilters(f => ({ ...f, search: e.target.value })); }}
                 className={`${inputClass} pl-9`} />
             </div>
             <select value={fuFilters.type} onChange={e => setFuFilters(f => ({ ...f, type: e.target.value }))}
@@ -998,7 +989,7 @@ const LeadsPage = () => {
                     <div className="p-2 max-h-60 overflow-y-auto">
                       {stages.map(s => (
                         <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
-                          <input type="checkbox" checked={hiddenStages.includes(s.name.toLowerCase())} onChange={() => toggleHiddenStage(s.name)}
+                          <input type="checkbox" disabled={!preferencesReady || savingHiddenStages} checked={hiddenStages.includes(s.name.toLowerCase())} onChange={() => toggleHiddenStage(s.name)}
                             className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
                           {s.name}
                         </label>
@@ -1140,57 +1131,31 @@ const LeadsPage = () => {
 
                 </div>
 
-                {/* Active filter chips */}
-                {activeFilterCount > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {filters.stage && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Stage: {filters.stage}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, stage: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.score && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Score: {filters.score}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, score: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.followup_health && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Follow-up: {FOLLOWUP_HEALTH_STYLES[filters.followup_health]?.label || filters.followup_health}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, followup_health: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.sla_status && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Response SLA: {SLA_STATUS_LABELS[filters.sla_status] || filters.sla_status}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, sla_status: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.source && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Source: {sourceLabel(filters.source)}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, source: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.assigned_to && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Assigned: {filters.assigned_to === 'unassigned' ? 'Unassigned' : (staff.find(s => s.id === filters.assigned_to)?.name || filters.assigned_to)}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, assigned_to: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {(filters.date_from || filters.date_to) && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        {filters.date_field === 'created_at' ? 'Created' : 'Lead'} date: {filters.date_from || '…'} – {filters.date_to || '…'}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, date_field: '', date_from: '', date_to: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                  </div>
-                )}
+
               </div>
             )}
           </div>
         )}
+
+        {view !== 'followups' && (activeFilterCount > 0 || filters.search) && (
+          <div className="flex flex-wrap gap-2 px-4 py-3" aria-label="Active lead filters">
+            {Object.entries(filters).filter(([key, value]) => key !== 'date_field' && value).map(([key, value]) => (
+              <span key={key} className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs px-2.5 py-1 rounded-full">
+                {key.replace(/_/g, ' ')}: {key === 'source' ? sourceLabel(value) : key === 'assigned_to' ? staff.find(s => s.id === value)?.name || value : value}
+                <button aria-label={`Remove ${key.replace(/_/g, ' ')} filter`} onClick={() => handleFilterChange(f => ({ ...f, [key]: '' }))}><X size={11} /></button>
+              </span>
+            ))}
+            {appliedHiddenStages.map(stage => (
+              <span key={stage} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 border text-xs px-2.5 py-1 rounded-full">
+                Hidden stage: {stage}
+                <button disabled={savingHiddenStages || !preferencesReady} aria-label={`Show ${stage} leads`} onClick={() => toggleHiddenStage(stage)}><X size={11} /></button>
+              </span>
+            ))}
+          </div>
+        )}
+        {loadError && <div role="alert" className="mx-4 my-3 text-sm text-red-700">{loadError} <button onClick={fetchLeads} className="underline">Retry loading leads</button></div>}
+        {searchMode === 'fuzzy' && !searchPending && <p role="status" className="px-4 py-2 text-sm text-gray-500">No direct matches. Showing similar names.</p>}
+        {searchPending && <p role="status" className="px-4 py-2 text-sm text-gray-500">Waiting for search…</p>}
 
         {view === 'list' ? (
           <div className="overflow-hidden px-5 pb-5 relative">
@@ -1303,16 +1268,16 @@ const LeadsPage = () => {
                         </td>
                         {visibleColumns.lead_id && (
                         <td className="px-3 py-3 text-xs font-mono text-gray-500 whitespace-nowrap cursor-pointer" onClick={() => setOpenLeadId(l.id)}>
-                          {l.lead_number || '—'}
+                          <SearchHighlight value={l.lead_number || '—'} search={displayedSearch} />
                         </td>
                         )}
-                        <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}>{l.name}</td>
+                        <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}><SearchHighlight value={l.name} search={displayedSearch} /></td>
                         {visibleColumns.date && (
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                           {l.created_at ? formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
                         </td>
                         )}
-                        {visibleColumns.phone && <td className="px-3 py-3 text-gray-700">{l.phone}</td>}
+                        {visibleColumns.phone && <td className="px-3 py-3 text-gray-700"><SearchHighlight value={l.phone} search={displayedSearch} phone /></td>}
                         {visibleColumns.source && <td className="px-3 py-3 text-gray-600 capitalize">{sourceLabel(l.source)}</td>}
                         {visibleColumns.score && (
                         <td className="px-3 py-3">
@@ -1521,7 +1486,7 @@ const LeadsPage = () => {
                       const healthStyle = FOLLOWUP_HEALTH_STYLES[health];
                       return (
                         <tr key={f.id} className="border-b border-gray-200 hover:bg-gray-50">
-                          <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(f.lead_id)}>{f.lead_name}</td>
+                          <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(f.lead_id)}><SearchHighlight value={f.lead_name} search={displayedSearch} /></td>
                           <td className="px-3 py-3 text-gray-700">{f.lead_phone}</td>
                           <td className="px-3 py-3 text-gray-600 capitalize">{f.lead_stage}</td>
                           <td className="px-3 py-3">
@@ -1571,7 +1536,7 @@ const LeadsPage = () => {
                       {stageLeads.map(lead => (
                         <button key={lead.id} onClick={() => setOpenLeadId(lead.id)}
                           className="w-full p-2.5 bg-white rounded-lg hover:shadow-md transition border text-left">
-                          <p className="text-sm font-medium truncate">{lead.name}</p>
+                          <p className="text-sm font-medium truncate"><SearchHighlight value={lead.name} search={displayedSearch} /></p>
                           <p className="text-xs text-gray-400">{lead.phone}</p>
                           <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>{lead.lead_score?.toUpperCase()}</span>
                         </button>
