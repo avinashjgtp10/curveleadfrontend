@@ -1,3 +1,4 @@
+import { sourceLabel } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { reportsAPI, leadAPI, stageAPI, brochuresAPI } from '../services/api';
@@ -312,7 +313,7 @@ const ReportsPage = () => {
       ]);
       if (requestId !== overviewRequestRef.current) return;
       setConversion(convRes.data);
-      setBySource(srcRes.data.sources || []);
+      setBySource((srcRes.data.sources || []).map(s => ({ ...s, source: sourceLabel(s.source) })));
       setByStaff(staffRes.data.staff || []);
       setByCampaign(campRes.data.campaigns || []);
     } catch (e) { console.error(e); }
@@ -842,7 +843,7 @@ const ReportsPage = () => {
                       <th className="text-left py-2">Source</th>
                       <th className="text-right py-2">Spent</th>
                       <th className="text-right py-2">Leads</th>
-                      <th className="text-right py-2">CPL</th>
+                      <th className="text-right py-2">Lifetime CPL</th>
                       <th className="text-right py-2">Won</th>
                     </tr>
                   </thead>
@@ -850,7 +851,7 @@ const ReportsPage = () => {
                     {byCampaign.map((c, i) => (
                       <tr key={i} className="border-t">
                         <td className="py-2.5 font-medium">{c.name}</td>
-                        <td className="capitalize text-gray-600">{c.source?.replace(/_/g, ' ')}</td>
+                        <td className="capitalize text-gray-600">{sourceLabel(c.source)}</td>
                         <td className="text-right">₹{parseFloat(c.actual_spend || 0).toLocaleString('en-IN')}</td>
                         <td className="text-right">{c.total_leads}</td>
                         <td className="text-right font-semibold text-brand-600">₹{c.cpl}</td>

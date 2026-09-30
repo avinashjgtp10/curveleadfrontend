@@ -1,3 +1,5 @@
+import { sourceLabel } from '../utils/leadData.js';
+import { initials } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
@@ -360,7 +362,7 @@ const DashboardPage = () => {
                       <td className="py-2.5 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
                           <div className="w-7 h-7 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-[11px] font-bold text-gray-600 shrink-0">
-                            {l.name?.charAt(0)?.toUpperCase()}
+                            {initials(l.name, 1)}
                           </div>
                           <span className="font-medium text-gray-800 truncate">{l.name}</span>
                         </div>
@@ -521,11 +523,11 @@ const DashboardPage = () => {
                   {data.sources.map(s => {
                     const meta = SOURCE_ICON[s.source?.toLowerCase()] || { icon: Megaphone, cls: 'text-gray-400' };
                     return (
-                      <tr key={s.source} className="border-b last:border-0 hover:bg-gray-50/70 transition-colors">
+                      <tr key={sourceLabel(s.source)} className="border-b last:border-0 hover:bg-gray-50/70 transition-colors">
                         <td className="py-2.5 whitespace-nowrap">
                           <div className="flex items-center gap-2">
                             <meta.icon size={15} className={meta.cls} />
-                            <span className="font-medium text-gray-700 capitalize">{s.source}</span>
+                            <span className="font-medium text-gray-700 capitalize">{sourceLabel(s.source)}</span>
                           </div>
                         </td>
                         <td className="py-2.5 text-right text-gray-500 whitespace-nowrap">{s.total}</td>
@@ -582,7 +584,7 @@ const DashboardPage = () => {
                       <td className="py-2.5 truncate">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <div className="w-6 h-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-600 shrink-0">
-                            {t.name?.charAt(0)?.toUpperCase()}
+                            {initials(t.name, 1)}
                           </div>
                           <span className="font-medium text-gray-700 truncate">{t.name}</span>
                         </div>

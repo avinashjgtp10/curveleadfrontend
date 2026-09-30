@@ -26,6 +26,7 @@ const SettingsPage = () => {
     bank_details: { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
     daily_report_enabled: false,
     daily_report_time: '08:00',
+    dedupe_mode: 'phone',
     email_reply_to: '',
     automation_business_hours_enabled: false,
     automation_business_hours_start: '09:00',
@@ -83,6 +84,7 @@ const SettingsPage = () => {
         bank_details: s.bank_details || { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
         daily_report_enabled: !!s.daily_report_enabled,
         daily_report_time: s.daily_report_time || '08:00',
+        dedupe_mode: s.dedupe_mode || 'phone',
         email_reply_to: s.email_reply_to || '',
         automation_business_hours_enabled: !!s.automation_business_hours_enabled,
         automation_business_hours_start: s.automation_business_hours_start || '09:00',
@@ -536,6 +538,12 @@ const SettingsPage = () => {
                         <span className="font-medium">Email me a daily report</span>
                       </label>
                       <p className="text-xs text-gray-400 mt-1 ml-6">Sent once a day to the business email above — new leads, hot leads, follow-ups due/overdue, SLA breaches, deals won, and active campaign spend. Each staff member gets their own version scoped to their assigned leads.</p>
+                      <label className="block text-sm mt-4">Duplicate lead handling
+                        <select disabled={!editingBusiness} value={business.dedupe_mode} onChange={e => setBusiness({ ...business, dedupe_mode: e.target.value })} className="block border rounded-lg p-2 mt-1">
+                          <option value="phone">Match phone (default)</option><option value="phone_or_email">Match phone or email</option><option value="off">Off</option>
+                        </select>
+                        <span className="text-xs text-gray-500">Matching submissions are added to the existing lead’s activity.</span>
+                      </label>
                       {business.daily_report_enabled && (
                         <div className="mt-3 ml-6">
                           <label className="block text-xs font-medium text-gray-500 mb-1">Send time (IST)</label>

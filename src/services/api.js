@@ -1,3 +1,4 @@
+import { normalizePhone } from '../utils/leadData.js';
 import axios from 'axios';
 
 const api = axios.create({
@@ -53,8 +54,8 @@ export const authAPI = {
 export const leadAPI = {
   getAll: (params) => api.get('/leads', { params }),
   getOne: (id) => api.get(`/leads/${id}`),
-  create: (data) => api.post('/leads', data),
-  update: (id, data) => api.put(`/leads/${id}`, data),
+  create: async (data) => api.post('/leads', { ...data, phone: normalizePhone(data.phone) }),
+  update: async (id, data) => api.put(`/leads/${id}`, data.phone === undefined ? data : { ...data, phone: normalizePhone(data.phone) }),
   delete: (id) => api.delete(`/leads/${id}`),
   score: (id) => api.post(`/leads/${id}/score`),
   getStages: () => api.get('/leads/stages/all'),
@@ -435,7 +436,7 @@ export const aiCallingAPI = {
 export const playbookAPI = {
   get: () => api.get('/playbook'),
   regenerate: () => api.post('/playbook/generate'),
-  getCoaching: () => api.get('/playbook/coaching'),
+  getCoaching: (params) => api.get('/playbook/coaching', { params }),
 };
 
 // ============================================
