@@ -1,3 +1,4 @@
+import { initials } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { playbookAPI } from '../services/api';
@@ -17,13 +18,14 @@ const InsightCard = ({ icon: Icon, color, bg, title, children }) => (
   </div>
 );
 
-const initials = (name = '') => name.trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
 
 const avatarPalette = ['bg-brand-100 text-brand-700', 'bg-violet-100 text-violet-700', 'bg-amber-100 text-amber-700', 'bg-rose-100 text-rose-700', 'bg-teal-100 text-teal-700'];
 
 const CoachingPage = () => {
   const [playbook, setPlaybook] = useState(null);
   const [coaching, setCoaching] = useState({ staff: [], team_avg_score: null });
+  const [period, setPeriod] = useState('this_month');
+  const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState('');
@@ -33,14 +35,15 @@ const CoachingPage = () => {
     try {
       const [pbRes, coachRes] = await Promise.all([
         playbookAPI.get().catch(() => ({ data: { playbook: null } })),
-        playbookAPI.getCoaching().catch(() => ({ data: { staff: [], team_avg_score: null } })),
+        playbookAPI.getCoaching({ period }).catch(() => ({ data: { staff: [], team_avg_score: null } })),
       ]);
       setPlaybook(pbRes.data.playbook);
       setCoaching(coachRes.data);
+      setMetrics(coachRes.data.metrics || null);
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [period]);
 
   const handleRegenerate = async () => {
     setRegenerating(true);
@@ -57,6 +60,12 @@ const CoachingPage = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-5">
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <label>Metrics period <select aria-label="Metrics period" value={period} onChange={e => setPeriod(e.target.value)} className="border rounded-lg p-2 ml-2">
+          <option value="today">Today</option><option value="this_week">This week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="this_year">This year</option>
+        </select></label>
+        {metrics && <span>Workspace: {metrics.total_leads} leads · {metrics.won} won · {metrics.conversion_rate}% conversion · {metrics.active_campaigns} active campaigns</span>}
+      </div>
       <div className="flex items-center justify-between flex-wrap gap-3 bg-gradient-to-r from-brand-50 to-white border border-brand-100 rounded-2xl px-5 py-4">
         <div>
           <h2 className="text-base font-semibold text-gray-900">Sales Coaching</h2>
@@ -83,7 +92,7 @@ const CoachingPage = () => {
         <>
           <p className="text-xs text-gray-400">
             Generated {fmtDate(playbook.generated_at)} from {playbook.source_call_count} calls
-            ({playbook.source_won_count} won / {playbook.source_lost_count} lost) · v{playbook.version}
+            (Training sample: {playbook.source_won_count} won / {playbook.source_lost_count} lost) · v{playbook.version}
           </p>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

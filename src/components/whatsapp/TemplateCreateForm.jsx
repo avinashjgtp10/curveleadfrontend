@@ -1,3 +1,4 @@
+import { initials } from '../../utils/leadData.js';
 import { useEffect, useState } from 'react';
 import { whatsappAPI, settingsAPI } from '../../services/api';
 import { CheckCircle, Upload, Sparkles, Trash2, ArrowLeft, Copy, ExternalLink, Image as ImageIcon, Video, FileText as FileIcon, Reply } from 'lucide-react';
@@ -355,7 +356,7 @@ const TemplateCreateForm = ({ onCreated, onCancel }) => {
         {/* WhatsApp chat header */}
         <div className="bg-[#075e54] px-3 py-2 flex items-center gap-2">
           <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold shrink-0">
-            {createForm.name?.[0]?.toUpperCase() || 'B'}
+            {initials(createForm.name, 1) || 'B'}
           </div>
           <p className="text-white text-xs font-semibold truncate">{createForm.name || 'Your Business'}</p>
         </div>

@@ -1,3 +1,4 @@
+import { sourceLabel } from '../utils/leadData.js';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { campaignAPI, integrationsAPI } from '../services/api';
@@ -27,6 +28,8 @@ const CampaignsPage = () => {
   const confirm = useConfirmDialog();
   const toast = useToast();
   const [campaigns, setCampaigns] = useState([]);
+  const [period, setPeriod] = useState('this_month');
+  const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -36,8 +39,10 @@ const CampaignsPage = () => {
   const [errors, setErrors] = useState({});
   const [syncingInsights, setSyncingInsights] = useState(false);
   const [tab, setTab] = useState('active');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); }, [period, page]);
 
   const handleSyncInsights = async () => {
     setSyncingInsights(true);
@@ -52,8 +57,10 @@ const CampaignsPage = () => {
   const loadData = async () => {
     setLoading(true);
     try {
-      const { data } = await campaignAPI.getAll();
+      const { data } = await campaignAPI.getAll({ period, page, limit: 20 });
       setCampaigns(data.campaigns || []);
+      setMetrics(data.metrics || null);
+      setTotal(data.total || 0);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -100,6 +107,13 @@ const CampaignsPage = () => {
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
+      <div className="flex flex-wrap items-center gap-4 text-sm">
+        <button disabled={page === 1} onClick={() => setPage(p => p - 1)}>Previous</button><span>Page {page} of {Math.max(1, Math.ceil(total / 20))}</span><button disabled={page * 20 >= total} onClick={() => setPage(p => p + 1)}>Next</button>
+        <label>Metrics period <select aria-label="Metrics period" value={period} onChange={e => setPeriod(e.target.value)} className="border rounded-lg p-2 ml-2">
+          <option value="today">Today</option><option value="this_week">This week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="this_year">This year</option>
+        </select></label>
+        {metrics && <span>Workspace: {metrics.total_leads} leads · {metrics.won} won · {metrics.conversion_rate}% conversion · {metrics.active_campaigns} active campaigns</span>}
+      </div>
       <div className="flex items-center justify-between">
         <p className="text-sm text-gray-500">Track ad spend and ROI for your marketing campaigns</p>
         <div className="flex items-center gap-2">
@@ -150,11 +164,11 @@ const CampaignsPage = () => {
           <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
             <button onClick={() => setTab('active')}
               className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${tab === 'active' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-              Active ({activeCount})
+              Active on page ({activeCount})
             </button>
             <button onClick={() => setTab('inactive')}
               className={`px-4 py-1.5 rounded-md text-sm font-semibold transition ${tab === 'inactive' ? 'bg-white shadow text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}>
-              Inactive ({inactiveCount})
+              Inactive on page ({inactiveCount})
             </button>
           </div>
         );
@@ -186,7 +200,7 @@ const CampaignsPage = () => {
                       {c.meta_campaign_id && (
                         <span className="shrink-0 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-blue-50 text-blue-600">Meta Synced</span>
                       )}
-                      <p className="text-xs text-gray-500 capitalize">{c.source?.replace(/_/g, ' ')}</p>
+                      <p className="text-xs text-gray-500 capitalize">{sourceLabel(c.source)}</p>
                     </div>
                   </div>
                   <span className={`shrink-0 whitespace-nowrap px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[c.status]}`}>{c.status?.toUpperCase()}</span>
@@ -197,19 +211,19 @@ const CampaignsPage = () => {
                   </div>
                 )}
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Budget</span><span className="font-medium">₹{parseFloat(c.budget || 0).toLocaleString('en-IN')}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Spent</span><span className="font-medium">₹{parseFloat(c.actual_spend || 0).toLocaleString('en-IN')}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">{Number(c.lifetime_budget) > 0 ? 'Lifetime budget' : Number(c.daily_budget) > 0 ? 'Daily budget' : 'Budget'}</span><span className="font-medium">₹{parseFloat(c.budget || 0).toLocaleString('en-IN')}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Lifetime spent</span><span className="font-medium">₹{parseFloat(c.actual_spend || 0).toLocaleString('en-IN')}</span></div>
                   {c.meta_campaign_id && (c.impressions != null || c.clicks != null) && (
                     <>
                       <div className="flex justify-between"><span className="text-gray-500 flex items-center gap-1"><Eye size={11} /> Impressions</span><span className="font-medium">{Number(c.impressions || 0).toLocaleString('en-IN')}</span></div>
                       <div className="flex justify-between"><span className="text-gray-500 flex items-center gap-1"><MousePointerClick size={11} /> Clicks</span><span className="font-medium">{Number(c.clicks || 0).toLocaleString('en-IN')}</span></div>
                     </>
                   )}
-                  <div className="flex justify-between"><span className="text-gray-500">Leads</span><span className="font-medium">{c.total_leads || 0}</span></div>
+                  <div className="flex justify-between"><span className="text-gray-500">Leads in period</span><span className="font-medium">{c.total_leads || 0}</span></div>
                   {c.total_leads > 0 && (
                     <div className="flex justify-between"><span className="text-gray-500">Won / Disqualified</span><span className="font-medium">{c.won_leads || 0} / {c.lost_leads || 0}</span></div>
                   )}
-                  <div className="flex justify-between border-t pt-2"><span className="text-gray-500">CPL</span><span className="font-bold text-brand-600">₹{Math.round(parseFloat(c.cpl) || 0)}</span></div>
+                  <div className="flex justify-between border-t pt-2"><span className="text-gray-500">Lifetime CPL</span><span className="font-bold text-brand-600">₹{Math.round(parseFloat(c.cpl) || 0)}</span></div>
                 </div>
                 <div className="flex gap-1 mt-3 pt-3 border-t">
                   <button onClick={(e) => { e.stopPropagation(); handleEdit(c); }} className="flex-1 py-1.5 hover:bg-gray-50 rounded text-xs flex items-center justify-center gap-1"><Edit2 size={12} /> Edit</button>

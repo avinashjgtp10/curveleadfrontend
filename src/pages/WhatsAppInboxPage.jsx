@@ -1,3 +1,4 @@
+import { initials } from '../utils/leadData.js';
 import { formatDateTime, toDateTimeInput } from '../utils/dateTime.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { whatsappAPI, leadAPI, staffAPI } from '../services/api';
@@ -16,7 +17,6 @@ import {
 } from 'lucide-react';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
-const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
 const fmtClock = (dt) => {
   const d = new Date(dt);
