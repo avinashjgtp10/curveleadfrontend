@@ -1,3 +1,5 @@
+import { normalizePhone } from '../utils/leadData.js';
+import { sourceLabel } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -610,7 +612,7 @@ const LeadsPage = () => {
     const errors = {};
     if (!newLead.name) errors.name = 'Name is required';
     if (!newLead.phone) errors.phone = 'Phone is required';
-    else if (newLead.phone.length < 3) errors.phone = 'Phone number must be at least 3 digits';
+    else { try { normalizePhone(newLead.phone); } catch (error) { errors.phone = error.message; } }
     setNewLeadErrors(errors);
     if (Object.keys(errors).length > 0) {
       const ref = errors.name ? newLeadNameRef : newLeadPhoneRef;
@@ -624,7 +626,7 @@ const LeadsPage = () => {
       setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
       setNewLeadErrors({});
       loadData();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || e.message || 'Failed'); }
   };
 
   const handleDelete = async (id) => {
@@ -797,12 +799,10 @@ const LeadsPage = () => {
     try {
       const { data } = await leadAPI.findDuplicates();
       setDuplicateGroups(data.groups || []);
-      // Default: keep whichever lead in the group is furthest along the pipeline (not "new"),
-      // falling back to the oldest lead — usually the one that already has history on it.
+      // The oldest lead is always retained, matching the merge API.
       const defaults = {};
       for (const g of data.groups || []) {
-        const advanced = g.leads.find(l => (l.stage || '').toLowerCase() !== 'new');
-        defaults[g.norm_phone] = (advanced || g.leads[0]).id;
+        defaults[g.norm_phone] = g.leads[0].id;
       }
       setDuplicateKeepChoice(defaults);
     } catch (e) {
@@ -1169,7 +1169,7 @@ const LeadsPage = () => {
                     )}
                     {filters.source && (
                       <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Source: {filters.source.replace(/_/g, ' ')}
+                        Source: {sourceLabel(filters.source)}
                         <button onClick={() => handleFilterChange(f => ({ ...f, source: '' }))}><X size={11} /></button>
                       </span>
                     )}
@@ -1313,7 +1313,7 @@ const LeadsPage = () => {
                         </td>
                         )}
                         {visibleColumns.phone && <td className="px-3 py-3 text-gray-700">{l.phone}</td>}
-                        {visibleColumns.source && <td className="px-3 py-3 text-gray-600 capitalize">{l.source?.replace(/_/g, ' ')}</td>}
+                        {visibleColumns.source && <td className="px-3 py-3 text-gray-600 capitalize">{sourceLabel(l.source)}</td>}
                         {visibleColumns.score && (
                         <td className="px-3 py-3">
                           {l.lead_score ? (
@@ -1920,18 +1920,18 @@ const LeadsPage = () => {
               ) : (
                 duplicateGroups.map(group => (
                   <div key={group.norm_phone} className="border border-gray-200 rounded-xl p-4 space-y-3">
-                    <p className="text-xs font-semibold text-gray-500">Phone match: {group.norm_phone}</p>
+                    <p className="text-xs font-semibold text-gray-500">Duplicate group · oldest lead will be kept</p>
                     <div className="space-y-2">
                       {group.leads.map(lead => (
                         <label key={lead.id}
                           className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${duplicateKeepChoice[group.norm_phone] === lead.id ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200'}`}>
                           <input type="radio" name={`keep-${group.norm_phone}`}
                             checked={duplicateKeepChoice[group.norm_phone] === lead.id}
-                            onChange={() => setDuplicateKeepChoice(prev => ({ ...prev, [group.norm_phone]: lead.id }))}
+                            disabled aria-label="Oldest lead is kept"
                             className="accent-cyan-600" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 truncate">{lead.name} <span className="font-normal text-gray-400">#{lead.lead_number}</span></p>
-                            <p className="text-xs text-gray-500">{lead.phone} · {lead.source} · {lead.stage} · {new Date(lead.created_at).toLocaleDateString()}</p>
+                            <p className="text-xs text-gray-500">{lead.phone} · {sourceLabel(lead.source)} · {lead.stage} · {new Date(lead.created_at).toLocaleDateString()}</p>
                           </div>
                         </label>
                       ))}

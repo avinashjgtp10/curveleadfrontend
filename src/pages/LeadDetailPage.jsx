@@ -1,3 +1,6 @@
+import { normalizePhone } from '../utils/leadData.js';
+import { sourceLabel } from '../utils/leadData.js';
+import { initials } from '../utils/leadData.js';
 import { formatDateTime, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -291,7 +294,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     const errors = {};
     const phoneDigits = (form.phone || '').replace(/\D/g, '');
     if (!form.phone?.trim()) errors.phone = 'Phone number is required';
-    else if (phoneDigits.length < 3) errors.phone = 'Enter a valid phone number (at least 3 digits)';
+    else { try { normalizePhone(form.phone); } catch (error) { errors.phone = error.message; } }
     if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Enter a valid email address';
     setLeadFormErrors(errors);
     if (Object.keys(errors).length) return;
@@ -305,7 +308,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setActivities(data.activities || []);
       setEditing(false);
       setLeadFormErrors({});
-    } catch (e) { toast.error('Failed to save'); }
+    } catch (e) { toast.error(e.response?.data?.error || e.message || 'Failed to save'); }
   };
 
   const handleStageChange = async (newStage) => {
@@ -822,7 +825,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Source</p>
-                    <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
+                    <p className="capitalize font-medium">{sourceLabel(lead.source)}</p>
                   </div>
                   {(lead.campaign_name || lead.source_detail) && (
                     <div className="pt-2 border-t">
@@ -1516,7 +1519,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                 {lead?.assigned_to ? (
                   <div className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 flex items-center gap-2">
                     <span className="w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
-                      {(lead.assigned_to_name || '?').charAt(0).toUpperCase()}
+                      {initials(lead.assigned_to_name, 1)}
                     </span>
                     <span className="font-medium text-gray-800">{lead.assigned_to_name || 'Assigned staff'}</span>
                     <span className="text-xs text-gray-400 ml-auto">Assigned to this lead</span>

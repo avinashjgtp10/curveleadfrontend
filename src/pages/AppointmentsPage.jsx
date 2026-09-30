@@ -1,3 +1,4 @@
+import { initials } from '../utils/leadData.js';
 import { formatDateTime, appointmentStatus, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -11,7 +12,6 @@ import DateTimePicker from '../components/ui/DateTimePicker';
 import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM, TYPE_META, STATUS_META, APPOINTMENT_TABS, APPOINTMENTS_PAGE_LIMIT } from '../utils/constants';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
-const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
 const localDay = dt => toDateTimeInput(dt).slice(0, 10);
 const todayISO = () => localDay(new Date());

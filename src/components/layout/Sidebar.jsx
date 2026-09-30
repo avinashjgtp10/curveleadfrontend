@@ -1,3 +1,4 @@
+import { initials } from '../../utils/leadData.js';
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -41,7 +42,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         <div className="border-t p-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center">
-              <span className="text-brand-700 font-semibold text-xs">{user?.name?.charAt(0)?.toUpperCase() || 'U'}</span>
+              <span className="text-brand-700 font-semibold text-xs">{initials(user?.name, 1) || 'U'}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.name}</p>

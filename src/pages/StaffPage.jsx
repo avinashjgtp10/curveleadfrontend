@@ -1,3 +1,4 @@
+import { initials } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { staffAPI, teamAPI } from '../services/api';
@@ -365,7 +366,7 @@ const StaffPage = () => {
               <div key={s.id} className="flex flex-wrap items-center gap-3 p-3.5 border rounded-xl hover:border-brand-200 hover:bg-gray-50/50 transition">
                 <button onClick={() => setProfileStaff(s)} className="flex items-center gap-3 flex-1 min-w-[140px] text-left">
                   <div className="w-10 h-10 bg-brand-100 rounded-full flex items-center justify-center shrink-0">
-                    <span className="text-brand-700 font-semibold text-sm">{s.name?.charAt(0)?.toUpperCase()}</span>
+                    <span className="text-brand-700 font-semibold text-sm">{initials(s.name, 1)}</span>
                   </div>
                   <div className="min-w-0">
                     <p className="font-medium text-sm truncate">{s.name}</p>
@@ -430,7 +431,7 @@ const StaffPage = () => {
                 className="absolute top-4 right-4 p-1.5 hover:bg-white/20 rounded-lg text-white"><X size={18} /></button>
               <div className="w-14 h-14 rounded-full bg-white flex items-center justify-center shrink-0"
                 style={{ color: '#4338ca' }}>
-                <span className="font-bold text-xl">{profileStaff.name?.charAt(0)?.toUpperCase()}</span>
+                <span className="font-bold text-xl">{initials(profileStaff.name, 1)}</span>
               </div>
               <div className="min-w-0 pr-6">
                 <p className="font-bold text-lg text-white truncate">{profileStaff.name}</p>

@@ -1,3 +1,4 @@
+import { initials } from '../../utils/leadData.js';
 import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -257,7 +258,7 @@ const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls, onReEnable }) => {
           <div className="bg-gray-50 rounded-2xl p-4 border">
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br ${avatarColor(lead.id)} text-white shadow-sm`}>
-                <span className="font-semibold text-sm">{lead.name.charAt(0).toUpperCase()}</span>
+                <span className="font-semibold text-sm">{initials(lead.name, 1)}</span>
               </div>
               <div className="min-w-0">
                 <p className="font-semibold text-gray-800 truncate">{lead.name}</p>
@@ -460,7 +461,7 @@ const LeadAutomationPage = () => {
                   <td className="py-3 pr-4">
                     <div className="flex items-center gap-2.5">
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br ${avatarColor(lead.id)} text-white shadow-sm`}>
-                        <span className="text-xs font-semibold">{lead.name.charAt(0).toUpperCase()}</span>
+                        <span className="text-xs font-semibold">{initials(lead.name, 1)}</span>
                       </div>
                       <span className="font-medium text-gray-800">{lead.name}</span>
                     </div>
