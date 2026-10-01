@@ -1,3 +1,4 @@
+import { isBookingType, notifyBookingWhatsApp } from '../utils/bookingMessages.js';
 import { normalizePhone } from '../utils/leadData.js';
 import { sourceLabel } from '../utils/leadData.js';
 import { initials } from '../utils/leadData.js';
@@ -179,6 +180,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     followup_type: 'call',
     notes: '',
     meeting_url: '',
+    notify_lead: true,
   });
   const [savingFollowup, setSavingFollowup] = useState(false);
   const [dateShortcutOpen, setDateShortcutOpen] = useState(false);
@@ -215,7 +217,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     setNewMessage('');
     setStageSaving(false);
     setLostReasonModal({ open: false, newStage: null, reason: '', customReason: '' });
-    setFollowupForm({ next_followup_at: getLocalNow(), followup_type: 'call', notes: '', meeting_url: '' });
+    setFollowupForm({ next_followup_at: getLocalNow(), followup_type: 'call', notes: '', meeting_url: '', notify_lead: true });
     setShowTeamComm(false);
     setTeamCommForm({ recipient_id: '', method: 'internal', message: '' });
     setTeamCommError('');
@@ -353,12 +355,13 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       // Convert local datetime string to UTC ISO so the server (UTC) stores it correctly
       const utcAt = dateTimeInputToUTC(followupForm.next_followup_at);
-      await leadAPI.addFollowup(id, {
+      const { data } = await leadAPI.addFollowup(id, {
         ...followupForm,
         next_followup_at: utcAt,
         notes: (followupForm.notes || '').trim() || null,
       });
-      setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '', meeting_url: '' });
+      notifyBookingWhatsApp(toast, data);
+      setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '', meeting_url: '', notify_lead: true });
       setFollowupPage(1);
       loadData();
       loadFollowupHistory();
@@ -1020,6 +1023,15 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     <p className="text-[11px] text-gray-400 mt-1">No email on file — invite won't be sent</p>
                   )}
                 </div>
+              )}
+
+              {isBookingType(followupForm.followup_type) && (
+                <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={followupForm.notify_lead !== false}
+                    onChange={e => setFollowupForm({ ...followupForm, notify_lead: e.target.checked })}
+                    className="w-4 h-4 mt-0.5 rounded" />
+                  <span>Send WhatsApp confirmation &amp; reminders to {lead?.name || 'the lead'}{!lead?.phone && <span className="text-amber-600"> (no phone number on file)</span>}</span>
+                </label>
               )}
 
               <div>
