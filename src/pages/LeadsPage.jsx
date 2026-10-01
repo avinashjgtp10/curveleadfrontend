@@ -1715,16 +1715,16 @@ const LeadsPage = () => {
 
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeImport}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b">
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <FileSpreadsheet size={18} className="text-emerald-600" /> Import Leads
               </h2>
               <button onClick={closeImport} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
               {/* Result state */}
               {importResult ? (
                 <div className="space-y-4">
@@ -1842,7 +1842,7 @@ const LeadsPage = () => {
 
                   <div className="flex gap-2">
                     <button onClick={closeImport} className="flex-1 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-                    <button onClick={handleImport} disabled={!importFile || importing || previewing || !importCheck || importCheck.invalid>0}
+                    <button onClick={handleImport} disabled={!importFile || importing || previewing || !importCheck || importCheck.total - importCheck.invalid <= 0}
                       className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                       {previewing ? 'Validating…' : importing
                         ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Importing...</>

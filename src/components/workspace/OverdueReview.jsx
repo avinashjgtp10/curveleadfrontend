@@ -4,7 +4,7 @@ import { followupAPI } from "../../services/api";
 import { dateTimeInputToUTC, formatDateTime } from "../../utils/dateTime";
 import { useConfirmDialog } from "../ui/ConfirmDialog";
 const COLLAPSED_KEY = "curvelead.overdueReview.collapsed";
-export default function OverdueReview({ onChanged }) {
+export default function OverdueReview({ onChanged, onSelect }) {
   const [rows, setRows] = useState([]),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
@@ -21,7 +21,11 @@ export default function OverdueReview({ onChanged }) {
   async function load() {
     try {
       const { data } = await followupAPI.getAll({ status: "stale", limit: 10 });
-      setRows(data.followups || []);
+      setRows(
+        [...(data.followups || [])].sort(
+          (a, b) => new Date(b.next_followup_at) - new Date(a.next_followup_at),
+        ),
+      );
       setTotal(data.pagination?.total ?? (data.followups || []).length);
     } catch {
       setError("Could not load overdue reviews.");
@@ -107,7 +111,13 @@ export default function OverdueReview({ onChanged }) {
                 className="flex flex-wrap items-center gap-2 border-t border-amber-200 pt-3 text-sm"
               >
                 <div className="grow">
-                  <strong>{row.lead_name}</strong>
+                  <button
+                    type="button"
+                    onClick={() => onSelect?.(row)}
+                    className="font-semibold hover:underline hover:text-brand-600 text-left"
+                  >
+                    {row.lead_name}
+                  </button>
                   <p className="text-xs text-gray-500">
                     {formatDateTime(row.next_followup_at)}
                   </p>
