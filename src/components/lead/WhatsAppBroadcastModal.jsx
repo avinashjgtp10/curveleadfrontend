@@ -73,6 +73,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const [result, setResult] = useState(null);
   const [sendMode, setSendMode] = useState('now'); // now | later
   const [scheduleAt, setScheduleAt] = useState('');
+  const [allowResend, setAllowResend] = useState(false);
 
 
 
@@ -125,6 +126,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
         language_code: selectedTemplate.language,
         body_text: bodyText,
         variable_mapping: mapping,
+        ...(sendMode === 'now' && allowResend ? { allow_resend: true } : {}),
       });
       setResult(data);
       setStep('result');
@@ -291,6 +293,14 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                   <p className="text-[11px] text-gray-400 mt-1">Your local time. You can cancel it any time before it starts, from WhatsApp → Messages → Broadcasts.</p>
                 </div>
               )}
+              {sendMode === 'now' ? (
+                <label className="flex items-start gap-2 text-xs text-gray-600 pt-1 cursor-pointer">
+                  <input type="checkbox" checked={allowResend} onChange={e => setAllowResend(e.target.checked)} className="mt-0.5" />
+                  <span>Also send to leads who already received this template <span className="text-gray-400">(by default they're skipped)</span></span>
+                </label>
+              ) : (
+                <p className="text-[11px] text-gray-400 pt-1">Leads who already received this template are skipped.</p>
+              )}
             </div>
           )}
 
@@ -300,11 +310,11 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 <CheckCircle size={16} />
                 {result.scheduled
                   ? `Scheduled for ${formatDateTime(result.scheduled_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })} · ${result.count} lead${result.count > 1 ? 's' : ''}`
-                  : `${result.sent} sent${result.failed > 0 ? `, ${result.failed} failed` : ''}`}
+                  : `${result.sent} sent${result.skipped > 0 ? `, ${result.skipped} skipped (already received)` : ''}${result.failed > 0 ? `, ${result.failed} failed` : ''}`}
               </div>
               {!result.scheduled && result.failed > 0 && (
                 <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {result.results.filter(r => !r.success).map(r => {
+                  {result.results.filter(r => !r.success && !r.skipped).map(r => {
                     const lead = leads.find(l => l.id === r.lead_id);
                     return (
                       <div key={r.lead_id} className="text-xs bg-red-50 text-red-700 px-2.5 py-2 rounded-lg">
