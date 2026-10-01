@@ -1173,6 +1173,35 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     finally { setAutoSaving(false); }
   };
 
+  const [reconnecting, setReconnecting] = useState(false);
+  const hasSavedCreds = !!settings.whatsapp_phone_number_id;
+
+  // Re-checks the saved token with Meta and re-subscribes webhooks. If the token is
+  // dead, opens the credentials form so a new one can be pasted (or Facebook reconnect used).
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    setError('');
+    try {
+      const { data } = await integrationsAPI.whatsappReconnect();
+      await onRefresh();
+      if (data.warning) toast.error(data.warning);
+      else toast.success(`WhatsApp reconnected${data.display_phone_number ? ` (${data.display_phone_number})` : ''}.`);
+    } catch (e) {
+      const msg = e.response?.data?.error || 'Could not reconnect WhatsApp.';
+      toast.error(msg);
+      if (e.response?.data?.needs_new_token) {
+        await onRefresh();
+        if (oneClick && viaSignup) {
+          setError(`${msg} Click "Reconnect with Facebook" to connect again.`);
+        } else {
+          setShowManual(true);
+          setForm(f => ({ ...f, whatsapp_access_token: '' }));
+          setError(`${msg} Paste a new Permanent Access Token below and save.`);
+        }
+      }
+    } finally { setReconnecting(false); }
+  };
+
   const handleDisconnect = async () => {
     if (!confirm('Disconnect WhatsApp Business API?')) return;
     await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
@@ -1183,12 +1212,19 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
   return (
     <div className="space-y-5">
       <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${isConfigured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-        {isConfigured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-        {isConfigured
+        {isConfigured ? <CheckCircle size={16} className="shrink-0" /> : <AlertCircle size={16} className="shrink-0" />}
+        <span className="flex-1 min-w-0">{isConfigured
           ? `Connected${settings.whatsapp_verified_name ? ` as "${settings.whatsapp_verified_name}"` : ''}${settings.whatsapp_display_number ? ` (${settings.whatsapp_display_number})` : ''} — appointment messages will auto-send.`
           : settings.whatsapp_error
             ? `Saved credentials are invalid: ${settings.whatsapp_error}. Re-enter them below.`
-            : oneClick ? 'Not connected — connect your WhatsApp Business number below.' : 'Not connected — paste your Meta WhatsApp API credentials below.'}
+            : oneClick ? 'Not connected — connect your WhatsApp Business number below.' : 'Not connected — paste your Meta WhatsApp API credentials below.'}</span>
+        {hasSavedCreds && (
+          <button onClick={handleReconnect} disabled={reconnecting}
+            title="Re-check the saved credentials with Meta and re-subscribe webhooks"
+            className="shrink-0 px-3 py-1.5 bg-white border border-black/10 rounded-lg text-xs font-semibold hover:bg-white/70 disabled:opacity-50 flex items-center gap-1.5">
+            <RotateCcw size={13} className={reconnecting ? 'animate-spin' : ''} /> {reconnecting ? 'Reconnecting…' : 'Reconnect'}
+          </button>
+        )}
       </div>
 
       {oneClick && (
@@ -1201,6 +1237,7 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
             className="w-full py-2.5 bg-[#25D366] text-white rounded-xl text-sm font-semibold hover:brightness-95 disabled:opacity-50 flex items-center justify-center gap-2">
             <WhatsAppIcon size={18} /> {signingUp ? 'Connecting…' : isConfigured ? 'Reconnect with Facebook' : 'Connect with Facebook'}
           </button>
+          {error && !showManual && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
           {isConfigured && viaSignup && (
             <button onClick={handleDisconnect} className="w-full py-2 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">Disconnect</button>
           )}
@@ -1496,7 +1533,7 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
 const IntegrationsPage = () => {
   const toast = useToast();
-  const [selected, setSelected] = useState(null);
+  const [selected, setSelected] = useState(() => new URLSearchParams(window.location.search).get('open'));
   const [category, setCategory] = useState('All');
   const [settings, setSettings] = useState({
     meta_configured: false, google_configured: false, whatsapp_configured: false,

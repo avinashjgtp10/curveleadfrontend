@@ -7,6 +7,7 @@ import BroadcastsTab from '../components/whatsapp/BroadcastsTab';
 import OptInsTab from '../components/whatsapp/OptInsTab';
 import AiAutoReplyTab from '../components/whatsapp/AiAutoReplyTab';
 import AutoMessagesTab from '../components/whatsapp/AutoMessagesTab';
+import BookingMessagesTab from '../components/whatsapp/BookingMessagesTab';
 import AnalyticsTab from '../components/whatsapp/AnalyticsTab';
 import ClickToWhatsAppTab from '../components/whatsapp/ClickToWhatsAppTab';
 import NumbersTab from '../components/whatsapp/NumbersTab';
@@ -28,6 +29,7 @@ const GROUPS = [
   { id: 'automation', label: 'Automation', icon: Bot, admin: true, tabs: [
     { id: 'ai', label: 'AI Auto-reply', Component: AiAutoReplyTab },
     { id: 'auto', label: 'Auto messages', Component: AutoMessagesTab },
+    { id: 'bookings', label: 'Booking messages', Component: BookingMessagesTab },
   ] },
   { id: 'insights', label: 'Insights', icon: BarChart3, admin: true, tabs: [
     { id: 'analytics', label: 'Analytics', Component: AnalyticsTab },

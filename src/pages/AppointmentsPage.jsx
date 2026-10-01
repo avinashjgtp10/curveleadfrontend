@@ -1,3 +1,4 @@
+import { isBookingType, notifyBookingWhatsApp } from '../utils/bookingMessages.js';
 import { allAppointmentPages } from '../utils/appointmentPages';
 import PageLoader from '../components/ui/PageLoader';
 import OverdueReview from '../components/workspace/OverdueReview';
@@ -126,12 +127,14 @@ const AppointmentsPage = () => {
     if (Object.keys(errors).length) return;
     setSaving(true);
     try {
-      await leadAPI.addFollowup(newForm.lead_id, {
+      const { data } = await leadAPI.addFollowup(newForm.lead_id, {
         next_followup_at: dateTimeInputToUTC(newForm.next_followup_at),
         followup_type: newForm.followup_type,
         reminder_minutes: newForm.reminder_minutes === 'none' ? null : Number(newForm.reminder_minutes),
         notes: newForm.notes.trim() || null,
+        notify_lead: newForm.notify_lead !== false,
       });
+      notifyBookingWhatsApp(toast, data);
       setNewModal(false);
       load();
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to create appointment'); }
@@ -613,8 +616,17 @@ const AppointmentsPage = () => {
                 </div>
               </div>
 
+              {isBookingType(newForm.followup_type) && (
+                <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={newForm.notify_lead !== false}
+                    onChange={e => setNewForm(f => ({ ...f, notify_lead: e.target.checked }))}
+                    className="w-4 h-4 mt-0.5 rounded" />
+                  <span>Send WhatsApp confirmation &amp; reminders to the lead</span>
+                </label>
+              )}
+
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Reminder</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Staff reminder</label>
                 <select value={newForm.reminder_minutes} onChange={e => setNewForm(f => ({ ...f, reminder_minutes: e.target.value }))}
                   className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
                   <option value="none">No reminder</option>
