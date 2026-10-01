@@ -235,7 +235,7 @@ const AppointmentsPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <OverdueReview onChanged={load}/>
+      <OverdueReview onChanged={load} onSelect={(row) => navigate('/leads', { state: { openLeadId: row.lead_id } })}/>
       {loadError&&<button role="alert" onClick={load} className="text-red-600 text-sm">{loadError}</button>}
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div>
@@ -304,7 +304,7 @@ const AppointmentsPage = () => {
         </div>
       </div>
 
-      <div className="bg-white border rounded-2xl overflow-hidden">
+      <div id="appointments-table" className="bg-white border rounded-2xl overflow-hidden scroll-mt-4">
         <div className="flex items-center justify-between flex-wrap gap-3 px-4 pt-4">
           <div className="flex gap-1 flex-wrap">
             {APPOINTMENT_TABS.map(t => (
