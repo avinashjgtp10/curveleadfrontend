@@ -152,6 +152,7 @@ export const whatsappAPI = {
     });
   },
   sendBroadcast: (data) => api.post('/whatsapp/broadcast/send', data),
+  getBroadcastProgress: (id) => api.get(`/whatsapp/broadcast/progress/${id}`),
 };
 
 // ============================================

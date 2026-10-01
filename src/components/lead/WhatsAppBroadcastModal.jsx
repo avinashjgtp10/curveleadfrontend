@@ -1,5 +1,5 @@
 import { formatDateTime } from '../../utils/dateTime.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
 import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Image as ImageIcon, Film, FileText, Upload, Search, Megaphone, Wrench, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useToast } from '../ui/Toast';
@@ -74,6 +74,9 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
   const [sendMode, setSendMode] = useState('now'); // now | later
   const [scheduleAt, setScheduleAt] = useState('');
   const [allowResend, setAllowResend] = useState(false);
+  const [progress, setProgress] = useState(null); // { broadcast_id, total, sent, failed, skipped, done }
+  const pollRef = useRef(null);
+  useEffect(() => () => clearTimeout(pollRef.current), []);
 
 
 
@@ -128,10 +131,40 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
         variable_mapping: mapping,
         ...(sendMode === 'now' && allowResend ? { allow_resend: true } : {}),
       });
-      setResult(data);
-      setStep('result');
+      if (data.started) {
+        // Sending continues on the server; poll its progress instead of holding the request open.
+        setProgress({ broadcast_id: data.broadcast_id, total: data.total, sent: 0, failed: 0, skipped: 0, done: false });
+        setStep('sending');
+        pollProgress(data.broadcast_id);
+      } else {
+        setResult(data);
+        setStep('result');
+      }
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to send broadcast'); }
     finally { setSending(false); }
+  };
+
+  const pollProgress = (id, misses = 0) => {
+    pollRef.current = setTimeout(async () => {
+      try {
+        const { data } = await whatsappAPI.getBroadcastProgress(id);
+        setProgress(data);
+        if (data.done) {
+          if (data.error) toast.error(data.error);
+          setResult({ sent: data.sent, failed: data.failed, skipped: data.skipped, results: data.results || [] });
+          setStep('result');
+          return;
+        }
+        pollProgress(id);
+      } catch (e) {
+        // A few network blips are fine; if the server lost track of it, point to the report.
+        if (e.response?.status === 404 || misses >= 5) {
+          setProgress(p => ({ ...p, lost: true }));
+          return;
+        }
+        pollProgress(id, misses + 1);
+      }
+    }, 2000);
   };
 
   const mappingComplete = mapping.every(m => m.source === 'field' || (m.value || '').trim());
@@ -304,6 +337,30 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
             </div>
           )}
 
+          {step === 'sending' && progress && (() => {
+            const processed = progress.sent + progress.failed + progress.skipped;
+            const pct = progress.total ? Math.round((processed / progress.total) * 100) : 0;
+            return (
+              <div className="space-y-3 py-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-gray-800">{progress.lost ? 'Still sending in the background' : 'Sending…'}</span>
+                  <span className="text-gray-500">{processed} of {progress.total}</span>
+                </div>
+                <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-full bg-green-500 transition-all" style={{ width: `${pct}%` }} />
+                </div>
+                <p className="text-xs text-gray-500">
+                  {progress.sent} sent{progress.skipped > 0 ? ` · ${progress.skipped} skipped (already received)` : ''}{progress.failed > 0 ? ` · ${progress.failed} failed` : ''}
+                </p>
+                <p className="text-[11px] text-gray-400">
+                  {progress.lost
+                    ? 'Live progress is no longer available. Check WhatsApp → Messages → Broadcasts for the final report.'
+                    : 'You can close this window. Sending continues on the server, and the report appears under WhatsApp → Messages → Broadcasts.'}
+                </p>
+              </div>
+            );
+          })()}
+
           {step === 'result' && result && (
             <div className="space-y-3">
               <div className="flex items-center gap-2 bg-green-50 text-green-700 px-3 py-3 rounded-lg text-sm">
@@ -314,7 +371,7 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
               </div>
               {!result.scheduled && result.failed > 0 && (
                 <div className="space-y-1 max-h-48 overflow-y-auto">
-                  {result.results.filter(r => !r.success && !r.skipped).map(r => {
+                  {(result.results || []).filter(r => !r.success && !r.skipped).map(r => {
                     const lead = leads.find(l => l.id === r.lead_id);
                     return (
                       <div key={r.lead_id} className="text-xs bg-red-50 text-red-700 px-2.5 py-2 rounded-lg">
@@ -337,6 +394,9 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 {sending ? (sendMode === 'later' ? 'Scheduling…' : 'Sending…') : <><Send size={14} /> {sendMode === 'later' ? 'Schedule for' : 'Send to'} {leads.length} lead{leads.length > 1 ? 's' : ''}</>}
               </button>
             </>
+          )}
+          {step === 'sending' && (
+            <button onClick={() => onSent?.()} className="flex-1 py-2.5 border rounded-xl text-sm font-semibold hover:bg-gray-50">Close, keep sending</button>
           )}
           {step === 'result' && (
             <button onClick={() => onSent?.()} className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700">Done</button>
