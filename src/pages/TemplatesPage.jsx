@@ -12,7 +12,12 @@ const STATUS_TABS = [
   { id: 'APPROVED', label: 'Approved' },
   { id: 'PENDING', label: 'Pending' },
   { id: 'REJECTED', label: 'Rejected' },
+  { id: 'OTHER', label: 'Paused / other', hideWhenEmpty: true },
 ];
+
+// Meta has more statuses than the three main tabs (PAUSED, DISABLED, IN_APPEAL, …);
+// group them so every template shows up under some tab, not only under All.
+const statusGroup = s => s === 'IN_APPEAL' ? 'PENDING' : ['APPROVED', 'PENDING', 'REJECTED'].includes(s) ? s : 'OTHER';
 
 const STATUS_STYLE = {
   APPROVED: 'bg-green-100 text-green-700',
@@ -99,6 +104,7 @@ const TemplatesPage = () => {
   const [templates, setTemplates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [tokenExpired, setTokenExpired] = useState(false);
   const [status, setStatus] = useState('ALL');
   const [search, setSearch] = useState('');
   const [creating, setCreating] = useState(false);
@@ -106,10 +112,13 @@ const TemplatesPage = () => {
   const load = useCallback(async () => {
     setLoading(true);
     setError('');
+    setTokenExpired(false);
     try {
       const { data } = await whatsappAPI.getBroadcastTemplates();
       setTemplates(data.templates || []);
     } catch (e) {
+      setTemplates([]);
+      setTokenExpired(!!e.response?.data?.token_expired);
       setError(e.response?.data?.error || 'Failed to load templates.');
     } finally { setLoading(false); }
   }, []);
@@ -117,15 +126,15 @@ const TemplatesPage = () => {
   useEffect(() => { load(); }, [load]);
 
   const counts = useMemo(() => {
-    const c = { ALL: templates.length, APPROVED: 0, PENDING: 0, REJECTED: 0 };
-    templates.forEach(t => { if (c[t.status] !== undefined) c[t.status]++; });
+    const c = { ALL: templates.length, APPROVED: 0, PENDING: 0, REJECTED: 0, OTHER: 0 };
+    templates.forEach(t => { c[statusGroup(t.status)]++; });
     return c;
   }, [templates]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return templates.filter(t =>
-      (status === 'ALL' || t.status === status) &&
+      (status === 'ALL' || statusGroup(t.status) === status) &&
       (!q || t.name.toLowerCase().includes(q) || (getComponent(t, 'BODY')?.text || '').toLowerCase().includes(q))
     );
   }, [templates, status, search]);
@@ -167,9 +176,9 @@ const TemplatesPage = () => {
         </div>
       </div>
 
-      <div className="flex items-center justify-between gap-3 flex-wrap">
+      {!error && <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="flex items-center bg-white rounded-xl border border-gray-200 divide-x divide-gray-200 overflow-hidden">
-          {STATUS_TABS.map(tab => (
+          {STATUS_TABS.filter(tab => !tab.hideWhenEmpty || counts[tab.id] > 0).map(tab => (
             <button key={tab.id} onClick={() => setStatus(tab.id)}
               className={`px-3.5 py-2 text-sm font-medium ${status === tab.id ? 'text-gray-900 font-semibold bg-gray-50' : 'text-gray-500 hover:bg-gray-50'}`}>
               {tab.label} <span className="text-xs text-gray-400">{counts[tab.id]}</span>
@@ -181,7 +190,7 @@ const TemplatesPage = () => {
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search templates..."
             className="w-full pl-8 pr-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
         </div>
-      </div>
+      </div>}
 
       {loading && templates.length === 0 ? (
         <div className="text-center py-12 text-gray-400">Loading templates...</div>
@@ -189,8 +198,9 @@ const TemplatesPage = () => {
         <div className="text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-lg flex items-start gap-2">
           <AlertCircle size={16} className="shrink-0 mt-0.5" />
           <span>
+            {tokenExpired && <strong className="block mb-0.5">WhatsApp is disconnected.</strong>}
             {error}{' '}
-            <Link to="/integrations" className="underline font-medium">Go to Integrations</Link>
+            <Link to="/integrations?open=whatsapp" className="underline font-medium">{tokenExpired ? 'Reconnect WhatsApp' : 'Go to Integrations'}</Link>
           </span>
         </div>
       ) : templates.length === 0 ? (

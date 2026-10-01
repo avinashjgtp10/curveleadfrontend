@@ -399,6 +399,7 @@ export const integrationsAPI = {
   getEmbedScript: () => api.get('/integrations/embed-script'),
   facebookAuth: (user_token) => api.post('/integrations/facebook/auth', { user_token }),
   whatsappEmbeddedSignup: (data) => api.post('/integrations/whatsapp/embedded-signup', data),
+  whatsappReconnect: () => api.post('/integrations/whatsapp/reconnect'),
   facebookConnectPage: (data) => api.post('/integrations/facebook/connect-page', data),
   facebookSyncStatus: (options) => cachedGet('/integrations/facebook/sync-status', {}, options),
   facebookSyncLeads: () => api.post('/integrations/facebook/sync-leads'),
