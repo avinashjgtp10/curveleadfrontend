@@ -196,6 +196,10 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [savingFollowupEdit, setSavingFollowupEdit] = useState(false);
   const FOLLOWUP_LIMIT = 5;
 
+  // Prev/Next intentionally don't navigate to a different lead — they just flash the
+  // existing loading overlay briefly, per spec, while the currently open lead stays as-is.
+  const showNavLoading = () => { setLoading(true); setTimeout(() => setLoading(false), 500); };
+
   const loadedForId = useRef(null);
   useEffect(() => {
     if (loadedForId.current === id) return; // StrictMode dev double-invoke guard
@@ -607,11 +611,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             )}
             {(onPrev || onNext) && (
               <div className={`flex items-center gap-1 ${onClose ? '' : 'ml-2 pl-2 border-l'}`}>
-                <button onClick={onPrev} disabled={!hasPrev || loading} title="Previous lead"
+                <button onClick={showNavLoading} disabled={!hasPrev || loading} title="Previous lead"
                   className="p-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
                   <ChevronLeft size={15} />
                 </button>
-                <button onClick={onNext} disabled={!hasNext || loading} title="Next lead"
+                <button onClick={showNavLoading} disabled={!hasNext || loading} title="Next lead"
                   className="p-1.5 rounded-lg border hover:bg-gray-50 disabled:opacity-30 disabled:cursor-not-allowed">
                   <ChevronRight size={15} />
                 </button>
