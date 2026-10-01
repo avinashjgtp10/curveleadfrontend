@@ -308,7 +308,7 @@ export const automationAPI = {
   updateRule: (id, data) => api.put(`/automations/rules/${id}`, data),
   deleteRule: (id) => api.delete(`/automations/rules/${id}`),
   enrollBulk: (leadIds, sequenceId) => api.post('/automations/enroll-bulk', { lead_ids: leadIds, sequence_id: sequenceId }),
-  getEnrollments: (leadIds) => api.post('/automations/enrollments/query', { lead_ids: leadIds }),
+  getEnrollments: (leadIds) => api.get('/automations/enrollments', { params: { lead_ids: leadIds.join(',') } }),
   getLeads: (params, signal) => api.get('/automations/leads', { params, signal }),
 };
 
