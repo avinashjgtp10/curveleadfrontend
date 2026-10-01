@@ -23,6 +23,17 @@ const WhatsAppIcon = ({ size = 20 }) => (
 
 const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
 const FB_LOGIN_CONFIG_ID = import.meta.env.VITE_FACEBOOK_LOGIN_CONFIG_ID || '4416725028596340';
+// Facebook Login for Business configuration of type "WhatsApp Embedded Signup".
+// Without it, only manual credential entry is offered.
+const WA_SIGNUP_CONFIG_ID = import.meta.env.VITE_WHATSAPP_SIGNUP_CONFIG_ID || '';
+
+// Embedded Signup reports the chosen WABA and number via postMessage, which can
+// arrive just before or after FB.login's callback — wait briefly for it.
+const waitFor = (ref, ms = 4000) => new Promise((resolve) => {
+  const started = Date.now();
+  const tick = () => (ref.current || Date.now() - started > ms ? resolve(ref.current) : setTimeout(tick, 100));
+  tick();
+});
 
 const loadFbSdk = () =>
   new Promise((resolve) => {
@@ -1063,6 +1074,60 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
   const [testingWebhook, setTestingWebhook] = useState(false);
   const [webhookTestResult, setWebhookTestResult] = useState(null); // null | 'success' | 'fail'
 
+  const oneClick = !!WA_SIGNUP_CONFIG_ID;
+  const viaSignup = settings.whatsapp_connected_via === 'embedded_signup';
+  const [showManual, setShowManual] = useState(!oneClick || (isConfigured && !viaSignup));
+  const [signingUp, setSigningUp] = useState(false);
+  const signupSession = useRef(null);
+
+  useEffect(() => {
+    if (!oneClick) return undefined;
+    loadFbSdk().catch(console.error);
+    const onMessage = (event) => {
+      let host = '';
+      try { host = new URL(event.origin).hostname; } catch { return; }
+      if (host !== 'facebook.com' && !host.endsWith('.facebook.com')) return;
+      let msg;
+      try { msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; } catch { return; }
+      if (msg?.type !== 'WA_EMBEDDED_SIGNUP') return;
+      if (msg.event === 'FINISH') signupSession.current = { waba_id: msg.data?.waba_id, phone_number_id: msg.data?.phone_number_id };
+      else if (msg.event === 'CANCEL') signupSession.current = { cancelled: true };
+      else if (msg.event === 'ERROR') signupSession.current = { error: msg.data?.error_message || 'Meta reported an error during signup.' };
+      else if (msg.event === 'FINISH_ONLY_WABA') signupSession.current = { error: 'No phone number was added. Run Connect again and add a number.' };
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [oneClick]);
+
+  const handleOneClickConnect = () => {
+    if (!window.FB) return toast.error('Facebook is still loading. Please try again in a moment.');
+    signupSession.current = null;
+    setSigningUp(true);
+    // FB.login must be called directly from the click, and its callback must not be async.
+    window.FB.login((resp) => {
+      const code = resp?.authResponse?.code;
+      if (!code) { setSigningUp(false); return; }
+      waitFor(signupSession)
+        .then((session) => {
+          if (session?.error) throw new Error(session.error);
+          if (!session?.waba_id || !session?.phone_number_id) throw new Error('Signup was not completed. Please try again.');
+          return integrationsAPI.whatsappEmbeddedSignup({ code, ...session });
+        })
+        .then(async ({ data }) => {
+          await onRefresh();
+          setShowManual(false);
+          toast.success(`WhatsApp connected${data.display_phone_number ? ` (${data.display_phone_number})` : ''}.`);
+        })
+        .catch((e) => toast.error(e.response?.data?.error || e.message || 'Could not connect WhatsApp.'))
+        .finally(() => setSigningUp(false));
+    }, {
+      config_id: WA_SIGNUP_CONFIG_ID,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
+    });
+  };
+
   const handleTestWebhook = async () => {
     setTestingWebhook(true);
     setWebhookTestResult(null);
@@ -1123,9 +1188,29 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
           ? `Connected${settings.whatsapp_verified_name ? ` as "${settings.whatsapp_verified_name}"` : ''}${settings.whatsapp_display_number ? ` (${settings.whatsapp_display_number})` : ''} — appointment messages will auto-send.`
           : settings.whatsapp_error
             ? `Saved credentials are invalid: ${settings.whatsapp_error}. Re-enter them below.`
-            : 'Not connected — paste your Meta WhatsApp API credentials below.'}
+            : oneClick ? 'Not connected — connect your WhatsApp Business number below.' : 'Not connected — paste your Meta WhatsApp API credentials below.'}
       </div>
 
+      {oneClick && (
+        <div className="bg-white rounded-2xl border p-5 space-y-3">
+          <div>
+            <h2 className="font-semibold mb-1">{isConfigured ? 'Reconnect or switch number' : 'Connect WhatsApp'}</h2>
+            <p className="text-xs text-gray-500">Log in with Facebook, then choose or create your WhatsApp Business Account and phone number. Messages and replies start flowing automatically — no tokens or webhook setup needed.</p>
+          </div>
+          <button onClick={handleOneClickConnect} disabled={signingUp}
+            className="w-full py-2.5 bg-[#25D366] text-white rounded-xl text-sm font-semibold hover:brightness-95 disabled:opacity-50 flex items-center justify-center gap-2">
+            <WhatsAppIcon size={18} /> {signingUp ? 'Connecting…' : isConfigured ? 'Reconnect with Facebook' : 'Connect with Facebook'}
+          </button>
+          {isConfigured && viaSignup && (
+            <button onClick={handleDisconnect} className="w-full py-2 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">Disconnect</button>
+          )}
+          <button onClick={() => setShowManual(v => !v)} className="text-xs text-gray-500 underline">
+            {showManual ? 'Hide manual setup' : 'Enter credentials manually instead'}
+          </button>
+        </div>
+      )}
+
+      {showManual && (<>
       <div className="bg-white rounded-2xl border p-5 space-y-4">
         <div>
           <h2 className="font-semibold mb-1">Step 1 — Get credentials from Meta</h2>
@@ -1190,6 +1275,7 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
           <p className="text-[11px] text-gray-400">This only confirms CurveLead's server responds correctly — it can't confirm Meta itself can reach it (network/DNS issues would still need checking separately).</p>
         </div>
       )}
+      </>)}
 
       {isConfigured && (
         <div className="bg-white rounded-2xl border p-5 space-y-5">
