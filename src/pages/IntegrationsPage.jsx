@@ -4,6 +4,7 @@ import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, team
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff, Infinity as InfinityIcon } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import { FB_LOGIN_CONFIG_ID, loadFbSdk } from '../utils/facebookSdk';
 
 const GoogleGIcon = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 48 48">
@@ -21,8 +22,6 @@ const WhatsAppIcon = ({ size = 20 }) => (
   </svg>
 );
 
-const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
-const FB_LOGIN_CONFIG_ID = import.meta.env.VITE_FACEBOOK_LOGIN_CONFIG_ID || '4416725028596340';
 // Facebook Login for Business configuration of type "WhatsApp Embedded Signup".
 // Without it, only manual credential entry is offered.
 const WA_SIGNUP_CONFIG_ID = import.meta.env.VITE_WHATSAPP_SIGNUP_CONFIG_ID || '';
@@ -35,18 +34,6 @@ const waitFor = (ref, ms = 4000) => new Promise((resolve) => {
   tick();
 });
 
-const loadFbSdk = () =>
-  new Promise((resolve) => {
-    if (window.FB) return resolve(window.FB);
-    window.fbAsyncInit = () => {
-      window.FB.init({ appId: FB_APP_ID, version: 'v25.0', xfbml: false, cookie: true });
-      resolve(window.FB);
-    };
-    const s = document.createElement('script');
-    s.src = 'https://connect.facebook.net/en_US/sdk.js';
-    s.async = true;
-    document.head.appendChild(s);
-  });
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
 

@@ -99,6 +99,21 @@ export const campaignAPI = {
 };
 
 // ============================================
+// Ads (Meta ad accounts, drill-down, CPL dashboard)
+// ============================================
+export const adsAPI = {
+  getAccounts: () => api.get('/ads/accounts'),
+  connect: (user_token) => api.post('/ads/accounts/connect', { user_token }),
+  setPrimary: (id) => api.post(`/ads/accounts/${id}/primary`),
+  sync: (id) => api.post(`/ads/accounts/${id}/sync`),
+  getCampaigns: (params) => api.get('/ads/campaigns', { params }),
+  getAdsets: (campaignId, params) => api.get(`/ads/campaigns/${campaignId}/adsets`, { params }),
+  getAds: (adsetId, params) => api.get(`/ads/adsets/${adsetId}/ads`, { params }),
+  getDaily: (params) => api.get('/ads/insights/daily', { params }),
+  getDashboard: (params) => api.get('/ads/dashboard', { params }),
+};
+
+// ============================================
 // WhatsApp
 // ============================================
 export const whatsappAPI = {

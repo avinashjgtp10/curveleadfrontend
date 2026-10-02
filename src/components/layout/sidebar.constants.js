@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Lightbulb,
   Megaphone,
+  TrendingUp,
   MessageCircle,
   Plug,
   Settings,
@@ -22,6 +23,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { path: '/leads', label: 'Leads', icon: Users, roles: ['admin', 'staff'] },
   { path: '/brochures', label: 'Brochures', icon: BookOpen, roles: ['admin', 'staff'] },
   { path: '/campaigns', label: 'Campaigns', icon: Megaphone, roles: ['admin'] },
+  { path: '/ads', label: 'Ads Manager', icon: TrendingUp, roles: ['admin'] },
   { path: '/ai-agent', label: 'AI Agent', icon: Bot, roles: ['admin'] },
   { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
   { path: '/gmb', label: 'GMB', icon: Star, roles: ['admin'] },
@@ -39,6 +41,6 @@ export const SIDEBAR_NAV_ITEMS = [
 export const SIDEBAR_GROUPS = [
  { label:'Sell', paths:['/dashboard','/leads','/appointments','/staff'] },
  { label:'Engage', paths:['/whatsapp','/campaigns','/brochures','/ai-agent'] },
- { label:'Grow', paths:['/gmb','/coaching','/reports'] },
+ { label:'Grow', paths:['/ads','/gmb','/coaching','/reports'] },
  { label:'Setup', paths:['/automations','/integrations','/billing','/settings','/help'] },
 ];
