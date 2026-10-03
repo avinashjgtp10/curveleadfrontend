@@ -252,7 +252,15 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setQuotations(quoteRes.data.quotations || []);
       setEnrollment(enrollRes.data.enrollments?.[id] || null);
       setForm(leadRes.data.lead);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      // A merged duplicate (old link, notification, bookmark): open the lead it was merged into.
+      if (e.response?.data?.code === 'LEAD_MERGED' && e.response.data.merged_into_id) {
+        toast.success('This lead was merged with a duplicate — showing the combined lead.');
+        navigate(`/leads/${e.response.data.merged_into_id}`, { replace: true });
+        return;
+      }
+      console.error(e);
+    }
     finally { setLoading(false); }
   };
 
