@@ -30,7 +30,7 @@ const Stat = ({ label, value, sub }) => (
 );
 
 // Shared table for campaigns / ad sets / ads — same metric columns at every level.
-const MetricsTable = ({ rows, onOpen, nameCell, budget, actions, currency }) => (
+const MetricsTable = ({ rows, onOpen, nameCell, budget, actions, currency, leadsLabel = 'Leads' }) => (
   <div className="bg-white border rounded-xl overflow-x-auto">
     <table className="w-full text-sm">
       <thead className="bg-gray-50 text-xs text-gray-500">
@@ -42,8 +42,8 @@ const MetricsTable = ({ rows, onOpen, nameCell, budget, actions, currency }) => 
           <th className="text-right px-3 py-2 font-medium">Impr.</th>
           <th className="text-right px-3 py-2 font-medium">CTR</th>
           <th className="text-right px-3 py-2 font-medium">CPC</th>
-          <th className="text-right px-3 py-2 font-medium">Leads</th>
-          <th className="text-right px-3 py-2 font-medium">CPL</th>
+          <th className="text-right px-3 py-2 font-medium">{leadsLabel}</th>
+          <th className="text-right px-3 py-2 font-medium">{leadsLabel === 'Leads' ? 'CPL' : 'Cost / conv.'}</th>
           {actions && <th className="px-3 py-2" />}
         </tr>
       </thead>
@@ -110,8 +110,18 @@ const ChangeHistory = ({ entries }) => (
   </details>
 );
 
-const AdsPage = () => {
+// Per-provider wording. Google Ads is read-only in CurveLead for now (Phase 7a): no
+// pause/budget controls, budget cap, change history or AI wizard.
+const PROVIDER = {
+  meta: { name: 'Meta', leads: 'leads', leadsLabel: 'Leads', reconnectHint: 'Facebook access expired — click Reconnect.' },
+  google: { name: 'Google', leads: 'conversions', leadsLabel: 'Conversions', reconnectHint: 'Google Ads access expired — click Reconnect.' },
+};
+
+const AdsPage = ({ provider = 'meta' }) => {
   const toast = useToast();
+  const P = PROVIDER[provider];
+  const isMeta = provider === 'meta';
+  const [googleStatus, setGoogleStatus] = useState(null);
   const [accounts, setAccounts] = useState(null);
   const [accountId, setAccountId] = useState('');
   const [days, setDays] = useState('30');
@@ -130,20 +140,37 @@ const AdsPage = () => {
   const [accountsError, setAccountsError] = useState('');
   const [dataError, setDataError] = useState('');
 
-  const params = { account_id: accountId || undefined, from: isoDaysAgo(Number(days) - 1), to: isoDaysAgo(0) };
+  const params = { provider, account_id: accountId || undefined, from: isoDaysAgo(Number(days) - 1), to: isoDaysAgo(0) };
   const account = accounts?.find((a) => a.id === accountId);
   const cur = account?.currency || undefined;
 
   const loadAccounts = useCallback(async () => {
     setAccountsError('');
     try {
-      const { data } = await adsAPI.getAccounts();
+      const { data } = await adsAPI.getAccounts({ provider });
       setAccounts(data.accounts);
       setAccountId((cur) => cur || data.accounts.find((a) => a.is_primary)?.id || data.accounts[0]?.id || '');
     } catch (e) { setAccountsError(errorMessage(e, 'Could not load your ad accounts.')); setAccounts([]); }
-  }, []);
+  }, [provider]);
 
-  useEffect(() => { loadAccounts(); loadFbSdk().catch(() => {}); }, [loadAccounts]);
+  useEffect(() => {
+    loadAccounts();
+    if (isMeta) loadFbSdk().catch(() => {});
+    else adsAPI.googleStatus().then(({ data }) => setGoogleStatus(data)).catch(() => setGoogleStatus({ configured: false }));
+  }, [loadAccounts, isMeta]);
+
+  // Back from Google's consent screen: /ads?tab=google&google_connect=success|denied|error&reason=…
+  useEffect(() => {
+    if (isMeta) return;
+    const q = new URLSearchParams(window.location.search);
+    const result = q.get('google_connect');
+    if (!result) return;
+    if (result === 'success') toast.success(`Connected ${q.get('accounts') || 0} Google Ads account${q.get('accounts') === '1' ? '' : 's'}. First sync is running.`);
+    else if (result === 'denied') toast.error('Google Ads wasn\'t connected — permission was not given.');
+    else toast.error(q.get('reason') || 'Could not connect Google Ads.');
+    ['google_connect', 'accounts', 'skipped', 'reason'].forEach(k => q.delete(k));
+    window.history.replaceState(null, '', `${window.location.pathname}?${q}`);
+  }, [isMeta]);
 
   useEffect(() => {
     if (!accountId) return;
@@ -162,7 +189,7 @@ const AdsPage = () => {
   }, [accountId, days, level, reload]);
 
   useEffect(() => {
-    if (!accountId || level.type !== 'campaigns') return;
+    if (!isMeta || !accountId || level.type !== 'campaigns') return;
     adsAPI.getSettings().then(({ data }) => setSettings(data)).catch(() => {});
     adsAPI.getAudit({ limit: 30 }).then(({ data }) => setHistory(data.entries || [])).catch(() => {});
   }, [accountId, level, reload]);
@@ -202,6 +229,12 @@ const AdsPage = () => {
   const rowActions = (r) => <RowActions row={r} busy={busyId === r.id} onStatus={changeStatus} onBudget={(row) => setBudgetEdit({ row, value: String(Number(row.daily_budget_paise) / 100) })} />;
 
   const connect = () => {
+    if (!isMeta) {
+      setConnecting(true);
+      adsAPI.googleConnectUrl().then(({ data }) => { window.location.href = data.url; })
+        .catch((e) => { toast.error(e.response?.data?.error || 'Could not start the Google connection.'); setConnecting(false); });
+      return;
+    }
     if (!window.FB) return toast.error('Facebook is still loading. Please try again in a moment.');
     setConnecting(true);
     window.FB.login((resp) => {
@@ -223,6 +256,24 @@ const AdsPage = () => {
 
   if (accountsError) return <ErrorState message={accountsError} onRetry={() => { setAccounts(null); loadAccounts(); }} />;
 
+  if (!accounts.length && !isMeta) {
+    return (
+      <div className="max-w-lg mx-auto mt-10 bg-white border rounded-2xl p-6 text-center space-y-3">
+        <TrendingUp className="mx-auto text-brand-600" size={28} />
+        <h2 className="text-lg font-bold">Connect Google Ads</h2>
+        <p className="text-sm text-gray-500">See cost, clicks and conversions for every Google Ads campaign, ad group and ad — next to how many of those leads qualified and converted in CurveLead.</p>
+        {googleStatus && !googleStatus.configured ? (
+          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">Google Ads isn't set up on the server yet: it needs a Google Ads developer token (GOOGLE_ADS_DEVELOPER_TOKEN). Ask your administrator.</p>
+        ) : (
+          <button onClick={connect} disabled={connecting} className="px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2 hover:bg-gray-50">
+            <LogIn size={16} /> {connecting ? 'Opening Google…' : 'Connect with Google'}
+          </button>
+        )}
+        {googleStatus?.token_error && <p className="text-xs text-red-600">{googleStatus.token_error}</p>}
+      </div>
+    );
+  }
+
   if (!accounts.length) {
     return (
       <div className="max-w-lg mx-auto mt-10 bg-white border rounded-2xl p-6 text-center space-y-3">
@@ -241,12 +292,12 @@ const AdsPage = () => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 justify-between">
         <div>
-          <h2 className="text-base font-semibold">Meta Ads</h2>
+          <h2 className="text-base font-semibold">{P.name} Ads</h2>
           <p className="text-xs text-gray-500">
             {account?.last_synced_at ? `Last synced ${formatDateTime(account.last_synced_at)}` : 'First sync in progress…'}
           </p>
           {(account?.currency || account?.timezone_name) && (
-            <p className="text-[11px] text-gray-400" title="Meta reports this account's spend in its own currency, and its days in its own timezone.">
+            <p className="text-[11px] text-gray-400" title={`${P.name} reports this account's spend in its own currency, and its days in its own timezone.`}>
               Ad account: {[account.currency, account.timezone_name].filter(Boolean).join(' · ')}
               {account.currency && account.currency !== workspaceCurrency() ? ` — amounts in ${account.currency}, not converted` : ''}
             </p>
@@ -261,8 +312,10 @@ const AdsPage = () => {
           <select value={days} onChange={(e) => setDays(e.target.value)} className="px-3 py-2 border rounded-lg text-sm bg-white">
             {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          <button onClick={() => setWizard(true)} className="px-3 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 inline-flex items-center gap-1.5"><Sparkles size={14} /> Create with AI</button>
+          {isMeta && <button onClick={() => setWizard(true)} className="px-3 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 inline-flex items-center gap-1.5"><Sparkles size={14} /> Create with AI</button>}
           <button onClick={syncNow} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 inline-flex items-center gap-1.5"><RefreshCw size={14} /> Sync now</button>
+          {!isMeta && <button onClick={() => adsAPI.googleRefresh().then(({ data }) => { toast.success(`Found ${data.accounts} Google Ads account${data.accounts === 1 ? '' : 's'}.`); loadAccounts(); }).catch((e) => toast.error(e.response?.data?.error || 'Could not refresh accounts.'))}
+            className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Refresh accounts</button>}
           <button onClick={connect} disabled={connecting} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">{connecting ? 'Connecting…' : 'Reconnect'}</button>
         </div>
       </div>
@@ -270,21 +323,21 @@ const AdsPage = () => {
       {(account?.sync_error || account?.token_status === 'expired') && (
         <div className="flex items-start gap-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl px-3 py-2 text-sm">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />
-          <span>{account.token_status === 'expired' ? 'Facebook access expired — click Reconnect.' : `Last sync failed: ${account.sync_error}`}</span>
+          <span>{account.token_status === 'expired' ? P.reconnectHint : `Last sync failed: ${account.sync_error}`}</span>
         </div>
       )}
 
       {level.type === 'campaigns' && t && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
           <Stat label="Spend" value={inr(t.spend, cur)} sub={t.won_this_period ? `${int(t.won_this_period)} won this period` : 'In this period'} />
-          <Stat label="Reported by Meta" value={`${int(t.meta_leads)} leads`} sub={`${inr(t.meta_cpl, cur)} per Meta lead`} />
+          <Stat label={`Reported by ${P.name}`} value={`${int(t.meta_leads)} ${P.leads}`} sub={`${inr(t.meta_cpl, cur)} per ${P.name} ${P.leads === 'leads' ? 'lead' : 'conversion'}`} />
           <Stat label="In CurveLead" value={`${int(t.crm_leads)} leads`} sub={`${inr(t.cost_per_lead, cur)} per lead · ${int(t.qualified_leads)} qualified`} />
           <Stat label="Cost per customer" value={inr(t.cost_per_converted, cur)} sub={`${int(t.converted_leads)} of these leads converted`} />
         </div>
       )}
 
       {dataError && <ErrorState message={dataError} onRetry={() => setReload((n) => n + 1)} retrying={loading} />}
-      {level.type === 'campaigns' && settings && (
+      {isMeta && level.type === 'campaigns' && settings && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white border rounded-xl px-4 py-3 text-sm">
           <span className="text-gray-500">Set to spend per day: <strong className="text-gray-900">{paise(settings.active_daily_budget_paise, cur)}</strong></span>
           {capEdit === null ? (
@@ -310,13 +363,13 @@ const AdsPage = () => {
       </div>
 
       {level.type === 'campaigns' && (
-        <MetricsTable currency={cur} rows={rows} budget actions={rowActions} onOpen={(c) => setLevel({ type: 'adsets', campaign: c })} />
+        <MetricsTable currency={cur} leadsLabel={P.leadsLabel} rows={rows} budget actions={isMeta ? rowActions : undefined} onOpen={(c) => setLevel({ type: 'adsets', campaign: c })} />
       )}
       {level.type === 'adsets' && (
-        <MetricsTable currency={cur} rows={rows} budget actions={rowActions} onOpen={(s) => setLevel({ type: 'ads', campaign: level.campaign, adset: s })} />
+        <MetricsTable currency={cur} leadsLabel={P.leadsLabel} rows={rows} budget actions={isMeta ? rowActions : undefined} onOpen={(s) => setLevel({ type: 'ads', campaign: level.campaign, adset: s })} />
       )}
       {level.type === 'ads' && (
-        <MetricsTable currency={cur} rows={rows} nameCell={(a) => (
+        <MetricsTable currency={cur} leadsLabel={P.leadsLabel} rows={rows} nameCell={(a) => (
           <div className="flex items-start gap-2">
             {a.creative?.thumbnail_url
               ? <img src={a.creative.thumbnail_url} alt="" className="w-12 h-12 rounded object-cover shrink-0" />
@@ -338,7 +391,7 @@ const AdsPage = () => {
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Campaign</th>
                 <th className="text-right px-3 py-2 font-medium">Spend</th>
-                <th className="text-right px-3 py-2 font-medium" title="Spend ÷ leads Meta reports">Meta CPL</th>
+                <th className="text-right px-3 py-2 font-medium" title={`Spend ÷ ${P.leads} ${P.name} reports`}>{isMeta ? 'Meta CPL' : 'Google cost / conv.'}</th>
                 <th className="text-right px-3 py-2 font-medium" title="Leads in CurveLead created in this period">Leads in CurveLead</th>
                 <th className="text-right px-3 py-2 font-medium">Cost / qualified</th>
                 <th className="text-right px-3 py-2 font-medium">Cost / customer</th>
@@ -361,10 +414,10 @@ const AdsPage = () => {
               ))}
             </tbody>
           </table>
-          <p className="px-3 py-2 text-[11px] text-gray-400">“Reported by Meta” is Meta's own count. “In CurveLead” = leads attributed to the campaign and created in this period; qualified / customers = of those leads, the ones that reached a qualified or won stage. Same definitions as the Campaigns tab and Reports.</p>
+          <p className="px-3 py-2 text-[11px] text-gray-400">“Reported by {P.name}” is {P.name}'s own count{isMeta ? '' : ' of conversions (whatever the account counts as one)'}. “In CurveLead” = leads attributed to the campaign and created in this period; qualified / customers = of those leads, the ones that reached a qualified or won stage. Same definitions as the Campaigns tab and Reports.</p>
         </div>
       )}
-      {level.type === 'campaigns' && <ChangeHistory entries={history} />}
+      {isMeta && level.type === 'campaigns' && <ChangeHistory entries={history} />}
       {wizard && <AiCampaignWizard currency={cur} onClose={() => { setWizard(false); setReload((n) => n + 1); }} onChanged={() => setReload((n) => n + 1)} />}
       {budgetEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

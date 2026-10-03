@@ -102,7 +102,7 @@ export const campaignAPI = {
 // Ads (Meta ad accounts, drill-down, CPL dashboard)
 // ============================================
 export const adsAPI = {
-  getAccounts: () => api.get('/ads/accounts'),
+  getAccounts: (params) => api.get('/ads/accounts', { params }),   // params.provider: 'meta' (default) | 'google'
   connect: (user_token) => api.post('/ads/accounts/connect', { user_token }),
   setPrimary: (id) => api.post(`/ads/accounts/${id}/primary`),
   sync: (id) => api.post(`/ads/accounts/${id}/sync`),
@@ -127,6 +127,9 @@ export const adsAPI = {
   aiUploadImage: (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/ads/ai/drafts/${id}/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
   aiCreateOnMeta: (id) => api.post(`/ads/ai/drafts/${id}/create`, {}, { timeout: 120000 }),
   aiActivate: (id, confirm) => api.post(`/ads/ai/drafts/${id}/activate`, { confirm }),
+  googleStatus: () => api.get('/ads/google/status'),
+  googleConnectUrl: () => api.get('/ads/google/connect'),
+  googleRefresh: () => api.post('/ads/google/refresh', {}, { timeout: 120000 }),
 };
 
 // ============================================
