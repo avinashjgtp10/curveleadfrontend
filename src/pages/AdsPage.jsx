@@ -123,7 +123,7 @@ const AdsPage = () => {
     return (
       <div className="max-w-lg mx-auto mt-10 bg-white border rounded-2xl p-6 text-center space-y-3">
         <TrendingUp className="mx-auto text-brand-600" size={28} />
-        <h1 className="text-lg font-bold">Connect your Meta ad accounts</h1>
+        <h2 className="text-lg font-bold">Connect your Meta ad accounts</h2>
         <p className="text-sm text-gray-500">See spend, leads and CPL for every campaign, ad set and ad — next to how many of those leads actually qualified and converted in CurveLead.</p>
         <button onClick={connect} disabled={connecting} className="px-4 py-2.5 bg-[#1877F2] text-white rounded-xl text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2">
           <LogIn size={16} /> {connecting ? 'Connecting…' : 'Connect with Facebook'}
@@ -137,7 +137,7 @@ const AdsPage = () => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 justify-between">
         <div>
-          <h1 className="text-xl font-bold">Ads Manager</h1>
+          <h2 className="text-base font-semibold">Meta Ads</h2>
           <p className="text-xs text-gray-500">
             {account?.last_synced_at ? `Last synced ${formatDateTime(account.last_synced_at)}` : 'First sync in progress…'}
           </p>

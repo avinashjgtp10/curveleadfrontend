@@ -74,7 +74,7 @@ const CampaignDetailPage = () => {
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
-      <button onClick={() => navigate('/campaigns')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
+      <button onClick={() => navigate('/ads?tab=campaigns')} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700">
         <ArrowLeft size={16} /> All campaigns
       </button>
 

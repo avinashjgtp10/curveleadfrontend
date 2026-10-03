@@ -2,6 +2,7 @@ export const PAGE_TITLES = {
   "/dashboard": "Dashboard",
   "/leads": "Leads",
   "/campaigns": "Campaigns",
+  "/ads": "Ads Manager",
   "/ai-agent": "AI Agent",
   "/whatsapp": "WhatsApp",
   "/followups": "Follow-ups",
