@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AiCampaignWizard from './AiCampaignWizard';
+import GoogleSearchWizard from './GoogleSearchWizard';
 import ErrorState, { errorMessage } from '../components/ui/ErrorState';
 import { adsAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -68,14 +69,15 @@ const MetricsTable = ({ rows, onOpen, nameCell, budget, actions, currency, leads
   </div>
 );
 
-// Pause/resume + budget buttons for a campaign or ad set row (Phase 3).
-const RowActions = ({ row, busy, onStatus, onBudget }) => {
-  const active = row.status === 'ACTIVE';
-  const canEditBudget = row.daily_budget_paise != null && !row.lifetime_budget_paise;
+// Pause/resume + budget buttons for a campaign or ad set / ad group row (Phase 3, Google 7b).
+// A Google budget shared by several campaigns is changed in Google Ads, not here.
+const RowActions = ({ row, busy, onStatus, onBudget, platform }) => {
+  const active = row.status === 'ACTIVE' || row.status === 'ENABLED';
+  const canEditBudget = row.daily_budget_paise != null && !row.lifetime_budget_paise && !row.budget_shared;
   return (
     <div className="inline-flex gap-1">
       <button onClick={() => onStatus(row, active ? 'pause' : 'resume')} disabled={busy}
-        title={active ? 'Pause on Meta' : 'Resume on Meta'}
+        title={active ? `Pause on ${platform}` : `Resume on ${platform}`}
         className={`p-1.5 rounded-lg border text-xs disabled:opacity-40 ${active ? 'hover:bg-amber-50 text-amber-700' : 'hover:bg-green-50 text-green-700'}`}>
         {active ? <Pause size={13} /> : <Play size={13} />}
       </button>
@@ -110,11 +112,11 @@ const ChangeHistory = ({ entries }) => (
   </details>
 );
 
-// Per-provider wording. Google Ads is read-only in CurveLead for now (Phase 7a): no
-// pause/budget controls, budget cap, change history or AI wizard.
+// Per-provider wording. Both platforms have pause/resume, budgets, the shared daily budget
+// cap, change history and an AI wizard (Meta: lead ads; Google: search ads).
 const PROVIDER = {
-  meta: { name: 'Meta', leads: 'leads', leadsLabel: 'Leads', reconnectHint: 'Facebook access expired — click Reconnect.' },
-  google: { name: 'Google', leads: 'conversions', leadsLabel: 'Conversions', reconnectHint: 'Google Ads access expired — click Reconnect.' },
+  meta: { name: 'Meta', leads: 'leads', leadsLabel: 'Leads', reconnectHint: 'Facebook access expired — click Reconnect.', groupLevel: 'ad set' },
+  google: { name: 'Google', leads: 'conversions', leadsLabel: 'Conversions', reconnectHint: 'Google Ads access expired — click Reconnect.', groupLevel: 'ad group' },
 };
 
 const AdsPage = ({ provider = 'meta' }) => {
@@ -189,19 +191,19 @@ const AdsPage = ({ provider = 'meta' }) => {
   }, [accountId, days, level, reload]);
 
   useEffect(() => {
-    if (!isMeta || !accountId || level.type !== 'campaigns') return;
+    if (!accountId || level.type !== 'campaigns') return;
     adsAPI.getSettings().then(({ data }) => setSettings(data)).catch(() => {});
-    adsAPI.getAudit({ limit: 30 }).then(({ data }) => setHistory(data.entries || [])).catch(() => {});
-  }, [accountId, level, reload]);
+    adsAPI.getAudit({ limit: 30, provider }).then(({ data }) => setHistory(data.entries || [])).catch(() => {});
+  }, [accountId, level, reload, provider]);
 
   const entityLevel = level.type === 'campaigns' ? 'campaigns' : 'adsets';
   const changeStatus = async (row, action) => {
     setBusyId(row.id);
     try {
       const { data } = await adsAPI.setStatus(entityLevel, row.id, action);
-      toast.success(data.unchanged ? 'Already in that state.' : `${row.name} ${action === 'pause' ? 'paused' : 'resumed'} on Meta.`);
+      toast.success(data.unchanged ? 'Already in that state.' : `${row.name} ${action === 'pause' ? 'paused' : 'resumed'} on ${P.name}.`);
       setReload((n) => n + 1);
-    } catch (e) { toast.error(e.response?.data?.error || 'Could not change it on Meta.'); }
+    } catch (e) { toast.error(e.response?.data?.error || `Could not change it on ${P.name}.`); }
     finally { setBusyId(null); }
   };
   const saveBudget = async () => {
@@ -213,7 +215,7 @@ const AdsPage = ({ provider = 'meta' }) => {
       toast.success(`Daily budget for ${budgetEdit.row.name} set to ${inr(rupees, cur)}.`);
       setBudgetEdit(null);
       setReload((n) => n + 1);
-    } catch (e) { toast.error(e.response?.data?.error || 'Could not change the budget on Meta.'); }
+    } catch (e) { toast.error(e.response?.data?.error || `Could not change the budget on ${P.name}.`); }
     finally { setBusyId(null); }
   };
   const saveCap = async () => {
@@ -226,7 +228,7 @@ const AdsPage = ({ provider = 'meta' }) => {
       toast.success(value ? `Daily budget cap set to ${paise(value, cur)}.` : 'Daily budget cap removed.');
     } catch (e) { toast.error(e.response?.data?.error || 'Could not save the cap.'); }
   };
-  const rowActions = (r) => <RowActions row={r} busy={busyId === r.id} onStatus={changeStatus} onBudget={(row) => setBudgetEdit({ row, value: String(Number(row.daily_budget_paise) / 100) })} />;
+  const rowActions = (r) => <RowActions row={r} platform={P.name} busy={busyId === r.id} onStatus={changeStatus} onBudget={(row) => setBudgetEdit({ row, value: String(Number(row.daily_budget_paise) / 100) })} />;
 
   const connect = () => {
     if (!isMeta) {
@@ -312,7 +314,7 @@ const AdsPage = ({ provider = 'meta' }) => {
           <select value={days} onChange={(e) => setDays(e.target.value)} className="px-3 py-2 border rounded-lg text-sm bg-white">
             {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
-          {isMeta && <button onClick={() => setWizard(true)} className="px-3 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 inline-flex items-center gap-1.5"><Sparkles size={14} /> Create with AI</button>}
+          <button onClick={() => setWizard(true)} className="px-3 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 inline-flex items-center gap-1.5"><Sparkles size={14} /> Create with AI</button>
           <button onClick={syncNow} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 inline-flex items-center gap-1.5"><RefreshCw size={14} /> Sync now</button>
           {!isMeta && <button onClick={() => adsAPI.googleRefresh().then(({ data }) => { toast.success(`Found ${data.accounts} Google Ads account${data.accounts === 1 ? '' : 's'}.`); loadAccounts(); }).catch((e) => toast.error(e.response?.data?.error || 'Could not refresh accounts.'))}
             className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Refresh accounts</button>}
@@ -337,7 +339,7 @@ const AdsPage = ({ provider = 'meta' }) => {
       )}
 
       {dataError && <ErrorState message={dataError} onRetry={() => setReload((n) => n + 1)} retrying={loading} />}
-      {isMeta && level.type === 'campaigns' && settings && (
+      {level.type === 'campaigns' && settings && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white border rounded-xl px-4 py-3 text-sm">
           <span className="text-gray-500">Set to spend per day: <strong className="text-gray-900">{paise(settings.active_daily_budget_paise, cur)}</strong></span>
           {capEdit === null ? (
@@ -352,7 +354,7 @@ const AdsPage = ({ provider = 'meta' }) => {
               <button onClick={() => setCapEdit(null)} className="text-xs text-gray-500">Cancel</button>
             </span>
           )}
-          <span className="text-[11px] text-gray-400">Budget increases and resumes from CurveLead that would go over the cap are blocked.</span>
+          <span className="text-[11px] text-gray-400">One cap for Meta and Google together. Budget increases and resumes from CurveLead that would go over it are blocked.</span>
         </div>
       )}
       <div className="flex items-center gap-1 text-sm text-gray-500">
@@ -363,10 +365,10 @@ const AdsPage = ({ provider = 'meta' }) => {
       </div>
 
       {level.type === 'campaigns' && (
-        <MetricsTable currency={cur} leadsLabel={P.leadsLabel} rows={rows} budget actions={isMeta ? rowActions : undefined} onOpen={(c) => setLevel({ type: 'adsets', campaign: c })} />
+        <MetricsTable currency={cur} leadsLabel={P.leadsLabel} rows={rows} budget actions={rowActions} onOpen={(c) => setLevel({ type: 'adsets', campaign: c })} />
       )}
       {level.type === 'adsets' && (
-        <MetricsTable currency={cur} leadsLabel={P.leadsLabel} rows={rows} budget actions={isMeta ? rowActions : undefined} onOpen={(s) => setLevel({ type: 'ads', campaign: level.campaign, adset: s })} />
+        <MetricsTable currency={cur} leadsLabel={P.leadsLabel} rows={rows} budget={isMeta} actions={rowActions} onOpen={(s) => setLevel({ type: 'ads', campaign: level.campaign, adset: s })} />
       )}
       {level.type === 'ads' && (
         <MetricsTable currency={cur} leadsLabel={P.leadsLabel} rows={rows} nameCell={(a) => (
@@ -417,14 +419,16 @@ const AdsPage = ({ provider = 'meta' }) => {
           <p className="px-3 py-2 text-[11px] text-gray-400">“Reported by {P.name}” is {P.name}'s own count{isMeta ? '' : ' of conversions (whatever the account counts as one)'}. “In CurveLead” = leads attributed to the campaign and created in this period; qualified / customers = of those leads, the ones that reached a qualified or won stage. Same definitions as the Campaigns tab and Reports.</p>
         </div>
       )}
-      {isMeta && level.type === 'campaigns' && <ChangeHistory entries={history} />}
-      {wizard && <AiCampaignWizard currency={cur} onClose={() => { setWizard(false); setReload((n) => n + 1); }} onChanged={() => setReload((n) => n + 1)} />}
+      {level.type === 'campaigns' && <ChangeHistory entries={history} />}
+      {wizard && (isMeta
+        ? <AiCampaignWizard currency={cur} onClose={() => { setWizard(false); setReload((n) => n + 1); }} onChanged={() => setReload((n) => n + 1)} />
+        : <GoogleSearchWizard currency={cur} onClose={() => { setWizard(false); setReload((n) => n + 1); }} onChanged={() => setReload((n) => n + 1)} />)}
       {budgetEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={() => setBudgetEdit(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-3">
             <h2 className="font-bold">Daily budget</h2>
-            <p className="text-xs text-gray-500">{budgetEdit.row.name} · now {paise(budgetEdit.row.daily_budget_paise, cur)} per day. The change goes live on Meta immediately.</p>
+            <p className="text-xs text-gray-500">{budgetEdit.row.name} · now {paise(budgetEdit.row.daily_budget_paise, cur)} per day. The change goes live on {P.name} immediately.</p>
             <label className="flex items-center gap-2">
               <span className="text-gray-500">{currencySymbol(cur)}</span>
               <input autoFocus type="number" min="1" step="1" value={budgetEdit.value} onChange={(e) => setBudgetEdit((b) => ({ ...b, value: e.target.value }))}
@@ -434,7 +438,7 @@ const AdsPage = ({ provider = 'meta' }) => {
             <div className="flex gap-2 pt-1">
               <button onClick={() => setBudgetEdit(null)} className="flex-1 py-2 border rounded-lg text-sm">Cancel</button>
               <button onClick={saveBudget} disabled={busyId === budgetEdit.row.id} className="flex-1 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold disabled:opacity-50">
-                {busyId === budgetEdit.row.id ? 'Saving…' : 'Save on Meta'}
+                {busyId === budgetEdit.row.id ? 'Saving…' : `Save on ${P.name}`}
               </button>
             </div>
           </div>

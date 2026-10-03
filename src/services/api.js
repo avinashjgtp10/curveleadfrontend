@@ -130,6 +130,12 @@ export const adsAPI = {
   googleStatus: () => api.get('/ads/google/status'),
   googleConnectUrl: () => api.get('/ads/google/connect'),
   googleRefresh: () => api.post('/ads/google/refresh', {}, { timeout: 120000 }),
+  googleAiListDrafts: () => api.get('/ads/google/ai/drafts'),
+  googleAiCreateDraft: (brief) => api.post('/ads/google/ai/drafts', { brief }, { timeout: 60000 }),
+  googleAiGetDraft: (id) => api.get(`/ads/google/ai/drafts/${id}`),
+  googleAiUpdateDraft: (id, draft) => api.put(`/ads/google/ai/drafts/${id}`, { draft }),
+  googleAiCreate: (id) => api.post(`/ads/google/ai/drafts/${id}/create`, {}, { timeout: 120000 }),
+  googleAiActivate: (id, confirm) => api.post(`/ads/google/ai/drafts/${id}/activate`, { confirm }),
 };
 
 // ============================================
