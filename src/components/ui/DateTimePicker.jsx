@@ -1,3 +1,4 @@
+import { intlLocale } from '../../utils/locale';
 import { useEffect, useRef, useState } from 'react';
 import { Calendar, X } from 'lucide-react';
 import MonthCalendar from './MonthCalendar';
@@ -112,7 +113,7 @@ const DateTimePicker = ({ value, onChange, placeholder = 'Select date & time', m
                     className={`w-full text-left px-2 py-1 text-xs rounded-lg mb-0.5
                       ${active ? 'bg-brand-600 text-white font-semibold' : 'hover:bg-gray-100 text-gray-700'}
                       ${disabledTime ? 'opacity-30 cursor-not-allowed hover:bg-transparent' : ''}`}>
-                    {t.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                    {t.toLocaleTimeString(intlLocale(), { hour: 'numeric', minute: '2-digit', hour12: true })}
                   </button>
                 );
               })}

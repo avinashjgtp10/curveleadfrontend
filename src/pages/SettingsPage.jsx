@@ -7,11 +7,12 @@ import { useAuth } from '../context/AuthContext';
 import { User, Building, CheckCircle, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+import { COUNTRIES, CURRENCIES, timezones, currencySymbol, countryProfile, bankLabel } from '../utils/locale';
 
 const SettingsPage = () => {
   const confirm = useConfirmDialog();
   const toast = useToast();
-  const { user, tenant } = useAuth();
+  const { user, tenant, refreshProfile } = useAuth();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') || 'profile');
   const [settings, setSettings] = useState({});
@@ -26,6 +27,7 @@ const SettingsPage = () => {
     name: '', email: '', phone: '', address: '', city: '', state: '',
     gst_number: '', pan_number: '', website: '',
     bank_details: { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
+    country: 'IN', currency: 'INR', timezone: 'Asia/Kolkata',
     daily_report_enabled: false,
     daily_report_time: '08:00',
     dedupe_mode: 'phone',
@@ -84,6 +86,9 @@ const SettingsPage = () => {
         pan_number: s.pan_number || '',
         website: s.website || '',
         bank_details: s.bank_details || { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
+        country: s.country || 'IN',
+        currency: s.currency || 'INR',
+        timezone: s.timezone || 'Asia/Kolkata',
         daily_report_enabled: !!s.daily_report_enabled,
         daily_report_time: s.daily_report_time || '08:00',
         dedupe_mode: s.dedupe_mode || 'phone',
@@ -115,10 +120,19 @@ const SettingsPage = () => {
   const handleSaveBusiness = async () => {
     if (!business.name.trim()) return toast.error('Business Name is required');
     try {
-      await settingsAPI.update({ ...settings, ...business });
+      try {
+        await settingsAPI.update({ ...settings, ...business });
+      } catch (e) {
+        // Money already recorded keeps its numbers — the owner confirms they understand that.
+        if (e.response?.status !== 409 || e.response?.data?.code !== 'CURRENCY_CHANGE_CONFIRM') throw e;
+        if (!window.confirm(`${e.response.data.error}\n\nChange the currency to ${e.response.data.to}?`)) return;
+        await settingsAPI.update({ ...settings, ...business, confirm_currency_change: true });
+      }
       setBusinessOriginal(business);
       setEditingBusiness(false);
       showSaved();
+      // Country, currency and timezone drive formatting everywhere — reload them.
+      if (['country', 'currency', 'timezone'].some(k => business[k] !== businessOriginal?.[k])) refreshProfile?.();
     } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
@@ -471,58 +485,70 @@ const SettingsPage = () => {
                       </div>
                     </div>
 
-                    {/* Tax Info */}
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Tax Details</p>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                    {/* Region */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Region</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-1">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">GST Number (GSTIN)</label>
-                        <input type="text" disabled={!editingBusiness} value={business.gst_number} onChange={e => setBusiness({ ...business, gst_number: e.target.value.toUpperCase() })}
-                          className={monoCls} placeholder="22AAAAA0000A1Z5" maxLength={15} />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Country</label>
+                        <select disabled={!editingBusiness} value={business.country}
+                          onChange={e => {
+                            const c = COUNTRIES.find(x => x.code === e.target.value);
+                            // Suggest the country's usual currency and timezone; both stay editable.
+                            setBusiness({ ...business, country: e.target.value, ...(c ? { currency: c.currency, timezone: c.timezone } : {}) });
+                          }}
+                          className={`${inputCls} bg-white`}>
+                          {!COUNTRIES.some(c => c.code === business.country) && <option value={business.country}>{business.country}</option>}
+                          {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                        </select>
                       </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">PAN Number</label>
-                        <input type="text" disabled={!editingBusiness} value={business.pan_number} onChange={e => setBusiness({ ...business, pan_number: e.target.value.toUpperCase() })}
-                          className={monoCls} placeholder="AAAAA0000A" maxLength={10} />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Currency</label>
+                        <select disabled={!editingBusiness} value={business.currency} onChange={e => setBusiness({ ...business, currency: e.target.value })}
+                          className={`${inputCls} bg-white`}>
+                          {[...new Set([business.currency, ...CURRENCIES])].map(c => <option key={c} value={c}>{c} ({currencySymbol(c)})</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Timezone</label>
+                        <select disabled={!editingBusiness} value={business.timezone} onChange={e => setBusiness({ ...business, timezone: e.target.value })}
+                          className={`${inputCls} bg-white`}>
+                          {[...new Set([business.timezone, ...timezones()])].map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+                        </select>
                       </div>
                     </div>
+                    <p className="text-[11px] text-gray-400 mb-5">
+                      The country is used for phone numbers without a country code and for tax and bank fields. Money is shown in the currency;
+                      times, AI replies, reminders and report emails use the timezone. Changing the currency doesn't convert amounts already recorded.
+                    </p>
 
-                    {/* Bank Details */}
+                    {/* Tax Info — fields depend on the country */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Tax Details</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                      {countryProfile(business.country).tax.map(f => (
+                        <div key={f.key}>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                          <input type="text" disabled={!editingBusiness} value={business[f.key] || ''}
+                            onChange={e => setBusiness({ ...business, [f.key]: f.upper ? e.target.value.toUpperCase() : e.target.value })}
+                            className={monoCls} placeholder={f.placeholder || ''} />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Bank Details — fields depend on the country; anything saved earlier stays visible */}
                     <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bank / Payment Details</p>
-                    <div className="space-y-3 mb-5">
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Account Holder Name</label>
-                          <input type="text" disabled={!editingBusiness} value={business.bank_details.account_holder}
-                            onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_holder: e.target.value } })}
-                            className={inputCls} />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Bank Name</label>
-                          <input type="text" disabled={!editingBusiness} value={business.bank_details.bank_name}
-                            onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, bank_name: e.target.value } })}
-                            className={inputCls} />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Account Number</label>
-                          <input type="text" disabled={!editingBusiness} value={business.bank_details.account_number}
-                            onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_number: e.target.value } })}
-                            className={monoCls} />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">IFSC Code</label>
-                          <input type="text" disabled={!editingBusiness} value={business.bank_details.ifsc}
-                            onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, ifsc: e.target.value.toUpperCase() } })}
-                            className={monoCls} placeholder="SBIN0001234" maxLength={11} />
-                        </div>
-                      </div>
-                      <div className="sm:w-1/2">
-                        <label className="block text-xs font-medium text-gray-500 mb-1">UPI ID</label>
-                        <input type="text" disabled={!editingBusiness} value={business.bank_details.upi}
-                          onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, upi: e.target.value } })}
-                          className={inputCls} placeholder="yourname@upi" />
-                      </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                      {[...new Set([...countryProfile(business.country).bank.map(f => f.key),
+                        ...Object.keys(business.bank_details || {}).filter(k => business.bank_details[k])])].map(key => {
+                        const f = countryProfile(business.country).bank.find(x => x.key === key) || { key, label: bankLabel(business.country, key) };
+                        return (
+                          <div key={key}>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                            <input type="text" disabled={!editingBusiness} value={business.bank_details?.[key] || ''}
+                              onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, [key]: f.upper ? e.target.value.toUpperCase() : e.target.value } })}
+                              className={key === 'account_holder' || key === 'bank_name' ? inputCls : monoCls} placeholder={f.placeholder || ''} />
+                          </div>
+                        );
+                      })}
                     </div>
 
                     {/* Email */}

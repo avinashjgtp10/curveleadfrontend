@@ -5,8 +5,9 @@ import { adsAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import ErrorState, { errorMessage } from '../components/ui/ErrorState';
 import { formatDateTime } from '../utils/dateTime.js';
+import { formatNumber } from '../utils/locale';
 
-const num = n => Number(n || 0).toLocaleString('en-IN');
+const num = n => formatNumber(n);
 const CAPI_STATUS = {
   success: 'bg-green-100 text-green-700', pending: 'bg-blue-100 text-blue-700',
   failed: 'bg-red-100 text-red-700', skipped: 'bg-gray-100 text-gray-500',

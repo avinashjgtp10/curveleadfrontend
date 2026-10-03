@@ -1,7 +1,8 @@
+import { intlLocale } from './locale.js';
 export const DEFAULT_TIMEZONE = 'Asia/Kolkata';
 let workspaceTimezone = DEFAULT_TIMEZONE;
 export function setWorkspaceTimezone(tz) {
-  try { new Intl.DateTimeFormat('en-IN', { timeZone: tz }); workspaceTimezone = tz || DEFAULT_TIMEZONE; }
+  try { new Intl.DateTimeFormat('en', { timeZone: tz }); workspaceTimezone = tz || DEFAULT_TIMEZONE; }
   catch { workspaceTimezone = DEFAULT_TIMEZONE; }
 }
 export function parseTimestamp(value) {
@@ -14,7 +15,7 @@ export function parseTimestamp(value) {
 export function formatDateTime(value, tz = workspaceTimezone, options = {}) {
   const date = parseTimestamp(value);
   if (!date) return 'No date';
-  return new Intl.DateTimeFormat('en-IN', { dateStyle: 'medium', timeStyle: 'short', ...options, timeZone: tz }).format(date);
+  return new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'medium', timeStyle: 'short', ...options, timeZone: tz }).format(date);
 }
 export function toDateTimeInput(value, tz = workspaceTimezone) {
   const date = parseTimestamp(value);

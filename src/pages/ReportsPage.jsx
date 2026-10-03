@@ -1,3 +1,4 @@
+import { formatMoney, formatMoneyByCurrency } from '../utils/locale';
 import ChartLegend from '../components/ui/ChartLegend';
 import ErrorState, { errorMessage } from '../components/ui/ErrorState';
 import { sourceLabel } from '../utils/leadData.js';
@@ -462,7 +463,7 @@ const ReportsPage = () => {
       }
 
       if (format === 'pdf') {
-        const printedAt = new Date().toLocaleString('en-IN');
+        const printedAt = formatDateTime(new Date());
         const tableRows = rows.map(row => `
           <tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
         `).join('');
@@ -722,7 +723,7 @@ const ReportsPage = () => {
                         <tr key={i} className="border-t">
                           <td className="py-2.5 font-medium capitalize">{l.from_stage || 'Unknown'}</td>
                           <td className="text-right text-red-500 font-semibold">{l.lost_count}</td>
-                          <td className="text-right">₹{l.lost_value.toLocaleString('en-IN')}</td>
+                          <td className="text-right">{formatMoney(l.lost_value)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -874,9 +875,9 @@ const ReportsPage = () => {
                       <tr key={i} className="border-t">
                         <td className="py-2.5 font-medium">{c.name}</td>
                         <td className="capitalize text-gray-600">{sourceLabel(c.source)}</td>
-                        <td className="text-right" title={c.spend == null ? `No daily spend — lifetime ₹${Math.round(Number(c.lifetime_spend || 0)).toLocaleString('en-IN')}` : ''}>{c.spend == null ? '—' : `₹${Math.round(Number(c.spend)).toLocaleString('en-IN')}`}</td>
+                        <td className="text-right" title={c.spend == null ? (c.spend_by_currency ? 'More than one currency — not added up' : `No daily spend — lifetime ${formatMoney(Math.round(Number(c.lifetime_spend || 0)), c.currency)}`) : ''}>{c.spend == null ? (c.spend_by_currency ? formatMoneyByCurrency(c.spend_by_currency) : '—') : formatMoney(Math.round(Number(c.spend)), c.currency)}</td>
                         <td className="text-right">{c.crm_leads ?? c.total_leads}</td>
-                        <td className="text-right font-semibold text-brand-600">{c.cpl == null ? '—' : `₹${Math.round(Number(c.cpl)).toLocaleString('en-IN')}`}</td>
+                        <td className="text-right font-semibold text-brand-600">{c.cpl == null ? '—' : formatMoney(Math.round(Number(c.cpl)), c.currency)}</td>
                         <td className="text-right">{c.converted ?? 0}</td>
                         <td className="text-right text-green-600">{c.won || 0}</td>
                       </tr>

@@ -16,6 +16,7 @@ import ShareBrochureModal from '../components/lead/ShareBrochureModal';
 import { useToast } from '../components/ui/Toast';
 import DateTimePicker from '../components/ui/DateTimePicker';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2, Users, Workflow, PlayCircle, Ban, AlertTriangle } from 'lucide-react';
+import { formatMoney, currencySymbol } from '../utils/locale';
 
 // Mirrors WhatsApp's own delivery ticks for an outbound message.
 const MessageStatus = ({ status }) => {
@@ -779,14 +780,14 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Quoted Price (₹)</label>
+                    <label className="text-xs text-gray-500">Quoted Price ({currencySymbol()})</label>
                     <input type="number" min="0" value={form.deal_value || ''} onChange={e => setForm({ ...form, deal_value: e.target.value })}
                       placeholder="0"
                       className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
                   </div>
                   {isWon && (
                     <div>
-                      <label className="text-xs text-gray-500">Advance Received (₹)</label>
+                      <label className="text-xs text-gray-500">Advance Received ({currencySymbol()})</label>
                       <input type="number" min="0" value={form.advance_received || ''} onChange={e => setForm({ ...form, advance_received: e.target.value })}
                         placeholder="0"
                         className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
@@ -879,18 +880,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       {!!Number(lead.deal_value) && (
                         <div className="flex-1 min-w-[100px] bg-gray-50 rounded-lg px-3 py-2">
                           <p className="text-[10px] text-gray-500">Quoted Price</p>
-                          <p className="text-sm font-bold">₹{Number(lead.deal_value).toLocaleString('en-IN')}</p>
+                          <p className="text-sm font-bold">{formatMoney(Number(lead.deal_value))}</p>
                         </div>
                       )}
                       {isWon && (
                         <>
                           <div className="flex-1 min-w-[100px] bg-green-50 rounded-lg px-3 py-2">
                             <p className="text-[10px] text-gray-500">Advance Received</p>
-                            <p className="text-sm font-bold text-green-700">₹{Number(lead.advance_received || 0).toLocaleString('en-IN')}</p>
+                            <p className="text-sm font-bold text-green-700">{formatMoney(Number(lead.advance_received || 0))}</p>
                           </div>
                           <div className="flex-1 min-w-[100px] bg-amber-50 rounded-lg px-3 py-2">
                             <p className="text-[10px] text-gray-500">Balance Due</p>
-                            <p className="text-sm font-bold text-amber-700">₹{balanceDue.toLocaleString('en-IN')}</p>
+                            <p className="text-sm font-bold text-amber-700">{formatMoney(balanceDue)}</p>
                           </div>
                         </>
                       )}
@@ -1177,7 +1178,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                         q.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
                       }`}>{q.status?.toUpperCase()}</span>
                     </div>
-                    <p className="text-sm font-bold text-brand-600 mt-1">₹{parseFloat(q.total).toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-bold text-brand-600 mt-1">{formatMoney(parseFloat(q.total), q.currency)}</p>
                   </button>
                 ))}
               </div>

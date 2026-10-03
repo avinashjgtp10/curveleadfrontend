@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { quotationsAPI } from '../services/api';
 import { ArrowLeft, Send, CheckCircle, XCircle, Printer } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
+import { formatMoney } from '../utils/locale';
 
 const QuotationViewPage = () => {
   const toast = useToast();
@@ -117,8 +118,8 @@ const QuotationViewPage = () => {
                   {item.description && <p className="text-xs text-gray-500">{item.description}</p>}
                 </td>
                 <td className="text-right py-3">{item.quantity}</td>
-                <td className="text-right py-3">₹{parseFloat(item.price).toFixed(2)}</td>
-                <td className="text-right py-3 font-medium">₹{parseFloat(item.total).toFixed(2)}</td>
+                <td className="text-right py-3">{formatMoney(parseFloat(item.price), data.currency, { decimals: 2 })}</td>
+                <td className="text-right py-3 font-medium">{formatMoney(parseFloat(item.total), data.currency, { decimals: 2 })}</td>
               </tr>
             ))}
           </tbody>
@@ -127,10 +128,10 @@ const QuotationViewPage = () => {
         {/* Totals */}
         <div className="flex justify-end mb-6">
           <div className="w-64 space-y-1 text-sm">
-            <div className="flex justify-between"><span>Subtotal:</span><span>₹{parseFloat(data.subtotal).toFixed(2)}</span></div>
-            {data.discount_percent > 0 && <div className="flex justify-between text-green-600"><span>Discount ({data.discount_percent}%):</span><span>-₹{parseFloat(data.discount_amount).toFixed(2)}</span></div>}
-            <div className="flex justify-between"><span>Tax ({data.tax_percent}%):</span><span>₹{parseFloat(data.tax_amount).toFixed(2)}</span></div>
-            <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2"><span>Total:</span><span className="text-brand-600">₹{parseFloat(data.total).toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span>Subtotal:</span><span>{formatMoney(parseFloat(data.subtotal), data.currency, { decimals: 2 })}</span></div>
+            {data.discount_percent > 0 && <div className="flex justify-between text-green-600"><span>Discount ({data.discount_percent}%):</span><span>-{formatMoney(parseFloat(data.discount_amount), data.currency, { decimals: 2 })}</span></div>}
+            <div className="flex justify-between"><span>Tax ({data.tax_percent}%):</span><span>{formatMoney(parseFloat(data.tax_amount), data.currency, { decimals: 2 })}</span></div>
+            <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2"><span>Total:</span><span className="text-brand-600">{formatMoney(parseFloat(data.total), data.currency, { decimals: 2 })}</span></div>
           </div>
         </div>
 

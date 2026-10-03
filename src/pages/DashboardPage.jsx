@@ -1,3 +1,4 @@
+import { formatMoney, formatNumber } from '../utils/locale';
 import EmptyState from '../components/ui/EmptyState';
 import { metricLeadLink, activityLeadLink } from '../utils/dashboardLinks';
 import { OnboardingChecklist, WhatsAppStatus } from '../components/workspace/Overview';
@@ -14,7 +15,7 @@ import { AreaChart, Area, LineChart as RLineChart, Line, XAxis, YAxis, Tooltip, 
 import NotificationBell from '../components/layout/NotificationBell';
 import DatePicker from '../components/ui/DatePicker';
 import {
-  Users, IndianRupee, Target, Coins,
+  Users, Banknote, Target, Coins,
   ArrowUpRight, ArrowDownRight, Minus,
   Calendar, Video, AlertTriangle, ChevronRight, ChevronDown, Flame, Clock,
   Zap, Sparkles, CheckCircle2, Megaphone, Send, UserX,
@@ -40,7 +41,7 @@ const WhatsAppIcon = ({ size = 15 }) => (
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+const fmt = (n) => formatNumber(n);
 
 const todayISO = () => {
   const d = new Date();
@@ -56,13 +57,8 @@ const fmtDuration = (seconds) => {
   return `${(s / 3600).toFixed(1)}h`;
 };
 
-const fmtMoney = (n) => {
-  const v = Number(n || 0);
-  if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
-  if (v >= 100000)   return `₹${(v / 100000).toFixed(1)}L`;
-  if (v >= 1000)     return `₹${(v / 1000).toFixed(1)}K`;
-  return `₹${fmt(v)}`;
-};
+// Workspace currency, compact: ₹1.5L / ₹2.5Cr in India, AED 150K elsewhere.
+const fmtMoney = (n) => formatMoney(Number(n || 0), undefined, { compact: Number(n || 0) >= 1000 });
 
 const STAGE_COLOR = {
   blue: '#3b82f6', green: '#22c55e', yellow: '#eab308', orange: '#f97316',
@@ -173,7 +169,7 @@ const DashboardPage = () => {
       label: 'Revenue',
       value: fmtMoney(data?.revenue_in_period),
       trend: data?.revenue_change,
-      icon: IndianRupee,
+      icon: Banknote,
       iconBg: 'bg-emerald-100 text-emerald-500',
       stroke: '#10b981',
     },

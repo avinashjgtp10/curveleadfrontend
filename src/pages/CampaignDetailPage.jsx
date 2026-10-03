@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { campaignAPI, stageAPI } from '../services/api';
 import { sourceLabel } from '../utils/leadData.js';
-import { ArrowLeft, IndianRupee, Users, TrendingUp, Target, Eye, X, Megaphone, CalendarDays, Star, Search, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Banknote, Users, TrendingUp, Target, Eye, X, Megaphone, CalendarDays, Star, Search, ChevronRight } from 'lucide-react';
+import { formatMoney, formatNumber, formatMoneyByCurrency, intlLocale } from '../utils/locale';
 
 const statusColors = {
   active: 'bg-green-100 text-green-700',
@@ -15,7 +16,7 @@ const scoreColors = { hot: 'bg-red-100 text-red-700', warm: 'bg-amber-100 text-a
 // Campaign start/end are plain dates; format them without a timezone shift.
 const shortDate = v => {
   const [y, m, d] = String(v || '').split('T')[0].split('-').map(Number);
-  return y ? new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+  return y ? new Date(y, m - 1, d).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 };
 
 const CampaignDetailPage = () => {
@@ -66,15 +67,18 @@ const CampaignDetailPage = () => {
   if (!data) return <p>Campaign not found</p>;
 
   // Same definitions as every other screen (services/metrics.js), for the selected range.
-  const money = (v) => (v == null ? '—' : `₹${Math.round(Number(v)).toLocaleString('en-IN')}`);
+  // Amounts in the campaign's ad account currency (workspace currency for manual campaigns).
+  const cur = data.currency || data.account_currency || undefined;
+  const money = (v) => (v == null ? '—' : formatMoney(Math.round(Number(v)), cur));
   const notMeasured = data.spend_basis === 'not_measured';
   const stats = [
     { label: 'Leads in CurveLead', value: data.crm_leads ?? data.total_leads ?? 0, icon: Users, color: 'bg-green-100 text-green-600', hint: 'Created in this period' },
     { label: 'Converted', value: data.converted ?? 0, icon: Target, color: 'bg-emerald-100 text-emerald-600', hint: `${data.conversion_rate ?? 0}% of these leads` },
-    { label: 'Spend', value: money(data.spend), icon: TrendingUp, color: 'bg-amber-100 text-amber-600', hint: notMeasured ? 'No daily spend (manual campaign)' : 'In this period' },
-    { label: 'Cost per lead', value: money(data.cpl), icon: IndianRupee, color: 'bg-purple-100 text-purple-600' },
-    { label: 'Cost per customer', value: money(data.cost_per_customer), icon: IndianRupee, color: 'bg-blue-100 text-blue-600' },
-    ...(data.platform_leads != null ? [{ label: 'Reported by Meta', value: Number(data.platform_leads).toLocaleString('en-IN'), icon: Eye, color: 'bg-cyan-100 text-cyan-600', hint: data.platform_cpl != null ? `${money(data.platform_cpl)} per Meta lead` : null }] : []),
+    { label: 'Spend', value: data.spend == null && data.spend_by_currency ? formatMoneyByCurrency(data.spend_by_currency) : money(data.spend), icon: TrendingUp, color: 'bg-amber-100 text-amber-600',
+      hint: notMeasured ? 'No daily spend (manual campaign)' : data.spend_basis === 'mixed_currencies' ? 'More than one currency — not added up' : 'In this period' },
+    { label: 'Cost per lead', value: money(data.cpl), icon: Banknote, color: 'bg-purple-100 text-purple-600' },
+    { label: 'Cost per customer', value: money(data.cost_per_customer), icon: Banknote, color: 'bg-blue-100 text-blue-600' },
+    ...(data.platform_leads != null ? [{ label: 'Reported by Meta', value: formatNumber(data.platform_leads), icon: Eye, color: 'bg-cyan-100 text-cyan-600', hint: data.platform_cpl != null ? `${money(data.platform_cpl)} per Meta lead` : null }] : []),
   ];
   const RANGES = [['this_month', 'This month'], ['last_30_days', 'Last 30 days'], ['last_month', 'Last month'], ['this_year', 'This year'], ['lifetime', 'Lifetime']];
 
@@ -153,11 +157,11 @@ const CampaignDetailPage = () => {
                 {ads.map(a => (
                   <tr key={a.id} className="border-b last:border-0">
                     <td className="py-2.5 font-medium text-gray-700 max-w-[220px] truncate" title={a.name}>{a.name || a.meta_ad_id}</td>
-                    <td className="py-2.5 text-right">₹{parseFloat(a.spend || 0).toLocaleString('en-IN')}</td>
-                    <td className="py-2.5 text-right text-gray-500">{Number(a.impressions || 0).toLocaleString('en-IN')}</td>
-                    <td className="py-2.5 text-right text-gray-500">{Number(a.clicks || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 text-right">{formatMoney(parseFloat(a.spend || 0), cur)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{formatNumber(a.impressions)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{formatNumber(a.clicks)}</td>
                     <td className="py-2.5 text-right font-semibold text-emerald-600">{a.total_leads}</td>
-                    <td className="py-2.5 text-right font-bold text-brand-600">₹{a.cpl}</td>
+                    <td className="py-2.5 text-right font-bold text-brand-600">{formatMoney(a.cpl, cur)}</td>
                   </tr>
                 ))}
               </tbody>

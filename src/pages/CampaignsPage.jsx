@@ -10,6 +10,7 @@ import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import DatePicker from '../components/ui/DatePicker';
 import ErrorState, { errorMessage } from '../components/ui/ErrorState';
+import { formatMoney, formatNumber, formatMoneyByCurrency, currencySymbol, intlLocale } from '../utils/locale';
 
 const PAGE_SIZE = 20;
 
@@ -42,18 +43,20 @@ const PERIODS = [
 
 const emptyForm = () => ({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active', is_priority: false });
 
-const rupees = v => `₹${Math.round(parseFloat(v) || 0).toLocaleString('en-IN')}`;
-const num = v => Number(v || 0).toLocaleString('en-IN');
+// Whole units in the campaign's currency (its ad account's for Meta, else the workspace's).
+const rupees = (v, currency) => formatMoney(Math.round(parseFloat(v) || 0), currency);
+const num = v => formatNumber(v);
 // Campaign start/end are plain dates; format them without a timezone shift.
 const shortDate = v => {
   const [y, m, d] = String(v || '').split('T')[0].split('-').map(Number);
-  return y ? new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : null;
+  return y ? new Date(y, m - 1, d).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: '2-digit' }) : null;
 };
 
 // Numbers on the card are for the selected range (services/metrics.js) except the budget
 // bar, which tracks the campaign's lifetime spend against its budget.
 const CampaignCard = ({ c, onOpen, onEdit, onDelete, onOpenMeta }) => {
   const spend = parseFloat(c.lifetime_spend ?? c.actual_spend) || 0;
+  const cur = c.currency || c.account_currency || undefined;
   const isDaily = Number(c.daily_budget) > 0 && !(Number(c.lifetime_budget) > 0);
   const budget = parseFloat(c.budget) || 0;
   const usedPct = budget > 0 && !isDaily ? Math.min(100, Math.round((spend / budget) * 100)) : null;
@@ -90,8 +93,8 @@ const CampaignCard = ({ c, onOpen, onEdit, onDelete, onOpenMeta }) => {
         <div className="flex items-baseline justify-between text-sm">
           <span className="text-gray-500">Lifetime spent</span>
           <span>
-            <span className="font-semibold text-gray-900">{rupees(spend)}</span>
-            {budget > 0 && <span className="text-gray-400 text-xs"> {isDaily ? `· ${rupees(budget)}/day` : `of ${rupees(budget)}`}</span>}
+            <span className="font-semibold text-gray-900">{rupees(spend, cur)}</span>
+            {budget > 0 && <span className="text-gray-400 text-xs"> {isDaily ? `· ${rupees(budget, cur)}/day` : `of ${rupees(budget, cur)}`}</span>}
           </span>
         </div>
         {usedPct !== null && (
@@ -112,12 +115,13 @@ const CampaignCard = ({ c, onOpen, onEdit, onDelete, onOpenMeta }) => {
         </div>
         <div title={c.spend_basis === 'not_measured' ? 'No daily spend for this campaign (manual spend is lifetime only)' : 'Spend in this period ÷ leads in this period'}>
           <p className="text-[11px] text-gray-500">CPL</p>
-          <p className="font-bold text-brand-600">{cpl != null ? rupees(cpl) : '—'}</p>
+          <p className="font-bold text-brand-600">{cpl != null ? rupees(cpl, cur) : '—'}</p>
         </div>
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
-        {periodSpend != null && <span>Spent in period <strong className="text-gray-700">{rupees(periodSpend)}</strong></span>}
-        {c.cost_per_customer != null && <span>Per customer <strong className="text-gray-700">{rupees(c.cost_per_customer)}</strong></span>}
+        {periodSpend != null && <span>Spent in period <strong className="text-gray-700">{rupees(periodSpend, cur)}</strong></span>}
+        {periodSpend == null && c.spend_by_currency && <span title="This campaign spent in more than one currency; amounts are not converted">Spent in period <strong className="text-gray-700">{formatMoneyByCurrency(c.spend_by_currency)}</strong></span>}
+        {c.cost_per_customer != null && <span>Per customer <strong className="text-gray-700">{rupees(c.cost_per_customer, cur)}</strong></span>}
         {c.platform_leads != null && <span title="Leads Meta reports for this period — can differ from leads in CurveLead">Reported by Meta <strong className="text-gray-700">{num(c.platform_leads)}</strong></span>}
         {c.won > 0 && <span title="Leads that reached a won stage in this period, whenever they came in">Won this period <strong className="text-gray-700">{num(c.won)}</strong></span>}
       </div>
@@ -418,7 +422,7 @@ const CampaignsPage = () => {
                 </div>
               ) : (<>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Budget (₹)</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Budget ({currencySymbol()})</label>
                 <input type="number" min="0" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })}
                   className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               </div>
