@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Sparkles, Bot, ChevronDown, ArrowRight, RefreshCw } from 'lucide-react';
 import { whatsappAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
-import { Card, Toggle, Loading, ErrorBox, useLoad } from '../components/whatsapp/hubUi';
+import { Card, Toggle, Loading, LoadError, useLoad } from '../components/whatsapp/hubUi';
 
 const BUSINESS_TYPES = ['E-commerce', 'Service Business', 'Real Estate', 'Restaurant', 'Education', 'Healthcare', 'Other'];
 
@@ -179,7 +179,7 @@ const AiAgentPage = () => {
   };
 
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">

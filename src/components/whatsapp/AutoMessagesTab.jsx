@@ -1,18 +1,18 @@
 import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
-import { Card, ErrorBox, Loading, Toggle, useLoad } from './hubUi';
+import { Card, LoadError, Loading, Toggle, useLoad } from './hubUi';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 const AutoMessagesTab = () => {
   const toast = useToast();
-  const { data, error, loading } = useLoad(() => whatsappAPI.hubGetAutoMessages());
+  const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubGetAutoMessages());
   const [f, setF] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { if (data) setF(data); }, [data]);
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
   if (loading || !f) return <Loading />;
 
   const setHours = (patch) => setF(prev => ({ ...prev, business_hours: { ...prev.business_hours, ...patch } }));

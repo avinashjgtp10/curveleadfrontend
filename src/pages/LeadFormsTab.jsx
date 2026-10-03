@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertCircle, ClipboardList, Download, RefreshCw } from 'lucide-react';
+import { ClipboardList, Download, RefreshCw } from 'lucide-react';
 import { adsAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
+import ErrorState, { errorMessage } from '../components/ui/ErrorState';
 import { formatDateTime } from '../utils/dateTime.js';
 
 const num = n => Number(n || 0).toLocaleString('en-IN');
@@ -56,7 +57,7 @@ const LeadFormsTab = () => {
     setLoading(true); setError('');
     adsAPI.getLeadForms()
       .then(({ data }) => setData(data))
-      .catch(e => setError(e.response?.data?.error || 'Could not load lead forms.'))
+      .catch(e => setError(errorMessage(e, 'Could not load lead forms.')))
       .finally(() => setLoading(false));
   };
   useEffect(load, []);
@@ -80,9 +81,9 @@ const LeadFormsTab = () => {
   if (loading && !data) return <div className="text-center py-12 text-gray-400 text-sm">Loading lead forms…</div>;
   if (error) {
     return (
-      <div className="flex items-start gap-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl px-4 py-3 text-sm">
-        <AlertCircle size={16} className="mt-0.5 shrink-0" />
-        <span>{error} {error.includes('Integrations') && <Link to="/integrations" className="underline font-medium">Open Integrations</Link>}</span>
+      <div className="space-y-2">
+        <ErrorState message={error} onRetry={load} retrying={loading} />
+        {error.includes('Integrations') && <Link to="/integrations" className="inline-block text-sm font-medium text-brand-600 underline">Open Integrations</Link>}
       </div>
     );
   }

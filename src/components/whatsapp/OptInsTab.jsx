@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
-import { Card, Empty, ErrorBox, Loading, Stat, Toggle, fmtDate, useLoad } from './hubUi';
+import { Card, Empty, ErrorBox, LoadError, Loading, Stat, Toggle, fmtDate, useLoad } from './hubUi';
 
 const OptInsTab = () => {
   const toast = useToast();
@@ -13,7 +13,7 @@ const OptInsTab = () => {
   const [busy, setBusy] = useState(false);
 
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
 
   const run = async (payload, okMsg) => {
     setBusy(true);

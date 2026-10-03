@@ -3,7 +3,7 @@ import { templateAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { useConfirmDialog } from '../ui/ConfirmDialog';
 import { Plus, Trash2 } from 'lucide-react';
-import { Card, Empty, ErrorBox, Loading, useLoad } from './hubUi';
+import { Card, Empty, LoadError, Loading, useLoad } from './hubUi';
 
 // Internal quick-reply snippets (not Meta templates) — the same records as Settings → Templates.
 const SavedRepliesTab = () => {
@@ -14,7 +14,7 @@ const SavedRepliesTab = () => {
   const [saving, setSaving] = useState(false);
 
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
 
   const save = async () => {
     if (!form.name.trim() || !form.message.trim()) return toast.error('Name and message are required.');
