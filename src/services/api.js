@@ -130,6 +130,27 @@ export const adsAPI = {
 };
 
 // ============================================
+// Social posting (Facebook, Instagram, Google Business Profile)
+// ============================================
+export const socialAPI = {
+  getAccounts: () => api.get('/social/accounts'),
+  connectMeta: (user_token) => api.post('/social/accounts/connect', { user_token }),
+  refreshMeta: () => api.post('/social/accounts/refresh'),
+  loadGoogle: () => api.post('/social/accounts/gbp'),
+  setAccountActive: (id, is_active) => api.patch(`/social/accounts/${id}`, { is_active }),
+  uploadMedia: (file, onUploadProgress) => { const fd = new FormData(); fd.append('file', file); return api.post('/social/media', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000, onUploadProgress }); },
+  captions: (data) => api.post('/social/captions', data, { timeout: 60000 }),
+  getPosts: (params) => api.get('/social/posts', { params }),
+  getPost: (id) => api.get(`/social/posts/${id}`),
+  createPost: (data) => api.post('/social/posts', data),
+  updatePost: (id, data) => api.put(`/social/posts/${id}`, data),
+  deletePost: (id) => api.delete(`/social/posts/${id}`),
+  publishNow: (id) => api.post(`/social/posts/${id}/publish-now`),
+  retry: (id) => api.post(`/social/posts/${id}/retry`),
+  getCalendar: (from, to) => api.get('/social/calendar', { params: { from, to } }),
+};
+
+// ============================================
 // WhatsApp
 // ============================================
 export const whatsappAPI = {
