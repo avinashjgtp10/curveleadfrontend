@@ -1,12 +1,15 @@
 import { useSearchParams } from 'react-router-dom';
-import { Megaphone, TrendingUp } from 'lucide-react';
+import { ClipboardList, Megaphone, TrendingUp } from 'lucide-react';
 import CampaignsPage from './CampaignsPage';
 import AdsPage from './AdsPage';
+import LeadFormsTab from './LeadFormsTab';
 
-// Ads Manager: the CRM's campaigns (every lead source) and the Meta ad drill-down in one place.
+// Ads Manager: the CRM's campaigns (every lead source), the Meta ad drill-down and the
+// Facebook lead forms in one place.
 const TABS = [
   { id: 'campaigns', label: 'Campaigns', icon: Megaphone, Component: CampaignsPage },
   { id: 'meta', label: 'Meta Ads', icon: TrendingUp, Component: AdsPage },
+  { id: 'forms', label: 'Lead Forms', icon: ClipboardList, Component: LeadFormsTab },
 ];
 
 const AdsManagerPage = () => {

@@ -111,6 +111,22 @@ export const adsAPI = {
   getAds: (adsetId, params) => api.get(`/ads/adsets/${adsetId}/ads`, { params }),
   getDaily: (params) => api.get('/ads/insights/daily', { params }),
   getDashboard: (params) => api.get('/ads/dashboard', { params }),
+  getLeadForms: () => api.get('/ads/forms'),
+  backfillLeadForm: (id, since) => api.post(`/ads/forms/${id}/backfill`, since ? { since } : {}),
+  updateLeadSettings: (data) => api.put('/ads/lead-settings', data),
+  setStatus: (level, id, action) => api.post(`/ads/${level}/${id}/${action}`),          // level: campaigns | adsets; action: pause | resume
+  setBudget: (level, id, dailyBudgetPaise) => api.patch(`/ads/${level}/${id}/budget`, { daily_budget_paise: dailyBudgetPaise }),
+  getAudit: (params) => api.get('/ads/audit', { params }),
+  getSettings: () => api.get('/ads/settings'),
+  updateSettings: (data) => api.put('/ads/settings', data),
+  getCapiEvents: () => api.get('/ads/capi/events'),
+  aiListDrafts: () => api.get('/ads/ai/drafts'),
+  aiCreateDraft: (brief) => api.post('/ads/ai/drafts', { brief }, { timeout: 60000 }),
+  aiGetDraft: (id) => api.get(`/ads/ai/drafts/${id}`),
+  aiUpdateDraft: (id, draft) => api.put(`/ads/ai/drafts/${id}`, { draft }),
+  aiUploadImage: (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/ads/ai/drafts/${id}/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+  aiCreateOnMeta: (id) => api.post(`/ads/ai/drafts/${id}/create`, {}, { timeout: 120000 }),
+  aiActivate: (id, confirm) => api.post(`/ads/ai/drafts/${id}/activate`, { confirm }),
 };
 
 // ============================================

@@ -267,11 +267,6 @@ const MetaConfig = ({ settings, onRefresh }) => {
   const [capiSaving, setCapiSaving] = useState(false);
   const [capiError, setCapiError] = useState('');
   const [capiStats, setCapiStats] = useState(null);
-  const [adAccounts, setAdAccounts] = useState(null);
-  const [loadingAdAccounts, setLoadingAdAccounts] = useState(false);
-  const [adAccountsError, setAdAccountsError] = useState('');
-  const [insightsSyncing, setInsightsSyncing] = useState(false);
-  const [insightsSyncResult, setInsightsSyncResult] = useState(null);
 
   // Load SDK on mount so FB.login() can be called synchronously on click
   useEffect(() => {
@@ -321,41 +316,6 @@ const MetaConfig = ({ settings, onRefresh }) => {
       setSyncResult(data.message);
     } catch (e) { setSyncResult(e.response?.data?.error || 'Sync failed.'); }
     finally { setSyncing(false); }
-  };
-
-  const handleLoadAdAccounts = async () => {
-    setLoadingAdAccounts(true); setAdAccountsError('');
-    try {
-      const { data } = await integrationsAPI.getAdAccounts();
-      setAdAccounts(data.ad_accounts);
-    } catch (e) {
-      setAdAccountsError(e.response?.data?.error || 'Failed to load ad accounts.');
-    } finally { setLoadingAdAccounts(false); }
-  };
-
-  const handleSelectAdAccount = async (account) => {
-    try {
-      await integrationsAPI.updateSettings({ meta_ad_account_id: account.id });
-      setAdAccounts(null);
-      onRefresh();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save ad account.'); }
-  };
-
-  const handleChangeAdAccount = async () => {
-    try {
-      await integrationsAPI.updateSettings({ meta_ad_account_id: '' });
-      await onRefresh();
-      handleLoadAdAccounts();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed to disconnect ad account.'); }
-  };
-
-  const handleSyncInsights = async () => {
-    setInsightsSyncing(true); setInsightsSyncResult(null);
-    try {
-      const { data } = await integrationsAPI.syncAdInsights();
-      setInsightsSyncResult(data.message);
-    } catch (e) { setInsightsSyncResult(e.response?.data?.error || 'Sync failed.'); }
-    finally { setInsightsSyncing(false); }
   };
 
   const handleDisconnect = async () => {
@@ -449,68 +409,22 @@ const MetaConfig = ({ settings, onRefresh }) => {
         </div>
       )}
 
-      {/* Ad spend & performance sync */}
+      {/* Ad spend & performance — lives in Ads Manager */}
       {settings.meta_configured && (
         <div className="bg-white rounded-2xl border p-5 space-y-3">
           <div>
             <h2 className="font-semibold">Ad Spend & Performance</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Automatically sync spend, impressions and clicks from Meta Ads Manager into your campaigns — no more manual entry.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Ad accounts, spend, ad sets, ads and cost per lead are managed in Ads Manager, which also keeps your campaigns' spend up to date.</p>
           </div>
-
-          {settings.meta_ads_configured ? (
-            <>
-              <div className="flex items-center justify-between gap-2 bg-green-50 rounded-xl px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle size={14} className="text-green-500 shrink-0" />
-                  <p className="text-xs text-green-700">Ad account connected: {settings.meta_ad_account_id}</p>
-                </div>
-                <button onClick={handleChangeAdAccount} className="text-xs text-green-700 hover:text-green-900 font-medium underline shrink-0">
-                  Change
-                </button>
-              </div>
-              {insightsSyncResult && (
-                <div className="flex items-start gap-2 bg-blue-50 rounded-xl px-3 py-2">
-                  <CheckCircle size={14} className="text-blue-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-700">{insightsSyncResult}</p>
-                </div>
-              )}
-              <button onClick={handleSyncInsights} disabled={insightsSyncing}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-                <RotateCcw size={14} className={insightsSyncing ? 'animate-spin' : ''} />
-                {insightsSyncing ? 'Syncing…' : 'Sync Now'}
-              </button>
-            </>
-          ) : adAccounts ? (
-            <div className="space-y-2">
-              {adAccounts.length === 0 && <p className="text-sm text-gray-500">No ad accounts found for this Facebook login.</p>}
-              {adAccounts.map(acc => (
-                <button key={acc.id} onClick={() => handleSelectAdAccount(acc)}
-                  className="w-full flex items-center justify-between px-4 py-3 border rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors text-left">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{acc.name}</p>
-                    <p className="text-xs text-gray-400">{acc.id} · {acc.account_status === 1 ? 'Active' : 'Inactive'}</p>
-                  </div>
-                  <ChevronRight size={16} className="text-gray-400" />
-                </button>
-              ))}
-              <button onClick={() => setAdAccounts(null)} className="text-xs text-gray-400 hover:text-gray-600">← Cancel</button>
-            </div>
-          ) : (
-            <>
-              {adAccountsError && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                  <p className="text-xs text-amber-800">{adAccountsError}</p>
-                  {adAccountsError.toLowerCase().includes('reconnect') && (
-                    <p className="text-xs text-amber-700 mt-1">Click "Reconnect with Facebook" above, then try again.</p>
-                  )}
-                </div>
-              )}
-              <button onClick={handleLoadAdAccounts} disabled={loadingAdAccounts}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-                {loadingAdAccounts ? 'Loading…' : 'Connect Ad Account'}
-              </button>
-            </>
+          {settings.meta_ads_configured && (
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2">
+              Ad account {settings.meta_ad_account_id} is connected the old way. Connect it once in Ads Manager to get daily insights, ad sets and creatives.
+            </p>
           )}
+          <a href="/ads?tab=meta"
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700">
+            Open Ads Manager <ChevronRight size={14} />
+          </a>
         </div>
       )}
 

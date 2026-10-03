@@ -47,7 +47,7 @@ const shortDate = v => {
   return y ? new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : null;
 };
 
-const CampaignCard = ({ c, onOpen, onEdit, onDelete }) => {
+const CampaignCard = ({ c, onOpen, onEdit, onDelete, onOpenMeta }) => {
   const spend = parseFloat(c.actual_spend) || 0;
   const isDaily = Number(c.daily_budget) > 0 && !(Number(c.lifetime_budget) > 0);
   const budget = parseFloat(c.budget) || 0;
@@ -104,7 +104,7 @@ const CampaignCard = ({ c, onOpen, onEdit, onDelete }) => {
           <p className="text-[11px] text-gray-500">Won / Lost</p>
           <p className="font-bold text-gray-900">{c.won_leads || 0}<span className="text-gray-300 font-normal"> / </span>{c.lost_leads || 0}</p>
         </div>
-        <div title="Lifetime cost per lead">
+        <div title={c.cpl_basis === 'period' ? 'Spend in this period ÷ leads in this period' : 'Lifetime spend ÷ lifetime leads'}>
           <p className="text-[11px] text-gray-500">CPL</p>
           <p className="font-bold text-brand-600">{cpl > 0 ? rupees(cpl) : '—'}</p>
         </div>
@@ -123,6 +123,10 @@ const CampaignCard = ({ c, onOpen, onEdit, onDelete }) => {
           {(start || end) && <><CalendarDays size={12} className="shrink-0" /> {start || '…'} – {end || 'ongoing'}</>}
         </span>
         <div className="flex gap-1 shrink-0 sm:opacity-0 sm:group-hover:opacity-100 sm:focus-within:opacity-100 transition">
+          {c.meta_campaign_id && (
+            <button onClick={e => { e.stopPropagation(); onOpenMeta(); }} aria-label="Open in Meta Ads" title="Ad sets, ads and daily spend in Meta Ads"
+              className="p-1.5 rounded-lg text-gray-500 hover:bg-blue-50 hover:text-blue-600"><TrendingUp size={14} /></button>
+          )}
           <button onClick={e => { e.stopPropagation(); onEdit(); }} aria-label="Edit campaign" title="Edit"
             className="p-1.5 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-800"><Edit2 size={14} /></button>
           <button onClick={e => { e.stopPropagation(); onDelete(); }} aria-label="Delete campaign" title="Delete"
@@ -143,6 +147,7 @@ const CampaignsPage = () => {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState(null);
+  const [editingMeta, setEditingMeta] = useState(false); // Meta-synced: status/budget/dates come from Meta
   const [form, setForm] = useState(emptyForm());
   const [errors, setErrors] = useState({});
   const [syncingInsights, setSyncingInsights] = useState(false);
@@ -173,7 +178,7 @@ const CampaignsPage = () => {
     finally { setLoading(false); }
   };
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm()); setErrors({}); setShowModal(true); };
+  const openCreate = () => { setEditing(null); setEditingMeta(false); setForm(emptyForm()); setErrors({}); setShowModal(true); };
 
   const handleSave = async () => {
     const newErrors = {};
@@ -183,7 +188,7 @@ const CampaignsPage = () => {
     if (Object.keys(newErrors).length) return;
     try {
       if (editing) {
-        await campaignAPI.update(editing, form);
+        await campaignAPI.update(editing, editingMeta ? { name: form.name, source: form.source, is_priority: form.is_priority } : form);
       } else {
         await campaignAPI.create(form);
       }
@@ -197,6 +202,7 @@ const CampaignsPage = () => {
 
   const handleEdit = (c) => {
     setEditing(c.id);
+    setEditingMeta(!!c.meta_campaign_id);
     setForm({
       name: c.name,
       source: c.source,
@@ -330,6 +336,7 @@ const CampaignsPage = () => {
             <CampaignCard key={c.id} c={c}
               onOpen={() => navigate(`/campaigns/${c.id}`)}
               onEdit={() => handleEdit(c)}
+              onOpenMeta={() => navigate('/ads?tab=meta')}
               onDelete={() => handleDelete(c.id)} />
           ))}
         </div>
@@ -361,7 +368,7 @@ const CampaignsPage = () => {
                   className={`w-full px-3 py-2.5 border rounded-lg text-sm ${errors.name ? 'border-red-500' : ''}`} />
                 {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className={`grid gap-2 ${editingMeta ? 'grid-cols-1' : 'grid-cols-2'}`}>
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Source</label>
                   <select value={form.source} onChange={e => setForm({ ...form, source: e.target.value })}
@@ -375,7 +382,7 @@ const CampaignsPage = () => {
                     <option value="other">Other</option>
                   </select>
                 </div>
-                <div>
+                {!editingMeta && <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Status</label>
                   <select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}
                     className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
@@ -384,8 +391,14 @@ const CampaignsPage = () => {
                     <option value="paused">Paused</option>
                     <option value="completed">Completed</option>
                   </select>
-                </div>
+                </div>}
               </div>
+              {editingMeta ? (
+                <div className="rounded-xl bg-blue-50 text-blue-800 text-xs px-3 py-2.5">
+                  Status, budget and dates come from Meta and are synced automatically.{' '}
+                  <button type="button" onClick={() => navigate('/ads?tab=meta')} className="font-semibold underline">Manage them in Meta Ads</button>
+                </div>
+              ) : (<>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Budget (₹)</label>
                 <input type="number" min="0" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })}
@@ -405,6 +418,7 @@ const CampaignsPage = () => {
                   {errors.end_date && <p className="text-xs text-red-500 mt-1">{errors.end_date}</p>}
                 </div>
               </div>
+              </>)}
               <div className="rounded-xl border p-3">
                 <label className="flex items-center gap-2 text-sm cursor-pointer">
                   <input type="checkbox" checked={form.is_priority} onChange={e => setForm({ ...form, is_priority: e.target.checked })}

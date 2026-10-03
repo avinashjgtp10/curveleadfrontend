@@ -24,6 +24,7 @@ const CampaignDetailPage = () => {
   const [data, setData] = useState(null);
   const [leads, setLeads] = useState([]);
   const [ads, setAds] = useState([]);
+  const [adsSource, setAdsSource] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState([]);
   const [filters, setFilters] = useState({ stage: '', lead_score: '', search: '' });
@@ -32,7 +33,7 @@ const CampaignDetailPage = () => {
   useEffect(() => { stageAPI.getAll().then(({ data }) => setStages(data.stages || [])).catch(() => {}); }, []);
 
   useEffect(() => {
-    campaignAPI.getAds(id).then(({ data }) => setAds(data.ads || [])).catch(() => {});
+    campaignAPI.getAds(id).then(({ data }) => { setAds(data.ads || []); setAdsSource(data.source || null); }).catch(() => {});
   }, [id]);
 
   // Debounce the search box so it doesn't refetch on every keystroke
@@ -91,7 +92,14 @@ const CampaignDetailPage = () => {
               )}
             </div>
           </div>
-          {data.status && <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${statusColors[data.status] || 'bg-gray-100 text-gray-600'}`}>{data.status}</span>}
+          <div className="flex items-center gap-2">
+            {data.meta_campaign_id && (
+              <button onClick={() => navigate('/ads?tab=meta')} className="px-2.5 py-1 rounded-lg border text-xs font-semibold text-blue-700 hover:bg-blue-50 flex items-center gap-1">
+                <TrendingUp size={12} /> Open in Meta Ads
+              </button>
+            )}
+            {data.status && <span className={`px-2.5 py-1 rounded-full text-xs font-semibold capitalize ${statusColors[data.status] || 'bg-gray-100 text-gray-600'}`}>{data.status}</span>}
+          </div>
         </div>
       </div>
 
@@ -109,7 +117,9 @@ const CampaignDetailPage = () => {
 
       {ads.length > 0 && (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-semibold mb-4 flex items-center gap-2"><Megaphone size={16} /> Ads in this Campaign</h3>
+          <h3 className="font-semibold mb-4 flex items-center gap-2 flex-wrap"><Megaphone size={16} /> Ads in this Campaign
+            {adsSource === 'ads_manager' && <span className="text-[11px] font-normal text-gray-400">· spend over the days synced by Ads Manager (up to 90)</span>}
+          </h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
