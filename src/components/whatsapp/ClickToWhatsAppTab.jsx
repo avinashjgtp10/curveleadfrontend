@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { whatsappAPI } from '../../services/api';
-import { Card, DaysSelect, Empty, ErrorBox, Loading, Stat, fmtDateTime, useLoad } from './hubUi';
+import { Card, DaysSelect, Empty, ErrorBox, LoadError, Loading, Stat, fmtDateTime, useLoad } from './hubUi';
 
 const ClickToWhatsAppTab = () => {
   const [days, setDays] = useState(30);
-  const { data, error, loading } = useLoad(() => whatsappAPI.hubCtwa(days), [days]);
+  const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubCtwa(days), [days]);
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
   const { summary } = data;
 
   return (

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AiCampaignWizard from './AiCampaignWizard';
+import ErrorState, { errorMessage } from '../components/ui/ErrorState';
 import { adsAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { FB_LOGIN_CONFIG_ID, loadFbSdk } from '../utils/facebookSdk';
@@ -123,16 +124,19 @@ const AdsPage = () => {
   const [history, setHistory] = useState([]);
   const [reload, setReload] = useState(0);
   const [wizard, setWizard] = useState(false);
+  const [accountsError, setAccountsError] = useState('');
+  const [dataError, setDataError] = useState('');
 
   const params = { account_id: accountId || undefined, from: isoDaysAgo(Number(days) - 1), to: isoDaysAgo(0) };
   const account = accounts?.find((a) => a.id === accountId);
 
   const loadAccounts = useCallback(async () => {
+    setAccountsError('');
     try {
       const { data } = await adsAPI.getAccounts();
       setAccounts(data.accounts);
       setAccountId((cur) => cur || data.accounts.find((a) => a.is_primary)?.id || data.accounts[0]?.id || '');
-    } catch (e) { setAccounts([]); toast.error(e.response?.data?.error || 'Could not load ad accounts.'); }
+    } catch (e) { setAccountsError(errorMessage(e, 'Could not load your ad accounts.')); setAccounts([]); }
   }, []);
 
   useEffect(() => { loadAccounts(); loadFbSdk().catch(() => {}); }, [loadAccounts]);
@@ -148,7 +152,8 @@ const AdsPage = () => {
         setRows(data.campaigns || data.adsets || data.ads || []);
         if (d) setDash(d.data);
       })
-      .catch((e) => toast.error(e.response?.data?.error || 'Could not load ad data.'))
+      .then(() => setDataError(''))
+      .catch((e) => setDataError(errorMessage(e, 'Could not load ad data.')))
       .finally(() => setLoading(false));
   }, [accountId, days, level, reload]);
 
@@ -212,6 +217,8 @@ const AdsPage = () => {
 
   if (accounts === null) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
 
+  if (accountsError) return <ErrorState message={accountsError} onRetry={() => { setAccounts(null); loadAccounts(); }} />;
+
   if (!accounts.length) {
     return (
       <div className="max-w-lg mx-auto mt-10 bg-white border rounded-2xl p-6 text-center space-y-3">
@@ -266,6 +273,7 @@ const AdsPage = () => {
         </div>
       )}
 
+      {dataError && <ErrorState message={dataError} onRetry={() => setReload((n) => n + 1)} retrying={loading} />}
       {level.type === 'campaigns' && settings && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white border rounded-xl px-4 py-3 text-sm">
           <span className="text-gray-500">Set to spend per day: <strong className="text-gray-900">{paise(settings.active_daily_budget_paise)}</strong></span>

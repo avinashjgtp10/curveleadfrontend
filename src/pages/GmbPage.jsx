@@ -4,7 +4,7 @@ import { Star, MessageSquareText, Megaphone, BarChart3, Sparkles, Lock, CheckCir
 import { gmbAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
-import { Card, Toggle, Loading, ErrorBox, useLoad } from '../components/whatsapp/hubUi';
+import { Card, Toggle, Loading, LoadError, useLoad } from '../components/whatsapp/hubUi';
 
 const CONNECT_MESSAGES = {
   success: { type: 'success', text: 'Google Business Profile connected.' },
@@ -99,7 +99,7 @@ const ReviewRequestsTab = () => {
   }, [data]);
 
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
 
   const save = async () => {
     setSaving(true);

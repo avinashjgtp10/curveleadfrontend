@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import { whatsappAPI } from '../../services/api';
-import { Card, Empty, ErrorBox, Loading, useLoad } from './hubUi';
+import { Card, Empty, LoadError, Loading, useLoad } from './hubUi';
 
 const QUALITY = { GREEN: 'bg-green-100 text-green-700', YELLOW: 'bg-amber-100 text-amber-700', RED: 'bg-red-100 text-red-700' };
 const TIERS = {
@@ -17,7 +17,7 @@ const Row = ({ label, children }) => (
 const NumbersTab = () => {
   const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubNumbers());
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
   const { shared, rep_numbers: reps } = data;
   const live = shared.live;
 

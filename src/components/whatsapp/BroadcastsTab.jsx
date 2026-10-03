@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
-import { Card, DaysSelect, Empty, ErrorBox, Loading, fmtDateTime, pct, useLoad } from './hubUi';
+import { Card, DaysSelect, Empty, ErrorBox, LoadError, Loading, fmtDateTime, pct, useLoad } from './hubUi';
 
 const STATUS_STYLE = {
   pending: 'bg-blue-100 text-blue-700', sending: 'bg-amber-100 text-amber-700', sent: 'bg-green-100 text-green-700',
@@ -17,10 +17,10 @@ const BroadcastsTab = () => {
     catch (e) { toast.error(e.response?.data?.error || 'Failed to cancel'); }
   };
   const [days, setDays] = useState(90);
-  const { data, error, loading } = useLoad(() => whatsappAPI.hubBroadcasts(days), [days]);
+  const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubBroadcasts(days), [days]);
 
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
 
   return (
     <div className="space-y-4">

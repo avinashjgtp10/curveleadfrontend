@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Upload, FileText, Trash2 } from 'lucide-react';
-import { Card, Empty, ErrorBox, Loading, Toggle, fmtDateTime, useLoad } from './hubUi';
+import { Card, Empty, LoadError, Loading, Toggle, fmtDateTime, useLoad } from './hubUi';
 
 const SHARE_FILE_ACTIONS = [
   { key: 'send_demo', label: 'Demo video / images', hint: 'Sent when the AI judges a lead is interested and would benefit from seeing the product/service.' },
@@ -22,7 +22,7 @@ const FIELDS = [
 
 const AiAutoReplyTab = () => {
   const toast = useToast();
-  const { data, error, loading } = useLoad(() => whatsappAPI.hubGetAiKnowledge());
+  const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubGetAiKnowledge());
   const replies = useLoad(() => whatsappAPI.hubAiReplies());
   const [enabled, setEnabled] = useState(false);
   const [k, setK] = useState({});
@@ -50,7 +50,7 @@ const AiAutoReplyTab = () => {
   };
 
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
 
   const save = async () => {
     setSaving(true);

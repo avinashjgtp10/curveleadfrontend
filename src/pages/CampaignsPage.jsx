@@ -9,6 +9,7 @@ import {
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import DatePicker from '../components/ui/DatePicker';
+import ErrorState, { errorMessage } from '../components/ui/ErrorState';
 
 const PAGE_SIZE = 20;
 
@@ -154,6 +155,7 @@ const CampaignsPage = () => {
   const [tab, setTab] = useState('active');
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => { loadData(); }, [period, page]);
 
@@ -174,7 +176,8 @@ const CampaignsPage = () => {
       setCampaigns(data.campaigns || []);
       setMetrics(data.metrics || null);
       setTotal(data.total || 0);
-    } catch (e) { console.error(e); }
+      setLoadError('');
+    } catch (e) { setLoadError(errorMessage(e, 'Could not load campaigns.')); }
     finally { setLoading(false); }
   };
 
@@ -313,10 +316,13 @@ const CampaignsPage = () => {
         </div>
       )}
 
+      {loadError && campaigns.length > 0 && <ErrorState message={loadError} onRetry={loadData} retrying={loading} />}
       {firstLoad ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {[0, 1, 2].map(i => <div key={i} className="h-72 rounded-2xl bg-gray-100 animate-pulse" />)}
         </div>
+      ) : loadError && campaigns.length === 0 ? (
+        <ErrorState message={loadError} onRetry={loadData} retrying={loading} />
       ) : campaigns.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-12 text-center">
           <div className="w-14 h-14 mx-auto rounded-full bg-brand-50 text-brand-600 flex items-center justify-center mb-4"><Megaphone size={26} /></div>
