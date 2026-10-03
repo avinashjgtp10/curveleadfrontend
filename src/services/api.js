@@ -111,6 +111,15 @@ export const adsAPI = {
   getAds: (adsetId, params) => api.get(`/ads/adsets/${adsetId}/ads`, { params }),
   getDaily: (params) => api.get('/ads/insights/daily', { params }),
   getDashboard: (params) => api.get('/ads/dashboard', { params }),
+  getLeadForms: () => api.get('/ads/forms'),
+  backfillLeadForm: (id, since) => api.post(`/ads/forms/${id}/backfill`, since ? { since } : {}),
+  updateLeadSettings: (data) => api.put('/ads/lead-settings', data),
+  setStatus: (level, id, action) => api.post(`/ads/${level}/${id}/${action}`),          // level: campaigns | adsets; action: pause | resume
+  setBudget: (level, id, dailyBudgetPaise) => api.patch(`/ads/${level}/${id}/budget`, { daily_budget_paise: dailyBudgetPaise }),
+  getAudit: (params) => api.get('/ads/audit', { params }),
+  getSettings: () => api.get('/ads/settings'),
+  updateSettings: (data) => api.put('/ads/settings', data),
+  getCapiEvents: () => api.get('/ads/capi/events'),
 };
 
 // ============================================
