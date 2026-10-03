@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import axios from 'axios';
 import { Printer } from 'lucide-react';
+import { formatMoney, countryProfile, bankLabel } from '../utils/locale';
 
 const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE_URL || '/api' });
 
@@ -30,6 +31,10 @@ const QuotationPublicPage = () => {
     </div>
   );
 
+  // This quotation's own currency and country, whoever is viewing it.
+  const qm = (v) => formatMoney(parseFloat(v), data.currency, { country: data.business_country, decimals: 2 });
+  const taxLabel = (key, fallback) => countryProfile(data.business_country).tax.find(f => f.key === key)?.label || fallback;
+
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-3xl mx-auto">
@@ -50,8 +55,8 @@ const QuotationPublicPage = () => {
               {data.business_phone && <p className="text-xs text-gray-500">{data.business_phone}</p>}
               {data.business_email && <p className="text-xs text-gray-500">{data.business_email}</p>}
               {data.business_website && <p className="text-xs text-gray-500">{data.business_website}</p>}
-              {data.business_gst && <p className="text-xs text-gray-500 mt-1">GSTIN: <span className="font-mono font-semibold">{data.business_gst}</span></p>}
-              {data.business_pan && <p className="text-xs text-gray-500">PAN: <span className="font-mono font-semibold">{data.business_pan}</span></p>}
+              {data.business_gst && <p className="text-xs text-gray-500 mt-1">{taxLabel('gst_number', 'Tax ID')}: <span className="font-mono font-semibold">{data.business_gst}</span></p>}
+              {data.business_pan && <p className="text-xs text-gray-500">{taxLabel('pan_number', 'PAN')}: <span className="font-mono font-semibold">{data.business_pan}</span></p>}
             </div>
             <div className="text-right">
               <h2 className="text-2xl font-bold tracking-wide">QUOTATION</h2>
@@ -93,8 +98,8 @@ const QuotationPublicPage = () => {
                     {item.description && <p className="text-xs text-gray-400 mt-0.5">{item.description}</p>}
                   </td>
                   <td className="text-right py-3 px-3 text-gray-600">{item.quantity}</td>
-                  <td className="text-right py-3 px-3 text-gray-600">₹{parseFloat(item.price).toLocaleString('en-IN')}</td>
-                  <td className="text-right py-3 font-medium">₹{parseFloat(item.total).toLocaleString('en-IN')}</td>
+                  <td className="text-right py-3 px-3 text-gray-600">{qm(item.price)}</td>
+                  <td className="text-right py-3 font-medium">{qm(item.total)}</td>
                 </tr>
               ))}
             </tbody>
@@ -105,21 +110,21 @@ const QuotationPublicPage = () => {
             <div className="w-64 space-y-1.5 text-sm">
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span>
-                <span>₹{parseFloat(data.subtotal).toLocaleString('en-IN')}</span>
+                <span>{qm(data.subtotal)}</span>
               </div>
               {parseFloat(data.discount_percent) > 0 && (
                 <div className="flex justify-between text-green-600">
                   <span>Discount ({data.discount_percent}%)</span>
-                  <span>−₹{parseFloat(data.discount_amount).toLocaleString('en-IN')}</span>
+                  <span>−{qm(data.discount_amount)}</span>
                 </div>
               )}
               <div className="flex justify-between text-gray-600">
                 <span>Tax ({data.tax_percent}%)</span>
-                <span>₹{parseFloat(data.tax_amount).toLocaleString('en-IN')}</span>
+                <span>{qm(data.tax_amount)}</span>
               </div>
               <div className="flex justify-between text-lg font-bold border-t-2 border-gray-200 pt-2 mt-2">
                 <span>Total</span>
-                <span className="text-blue-600">₹{parseFloat(data.total).toLocaleString('en-IN')}</span>
+                <span className="text-blue-600">{qm(data.total)}</span>
               </div>
             </div>
           </div>
@@ -143,17 +148,17 @@ const QuotationPublicPage = () => {
             const bd = typeof data.business_bank_details === 'string'
               ? JSON.parse(data.business_bank_details || '{}')
               : (data.business_bank_details || {});
-            const hasBankInfo = bd.bank_name || bd.account_number || bd.upi;
+            const bankKeys = [...new Set(['account_holder', ...countryProfile(data.business_country).bank.map(f => f.key), ...Object.keys(bd)])]
+              .filter(k => typeof bd[k] === 'string' && bd[k].trim());
+            const hasBankInfo = bankKeys.some(k => k !== 'account_holder');
             if (!hasBankInfo) return null;
             return (
               <div className="border-t pt-4 mt-4">
                 <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Payment Details</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-1 text-xs text-gray-600">
-                  {bd.account_holder && <p><span className="text-gray-400">Account Name:</span> {bd.account_holder}</p>}
-                  {bd.bank_name      && <p><span className="text-gray-400">Bank:</span> {bd.bank_name}</p>}
-                  {bd.account_number && <p><span className="text-gray-400">Account No:</span> <span className="font-mono">{bd.account_number}</span></p>}
-                  {bd.ifsc           && <p><span className="text-gray-400">IFSC:</span> <span className="font-mono">{bd.ifsc}</span></p>}
-                  {bd.upi            && <p><span className="text-gray-400">UPI:</span> <span className="font-mono">{bd.upi}</span></p>}
+                  {bankKeys.map(k => (
+                    <p key={k}><span className="text-gray-400">{bankLabel(data.business_country, k)}:</span> <span className={k === 'account_holder' || k === 'bank_name' ? '' : 'font-mono'}>{bd[k]}</span></p>
+                  ))}
                 </div>
               </div>
             );

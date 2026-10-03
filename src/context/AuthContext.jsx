@@ -1,4 +1,5 @@
 import { setWorkspaceTimezone } from '../utils/dateTime';
+import { setWorkspaceLocale } from '../utils/locale';
 import { createContext, useContext, useState, useEffect } from 'react';
 import { authAPI, clearApiCache } from '../services/api';
 
@@ -75,6 +76,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   setWorkspaceTimezone(tenant?.settings?.timezone || tenant?.timezone || 'Asia/Kolkata');
+  setWorkspaceLocale({ country: tenant?.country, currency: tenant?.currency });
 
   return (
     <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, signup, acceptInvite, logout, refreshProfile }}>

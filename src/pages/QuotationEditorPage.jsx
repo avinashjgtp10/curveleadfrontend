@@ -4,6 +4,7 @@ import { quotationsAPI, leadAPI } from '../services/api';
 import { Plus, Trash2, Save, Send, ArrowLeft } from 'lucide-react';
 import { useToast } from '../components/ui/Toast';
 import DatePicker from '../components/ui/DatePicker';
+import { formatMoney, countryProfile } from '../utils/locale';
 
 const QuotationEditorPage = () => {
   const toast = useToast();
@@ -21,7 +22,7 @@ const QuotationEditorPage = () => {
     title: '',
     items: [{ name: '', description: '', quantity: 1, price: 0 }],
     discount_percent: 0,
-    tax_percent: 18,
+    tax_percent: countryProfile().default_tax_percent,
     valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
     terms: '50% advance, balance on delivery.',
     notes: '',
@@ -36,6 +37,9 @@ const QuotationEditorPage = () => {
       });
     }
   }, [id]);
+
+  // A saved quote keeps the currency it was written in; a new one uses the workspace's.
+  const qm = (v) => formatMoney(v, saved?.currency, { decimals: 2 });
 
   const updateItem = (i, field, val) => {
     const items = [...form.items];
@@ -180,7 +184,7 @@ const QuotationEditorPage = () => {
                   <Trash2 size={14} />
                 </button>
                 <div className="col-span-12 text-right text-xs text-gray-500 -mt-1">
-                  Subtotal: ₹{((parseFloat(item.quantity) || 0) * (parseFloat(item.price) || 0)).toFixed(2)}
+                  Subtotal: {qm((parseFloat(item.quantity) || 0) * (parseFloat(item.price) || 0))}
                 </div>
               </div>
             );
@@ -216,11 +220,11 @@ const QuotationEditorPage = () => {
           </div>
 
           <div className="space-y-2 text-sm bg-gray-50 rounded-xl p-4 h-fit">
-            <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span className="font-medium">₹{subtotal.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Discount ({form.discount_percent}%)</span><span>-₹{discountAmount.toFixed(2)}</span></div>
-            <div className="flex justify-between"><span className="text-gray-500">Tax ({form.tax_percent}%)</span><span>+₹{taxAmount.toFixed(2)}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Subtotal</span><span className="font-medium">{qm(subtotal)}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Discount ({form.discount_percent}%)</span><span>-{qm(discountAmount)}</span></div>
+            <div className="flex justify-between"><span className="text-gray-500">Tax ({form.tax_percent}%)</span><span>+{qm(taxAmount)}</span></div>
             <div className="flex justify-between border-t pt-2 mt-2 text-base font-bold">
-              <span>Total</span><span className="text-brand-600">₹{total.toFixed(2)}</span>
+              <span>Total</span><span className="text-brand-600">{qm(total)}</span>
             </div>
           </div>
         </div>

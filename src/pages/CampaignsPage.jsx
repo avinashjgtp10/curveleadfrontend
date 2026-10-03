@@ -10,6 +10,7 @@ import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import DatePicker from '../components/ui/DatePicker';
 import ErrorState, { errorMessage } from '../components/ui/ErrorState';
+import { formatMoney, formatNumber, formatMoneyByCurrency, currencySymbol, intlLocale } from '../utils/locale';
 
 const PAGE_SIZE = 20;
 
@@ -35,25 +36,32 @@ const PERIODS = [
   { value: 'this_week', label: 'This week' },
   { value: 'this_month', label: 'This month' },
   { value: 'last_month', label: 'Last month' },
+  { value: 'last_30_days', label: 'Last 30 days' },
   { value: 'this_year', label: 'This year' },
+  { value: 'lifetime', label: 'Lifetime' },
 ];
 
 const emptyForm = () => ({ name: '', source: 'meta_ads', budget: '', start_date: '', end_date: '', status: 'active', is_priority: false });
 
-const rupees = v => `₹${Math.round(parseFloat(v) || 0).toLocaleString('en-IN')}`;
-const num = v => Number(v || 0).toLocaleString('en-IN');
+// Whole units in the campaign's currency (its ad account's for Meta, else the workspace's).
+const rupees = (v, currency) => formatMoney(Math.round(parseFloat(v) || 0), currency);
+const num = v => formatNumber(v);
 // Campaign start/end are plain dates; format them without a timezone shift.
 const shortDate = v => {
   const [y, m, d] = String(v || '').split('T')[0].split('-').map(Number);
-  return y ? new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : null;
+  return y ? new Date(y, m - 1, d).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: '2-digit' }) : null;
 };
 
+// Numbers on the card are for the selected range (services/metrics.js) except the budget
+// bar, which tracks the campaign's lifetime spend against its budget.
 const CampaignCard = ({ c, onOpen, onEdit, onDelete, onOpenMeta }) => {
-  const spend = parseFloat(c.actual_spend) || 0;
+  const spend = parseFloat(c.lifetime_spend ?? c.actual_spend) || 0;
+  const cur = c.currency || c.account_currency || undefined;
   const isDaily = Number(c.daily_budget) > 0 && !(Number(c.lifetime_budget) > 0);
   const budget = parseFloat(c.budget) || 0;
   const usedPct = budget > 0 && !isDaily ? Math.min(100, Math.round((spend / budget) * 100)) : null;
-  const cpl = parseFloat(c.cpl) || 0;
+  const cpl = c.cpl != null ? Number(c.cpl) : null;
+  const periodSpend = c.spend != null ? Number(c.spend) : null;
   const ctr = Number(c.impressions) > 0 ? ((Number(c.clicks || 0) / Number(c.impressions)) * 100).toFixed(2) : null;
   const start = shortDate(c.start_date), end = shortDate(c.end_date);
   const hasMeta = c.meta_campaign_id && (c.impressions != null || c.clicks != null);
@@ -83,10 +91,10 @@ const CampaignCard = ({ c, onOpen, onEdit, onDelete, onOpenMeta }) => {
 
       <div className="mt-4">
         <div className="flex items-baseline justify-between text-sm">
-          <span className="text-gray-500">Spent</span>
+          <span className="text-gray-500">Lifetime spent</span>
           <span>
-            <span className="font-semibold text-gray-900">{rupees(spend)}</span>
-            {budget > 0 && <span className="text-gray-400 text-xs"> {isDaily ? `· ${rupees(budget)}/day` : `of ${rupees(budget)}`}</span>}
+            <span className="font-semibold text-gray-900">{rupees(spend, cur)}</span>
+            {budget > 0 && <span className="text-gray-400 text-xs"> {isDaily ? `· ${rupees(budget, cur)}/day` : `of ${rupees(budget, cur)}`}</span>}
           </span>
         </div>
         {usedPct !== null && (
@@ -97,18 +105,25 @@ const CampaignCard = ({ c, onOpen, onEdit, onDelete, onOpenMeta }) => {
       </div>
 
       <div className="mt-4 grid grid-cols-3 divide-x divide-gray-100 rounded-xl bg-gray-50 py-2.5 text-center">
-        <div>
+        <div title="Leads in CurveLead created in this period">
           <p className="text-[11px] text-gray-500">Leads</p>
-          <p className="font-bold text-gray-900">{num(c.total_leads)}</p>
+          <p className="font-bold text-gray-900">{num(c.crm_leads ?? c.total_leads)}</p>
         </div>
-        <div>
-          <p className="text-[11px] text-gray-500">Won / Lost</p>
-          <p className="font-bold text-gray-900">{c.won_leads || 0}<span className="text-gray-300 font-normal"> / </span>{c.lost_leads || 0}</p>
+        <div title="Of these leads, how many became customers (reached a won stage)">
+          <p className="text-[11px] text-gray-500">Converted</p>
+          <p className="font-bold text-gray-900">{num(c.converted)}</p>
         </div>
-        <div title={c.cpl_basis === 'period' ? 'Spend in this period ÷ leads in this period' : 'Lifetime spend ÷ lifetime leads'}>
+        <div title={c.spend_basis === 'not_measured' ? 'No daily spend for this campaign (manual spend is lifetime only)' : 'Spend in this period ÷ leads in this period'}>
           <p className="text-[11px] text-gray-500">CPL</p>
-          <p className="font-bold text-brand-600">{cpl > 0 ? rupees(cpl) : '—'}</p>
+          <p className="font-bold text-brand-600">{cpl != null ? rupees(cpl, cur) : '—'}</p>
         </div>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-gray-500">
+        {periodSpend != null && <span>Spent in period <strong className="text-gray-700">{rupees(periodSpend, cur)}</strong></span>}
+        {periodSpend == null && c.spend_by_currency && <span title="This campaign spent in more than one currency; amounts are not converted">Spent in period <strong className="text-gray-700">{formatMoneyByCurrency(c.spend_by_currency)}</strong></span>}
+        {c.cost_per_customer != null && <span>Per customer <strong className="text-gray-700">{rupees(c.cost_per_customer, cur)}</strong></span>}
+        {c.platform_leads != null && <span title="Leads Meta reports for this period — can differ from leads in CurveLead">Reported by Meta <strong className="text-gray-700">{num(c.platform_leads)}</strong></span>}
+        {c.won > 0 && <span title="Leads that reached a won stage in this period, whenever they came in">Won this period <strong className="text-gray-700">{num(c.won)}</strong></span>}
       </div>
 
       {hasMeta && (
@@ -232,10 +247,11 @@ const CampaignsPage = () => {
   const watch = campaigns.filter(c => c.verdict === 'high_volume_low_quality');
   const firstLoad = loading && !campaigns.length && !metrics;
 
+  // Campaign-attributed leads only (no WhatsApp/manual leads without a campaign).
   const kpis = [
-    { label: 'Leads', value: num(metrics?.total_leads), icon: Users, cls: 'bg-blue-100 text-blue-600' },
-    { label: 'Won', value: num(metrics?.won), icon: Trophy, cls: 'bg-emerald-100 text-emerald-600' },
-    { label: 'Conversion', value: `${metrics?.conversion_rate ?? 0}%`, icon: Target, cls: 'bg-violet-100 text-violet-600' },
+    { label: 'Leads from campaigns', value: num(metrics?.crm_leads ?? metrics?.total_leads), icon: Users, cls: 'bg-blue-100 text-blue-600' },
+    { label: 'Won this period', value: num(metrics?.won), icon: Trophy, cls: 'bg-emerald-100 text-emerald-600' },
+    { label: 'Conversion of these leads', value: `${metrics?.conversion_rate ?? 0}%`, icon: Target, cls: 'bg-violet-100 text-violet-600' },
     { label: 'Active campaigns', value: num(metrics?.active_campaigns), icon: Megaphone, cls: 'bg-amber-100 text-amber-600' },
   ];
 
@@ -278,7 +294,7 @@ const CampaignsPage = () => {
           <h2 className="font-semibold flex items-center gap-2 mb-3"><Target size={16} className="text-brand-600" /> Where to focus</h2>
           <div className="grid sm:grid-cols-2 gap-2">
             {focus.map(c => (
-              <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}`)}
+              <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}?period=${period}`)}
                 className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-left transition">
                 <TrendingUp size={16} className="text-emerald-600 mt-0.5 shrink-0" />
                 <div className="min-w-0">
@@ -288,7 +304,7 @@ const CampaignsPage = () => {
               </button>
             ))}
             {watch.map(c => (
-              <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}`)}
+              <button key={c.id} onClick={() => navigate(`/campaigns/${c.id}?period=${period}`)}
                 className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-left transition">
                 <AlertTriangle size={16} className="text-amber-600 mt-0.5 shrink-0" />
                 <div className="min-w-0">
@@ -340,7 +356,7 @@ const CampaignsPage = () => {
         <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
           {visible.map(c => (
             <CampaignCard key={c.id} c={c}
-              onOpen={() => navigate(`/campaigns/${c.id}`)}
+              onOpen={() => navigate(`/campaigns/${c.id}?period=${period}`)}
               onEdit={() => handleEdit(c)}
               onOpenMeta={() => navigate('/ads?tab=meta')}
               onDelete={() => handleDelete(c.id)} />
@@ -406,7 +422,7 @@ const CampaignsPage = () => {
                 </div>
               ) : (<>
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Budget (₹)</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Budget ({currencySymbol()})</label>
                 <input type="number" min="0" value={form.budget} onChange={e => setForm({ ...form, budget: e.target.value })}
                   className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               </div>

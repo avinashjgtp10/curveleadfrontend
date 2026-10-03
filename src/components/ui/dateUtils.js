@@ -1,3 +1,4 @@
+import { intlLocale } from '../../utils/locale';
 // Shared date/time helpers for DatePicker and DateTimePicker — no external
 // date library, just plain Date math, matching the string formats native
 // <input type="date"> ('YYYY-MM-DD') and <input type="datetime-local">
@@ -33,8 +34,8 @@ export const parseDateTimeLocal = (str) => {
 // Date -> 'YYYY-MM-DDTHH:mm'
 export const formatDateTimeLocal = (date) => `${formatDateOnly(date)}T${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 
-export const formatDisplayDate = (date) => date.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-export const formatDisplayTime = (date) => date.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true });
+export const formatDisplayDate = (date) => date.toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
+export const formatDisplayTime = (date) => date.toLocaleTimeString(intlLocale(), { hour: 'numeric', minute: '2-digit', hour12: true });
 export const formatDisplayDateTime = (date) => `${formatDisplayDate(date)}, ${formatDisplayTime(date)}`;
 
 export const isSameDay = (a, b) => !!a && !!b && a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
