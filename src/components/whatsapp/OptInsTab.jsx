@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
-import { Card, Empty, ErrorBox, LoadError, Loading, Stat, Toggle, fmtDate, useLoad } from './hubUi';
+import { Card, Empty, ErrorBox, LoadError, Loading, Stat, fmtDate, useLoad } from './hubUi';
 
 const OptInsTab = () => {
   const toast = useToast();
@@ -32,11 +32,6 @@ const OptInsTab = () => {
     run({ phones, action: 'opt_in', source }, 'Marked as opted in');
   };
 
-  const toggleRequire = async (v) => {
-    try { await whatsappAPI.hubOptInSettings({ require_opt_in: v }); reload(); }
-    catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
-  };
-
   const rows = list === 'opted_in' ? data.opted_in : data.opted_out;
 
   return (
@@ -55,9 +50,12 @@ const OptInsTab = () => {
       </div>
 
       <Card title="Consent rule">
-        <Toggle checked={data.require_opt_in} onChange={toggleRequire}
-          label="Only broadcast to leads who have opted in"
-          hint="Off: broadcasts go to everyone who hasn't opted out. On: leads without an opt-in record are skipped. Opted-out leads are always skipped." />
+        <ul className="text-sm text-gray-700 space-y-1.5 list-disc pl-5">
+          <li><strong>Marketing templates</strong> (offers, promotions) only go to leads with a recorded opt-in.</li>
+          <li><strong>Utility templates</strong> (confirmations, reminders, updates) also reach leads who asked to be contacted — they filled a lead form, messaged you, or booked a visit/demo.</li>
+          <li>Opted-out leads never get templates. Messaging you first does not count as a marketing opt-in.</li>
+        </ul>
+        <p className="text-[11px] text-gray-400 mt-2">Opt-ins are recorded automatically from Meta lead forms with a consent checkbox, from a "WhatsApp opt-in" column in CSV imports, and when someone replies START. Use the box below for consent you collected elsewhere.</p>
       </Card>
 
       <Card title="Record opt-ins">
