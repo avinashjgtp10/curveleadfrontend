@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend } from 'recharts';
 import { whatsappAPI } from '../../services/api';
-import { Card, DaysSelect, Empty, ErrorBox, Loading, Stat, fmtDuration, useLoad } from './hubUi';
+import { Card, DaysSelect, Empty, LoadError, Loading, Stat, fmtDuration, useLoad } from './hubUi';
 
 const AnalyticsTab = () => {
   const [days, setDays] = useState(30);
-  const { data, error, loading } = useLoad(() => whatsappAPI.hubAnalytics(days), [days]);
+  const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubAnalytics(days), [days]);
 
   if (loading && !data) return <Loading />;
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
   const t = data.totals;
 
   return (

@@ -1,9 +1,10 @@
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { campaignAPI, stageAPI } from '../services/api';
 import { sourceLabel } from '../utils/leadData.js';
-import { ArrowLeft, IndianRupee, Users, TrendingUp, Target, Eye, MousePointerClick, X, Megaphone, CalendarDays, Star, Search, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Banknote, Users, TrendingUp, Target, Eye, X, Megaphone, CalendarDays, Star, Search, ChevronRight } from 'lucide-react';
+import { formatMoney, formatNumber, formatMoneyByCurrency, intlLocale } from '../utils/locale';
 
 const statusColors = {
   active: 'bg-green-100 text-green-700',
@@ -15,7 +16,7 @@ const scoreColors = { hot: 'bg-red-100 text-red-700', warm: 'bg-amber-100 text-a
 // Campaign start/end are plain dates; format them without a timezone shift.
 const shortDate = v => {
   const [y, m, d] = String(v || '').split('T')[0].split('-').map(Number);
-  return y ? new Date(y, m - 1, d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
+  return y ? new Date(y, m - 1, d).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 };
 
 const CampaignDetailPage = () => {
@@ -28,6 +29,9 @@ const CampaignDetailPage = () => {
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState([]);
   const [filters, setFilters] = useState({ stage: '', lead_score: '', search: '' });
+  // Same range as the Campaigns tab (or the Meta Ads range it was opened from).
+  const [urlParams, setUrlParams] = useSearchParams();
+  const range = { period: urlParams.get('period') || 'this_month', date_from: urlParams.get('date_from') || undefined, date_to: urlParams.get('date_to') || undefined };
   const [searchInput, setSearchInput] = useState('');
 
   useEffect(() => { stageAPI.getAll().then(({ data }) => setStages(data.stages || [])).catch(() => {}); }, []);
@@ -44,11 +48,11 @@ const CampaignDetailPage = () => {
     return () => clearTimeout(t);
   }, [searchInput]);
 
-  useEffect(() => { loadData(); }, [id, filters]);
+  useEffect(() => { loadData(); }, [id, filters, urlParams.toString()]);
 
   const loadData = async () => {
     try {
-      const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v));
+      const params = Object.fromEntries(Object.entries({ ...filters, ...range }).filter(([, v]) => v));
       const { data } = await campaignAPI.getOne(id, params);
       setData(data.campaign);
       setLeads(data.recentLeads || []);
@@ -62,16 +66,21 @@ const CampaignDetailPage = () => {
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
   if (!data) return <p>Campaign not found</p>;
 
+  // Same definitions as every other screen (services/metrics.js), for the selected range.
+  // Amounts in the campaign's ad account currency (workspace currency for manual campaigns).
+  const cur = data.currency || data.account_currency || undefined;
+  const money = (v) => (v == null ? '—' : formatMoney(Math.round(Number(v)), cur));
+  const notMeasured = data.spend_basis === 'not_measured';
   const stats = [
-    { label: 'Budget', value: `₹${parseFloat(data.budget || 0).toLocaleString('en-IN')}`, icon: IndianRupee, color: 'bg-blue-100 text-blue-600' },
-    { label: 'Spent', value: `₹${parseFloat(data.actual_spend || 0).toLocaleString('en-IN')}`, icon: TrendingUp, color: 'bg-amber-100 text-amber-600' },
-    { label: 'Leads', value: data.total_leads || 0, icon: Users, color: 'bg-green-100 text-green-600' },
-    { label: 'CPL', value: parseFloat(data.cpl) > 0 ? `₹${parseFloat(data.cpl).toFixed(0)}` : '—', icon: Target, color: 'bg-purple-100 text-purple-600' },
-    ...(data.meta_campaign_id ? [
-      { label: 'Impressions', value: Number(data.impressions || 0).toLocaleString('en-IN'), icon: Eye, color: 'bg-cyan-100 text-cyan-600' },
-      { label: 'Clicks', value: Number(data.clicks || 0).toLocaleString('en-IN'), icon: MousePointerClick, color: 'bg-indigo-100 text-indigo-600' },
-    ] : []),
+    { label: 'Leads in CurveLead', value: data.crm_leads ?? data.total_leads ?? 0, icon: Users, color: 'bg-green-100 text-green-600', hint: 'Created in this period' },
+    { label: 'Converted', value: data.converted ?? 0, icon: Target, color: 'bg-emerald-100 text-emerald-600', hint: `${data.conversion_rate ?? 0}% of these leads` },
+    { label: 'Spend', value: data.spend == null && data.spend_by_currency ? formatMoneyByCurrency(data.spend_by_currency) : money(data.spend), icon: TrendingUp, color: 'bg-amber-100 text-amber-600',
+      hint: notMeasured ? 'No daily spend (manual campaign)' : data.spend_basis === 'mixed_currencies' ? 'More than one currency — not added up' : 'In this period' },
+    { label: 'Cost per lead', value: money(data.cpl), icon: Banknote, color: 'bg-purple-100 text-purple-600' },
+    { label: 'Cost per customer', value: money(data.cost_per_customer), icon: Banknote, color: 'bg-blue-100 text-blue-600' },
+    ...(data.platform_leads != null ? [{ label: 'Reported by Meta', value: formatNumber(data.platform_leads), icon: Eye, color: 'bg-cyan-100 text-cyan-600', hint: data.platform_cpl != null ? `${money(data.platform_cpl)} per Meta lead` : null }] : []),
   ];
+  const RANGES = [['this_month', 'This month'], ['last_30_days', 'Last 30 days'], ['last_month', 'Last month'], ['this_year', 'This year'], ['lifetime', 'Lifetime']];
 
   return (
     <div className="max-w-5xl mx-auto space-y-4">
@@ -103,6 +112,17 @@ const CampaignDetailPage = () => {
         </div>
       </div>
 
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <select aria-label="Date range" value={range.period} onChange={e => setUrlParams({ period: e.target.value })}
+          className="px-3 py-2 border rounded-lg text-sm bg-white font-medium">
+          {range.period === 'custom' && <option value="custom">{range.date_from} – {range.date_to}</option>}
+          {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        <p className="text-xs text-gray-500">
+          Lifetime spent {money(data.lifetime_spend ?? data.actual_spend)}{Number(data.budget) > 0 ? ` of ${money(data.budget)} budget` : ''}
+          {data.won > 0 ? ` · ${data.won} won this period` : ''}
+        </p>
+      </div>
       <div className={`grid grid-cols-2 sm:grid-cols-3 gap-3 ${stats.length > 4 ? 'lg:grid-cols-6' : 'lg:grid-cols-4'}`}>
         {stats.map(s => (
           <div key={s.label} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
@@ -111,6 +131,7 @@ const CampaignDetailPage = () => {
             </div>
             <p className="text-xs text-gray-500">{s.label}</p>
             <p className="text-xl font-bold text-gray-900 mt-0.5">{s.value}</p>
+            {s.hint && <p className="text-[11px] text-gray-400 mt-0.5">{s.hint}</p>}
           </div>
         ))}
       </div>
@@ -136,11 +157,11 @@ const CampaignDetailPage = () => {
                 {ads.map(a => (
                   <tr key={a.id} className="border-b last:border-0">
                     <td className="py-2.5 font-medium text-gray-700 max-w-[220px] truncate" title={a.name}>{a.name || a.meta_ad_id}</td>
-                    <td className="py-2.5 text-right">₹{parseFloat(a.spend || 0).toLocaleString('en-IN')}</td>
-                    <td className="py-2.5 text-right text-gray-500">{Number(a.impressions || 0).toLocaleString('en-IN')}</td>
-                    <td className="py-2.5 text-right text-gray-500">{Number(a.clicks || 0).toLocaleString('en-IN')}</td>
+                    <td className="py-2.5 text-right">{formatMoney(parseFloat(a.spend || 0), cur)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{formatNumber(a.impressions)}</td>
+                    <td className="py-2.5 text-right text-gray-500">{formatNumber(a.clicks)}</td>
                     <td className="py-2.5 text-right font-semibold text-emerald-600">{a.total_leads}</td>
-                    <td className="py-2.5 text-right font-bold text-brand-600">₹{a.cpl}</td>
+                    <td className="py-2.5 text-right font-bold text-brand-600">{formatMoney(a.cpl, cur)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -151,7 +172,7 @@ const CampaignDetailPage = () => {
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h3 className="font-semibold">Leads from this campaign ({leads.length}{hasActiveFilters ? ` of ${data.total_leads || 0}` : ''})</h3>
+          <h3 className="font-semibold">Leads from this campaign in this period ({leads.length}{hasActiveFilters ? ` of ${data.crm_leads ?? data.total_leads ?? 0}` : ''})</h3>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap mb-4">

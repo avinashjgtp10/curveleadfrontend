@@ -1,17 +1,21 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import AiCampaignWizard from './AiCampaignWizard';
+import ErrorState, { errorMessage } from '../components/ui/ErrorState';
 import { adsAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { FB_LOGIN_CONFIG_ID, loadFbSdk } from '../utils/facebookSdk';
 import { formatDateTime } from '../utils/dateTime.js';
-import { AlertCircle, ChevronRight, RefreshCw, TrendingUp, LogIn, ImageOff, Pause, Play, IndianRupee, History, Sparkles } from 'lucide-react';
+import { formatMoney, formatNumber, currencySymbol, workspaceCurrency } from '../utils/locale';
+import { AlertCircle, ChevronRight, RefreshCw, TrendingUp, LogIn, ImageOff, Pause, Play, Banknote, History, Sparkles } from 'lucide-react';
 
 const RANGES = [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days']];
-const inr = (n) => (n === null || n === undefined ? '—' : `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`);
-const int = (n) => Number(n || 0).toLocaleString('en-IN');
+// Meta amounts are in the ad account's currency (never the workspace's, never converted).
+const inr = (n, currency) => formatMoney(n, currency);
+const int = (n) => formatNumber(n);
 const pct = (n) => (n === null || n === undefined ? '—' : `${Number(n).toFixed(2)}%`);
-const paise = (p) => (p ? inr(Number(p) / 100) : '—');
+// Meta budgets come in the currency's minor unit (paise, cents, fils).
+const paise = (p, currency) => (p ? inr(Number(p) / 100, currency) : '—');
 const isoDaysAgo = (d) => new Date(Date.now() - d * 864e5).toISOString().slice(0, 10);
 
 const statusClass = (s = '') =>
@@ -26,7 +30,7 @@ const Stat = ({ label, value, sub }) => (
 );
 
 // Shared table for campaigns / ad sets / ads — same metric columns at every level.
-const MetricsTable = ({ rows, onOpen, nameCell, budget, actions }) => (
+const MetricsTable = ({ rows, onOpen, nameCell, budget, actions, currency }) => (
   <div className="bg-white border rounded-xl overflow-x-auto">
     <table className="w-full text-sm">
       <thead className="bg-gray-50 text-xs text-gray-500">
@@ -49,13 +53,13 @@ const MetricsTable = ({ rows, onOpen, nameCell, budget, actions }) => (
           <tr key={r.id} onClick={onOpen ? () => onOpen(r) : undefined} className={`border-t ${onOpen ? 'cursor-pointer hover:bg-gray-50' : ''}`}>
             <td className="px-3 py-2 min-w-[200px]">{nameCell ? nameCell(r) : <span className="font-medium">{r.name}</span>}</td>
             <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusClass(r.effective_status)}`}>{(r.effective_status || '—').replace(/_/g, ' ').toLowerCase()}</span></td>
-            {budget && <td className="px-3 py-2 text-right">{paise(r.daily_budget_paise)}</td>}
-            <td className="px-3 py-2 text-right">{inr(r.spend)}</td>
+            {budget && <td className="px-3 py-2 text-right">{paise(r.daily_budget_paise, currency)}</td>}
+            <td className="px-3 py-2 text-right">{inr(r.spend, currency)}</td>
             <td className="px-3 py-2 text-right">{int(r.impressions)}</td>
             <td className="px-3 py-2 text-right">{pct(r.ctr)}</td>
-            <td className="px-3 py-2 text-right">{inr(r.cpc)}</td>
+            <td className="px-3 py-2 text-right">{inr(r.cpc, currency)}</td>
             <td className="px-3 py-2 text-right">{int(r.leads)}</td>
-            <td className="px-3 py-2 text-right font-medium">{inr(r.cpl)}</td>
+            <td className="px-3 py-2 text-right font-medium">{inr(r.cpl, currency)}</td>
             {actions && <td className="px-3 py-2 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>{actions(r)}</td>}
           </tr>
         ))}
@@ -77,7 +81,7 @@ const RowActions = ({ row, busy, onStatus, onBudget }) => {
       </button>
       {canEditBudget && (
         <button onClick={() => onBudget(row)} disabled={busy} title="Change daily budget"
-          className="p-1.5 rounded-lg border text-xs hover:bg-gray-50 text-gray-600 disabled:opacity-40"><IndianRupee size={13} /></button>
+          className="p-1.5 rounded-lg border text-xs hover:bg-gray-50 text-gray-600 disabled:opacity-40"><Banknote size={13} /></button>
       )}
     </div>
   );
@@ -123,16 +127,20 @@ const AdsPage = () => {
   const [history, setHistory] = useState([]);
   const [reload, setReload] = useState(0);
   const [wizard, setWizard] = useState(false);
+  const [accountsError, setAccountsError] = useState('');
+  const [dataError, setDataError] = useState('');
 
   const params = { account_id: accountId || undefined, from: isoDaysAgo(Number(days) - 1), to: isoDaysAgo(0) };
   const account = accounts?.find((a) => a.id === accountId);
+  const cur = account?.currency || undefined;
 
   const loadAccounts = useCallback(async () => {
+    setAccountsError('');
     try {
       const { data } = await adsAPI.getAccounts();
       setAccounts(data.accounts);
       setAccountId((cur) => cur || data.accounts.find((a) => a.is_primary)?.id || data.accounts[0]?.id || '');
-    } catch (e) { setAccounts([]); toast.error(e.response?.data?.error || 'Could not load ad accounts.'); }
+    } catch (e) { setAccountsError(errorMessage(e, 'Could not load your ad accounts.')); setAccounts([]); }
   }, []);
 
   useEffect(() => { loadAccounts(); loadFbSdk().catch(() => {}); }, [loadAccounts]);
@@ -148,7 +156,8 @@ const AdsPage = () => {
         setRows(data.campaigns || data.adsets || data.ads || []);
         if (d) setDash(d.data);
       })
-      .catch((e) => toast.error(e.response?.data?.error || 'Could not load ad data.'))
+      .then(() => setDataError(''))
+      .catch((e) => setDataError(errorMessage(e, 'Could not load ad data.')))
       .finally(() => setLoading(false));
   }, [accountId, days, level, reload]);
 
@@ -170,11 +179,11 @@ const AdsPage = () => {
   };
   const saveBudget = async () => {
     const rupees = Number(budgetEdit.value);
-    if (!(rupees >= 1)) return toast.error('Enter a daily budget in rupees.');
+    if (!(rupees >= 1)) return toast.error(`Enter a daily budget in ${cur || 'the ad account currency'}.`);
     setBusyId(budgetEdit.row.id);
     try {
       await adsAPI.setBudget(entityLevel, budgetEdit.row.id, Math.round(rupees * 100));
-      toast.success(`Daily budget for ${budgetEdit.row.name} set to ${inr(rupees)}.`);
+      toast.success(`Daily budget for ${budgetEdit.row.name} set to ${inr(rupees, cur)}.`);
       setBudgetEdit(null);
       setReload((n) => n + 1);
     } catch (e) { toast.error(e.response?.data?.error || 'Could not change the budget on Meta.'); }
@@ -187,7 +196,7 @@ const AdsPage = () => {
       await adsAPI.updateSettings({ daily_budget_cap_paise: value });
       setSettings((s) => ({ ...s, daily_budget_cap_paise: value }));
       setCapEdit(null);
-      toast.success(value ? `Daily budget cap set to ${paise(value)}.` : 'Daily budget cap removed.');
+      toast.success(value ? `Daily budget cap set to ${paise(value, cur)}.` : 'Daily budget cap removed.');
     } catch (e) { toast.error(e.response?.data?.error || 'Could not save the cap.'); }
   };
   const rowActions = (r) => <RowActions row={r} busy={busyId === r.id} onStatus={changeStatus} onBudget={(row) => setBudgetEdit({ row, value: String(Number(row.daily_budget_paise) / 100) })} />;
@@ -212,6 +221,8 @@ const AdsPage = () => {
 
   if (accounts === null) return <div className="flex items-center justify-center h-64"><div className="w-8 h-8 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
 
+  if (accountsError) return <ErrorState message={accountsError} onRetry={() => { setAccounts(null); loadAccounts(); }} />;
+
   if (!accounts.length) {
     return (
       <div className="max-w-lg mx-auto mt-10 bg-white border rounded-2xl p-6 text-center space-y-3">
@@ -234,6 +245,12 @@ const AdsPage = () => {
           <p className="text-xs text-gray-500">
             {account?.last_synced_at ? `Last synced ${formatDateTime(account.last_synced_at)}` : 'First sync in progress…'}
           </p>
+          {(account?.currency || account?.timezone_name) && (
+            <p className="text-[11px] text-gray-400" title="Meta reports this account's spend in its own currency, and its days in its own timezone.">
+              Ad account: {[account.currency, account.timezone_name].filter(Boolean).join(' · ')}
+              {account.currency && account.currency !== workspaceCurrency() ? ` — amounts in ${account.currency}, not converted` : ''}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {accounts.length > 1 && (
@@ -259,23 +276,24 @@ const AdsPage = () => {
 
       {level.type === 'campaigns' && t && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Stat label="Spend" value={inr(t.spend)} sub={`${int(t.meta_leads)} leads reported by Meta`} />
-          <Stat label="Meta CPL" value={inr(t.meta_cpl)} sub="Spend ÷ Meta leads" />
-          <Stat label="Cost per qualified lead" value={inr(t.cost_per_qualified)} sub={`${int(t.qualified_leads)} of ${int(t.crm_leads)} CRM leads qualified`} />
-          <Stat label="Cost per converted lead" value={inr(t.cost_per_converted)} sub={`${int(t.converted_leads)} converted`} />
+          <Stat label="Spend" value={inr(t.spend, cur)} sub={t.won_this_period ? `${int(t.won_this_period)} won this period` : 'In this period'} />
+          <Stat label="Reported by Meta" value={`${int(t.meta_leads)} leads`} sub={`${inr(t.meta_cpl, cur)} per Meta lead`} />
+          <Stat label="In CurveLead" value={`${int(t.crm_leads)} leads`} sub={`${inr(t.cost_per_lead, cur)} per lead · ${int(t.qualified_leads)} qualified`} />
+          <Stat label="Cost per customer" value={inr(t.cost_per_converted, cur)} sub={`${int(t.converted_leads)} of these leads converted`} />
         </div>
       )}
 
+      {dataError && <ErrorState message={dataError} onRetry={() => setReload((n) => n + 1)} retrying={loading} />}
       {level.type === 'campaigns' && settings && (
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 bg-white border rounded-xl px-4 py-3 text-sm">
-          <span className="text-gray-500">Set to spend per day: <strong className="text-gray-900">{paise(settings.active_daily_budget_paise)}</strong></span>
+          <span className="text-gray-500">Set to spend per day: <strong className="text-gray-900">{paise(settings.active_daily_budget_paise, cur)}</strong></span>
           {capEdit === null ? (
-            <span className="text-gray-500">Daily budget cap: <strong className={settings.daily_budget_cap_paise && settings.active_daily_budget_paise > settings.daily_budget_cap_paise ? 'text-red-600' : 'text-gray-900'}>{settings.daily_budget_cap_paise ? paise(settings.daily_budget_cap_paise) : 'none'}</strong>
+            <span className="text-gray-500">Daily budget cap: <strong className={settings.daily_budget_cap_paise && settings.active_daily_budget_paise > settings.daily_budget_cap_paise ? 'text-red-600' : 'text-gray-900'}>{settings.daily_budget_cap_paise ? paise(settings.daily_budget_cap_paise, cur) : 'none'}</strong>
               <button onClick={() => setCapEdit(settings.daily_budget_cap_paise ? String(settings.daily_budget_cap_paise / 100) : '')} className="ml-2 text-xs text-brand-600 font-semibold hover:underline">Edit</button>
             </span>
           ) : (
             <span className="flex items-center gap-2">
-              <span className="text-gray-500">Cap ₹</span>
+              <span className="text-gray-500">Cap ({currencySymbol(cur)})</span>
               <input autoFocus type="number" min="1" value={capEdit} onChange={(e) => setCapEdit(e.target.value)} placeholder="no cap" className="w-28 px-2 py-1 border rounded-lg text-sm" />
               <button onClick={saveCap} className="px-2.5 py-1 bg-brand-600 text-white rounded-lg text-xs font-semibold">Save</button>
               <button onClick={() => setCapEdit(null)} className="text-xs text-gray-500">Cancel</button>
@@ -292,13 +310,13 @@ const AdsPage = () => {
       </div>
 
       {level.type === 'campaigns' && (
-        <MetricsTable rows={rows} budget actions={rowActions} onOpen={(c) => setLevel({ type: 'adsets', campaign: c })} />
+        <MetricsTable currency={cur} rows={rows} budget actions={rowActions} onOpen={(c) => setLevel({ type: 'adsets', campaign: c })} />
       )}
       {level.type === 'adsets' && (
-        <MetricsTable rows={rows} budget actions={rowActions} onOpen={(s) => setLevel({ type: 'ads', campaign: level.campaign, adset: s })} />
+        <MetricsTable currency={cur} rows={rows} budget actions={rowActions} onOpen={(s) => setLevel({ type: 'ads', campaign: level.campaign, adset: s })} />
       )}
       {level.type === 'ads' && (
-        <MetricsTable rows={rows} nameCell={(a) => (
+        <MetricsTable currency={cur} rows={rows} nameCell={(a) => (
           <div className="flex items-start gap-2">
             {a.creative?.thumbnail_url
               ? <img src={a.creative.thumbnail_url} alt="" className="w-12 h-12 rounded object-cover shrink-0" />
@@ -320,10 +338,10 @@ const AdsPage = () => {
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Campaign</th>
                 <th className="text-right px-3 py-2 font-medium">Spend</th>
-                <th className="text-right px-3 py-2 font-medium">Meta CPL</th>
-                <th className="text-right px-3 py-2 font-medium">CRM leads</th>
+                <th className="text-right px-3 py-2 font-medium" title="Spend ÷ leads Meta reports">Meta CPL</th>
+                <th className="text-right px-3 py-2 font-medium" title="Leads in CurveLead created in this period">Leads in CurveLead</th>
                 <th className="text-right px-3 py-2 font-medium">Cost / qualified</th>
-                <th className="text-right px-3 py-2 font-medium">Cost / converted</th>
+                <th className="text-right px-3 py-2 font-medium">Cost / customer</th>
               </tr>
             </thead>
             <tbody>
@@ -331,31 +349,31 @@ const AdsPage = () => {
                 <tr key={c.id} className="border-t">
                   <td className="px-3 py-2">
                     {c.crm_campaign_id
-                      ? <Link to={`/campaigns/${c.crm_campaign_id}`} className="text-brand-700 hover:underline" title="Leads and outcomes in CurveLead">{c.name}</Link>
+                      ? <Link to={`/campaigns/${c.crm_campaign_id}?period=custom&date_from=${params.from}&date_to=${params.to}`} className="text-brand-700 hover:underline" title="Leads and outcomes in CurveLead">{c.name}</Link>
                       : c.name}
                   </td>
-                  <td className="px-3 py-2 text-right">{inr(c.spend)}</td>
-                  <td className="px-3 py-2 text-right">{inr(c.meta_cpl)}</td>
+                  <td className="px-3 py-2 text-right">{inr(c.spend, cur)}</td>
+                  <td className="px-3 py-2 text-right">{inr(c.meta_cpl, cur)}</td>
                   <td className="px-3 py-2 text-right">{int(c.crm_leads)}</td>
-                  <td className="px-3 py-2 text-right">{inr(c.cost_per_qualified)} <span className="text-[11px] text-gray-400">({int(c.qualified_leads)})</span></td>
-                  <td className="px-3 py-2 text-right">{inr(c.cost_per_converted)} <span className="text-[11px] text-gray-400">({int(c.converted_leads)})</span></td>
+                  <td className="px-3 py-2 text-right">{inr(c.cost_per_qualified, cur)} <span className="text-[11px] text-gray-400">({int(c.qualified_leads)})</span></td>
+                  <td className="px-3 py-2 text-right">{inr(c.cost_per_converted, cur)} <span className="text-[11px] text-gray-400">({int(c.converted_leads)})</span></td>
                 </tr>
               ))}
             </tbody>
           </table>
-          <p className="px-3 py-2 text-[11px] text-gray-400">CRM leads are those attributed to the campaign and created in this period. Qualified = reached a stage marked as qualified (or won); converted = reached a won stage.</p>
+          <p className="px-3 py-2 text-[11px] text-gray-400">“Reported by Meta” is Meta's own count. “In CurveLead” = leads attributed to the campaign and created in this period; qualified / customers = of those leads, the ones that reached a qualified or won stage. Same definitions as the Campaigns tab and Reports.</p>
         </div>
       )}
       {level.type === 'campaigns' && <ChangeHistory entries={history} />}
-      {wizard && <AiCampaignWizard onClose={() => { setWizard(false); setReload((n) => n + 1); }} onChanged={() => setReload((n) => n + 1)} />}
+      {wizard && <AiCampaignWizard currency={cur} onClose={() => { setWizard(false); setReload((n) => n + 1); }} onChanged={() => setReload((n) => n + 1)} />}
       {budgetEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={() => setBudgetEdit(null)} />
           <div className="relative bg-white rounded-2xl w-full max-w-sm p-5 shadow-2xl space-y-3">
             <h2 className="font-bold">Daily budget</h2>
-            <p className="text-xs text-gray-500">{budgetEdit.row.name} · now {paise(budgetEdit.row.daily_budget_paise)} per day. The change goes live on Meta immediately.</p>
+            <p className="text-xs text-gray-500">{budgetEdit.row.name} · now {paise(budgetEdit.row.daily_budget_paise, cur)} per day. The change goes live on Meta immediately.</p>
             <label className="flex items-center gap-2">
-              <span className="text-gray-500">₹</span>
+              <span className="text-gray-500">{currencySymbol(cur)}</span>
               <input autoFocus type="number" min="1" step="1" value={budgetEdit.value} onChange={(e) => setBudgetEdit((b) => ({ ...b, value: e.target.value }))}
                 onKeyDown={(e) => e.key === 'Enter' && saveBudget()} className="flex-1 px-3 py-2 border rounded-lg text-sm" />
               <span className="text-xs text-gray-400">per day</span>

@@ -1,5 +1,6 @@
 import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useState } from 'react';
+import ErrorState from '../ui/ErrorState';
 
 export const Stat = ({ label, value, sub, tone = 'text-gray-900' }) => (
   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -45,6 +46,8 @@ export const DaysSelect = ({ value, onChange }) => (
 
 export const Empty = ({ children }) => <p className="text-sm text-gray-400 text-center py-8">{children}</p>;
 export const Loading = () => <div className="text-center py-12 text-gray-400 text-sm">Loading…</div>;
+// Load failure for a whole tab: the reason plus Retry (pass useLoad's reload).
+export const LoadError = ({ error, onRetry }) => <ErrorState message={error} onRetry={onRetry} />;
 export const ErrorBox = ({ children }) => (
   <div className="text-sm text-amber-700 bg-amber-50 px-4 py-3 rounded-lg">{children}</div>
 );

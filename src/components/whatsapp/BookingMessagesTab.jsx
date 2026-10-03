@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { Copy, ExternalLink } from 'lucide-react';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
-import { Card, ErrorBox, Loading, Toggle, useLoad, fmtDateTime } from './hubUi';
+import { Card, ErrorBox, LoadError, Loading, Toggle, useLoad, fmtDateTime } from './hubUi';
 
 // Variables are filled by position — keep in sync with services/bookingMessages.js (backend).
 const VARIABLES = {
@@ -77,7 +77,7 @@ const BookingMessagesTab = () => {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { if (data) setF(data); }, [data]);
-  if (error) return <ErrorBox>{error}</ErrorBox>;
+  if (error) return <LoadError error={error} onRetry={reload} />;
   if (loading || !f) return <Loading />;
 
   const templates = tpl.data?.templates || [];

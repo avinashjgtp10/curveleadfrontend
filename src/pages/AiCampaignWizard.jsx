@@ -3,6 +3,7 @@ import { AlertCircle, AlertTriangle, CheckCircle, ImagePlus, Rocket, Sparkles, X
 import { adsAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { formatDateTime } from '../utils/dateTime.js';
+import { formatMoney, currencySymbol } from '../utils/locale';
 
 // Ads Manager → Meta Ads → Create with AI. Brief → AI draft → review/edit → created on
 // Meta PAUSED → activated only after typing the campaign name. Server re-validates every step.
@@ -24,7 +25,7 @@ const Field = ({ label: l, error, children, hint }) => (
   </label>
 );
 
-const BriefStep = ({ onDrafted, onOpen }) => {
+const BriefStep = ({ onDrafted, onOpen, currency }) => {
   const toast = useToast();
   const [brief, setBrief] = useState({ offer: '', goal: '', location: '', budget_per_day_inr: 500, duration_days: 14, language: 'en', destination: 'LEAD_FORM' });
   const [busy, setBusy] = useState(false);
@@ -43,7 +44,7 @@ const BriefStep = ({ onDrafted, onOpen }) => {
 
   return (
     <div className="space-y-4">
-      <Field label="What are you advertising?" hint="The offer, price and who it's for — e.g. “Diwali hair spa at ₹999 for women in Baramati, this month only”.">
+      <Field label="What are you advertising?" hint="The offer, price and who it's for — e.g. “Diwali hair spa at 999 for women in Baramati, this month only”.">
         <textarea rows={3} value={brief.offer} onChange={set('offer')} className={input} />
       </Field>
       <Field label="Goal (optional)"><input value={brief.goal} onChange={set('goal')} placeholder="e.g. 50 bookings before Diwali" className={input} /></Field>
@@ -54,7 +55,7 @@ const BriefStep = ({ onDrafted, onOpen }) => {
             <option value="en">English</option><option value="hi">Hindi</option><option value="mr">Marathi</option>
           </select>
         </Field>
-        <Field label="Budget per day (₹)"><input type="number" min="100" value={brief.budget_per_day_inr} onChange={set('budget_per_day_inr')} className={input} /></Field>
+        <Field label={`Budget per day (${currencySymbol(currency)})`}><input type="number" min="100" value={brief.budget_per_day_inr} onChange={set('budget_per_day_inr')} className={input} /></Field>
         <Field label="Run for (days)"><input type="number" min="1" max="90" value={brief.duration_days} onChange={set('duration_days')} className={input} /></Field>
       </div>
       <Field label="When someone taps the ad">
@@ -88,7 +89,7 @@ const BriefStep = ({ onDrafted, onOpen }) => {
   );
 };
 
-const ReviewStep = ({ initial, onChanged }) => {
+const ReviewStep = ({ initial, onChanged, currency }) => {
   const toast = useToast();
   const [rec, setRec] = useState(initial);
   const [d, setD] = useState(initial.draft);
@@ -184,7 +185,7 @@ const ReviewStep = ({ initial, onChanged }) => {
           <Field label="Radius (km)" error={errs.radius_km}><input type="number" value={d.radius_km} onChange={e => set('radius_km', e.target.value)} className={input} /></Field>
           <Field label="Age from" error={errs.age_min}><input type="number" value={d.age_min} onChange={e => set('age_min', e.target.value)} className={input} disabled={d.special_ad_categories?.length > 0} /></Field>
           <Field label="Age to"><input type="number" value={d.age_max} onChange={e => set('age_max', e.target.value)} className={input} disabled={d.special_ad_categories?.length > 0} /></Field>
-          <Field label="Budget / day (₹)" error={errs.daily_budget_inr}><input type="number" value={d.daily_budget_inr} onChange={e => set('daily_budget_inr', e.target.value)} className={input} /></Field>
+          <Field label={`Budget / day (${currencySymbol(currency)})`} error={errs.daily_budget_inr}><input type="number" value={d.daily_budget_inr} onChange={e => set('daily_budget_inr', e.target.value)} className={input} /></Field>
           <Field label="Days" error={errs.duration_days}><input type="number" value={d.duration_days} onChange={e => set('duration_days', e.target.value)} className={input} /></Field>
         </div>
         {d.special_ad_categories?.length > 0 && <p className="text-[11px] text-gray-500">Meta special ad category: {d.special_ad_categories.map(label).join(', ')} — age and narrow targeting are limited by Meta.</p>}
@@ -229,7 +230,7 @@ const ReviewStep = ({ initial, onChanged }) => {
       {rec.status === 'created' && (
         <div className="rounded-xl border-2 border-amber-200 bg-amber-50 p-4 space-y-2">
           <p className="text-sm font-semibold text-amber-900 flex items-center gap-2"><CheckCircle size={15} /> On Meta and paused — nothing is spending yet.</p>
-          <p className="text-xs text-amber-800">Check it in Meta Ads Manager if you like. To start spending ₹{Number(d.daily_budget_inr).toLocaleString('en-IN')} a day, type the campaign name:</p>
+          <p className="text-xs text-amber-800">Check it in Meta Ads Manager if you like. To start spending {formatMoney(Number(d.daily_budget_inr), currency)} a day, type the campaign name:</p>
           <input value={confirm} onChange={e => setConfirm(e.target.value)} placeholder={d.campaign_name} className={input} />
           <button onClick={activate} disabled={busy === 'activate' || confirm.trim() !== d.campaign_name.trim()} className="w-full py-2.5 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 disabled:opacity-50 inline-flex items-center justify-center gap-2">
             <Rocket size={15} /> {busy === 'activate' ? 'Starting…' : 'Activate campaign'}
@@ -241,7 +242,8 @@ const ReviewStep = ({ initial, onChanged }) => {
   );
 };
 
-const AiCampaignWizard = ({ onClose, onChanged }) => {
+// currency: the ad account's — Meta budgets are in it.
+const AiCampaignWizard = ({ onClose, onChanged, currency }) => {
   const toast = useToast();
   const [rec, setRec] = useState(null);
   const open = async (id) => {
@@ -257,7 +259,7 @@ const AiCampaignWizard = ({ onClose, onChanged }) => {
           <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
         </div>
         <div className="p-5 max-h-[75vh] overflow-y-auto">
-          {rec ? <ReviewStep key={rec.id} initial={rec} onChanged={onChanged} /> : <BriefStep onDrafted={setRec} onOpen={open} />}
+          {rec ? <ReviewStep key={rec.id} initial={rec} onChanged={onChanged} currency={currency} /> : <BriefStep onDrafted={setRec} onOpen={open} currency={currency} />}
         </div>
       </div>
     </div>

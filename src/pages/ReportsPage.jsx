@@ -1,4 +1,6 @@
+import { formatMoney, formatMoneyByCurrency } from '../utils/locale';
 import ChartLegend from '../components/ui/ChartLegend';
+import ErrorState, { errorMessage } from '../components/ui/ErrorState';
 import { sourceLabel } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
@@ -187,7 +189,9 @@ const ReportsPage = () => {
   const [bySource, setBySource] = useState([]);
   const [byStaff, setByStaff] = useState([]);
   const [byCampaign, setByCampaign] = useState([]);
+  const [activeCampaigns, setActiveCampaigns] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null); // { message, retry }
 
   // Funnel tab
   const [funnel, setFunnel] = useState({ stages: [], leaks: [] });
@@ -302,21 +306,31 @@ const ReportsPage = () => {
     return () => clearTimeout(t);
   }, [brochureSearchInput]);
 
+  // Each section falls back to empty data, but failures are collected and shown with
+  // the server's reason and a Retry button instead of silently looking like "no data".
+  const tracked = (failures, fallback) => (e) => { failures.push(errorMessage(e)); return { data: fallback }; };
+  const reportFailures = (failures, total, retry) => setLoadError(failures.length
+    ? { message: `${failures.length} of ${total} report sections didn't load: ${[...new Set(failures)].join(' ')}`, retry }
+    : null);
+
   const loadOverview = async () => {
     const requestId = ++overviewRequestRef.current;
     setLoading(true);
     try {
+      const failures = [];
       const [convRes, srcRes, staffRes, campRes] = await Promise.all([
-        reportsAPI.conversion({ period }).catch(() => ({ data: {} })),
-        reportsAPI.bySource({ period }).catch(() => ({ data: { sources: [] } })),
-        reportsAPI.byStaff({ period }).catch(() => ({ data: { staff: [] } })),
-        reportsAPI.byCampaign({ period }).catch(() => ({ data: { campaigns: [] } })),
+        reportsAPI.conversion({ period }).catch(tracked(failures, {})),
+        reportsAPI.bySource({ period }).catch(tracked(failures, { sources: [] })),
+        reportsAPI.byStaff({ period }).catch(tracked(failures, { staff: [] })),
+        reportsAPI.byCampaign({ period }).catch(tracked(failures, { campaigns: [] })),
       ]);
       if (requestId !== overviewRequestRef.current) return;
+      reportFailures(failures, 4, loadOverview);
       setConversion(convRes.data);
       setBySource((srcRes.data.sources || []).map(s => ({ ...s, source: sourceLabel(s.source) })));
       setByStaff(staffRes.data.staff || []);
       setByCampaign(campRes.data.campaigns || []);
+      setActiveCampaigns(campRes.data.active_campaigns ?? (campRes.data.campaigns || []).filter(c => String(c.status).toLowerCase() === 'active').length);
     } catch (e) { console.error(e); }
     finally { if (requestId === overviewRequestRef.current) setLoading(false); }
   };
@@ -325,12 +339,14 @@ const ReportsPage = () => {
     const requestId = ++funnelRequestRef.current;
     setFunnelLoading(true);
     try {
+      const failures = [];
       const [funnelRes, tisRes, stalledRes] = await Promise.all([
-        reportsAPI.funnel({ period }).catch(() => ({ data: { stages: [], leaks: [] } })),
-        reportsAPI.timeInStage({ period }).catch(() => ({ data: { stages: [] } })),
-        leadAPI.getAll({ stalled: true, limit: 1 }).catch(() => ({ data: { pagination: { total: 0 } } })),
+        reportsAPI.funnel({ period }).catch(tracked(failures, { stages: [], leaks: [] })),
+        reportsAPI.timeInStage({ period }).catch(tracked(failures, { stages: [] })),
+        leadAPI.getAll({ stalled: true, limit: 1 }).catch(tracked(failures, { pagination: { total: 0 } })),
       ]);
       if (requestId !== funnelRequestRef.current) return;
+      reportFailures(failures, 3, loadFunnel);
       setFunnel(funnelRes.data);
       setTimeInStage(tisRes.data.stages || []);
       setStalledCount(stalledRes.data.pagination?.total || 0);
@@ -342,11 +358,13 @@ const ReportsPage = () => {
     const requestId = ++trendsRequestRef.current;
     setTrendLoading(true);
     try {
+      const failures = [];
       const [tlRes, ftRes] = await Promise.all([
-        reportsAPI.timeline({ period: 'daily', days: trendDays }).catch(() => ({ data: { timeline: [] } })),
-        reportsAPI.followupTrend({ period: 'daily', days: trendDays }).catch(() => ({ data: { trend: [] } })),
+        reportsAPI.timeline({ period: 'daily', days: trendDays }).catch(tracked(failures, { timeline: [] })),
+        reportsAPI.followupTrend({ period: 'daily', days: trendDays }).catch(tracked(failures, { trend: [] })),
       ]);
       if (requestId !== trendsRequestRef.current) return;
+      reportFailures(failures, 2, loadTrends);
       setResponseTrend(tlRes.data.timeline || []);
       setFollowupTrend(ftRes.data.trend || []);
     } catch (e) { console.error(e); }
@@ -445,7 +463,7 @@ const ReportsPage = () => {
       }
 
       if (format === 'pdf') {
-        const printedAt = new Date().toLocaleString('en-IN');
+        const printedAt = formatDateTime(new Date());
         const tableRows = rows.map(row => `
           <tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
         `).join('');
@@ -566,7 +584,7 @@ const ReportsPage = () => {
     { label: 'Total Leads', value: conversion?.total_leads || 0, icon: Users, color: 'bg-blue-100 text-blue-600' },
     { label: 'Won', value: conversion?.won || 0, icon: Target, color: 'bg-green-100 text-green-600' },
     { label: 'Conversion Rate', value: `${conversionRate}%`, icon: TrendingUp, color: 'bg-purple-100 text-purple-600' },
-    { label: 'Active Campaigns', value: byCampaign.length, icon: Megaphone, color: 'bg-amber-100 text-amber-600' },
+    { label: 'Active Campaigns', value: activeCampaigns, icon: Megaphone, color: 'bg-amber-100 text-amber-600' },
   ];
 
   const responseTrendChartData = responseTrend.map(t => ({
@@ -591,7 +609,7 @@ const ReportsPage = () => {
 
       <div className="flex gap-1 overflow-x-auto">
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
+          <button key={t.id} onClick={() => { setActiveTab(t.id); setLoadError(null); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
               activeTab === t.id ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
@@ -599,6 +617,8 @@ const ReportsPage = () => {
           </button>
         ))}
       </div>
+
+      {loadError && <ErrorState message={loadError.message} onRetry={loadError.retry} />}
 
       {activeTab === 'overview' && (
         loading ? <Spinner /> : (
@@ -703,7 +723,7 @@ const ReportsPage = () => {
                         <tr key={i} className="border-t">
                           <td className="py-2.5 font-medium capitalize">{l.from_stage || 'Unknown'}</td>
                           <td className="text-right text-red-500 font-semibold">{l.lost_count}</td>
-                          <td className="text-right">₹{l.lost_value.toLocaleString('en-IN')}</td>
+                          <td className="text-right">{formatMoney(l.lost_value)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -843,10 +863,11 @@ const ReportsPage = () => {
                     <tr>
                       <th className="text-left py-2">Campaign</th>
                       <th className="text-left py-2">Source</th>
-                      <th className="text-right py-2">Spent</th>
-                      <th className="text-right py-2">Leads</th>
-                      <th className="text-right py-2">Lifetime CPL</th>
-                      <th className="text-right py-2">Won</th>
+                      <th className="text-right py-2" title="Ad spend in this period (daily insights)">Spent</th>
+                      <th className="text-right py-2" title="Leads in CurveLead created in this period">Leads</th>
+                      <th className="text-right py-2" title="Spend in this period ÷ leads in this period">CPL</th>
+                      <th className="text-right py-2" title="Of these leads, how many became customers">Converted</th>
+                      <th className="text-right py-2" title="Leads that reached a won stage in this period">Won this period</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -854,9 +875,10 @@ const ReportsPage = () => {
                       <tr key={i} className="border-t">
                         <td className="py-2.5 font-medium">{c.name}</td>
                         <td className="capitalize text-gray-600">{sourceLabel(c.source)}</td>
-                        <td className="text-right">₹{parseFloat(c.actual_spend || 0).toLocaleString('en-IN')}</td>
-                        <td className="text-right">{c.total_leads}</td>
-                        <td className="text-right font-semibold text-brand-600">₹{c.cpl}</td>
+                        <td className="text-right" title={c.spend == null ? (c.spend_by_currency ? 'More than one currency — not added up' : `No daily spend — lifetime ${formatMoney(Math.round(Number(c.lifetime_spend || 0)), c.currency)}`) : ''}>{c.spend == null ? (c.spend_by_currency ? formatMoneyByCurrency(c.spend_by_currency) : '—') : formatMoney(Math.round(Number(c.spend)), c.currency)}</td>
+                        <td className="text-right">{c.crm_leads ?? c.total_leads}</td>
+                        <td className="text-right font-semibold text-brand-600">{c.cpl == null ? '—' : formatMoney(Math.round(Number(c.cpl)), c.currency)}</td>
+                        <td className="text-right">{c.converted ?? 0}</td>
                         <td className="text-right text-green-600">{c.won || 0}</td>
                       </tr>
                     ))}
