@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import AiCampaignWizard from './AiCampaignWizard';
 import { adsAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { FB_LOGIN_CONFIG_ID, loadFbSdk } from '../utils/facebookSdk';
 import { formatDateTime } from '../utils/dateTime.js';
-import { AlertCircle, ChevronRight, RefreshCw, TrendingUp, LogIn, ImageOff, Pause, Play, IndianRupee, History } from 'lucide-react';
+import { AlertCircle, ChevronRight, RefreshCw, TrendingUp, LogIn, ImageOff, Pause, Play, IndianRupee, History, Sparkles } from 'lucide-react';
 
 const RANGES = [['7', 'Last 7 days'], ['30', 'Last 30 days'], ['90', 'Last 90 days']];
 const inr = (n) => (n === null || n === undefined ? '—' : `₹${Number(n).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`);
@@ -121,6 +122,7 @@ const AdsPage = () => {
   const [capEdit, setCapEdit] = useState(null);       // string while editing
   const [history, setHistory] = useState([]);
   const [reload, setReload] = useState(0);
+  const [wizard, setWizard] = useState(false);
 
   const params = { account_id: accountId || undefined, from: isoDaysAgo(Number(days) - 1), to: isoDaysAgo(0) };
   const account = accounts?.find((a) => a.id === accountId);
@@ -242,6 +244,7 @@ const AdsPage = () => {
           <select value={days} onChange={(e) => setDays(e.target.value)} className="px-3 py-2 border rounded-lg text-sm bg-white">
             {RANGES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
           </select>
+          <button onClick={() => setWizard(true)} className="px-3 py-2 bg-violet-600 text-white rounded-lg text-sm font-semibold hover:bg-violet-700 inline-flex items-center gap-1.5"><Sparkles size={14} /> Create with AI</button>
           <button onClick={syncNow} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 inline-flex items-center gap-1.5"><RefreshCw size={14} /> Sync now</button>
           <button onClick={connect} disabled={connecting} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">{connecting ? 'Connecting…' : 'Reconnect'}</button>
         </div>
@@ -344,6 +347,7 @@ const AdsPage = () => {
         </div>
       )}
       {level.type === 'campaigns' && <ChangeHistory entries={history} />}
+      {wizard && <AiCampaignWizard onClose={() => { setWizard(false); setReload((n) => n + 1); }} onChanged={() => setReload((n) => n + 1)} />}
       {budgetEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40" onClick={() => setBudgetEdit(null)} />

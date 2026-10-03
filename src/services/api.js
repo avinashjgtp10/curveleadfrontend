@@ -120,6 +120,13 @@ export const adsAPI = {
   getSettings: () => api.get('/ads/settings'),
   updateSettings: (data) => api.put('/ads/settings', data),
   getCapiEvents: () => api.get('/ads/capi/events'),
+  aiListDrafts: () => api.get('/ads/ai/drafts'),
+  aiCreateDraft: (brief) => api.post('/ads/ai/drafts', { brief }, { timeout: 60000 }),
+  aiGetDraft: (id) => api.get(`/ads/ai/drafts/${id}`),
+  aiUpdateDraft: (id, draft) => api.put(`/ads/ai/drafts/${id}`, { draft }),
+  aiUploadImage: (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/ads/ai/drafts/${id}/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+  aiCreateOnMeta: (id) => api.post(`/ads/ai/drafts/${id}/create`, {}, { timeout: 120000 }),
+  aiActivate: (id, confirm) => api.post(`/ads/ai/drafts/${id}/activate`, { confirm }),
 };
 
 // ============================================
