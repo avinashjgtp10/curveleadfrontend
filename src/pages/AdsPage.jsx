@@ -266,10 +266,10 @@ const AdsPage = () => {
 
       {level.type === 'campaigns' && t && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          <Stat label="Spend" value={inr(t.spend)} sub={`${int(t.meta_leads)} leads reported by Meta`} />
-          <Stat label="Meta CPL" value={inr(t.meta_cpl)} sub="Spend ÷ Meta leads" />
-          <Stat label="Cost per qualified lead" value={inr(t.cost_per_qualified)} sub={`${int(t.qualified_leads)} of ${int(t.crm_leads)} CRM leads qualified`} />
-          <Stat label="Cost per converted lead" value={inr(t.cost_per_converted)} sub={`${int(t.converted_leads)} converted`} />
+          <Stat label="Spend" value={inr(t.spend)} sub={t.won_this_period ? `${int(t.won_this_period)} won this period` : 'In this period'} />
+          <Stat label="Reported by Meta" value={`${int(t.meta_leads)} leads`} sub={`${inr(t.meta_cpl)} per Meta lead`} />
+          <Stat label="In CurveLead" value={`${int(t.crm_leads)} leads`} sub={`${inr(t.cost_per_lead)} per lead · ${int(t.qualified_leads)} qualified`} />
+          <Stat label="Cost per customer" value={inr(t.cost_per_converted)} sub={`${int(t.converted_leads)} of these leads converted`} />
         </div>
       )}
 
@@ -328,10 +328,10 @@ const AdsPage = () => {
               <tr>
                 <th className="text-left px-3 py-2 font-medium">Campaign</th>
                 <th className="text-right px-3 py-2 font-medium">Spend</th>
-                <th className="text-right px-3 py-2 font-medium">Meta CPL</th>
-                <th className="text-right px-3 py-2 font-medium">CRM leads</th>
+                <th className="text-right px-3 py-2 font-medium" title="Spend ÷ leads Meta reports">Meta CPL</th>
+                <th className="text-right px-3 py-2 font-medium" title="Leads in CurveLead created in this period">Leads in CurveLead</th>
                 <th className="text-right px-3 py-2 font-medium">Cost / qualified</th>
-                <th className="text-right px-3 py-2 font-medium">Cost / converted</th>
+                <th className="text-right px-3 py-2 font-medium">Cost / customer</th>
               </tr>
             </thead>
             <tbody>
@@ -339,7 +339,7 @@ const AdsPage = () => {
                 <tr key={c.id} className="border-t">
                   <td className="px-3 py-2">
                     {c.crm_campaign_id
-                      ? <Link to={`/campaigns/${c.crm_campaign_id}`} className="text-brand-700 hover:underline" title="Leads and outcomes in CurveLead">{c.name}</Link>
+                      ? <Link to={`/campaigns/${c.crm_campaign_id}?period=custom&date_from=${params.from}&date_to=${params.to}`} className="text-brand-700 hover:underline" title="Leads and outcomes in CurveLead">{c.name}</Link>
                       : c.name}
                   </td>
                   <td className="px-3 py-2 text-right">{inr(c.spend)}</td>
@@ -351,7 +351,7 @@ const AdsPage = () => {
               ))}
             </tbody>
           </table>
-          <p className="px-3 py-2 text-[11px] text-gray-400">CRM leads are those attributed to the campaign and created in this period. Qualified = reached a stage marked as qualified (or won); converted = reached a won stage.</p>
+          <p className="px-3 py-2 text-[11px] text-gray-400">“Reported by Meta” is Meta's own count. “In CurveLead” = leads attributed to the campaign and created in this period; qualified / customers = of those leads, the ones that reached a qualified or won stage. Same definitions as the Campaigns tab and Reports.</p>
         </div>
       )}
       {level.type === 'campaigns' && <ChangeHistory entries={history} />}

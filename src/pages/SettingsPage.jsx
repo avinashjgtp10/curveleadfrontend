@@ -865,6 +865,10 @@ const SettingsPage = () => {
                           <span className="font-medium text-red-700">Mark as Lost</span>
                         </label>
                       </div>
+                      <p className="text-[11px] text-gray-500 -mt-1">
+                        <strong>Won</strong> = the lead became a paying customer. Every “converted”, revenue and cost-per-customer number counts leads in won stages, so only mark the stage where a deal is closed — never the first stage.
+                        The Meta event below is separate: it doesn't need Won.
+                      </p>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Meta Conversion Event</label>
                         <select value={stageForm.meta_event_name} onChange={e => setStageForm({ ...stageForm, meta_event_name: e.target.value })}

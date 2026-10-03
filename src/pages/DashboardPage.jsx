@@ -180,7 +180,7 @@ const DashboardPage = () => {
     {
       label: 'Conversion Rate',
       value: `${data?.conversion_rate || '0.0'}%`,
-      sub: `${fmt(data?.won_in_period)} won in period`,
+      sub: `${fmt(data?.converted_in_period ?? data?.won_in_period)} of ${fmt(data?.leads_in_period)} leads became customers`,
       icon: Target,
       iconBg: 'bg-violet-100 text-violet-500',
       stroke: '#a855f7',
@@ -188,7 +188,7 @@ const DashboardPage = () => {
     {
       label: 'Avg Deal Value',
       value: fmtMoney(data?.avg_deal_value),
-      sub: `${fmt(data?.won_in_period)} deals closed`,
+      sub: `${fmt(data?.won_in_period)} won this period`,
       icon: Coins,
       iconBg: 'bg-amber-100 text-amber-500',
       stroke: '#f97316',

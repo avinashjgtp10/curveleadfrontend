@@ -188,6 +188,7 @@ const ReportsPage = () => {
   const [bySource, setBySource] = useState([]);
   const [byStaff, setByStaff] = useState([]);
   const [byCampaign, setByCampaign] = useState([]);
+  const [activeCampaigns, setActiveCampaigns] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null); // { message, retry }
 
@@ -328,6 +329,7 @@ const ReportsPage = () => {
       setBySource((srcRes.data.sources || []).map(s => ({ ...s, source: sourceLabel(s.source) })));
       setByStaff(staffRes.data.staff || []);
       setByCampaign(campRes.data.campaigns || []);
+      setActiveCampaigns(campRes.data.active_campaigns ?? (campRes.data.campaigns || []).filter(c => String(c.status).toLowerCase() === 'active').length);
     } catch (e) { console.error(e); }
     finally { if (requestId === overviewRequestRef.current) setLoading(false); }
   };
@@ -581,7 +583,7 @@ const ReportsPage = () => {
     { label: 'Total Leads', value: conversion?.total_leads || 0, icon: Users, color: 'bg-blue-100 text-blue-600' },
     { label: 'Won', value: conversion?.won || 0, icon: Target, color: 'bg-green-100 text-green-600' },
     { label: 'Conversion Rate', value: `${conversionRate}%`, icon: TrendingUp, color: 'bg-purple-100 text-purple-600' },
-    { label: 'Active Campaigns', value: byCampaign.length, icon: Megaphone, color: 'bg-amber-100 text-amber-600' },
+    { label: 'Active Campaigns', value: activeCampaigns, icon: Megaphone, color: 'bg-amber-100 text-amber-600' },
   ];
 
   const responseTrendChartData = responseTrend.map(t => ({
@@ -860,10 +862,11 @@ const ReportsPage = () => {
                     <tr>
                       <th className="text-left py-2">Campaign</th>
                       <th className="text-left py-2">Source</th>
-                      <th className="text-right py-2">Spent</th>
-                      <th className="text-right py-2">Leads</th>
-                      <th className="text-right py-2">Lifetime CPL</th>
-                      <th className="text-right py-2">Won</th>
+                      <th className="text-right py-2" title="Ad spend in this period (daily insights)">Spent</th>
+                      <th className="text-right py-2" title="Leads in CurveLead created in this period">Leads</th>
+                      <th className="text-right py-2" title="Spend in this period ÷ leads in this period">CPL</th>
+                      <th className="text-right py-2" title="Of these leads, how many became customers">Converted</th>
+                      <th className="text-right py-2" title="Leads that reached a won stage in this period">Won this period</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -871,9 +874,10 @@ const ReportsPage = () => {
                       <tr key={i} className="border-t">
                         <td className="py-2.5 font-medium">{c.name}</td>
                         <td className="capitalize text-gray-600">{sourceLabel(c.source)}</td>
-                        <td className="text-right">₹{parseFloat(c.actual_spend || 0).toLocaleString('en-IN')}</td>
-                        <td className="text-right">{c.total_leads}</td>
-                        <td className="text-right font-semibold text-brand-600">₹{c.cpl}</td>
+                        <td className="text-right" title={c.spend == null ? `No daily spend — lifetime ₹${Math.round(Number(c.lifetime_spend || 0)).toLocaleString('en-IN')}` : ''}>{c.spend == null ? '—' : `₹${Math.round(Number(c.spend)).toLocaleString('en-IN')}`}</td>
+                        <td className="text-right">{c.crm_leads ?? c.total_leads}</td>
+                        <td className="text-right font-semibold text-brand-600">{c.cpl == null ? '—' : `₹${Math.round(Number(c.cpl)).toLocaleString('en-IN')}`}</td>
+                        <td className="text-right">{c.converted ?? 0}</td>
                         <td className="text-right text-green-600">{c.won || 0}</td>
                       </tr>
                     ))}
