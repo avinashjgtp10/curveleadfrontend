@@ -1,6 +1,7 @@
 import { initials } from '../../utils/leadData.js';
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { whatsappAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { ChevronDown, LogOut, X } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
@@ -27,6 +28,29 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const handleLogout = () => { logout(); navigate('/login'); };
 
+  // Unread WhatsApp chats badge: refreshed on navigation, every 30s while the tab is
+  // visible, and when the inbox marks a chat read ('whatsapp-unread-changed').
+  const { pathname } = useLocation();
+  const [unreadChats, setUnreadChats] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    const load = () => {
+      if (document.visibilityState !== 'visible') return;
+      whatsappAPI.getUnreadCount().then(({ data }) => setUnreadChats(data.chats || 0)).catch(() => {});
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    document.addEventListener('visibilitychange', load);
+    window.addEventListener('whatsapp-unread-changed', load);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', load);
+      window.removeEventListener('whatsapp-unread-changed', load);
+    };
+  }, [user, pathname]);
+  const badgeFor = (path) => (path === '/whatsapp' ? unreadChats : 0);
+  const badgeText = (n) => (n > 99 ? '99+' : n);
+
   return (
     <>
       {isOpen && <div className="fixed inset-0 bg-black/50 z-40 lg:hidden" onClick={onClose} />}
@@ -51,13 +75,22 @@ const Sidebar = ({ isOpen, onClose }) => {
             return <div key={group.label} className="mb-3">
               <button type="button" onClick={() => toggleGroup(group.label)} aria-expanded={!isCollapsed}
                 className="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-600">
-                {group.label}
+                <span className="flex items-center gap-1.5">
+                  {group.label}
+                  {isCollapsed && items.some(item => badgeFor(item.path) > 0) && <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="Unread WhatsApp messages" />}
+                </span>
                 <ChevronDown size={14} className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
               </button>
               {!isCollapsed && items.map(item => (
                 <NavLink key={item.path} to={item.path} onClick={onClose}
                   className={({ isActive }) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-50'}`}>
                   <item.icon size={18} /> {item.label}
+                  {badgeFor(item.path) > 0 && (
+                    <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-green-500 text-white text-[11px] font-semibold flex items-center justify-center"
+                      title={`${badgeFor(item.path)} chat${badgeFor(item.path) === 1 ? '' : 's'} with unread messages`}>
+                      {badgeText(badgeFor(item.path))}
+                    </span>
+                  )}
                 </NavLink>
               ))}
             </div>;

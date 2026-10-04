@@ -164,6 +164,7 @@ export const socialAPI = {
 // ============================================
 export const whatsappAPI = {
   getInbox: () => api.get('/whatsapp/inbox'),
+  getUnreadCount: () => api.get('/whatsapp/unread-count'),
   getConversation: (leadId) => api.get(`/whatsapp/conversation/${leadId}`),
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
   sendTemplate: (leadId, payload) => api.post('/whatsapp/send', { lead_id: leadId, ...payload }),
