@@ -309,6 +309,8 @@ const WhatsAppInboxPage = () => {
       // A slow poll for a chat the user already left must not replace the open chat.
       if (activeIdRef.current !== leadId) return;
       setMessages(data.messages || []);
+      // The server just marked this chat read — clear its unread badge in the list too.
+      setConversations(prev => prev.map(c => (c.lead_id === leadId && Number(c.unread_count) > 0 ? { ...c, unread_count: 0 } : c)));
     } catch (e) { console.error(e); if (!silent) setMessages([]); }
     finally { if (!silent) setMsgLoading(false); }
   };
@@ -369,7 +371,8 @@ const WhatsAppInboxPage = () => {
 
   const filtered = useMemo(() => conversations
     .filter(c => {
-      if (tab === 'unread') return c.unread_count > 0;
+      // The open chat stays in Unread after it's read, so it doesn't vanish mid-conversation.
+      if (tab === 'unread') return Number(c.unread_count) > 0 || c.lead_id === activeId;
       if (tab === 'starred') return starredIds.has(c.lead_id);
       return true;
     })
@@ -378,9 +381,9 @@ const WhatsAppInboxPage = () => {
       (c.lead_phone || '').includes(search)
     )
     .filter(c => !labelFilter || (c.tags || []).includes(labelFilter)),
-    [conversations, tab, search, starredIds, labelFilter]);
+    [conversations, tab, search, starredIds, labelFilter, activeId]);
 
-  const unreadCount = conversations.filter(c => c.unread_count > 0).length;
+  const unreadCount = conversations.filter(c => Number(c.unread_count) > 0).length;
   const starredCount = starredIds.size;
 
   const active = conversations.find(c => c.lead_id === activeId);
