@@ -200,6 +200,7 @@ const WhatsAppInboxPage = () => {
   const messagesContainerRef = useRef(null);
   const stickToBottomRef = useRef(true);
   const prevActiveIdRef = useRef(null);
+  const activeIdRef = useRef(null);
 
   useEffect(() => { loadInbox(); }, []);
   // Open to any team member (same endpoint the template picker uses) — used to
@@ -279,22 +280,32 @@ const WhatsAppInboxPage = () => {
 
   // Chat should feel live — poll the open conversation and the list in the
   // background rather than requiring a manual refresh to see new replies.
+  // Hidden browser tabs skip polls (saves the rate limit); coming back refreshes at once.
   useEffect(() => {
-    const interval = setInterval(() => loadInbox(true), 20000);
-    return () => clearInterval(interval);
+    const visible = () => document.visibilityState === 'visible';
+    const tick = () => { if (visible()) loadInbox(true); };
+    const interval = setInterval(tick, 20000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', tick); };
   }, [activeId]);
 
   useEffect(() => {
+    activeIdRef.current = activeId;
     if (!activeId) return;
     loadConversation(activeId);
-    const interval = setInterval(() => loadConversation(activeId, true), 8000);
-    return () => clearInterval(interval);
+    const visible = () => document.visibilityState === 'visible';
+    const tick = () => { if (visible()) loadConversation(activeId, true); };
+    const interval = setInterval(tick, 8000);
+    document.addEventListener('visibilitychange', tick);
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', tick); };
   }, [activeId]);
 
   const loadConversation = async (leadId, silent = false) => {
     if (!silent) setMsgLoading(true);
     try {
       const { data } = await whatsappAPI.getConversation(leadId);
+      // A slow poll for a chat the user already left must not replace the open chat.
+      if (activeIdRef.current !== leadId) return;
       setMessages(data.messages || []);
     } catch (e) { console.error(e); if (!silent) setMessages([]); }
     finally { if (!silent) setMsgLoading(false); }
