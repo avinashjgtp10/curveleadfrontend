@@ -1272,7 +1272,12 @@ const LeadsPage = () => {
                         <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}><SearchHighlight value={l.name} search={displayedSearch} /></td>
                         {visibleColumns.date && (
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
-                          {l.created_at ? formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
+                          {l.created_at ? (
+                            <>
+                              <span className="block">{formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', year: '2-digit' })}</span>
+                              <span className="block text-[11px] text-gray-400">{formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, hour: 'numeric', minute: '2-digit' })}</span>
+                            </>
+                          ) : '—'}
                         </td>
                         )}
                         {visibleColumns.phone && <td className="px-3 py-3 text-gray-700"><SearchHighlight value={l.phone} search={displayedSearch} phone /></td>}
