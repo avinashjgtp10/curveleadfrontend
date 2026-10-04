@@ -304,6 +304,8 @@ const WhatsAppInboxPage = () => {
     if (!silent) setMsgLoading(true);
     try {
       const { data } = await whatsappAPI.getConversation(leadId);
+      // Opening a chat marks its inbound messages read — refresh the sidebar badge.
+      if ((data.messages || []).some(m => m.direction === 'inbound' && !m.read_at)) window.dispatchEvent(new Event('whatsapp-unread-changed'));
       // A slow poll for a chat the user already left must not replace the open chat.
       if (activeIdRef.current !== leadId) return;
       setMessages(data.messages || []);
@@ -469,6 +471,7 @@ const WhatsAppInboxPage = () => {
     setBulkBusy(true);
     try {
       await whatsappAPI.markConversationsRead(ids);
+      window.dispatchEvent(new Event('whatsapp-unread-changed'));
       setConversations(prev => prev.map(c => (selectedIds.has(c.lead_id) ? { ...c, unread_count: 0 } : c)));
       toast.success('Marked as read.');
       exitSelectMode();
