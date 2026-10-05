@@ -362,7 +362,13 @@ const MetaConfig = ({ settings, onRefresh }) => {
           <div className="flex items-center gap-2">
             <CheckCircle size={18} className="text-green-500" />
             <div>
-              <p className="text-sm font-semibold text-green-800">Connected</p>
+              <p className="text-sm font-semibold text-green-800 flex items-center gap-2">Connected
+                {settings.meta_page_token_status === 'expired' && (
+                  <button onClick={handleFbLogin} disabled={connecting}
+                    title="Facebook ended this Page login, so lead-ad leads aren't being imported. Reconnect to resume."
+                    className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700 hover:bg-red-200">Expired – Reconnect</button>
+                )}
+              </p>
               <p className="text-xs text-green-600">{settings.meta_page_name || `Page ID: ${settings.meta_page_id}`}</p>
             </div>
           </div>

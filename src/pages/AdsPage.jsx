@@ -112,6 +112,37 @@ const ChangeHistory = ({ entries }) => (
   </details>
 );
 
+// Facebook permissions for Ads Manager, from the connect response or the saved login.
+const AD_PERMISSIONS = [
+  ['ads_read', 'Read ad performance'], ['ads_management', 'Manage ads (pause, budgets)'],
+  ['business_management', 'Business Manager ad accounts'], ['leads_retrieval', 'Lead-ad leads'],
+];
+const permissionsFromAccount = (a) => a && Object.fromEntries(AD_PERMISSIONS.map(([p]) => [p,
+  (a.token_scopes || []).includes(p) ? 'granted' : (a.token_declined_scopes || []).includes(p) ? 'declined' : 'missing']));
+const PERMISSION_STYLE = { granted: 'bg-green-50 text-green-700 border-green-200', declined: 'bg-amber-50 text-amber-800 border-amber-200', missing: 'bg-gray-50 text-gray-500 border-gray-200' };
+const PERMISSION_TEXT = { granted: '✓ granted', declined: 'turned off', missing: 'not granted' };
+const PermissionList = ({ permissions }) => (
+  <div className="flex flex-wrap gap-1.5">
+    {AD_PERMISSIONS.map(([p, label]) => (
+      <span key={p} title={p} className={`px-2 py-0.5 rounded-full border text-[11px] ${PERMISSION_STYLE[permissions[p]] || PERMISSION_STYLE.missing}`}>
+        {label}: <strong className="font-semibold">{PERMISSION_TEXT[permissions[p]] || PERMISSION_TEXT.missing}</strong>
+      </span>
+    ))}
+  </div>
+);
+
+// Why connecting didn't work: ADS_READ_DECLINED (the person turned ad access off — Reconnect
+// asks Facebook again) or ADS_READ_NOT_APPROVED (Facebook never offered it).
+const ConnectProblem = ({ problem, onReconnect, connecting }) => (
+  <div className="text-left bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+    <p className="text-sm text-amber-900 flex items-start gap-2"><AlertCircle size={16} className="mt-0.5 shrink-0" />{problem.message}</p>
+    {problem.permissions && <PermissionList permissions={problem.permissions} />}
+    <button onClick={onReconnect} disabled={connecting} className="px-3 py-1.5 bg-[#1877F2] text-white rounded-lg text-xs font-semibold disabled:opacity-50">
+      {connecting ? 'Opening Facebook…' : problem.code === 'ADS_READ_DECLINED' ? 'Reconnect and allow ad access' : 'Connect again'}
+    </button>
+  </div>
+);
+
 // Per-provider wording. Both platforms have pause/resume, budgets, the shared daily budget
 // cap, change history and an AI wizard (Meta: lead ads; Google: search ads).
 const PROVIDER = {
@@ -140,6 +171,8 @@ const AdsPage = ({ provider = 'meta' }) => {
   const [reload, setReload] = useState(0);
   const [wizard, setWizard] = useState(false);
   const [accountsError, setAccountsError] = useState('');
+  const [connectProblem, setConnectProblem] = useState(null); // { code, message, permissions }
+  const [granted, setGranted] = useState(null);               // permissions from the last successful connect
   const [dataError, setDataError] = useState('');
 
   const params = { provider, account_id: accountId || undefined, from: isoDaysAgo(Number(days) - 1), to: isoDaysAgo(0) };
@@ -230,7 +263,8 @@ const AdsPage = ({ provider = 'meta' }) => {
   };
   const rowActions = (r) => <RowActions row={r} platform={P.name} busy={busyId === r.id} onStatus={changeStatus} onBudget={(row) => setBudgetEdit({ row, value: String(Number(row.daily_budget_paise) / 100) })} />;
 
-  const connect = () => {
+  // rerequest: Facebook shows the permissions the person turned off again (auth_type 'rerequest').
+  const connect = ({ rerequest = false } = {}) => {
     if (!isMeta) {
       setConnecting(true);
       adsAPI.googleConnectUrl().then(({ data }) => { window.location.href = data.url; })
@@ -243,11 +277,21 @@ const AdsPage = ({ provider = 'meta' }) => {
       const token = resp?.authResponse?.accessToken;
       if (!token) { setConnecting(false); return; }
       adsAPI.connect(token)
-        .then(({ data }) => { toast.success(`Connected ${data.connected} ad account${data.connected === 1 ? '' : 's'}. First sync is running.`); return loadAccounts(); })
-        .catch((e) => toast.error(e.response?.data?.error || 'Could not connect ad accounts.'))
+        .then(({ data }) => {
+          setConnectProblem(null);
+          setGranted(data.permissions || null);
+          toast.success(`Connected ${data.connected} ad account${data.connected === 1 ? '' : 's'}. First sync is running.`);
+          return loadAccounts();
+        })
+        .catch((e) => {
+          const d = e.response?.data || {};
+          if (d.code === 'ADS_READ_DECLINED' || d.code === 'ADS_READ_NOT_APPROVED') setConnectProblem({ code: d.code, message: d.error, permissions: d.permissions });
+          else toast.error(d.error || 'Could not connect ad accounts.');
+        })
         .finally(() => setConnecting(false));
-    }, { config_id: FB_LOGIN_CONFIG_ID });
+    }, { config_id: FB_LOGIN_CONFIG_ID, ...(rerequest ? { auth_type: 'rerequest' } : {}) });
   };
+  const reconnect = () => connect({ rerequest: connectProblem?.code === 'ADS_READ_DECLINED' || account?.token_status === 'expired' });
 
   const syncNow = async () => {
     try { await adsAPI.sync(accountId); toast.success('Sync started — new numbers appear in a few minutes.'); }
@@ -267,7 +311,7 @@ const AdsPage = ({ provider = 'meta' }) => {
         {googleStatus && !googleStatus.configured ? (
           <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2"><span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 mr-1.5">Coming soon</span>Google Ads reporting isn't available yet. Leads from Google Ads lead forms already arrive through Integrations → Google Ads Lead Forms.</p>
         ) : (
-          <button onClick={connect} disabled={connecting} className="px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2 hover:bg-gray-50">
+          <button onClick={() => connect()} disabled={connecting} className="px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2 hover:bg-gray-50">
             <LogIn size={16} /> {connecting ? 'Opening Google…' : 'Connect with Google'}
           </button>
         )}
@@ -282,9 +326,11 @@ const AdsPage = ({ provider = 'meta' }) => {
         <TrendingUp className="mx-auto text-brand-600" size={28} />
         <h2 className="text-lg font-bold">Connect your Meta ad accounts</h2>
         <p className="text-sm text-gray-500">See spend, leads and CPL for every campaign, ad set and ad — next to how many of those leads actually qualified and converted in CurveLead.</p>
-        <button onClick={connect} disabled={connecting} className="px-4 py-2.5 bg-[#1877F2] text-white rounded-xl text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2">
-          <LogIn size={16} /> {connecting ? 'Connecting…' : 'Connect with Facebook'}
-        </button>
+        {connectProblem
+          ? <ConnectProblem problem={connectProblem} onReconnect={reconnect} connecting={connecting} />
+          : <button onClick={() => connect()} disabled={connecting} className="px-4 py-2.5 bg-[#1877F2] text-white rounded-xl text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2">
+              <LogIn size={16} /> {connecting ? 'Connecting…' : 'Connect with Facebook'}
+            </button>}
       </div>
     );
   }
@@ -294,7 +340,12 @@ const AdsPage = ({ provider = 'meta' }) => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2 justify-between">
         <div>
-          <h2 className="text-base font-semibold">{P.name} Ads</h2>
+          <h2 className="text-base font-semibold flex items-center gap-2">{P.name} Ads
+            {account?.token_status === 'expired' && (
+              <button onClick={reconnect} title={account.token_expired_at ? `Facebook ended this login on ${formatDateTime(account.token_expired_at)}` : undefined}
+                className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700 hover:bg-red-200">Expired – Reconnect</button>
+            )}
+          </h2>
           <p className="text-xs text-gray-500">
             {account?.last_synced_at ? `Last synced ${formatDateTime(account.last_synced_at)}` : 'First sync in progress…'}
           </p>
@@ -318,10 +369,17 @@ const AdsPage = ({ provider = 'meta' }) => {
           <button onClick={syncNow} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50 inline-flex items-center gap-1.5"><RefreshCw size={14} /> Sync now</button>
           {!isMeta && <button onClick={() => adsAPI.googleRefresh().then(({ data }) => { toast.success(`Found ${data.accounts} Google Ads account${data.accounts === 1 ? '' : 's'}.`); loadAccounts(); }).catch((e) => toast.error(e.response?.data?.error || 'Could not refresh accounts.'))}
             className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">Refresh accounts</button>}
-          <button onClick={connect} disabled={connecting} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">{connecting ? 'Connecting…' : 'Reconnect'}</button>
+          <button onClick={reconnect} disabled={connecting} className="px-3 py-2 border rounded-lg text-sm hover:bg-gray-50">{connecting ? 'Connecting…' : 'Reconnect'}</button>
         </div>
       </div>
 
+      {isMeta && connectProblem && <ConnectProblem problem={connectProblem} onReconnect={reconnect} connecting={connecting} />}
+      {isMeta && (granted || account?.token_scopes) && (
+        <div className="bg-white border rounded-xl px-3 py-2.5 space-y-1.5">
+          <p className="text-xs text-gray-500">{granted ? 'Facebook gave CurveLead these permissions:' : 'Facebook permissions on this connection:'}</p>
+          <PermissionList permissions={granted || permissionsFromAccount(account)} />
+        </div>
+      )}
       {(account?.sync_error || account?.token_status === 'expired') && (
         <div className="flex items-start gap-2 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl px-3 py-2 text-sm">
           <AlertCircle size={16} className="mt-0.5 shrink-0" />

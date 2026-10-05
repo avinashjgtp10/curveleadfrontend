@@ -1,5 +1,5 @@
 import ChatAttributes from '../components/ChatAttributes';
-import { initials } from '../utils/leadData.js';
+import { initials, sourceLabel } from '../utils/leadData.js';
 import { formatDateTime, toDateTimeInput } from '../utils/dateTime.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { whatsappAPI, leadAPI, staffAPI } from '../services/api';
@@ -15,9 +15,28 @@ import {
   Check, CheckCheck, AlertCircle, UserCircle2, X,
   FileText, Layers, Download, Clock, Bot,
   ListChecks, Trash2, CheckSquare, Square, MailOpen, MessageSquarePlus,
+  Phone, Mail, Building2, MapPin, Megaphone, Hash, Copy,
 } from 'lucide-react';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
+
+// One contact row in the details panel: icon, label, value (optionally a link), copy button.
+const ContactRow = ({ icon: Icon, label, value, href, onCopy }) => (
+  <div className="flex items-start gap-2 text-sm min-w-0">
+    <Icon size={14} className="text-gray-400 mt-0.5 shrink-0" />
+    <div className="min-w-0 flex-1">
+      <p className="text-[11px] text-gray-400 leading-tight">{label}</p>
+      {href
+        ? <a href={href} className="text-brand-700 font-medium break-words hover:underline">{value}</a>
+        : <p className="text-gray-700 font-medium break-words">{value}</p>}
+    </div>
+    {onCopy && (
+      <button onClick={() => onCopy(value, label)} title={`Copy ${label.toLowerCase()}`} className="p-1 text-gray-300 hover:text-gray-600 shrink-0">
+        <Copy size={12} />
+      </button>
+    )}
+  </div>
+);
 
 const fmtClock = (dt) => {
   const d = new Date(dt);
@@ -263,6 +282,15 @@ const WhatsAppInboxPage = () => {
           lead_id: l.id,
           lead_name: l.name,
           lead_phone: l.phone,
+          lead_email: l.email,
+          business_name: l.business_name,
+          lead_city: l.city || l.location,
+          address: l.address,
+          source: l.source,
+          lead_number: l.lead_number,
+          stage: l.stage,
+          campaign_name: l.campaign_name,
+          lead_since: l.lead_date || l.created_at,
           message: null,
           sent_at: null,
           unread_count: 0,
@@ -387,6 +415,12 @@ const WhatsAppInboxPage = () => {
   const starredCount = starredIds.size;
 
   const active = conversations.find(c => c.lead_id === activeId);
+
+  const copyValue = (value, label) => {
+    navigator.clipboard?.writeText(String(value))
+      .then(() => toast.success(`${label} copied.`))
+      .catch(() => toast.error('Could not copy.'));
+  };
 
   const patchConversation = (leadId, patch) =>
     setConversations(prev => prev.map(c => (c.lead_id === leadId ? { ...c, ...patch } : c)));
@@ -778,6 +812,23 @@ const WhatsAppInboxPage = () => {
                 className="w-full py-2 border rounded-lg text-sm font-medium text-brand-600 hover:bg-brand-50 flex items-center justify-center gap-1.5 mb-5">
                 <UserCircle2 size={15} /> View Contact
               </button>
+
+              <div className="mb-5">
+                <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Contact</p>
+                <div className="space-y-2.5">
+                  {active.lead_phone && <ContactRow icon={Phone} label="Phone" value={active.lead_phone} href={`tel:${String(active.lead_phone).replace(/[^\d+]/g, '')}`} onCopy={copyValue} />}
+                  {active.lead_email && <ContactRow icon={Mail} label="Email" value={active.lead_email} href={`mailto:${active.lead_email}`} onCopy={copyValue} />}
+                  {active.business_name && <ContactRow icon={Building2} label="Business" value={active.business_name} />}
+                  {(active.lead_city || active.address) && <ContactRow icon={MapPin} label="Location" value={[active.address, active.lead_city].filter(Boolean).join(', ')} />}
+                  {(active.source || active.campaign_name) && <ContactRow icon={Megaphone} label="Came from" value={[active.source && sourceLabel(active.source), active.campaign_name].filter(Boolean).join(' · ')} />}
+                  {active.lead_number && <ContactRow icon={Hash} label="Lead ID" value={active.lead_number} onCopy={copyValue} />}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+                  {active.stage && <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-700 capitalize">{active.stage}</span>}
+                  {active.lead_score && <span className="px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 capitalize">Score: {active.lead_score}</span>}
+                  {active.lead_since && <span className="px-2 py-0.5 rounded-full bg-gray-50 text-gray-500">Lead since {fmtDate(active.lead_since)}</span>}
+                </div>
+              </div>
 
               <ChatAttributes key={activeId} lead={active} onSave={data=>patchConversation(activeId,data)}/>
               <div className="mb-5">
