@@ -179,7 +179,8 @@ const AccountsView = ({ data, reload }) => {
         <div className="bg-white border rounded-xl divide-y">
           {accounts.map(a => {
             const P = PLATFORMS[a.platform];
-            const warn = a.status !== 'active' ? a.last_error || 'Reconnect this account.'
+            const expired = a.status === 'expired' && a.platform !== 'gbp';
+            const warn = expired ? null : a.status !== 'active' ? a.last_error || 'Reconnect this account.'
               : a.meta?.missing_scopes?.length ? `Can't publish yet — reconnect and allow ${a.meta.missing_scopes.join(', ')}.`
               : a.meta?.can_create_content === false ? 'Your Page role can\'t create posts.' : null;
             return (
@@ -187,7 +188,10 @@ const AccountsView = ({ data, reload }) => {
                 {a.picture_url ? <img src={a.picture_url} alt="" className="w-9 h-9 rounded-full object-cover" />
                   : <span className={`w-9 h-9 rounded-full flex items-center justify-center ${P.color}`}><P.icon size={16} /></span>}
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{a.username ? `@${a.username}` : a.name}</p>
+                  <p className="text-sm font-medium truncate flex items-center gap-2">{a.username ? `@${a.username}` : a.name}
+                    {expired && <button onClick={connect} disabled={busy === 'connect'} title={a.last_error || undefined}
+                      className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700 hover:bg-red-200 shrink-0">Expired – Reconnect</button>}
+                  </p>
                   <p className="text-xs text-gray-500 truncate">{P.label}{a.meta?.page_name ? ` · via ${a.meta.page_name}` : ''}{a.meta?.address ? ` · ${a.meta.address}` : ''}</p>
                   {warn && <p className="text-xs text-amber-700 mt-0.5">{warn}</p>}
                 </div>
