@@ -4,8 +4,9 @@ import { useDebouncedValue } from '../hooks/useDebouncedValue';
 import { DEFAULT_HIDDEN_STAGES, normalizeHiddenStages, effectiveHiddenStages, createLatestRequest } from '../utils/leadSearch';
 import { isRequestCancelled } from '../services/queryCache';
 import SearchHighlight from '../components/ui/SearchHighlight';
-import { normalizePhone } from '../utils/leadData.js';
 import { sourceLabel } from '../utils/leadData.js';
+import { parsePhoneNumberFromString, getCountryCallingCode } from 'libphonenumber-js';
+import { workspaceCountry } from '../utils/locale';
 import { formatDateTime, toDateTimeInput, parseTimestamp } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -102,24 +103,29 @@ const SLA_STATUS_OPTIONS = [
   { value: 'missed_lead', label: '🚨 Missed Lead' },
   { value: 'responded_5min', label: '✅ Responded ≤5 min' },
 ];
+// Seven columns by default (name + phone, source, score, stage, follow-up health, owner,
+// created); the rest are one click away in the column picker.
 const LEADS_COLUMNS = [
-  { key: 'lead_id', label: 'Lead ID' },
-  { key: 'date', label: 'Date' },
-  { key: 'phone', label: 'Phone Number' },
-  { key: 'source', label: 'Source' },
-  { key: 'score', label: 'Score' },
-  { key: 'stage', label: 'Stage' },
-  { key: 'status', label: 'Status' },
-  { key: 'followup_health', label: 'Follow-up Health' },
-  { key: 'assigned_to', label: 'Assigned To' },
+  { key: 'lead_id', label: 'Lead ID', defaultOn: false },
+  { key: 'date', label: 'Created', defaultOn: true },
+  { key: 'phone', label: 'Phone (own column)', defaultOn: false },
+  { key: 'source', label: 'Source', defaultOn: true },
+  { key: 'score', label: 'Score', defaultOn: true },
+  { key: 'stage', label: 'Stage', defaultOn: true },
+  { key: 'status', label: 'Status', defaultOn: false },
+  { key: 'followup_health', label: 'Follow-up health', defaultOn: true },
+  { key: 'assigned_to', label: 'Owner', defaultOn: true },
 ];
-const LEADS_COLUMNS_STORAGE_KEY = 'leadsTableVisibleColumns';
+// Country picker for Add lead; the workspace's own country is listed first.
+const PHONE_COUNTRIES = ['IN', 'AE', 'SA', 'QA', 'OM', 'KW', 'BH', 'US', 'GB', 'CA', 'AU', 'SG', 'MY', 'NP', 'LK', 'BD'];
+const LEADS_COLUMNS_STORAGE_KEY = 'leadsTableVisibleColumns.v2';
 const loadVisibleColumns = () => {
+  const defaults = Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, c.defaultOn]));
   try {
     const saved = JSON.parse(localStorage.getItem(LEADS_COLUMNS_STORAGE_KEY));
-    if (saved && typeof saved === 'object') return { ...Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true])), ...saved };
+    if (saved && typeof saved === 'object') return { ...defaults, ...saved };
   } catch { /* ignore invalid/missing value */ }
-  return Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true]));
+  return defaults;
 };
 const LEADS_HIDDEN_STAGES_STORAGE_KEY = 'leadsHiddenStages';
 const loadHiddenStages = (key) => {
@@ -136,6 +142,21 @@ const SLA_STATUS_LABELS = {
   sla_breached: 'SLA Breached',
   missed_lead: 'Missed Lead',
   responded_5min: 'Responded ≤5 min',
+};
+// One line: "Today 3:30 pm · 3h late", "Tomorrow 10:00 am", "8 Oct, 4:00 pm".
+const dueLabel = (iso) => {
+  if (!iso) return '—';
+  const due = new Date(iso), now = new Date();
+  const day = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((day(due) - day(now)) / 86400000);
+  const time = formatDateTime(iso, undefined, { dateStyle: undefined, timeStyle: undefined, hour: 'numeric', minute: '2-digit' });
+  const when = diffDays === 0 ? `Today ${time}` : diffDays === 1 ? `Tomorrow ${time}` : diffDays === -1 ? `Yesterday ${time}`
+    : formatDateTime(iso, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const lateMs = now - due;
+  if (lateMs <= 0) return when;
+  const mins = Math.round(lateMs / 60000);
+  const late = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.round(mins / 60)}h` : `${Math.round(mins / 1440)}d`;
+  return `${when} · ${late} late`;
 };
 const EMPTY_FU_FILTERS = { search: '', type: '', date_from: '', date_to: '', scope: '', category: '' };
 
@@ -183,13 +204,13 @@ const compactParams = (params) => Object.fromEntries(
   Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
 );
 
-const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
+const SortTh = ({ sortKey, label, sortState, onSort, align = 'left', sticky = false }) => {
   const active = sortState.sort === sortKey;
   const Icon = active ? (sortState.dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
   return (
-    <th className={`px-3 py-3 text-${align}`}>
+    <th className={`px-3 py-3 text-${align} ${sticky ? 'sticky left-0 z-[1] bg-white' : ''}`}>
       <button onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 hover:text-gray-900 ${active ? 'text-gray-900 font-semibold' : ''}`}>
+        className={`inline-flex items-center gap-1 font-medium whitespace-nowrap hover:text-gray-900 ${active ? 'text-gray-900 font-semibold' : ''}`}>
         {label}
         <Icon size={12} className={active ? 'text-gray-700' : 'text-gray-300'} />
       </button>
@@ -283,6 +304,8 @@ const LeadsPage = () => {
   const [newLeadErrors, setNewLeadErrors] = useState({});
   const newLeadNameRef = useRef(null);
   const newLeadPhoneRef = useRef(null);
+  const newLeadEmailRef = useRef(null);
+  const [newLeadCountry, setNewLeadCountry] = useState(() => (PHONE_COUNTRIES.includes(workspaceCountry()) ? workspaceCountry() : 'IN'));
   const [campaigns, setCampaigns] = useState([]);
 
   // Import state
@@ -370,6 +393,14 @@ const LeadsPage = () => {
     }
   };
 
+  // Keep the open lead in the address bar (?open=<id>) so it can be shared, bookmarked or
+  // reloaded. replaceState: no extra history entries and no router re-parse.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (openLeadId) url.searchParams.set('open', openLeadId); else url.searchParams.delete('open');
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url);
+  }, [openLeadId]);
+
   useEffect(() => {
     if (openLeadId) {
       clearTimeout(closeTimerRef.current);
@@ -401,7 +432,12 @@ const LeadsPage = () => {
   const goNextLead = () => { if (nextLeadId) setOpenLeadId(nextLeadId); };
 
   const appliedHiddenStages = view === 'list' && filters.include_all_stages !== '1' ? effectiveHiddenStages(hiddenStages, filters.stage) : [];
-  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field', 'from', 'to', 'include_all_stages'].includes(k) && v).length + appliedHiddenStages.length;
+  // Hidden stages are a saved view preference with their own visible toggle, not a filter.
+  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field', 'from', 'to', 'include_all_stages'].includes(k) && v).length;
+  const hidesClosed = DEFAULT_HIDDEN_STAGES.every(st => hiddenStages.includes(st));
+  const toggleHideClosed = () => saveHiddenStages(hidesClosed
+    ? hiddenStages.filter(st => !DEFAULT_HIDDEN_STAGES.includes(st))
+    : [...new Set([...hiddenStages, ...DEFAULT_HIDDEN_STAGES])]);
   const toggleColumn = (key) => setVisibleColumns(v => ({ ...v, [key]: !v[key] }));
   const saveHiddenStages = async (value) => {
     if (!preferencesReady || savingHiddenStages) return;
@@ -535,11 +571,13 @@ const LeadsPage = () => {
     return [1, '…', page - 1, page, page + 1, '…', t];
   };
 
-  const followupSummary = fuFilters.scope === 'today'
-    ? "pending follow-up due today"
-    : fuFilters.scope === 'overdue'
-      ? "overdue pending follow-up"
-      : "pending follow-up due today or overdue";
+  // "3 follow-ups due today or overdue" — pluralise the noun, not the end of the sentence.
+  const followupSummary = (n) => {
+    const noun = n === 1 ? 'follow-up' : 'follow-ups';
+    return fuFilters.scope === 'today' ? `${n} ${noun} due today`
+      : fuFilters.scope === 'overdue' ? `${n} overdue ${noun}`
+      : `${n} ${noun} due today or overdue`;
+  };
 
   const downloadTemplate = async () => {
     try {
@@ -596,20 +634,36 @@ const LeadsPage = () => {
     setImportResult(null);
   };
 
+  // Leaving the form with something typed asks first, so a stray click doesn't lose it.
+  const closeAddModal = async () => {
+    const typed = ['name', 'phone', 'email', 'location', 'business_name', 'address', 'notes'].some(k => String(newLead[k] || '').trim());
+    if (typed && !await confirm({ title: 'Discard this lead?', message: "What you've typed will be lost.", confirmText: 'Discard' })) return;
+    setShowAddModal(false);
+    setNewLeadErrors({});
+  };
+
   const handleAdd = async () => {
+    // All errors at once, whitespace trimmed, focus on the first problem field.
     const errors = {};
-    if (!newLead.name) errors.name = 'Name is required';
-    if (!newLead.phone) errors.phone = 'Phone is required';
-    else { try { normalizePhone(newLead.phone); } catch (error) { errors.phone = error.message; } }
+    const lead = { ...newLead, name: newLead.name.trim(), email: newLead.email.trim() };
+    if (!lead.name) errors.name = 'Name is required';
+    if (!newLead.phone.trim()) errors.phone = 'Phone is required';
+    else if (/[a-z]/i.test(newLead.phone)) errors.phone = 'Use digits only (spaces and + are fine).';
+    else {
+      const parsed = parsePhoneNumberFromString(newLead.phone.trim(), { defaultCountry: newLeadCountry });
+      if (!parsed?.isValid()) errors.phone = `That isn't a valid ${newLeadCountry} number. Check the digits or the country code.`;
+      else lead.phone = parsed.number;
+    }
+    if (lead.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(lead.email)) errors.email = 'Enter a valid email address, like name@example.com';
     setNewLeadErrors(errors);
     if (Object.keys(errors).length > 0) {
-      const ref = errors.name ? newLeadNameRef : newLeadPhoneRef;
+      const ref = errors.name ? newLeadNameRef : errors.phone ? newLeadPhoneRef : newLeadEmailRef;
       ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       ref.current?.focus();
       return;
     }
     try {
-      await leadAPI.create(newLead);
+      await leadAPI.create(lead);
       setShowAddModal(false);
       setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
       setNewLeadErrors({});
@@ -823,29 +877,29 @@ const LeadsPage = () => {
     }
   };
 
-  const selectClass = "h-10 w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent";
-  const inputClass = "h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent";
+  const selectClass = "h-10 w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent";
+  const inputClass = "h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent";
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase text-cyan-600">Global lead workspace</p>
+          <p className="text-xs font-bold uppercase text-brand-600">Global lead workspace</p>
           <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
           <p className="mt-1 text-xs text-gray-400">
             {syncStatus === 'loading' ? 'Checking Facebook sync status…' : syncStatus === 'unavailable' ? 'Facebook sync status unavailable' : syncStatus === 'disconnected' ? 'Facebook is not connected' : lastSyncedAt ? `Facebook leads last synced ${timeAgo(lastSyncedAt)}` : 'Facebook leads have not synced yet'}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleManualSync} disabled={syncing} title="Pull latest leads from Facebook"
+          <button onClick={handleManualSync} disabled={syncing} title="Pull latest leads from Facebook" aria-label="Sync leads from Facebook"
             className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg disabled:opacity-50">
             <RotateCcw size={15} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Syncing…' : 'Sync Leads'}
+            <span className="hidden sm:inline">{syncing ? 'Syncing…' : 'Sync leads'}</span>
           </button>
           <div className="relative" ref={moreActionsRef}>
             <button onClick={() => setShowMoreActions(v => !v)}
               className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-              More Actions <ChevronDown size={15} className={`transition-transform ${showMoreActions ? 'rotate-180' : ''}`} />
+              More <ChevronDown size={15} className={`transition-transform ${showMoreActions ? 'rotate-180' : ''}`} />
             </button>
             {showMoreActions && (
               <div className="absolute right-0 z-30 mt-1.5 w-52 bg-white border border-gray-100 rounded-lg shadow-lg py-1">
@@ -869,8 +923,8 @@ const LeadsPage = () => {
             )}
           </div>
           <button onClick={() => { setShowAddModal(true); setNewLeadErrors({}); }}
-            className="inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 text-sm font-extrabold uppercase text-white shadow-sm hover:bg-cyan-700">
-            <Plus size={18} /> Add New Lead
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+            <Plus size={18} /> Add lead
           </button>
         </div>
       </div>
@@ -886,7 +940,7 @@ const LeadsPage = () => {
             <button
               key={tab.id}
               onClick={() => { setView(tab.id); setPage(1); }}
-              className={`mr-7 border-b-2 py-4 text-sm font-extrabold ${view === tab.id ? 'border-gray-900 text-gray-950' : 'border-transparent text-gray-900 hover:text-cyan-700'}`}
+              className={`mr-7 border-b-2 py-4 text-sm font-extrabold ${view === tab.id ? 'border-gray-900 text-gray-950' : 'border-transparent text-gray-900 hover:text-brand-700'}`}
             >
               {tab.label}
             </button>
@@ -903,7 +957,7 @@ const LeadsPage = () => {
                 className={`${inputClass} pl-9`} />
             </div>
             <select value={fuFilters.type} onChange={e => setFuFilters(f => ({ ...f, type: e.target.value }))}
-              className="h-10 appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-[150px]">
+              className="h-10 appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[150px]">
               <option value="">All types</option>
               <option value="call">Call</option>
               <option value="whatsapp">WhatsApp</option>
@@ -920,7 +974,7 @@ const LeadsPage = () => {
               className="w-36" />
             {(fuFilters.search || fuFilters.type || fuFilters.date_from || fuFilters.date_to || fuFilters.scope || fuFilters.category) && (
               <button onClick={() => setFuFilters(EMPTY_FU_FILTERS)}
-                className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                 <X size={13} /> Clear
               </button>
             )}
@@ -940,12 +994,12 @@ const LeadsPage = () => {
               </div>
               <button
                 onClick={() => setShowFilters(v => !v)}
-                className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showFilters || activeFilterCount > 0 ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showFilters || activeFilterCount > 0 ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
               >
                 <SlidersHorizontal size={15} />
                 Filters
                 {activeFilterCount > 0 && (
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showFilters ? 'bg-white text-cyan-600' : 'bg-cyan-600 text-white'}`}>
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
                     {activeFilterCount}
                   </span>
                 )}
@@ -953,7 +1007,7 @@ const LeadsPage = () => {
               </button>
               {activeFilterCount > 0 && (
                 <button onClick={clearFilters}
-                  className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                  className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                   <X size={13} /> Clear filters
                 </button>
               )}
@@ -962,7 +1016,7 @@ const LeadsPage = () => {
                 <button
                   onClick={() => setShowColumnSettings(v => !v)}
                   title="Leads settings"
-                  className={`inline-flex items-center gap-2 h-10 px-3 rounded-lg border text-sm font-semibold transition-colors ${showColumnSettings ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                  className={`inline-flex items-center gap-2 h-10 px-3 rounded-lg border text-sm font-semibold transition-colors ${showColumnSettings ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
                 >
                   <Settings size={15} />
                 </button>
@@ -975,7 +1029,7 @@ const LeadsPage = () => {
                       {LEADS_COLUMNS.map(col => (
                         <label key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
                           <input type="checkbox" checked={visibleColumns[col.key]} onChange={() => toggleColumn(col.key)}
-                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
                           {col.label}
                         </label>
                       ))}
@@ -987,7 +1041,7 @@ const LeadsPage = () => {
                       {stages.map(s => (
                         <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
                           <input type="checkbox" disabled={!preferencesReady || savingHiddenStages} checked={hiddenStages.includes(s.name.toLowerCase())} onChange={() => toggleHiddenStage(s.name)}
-                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
                           {s.name}
                         </label>
                       ))}
@@ -1108,21 +1162,22 @@ const LeadsPage = () => {
                   </div>
 
                   {/* Lead Date Range */}
-                  <div className="space-y-1 col-span-2 md:col-span-1">
+                  <div className="space-y-1 col-span-2">
                     <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Date</label>
                     <select value={filters.date_field || 'lead_date'} onChange={e => handleFilterChange(f => ({ ...f, date_field: e.target.value }))}
-                      className="mb-1 h-9 w-full appearance-none bg-white border border-gray-200 rounded-lg px-2 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                      className="mb-1 h-9 w-full appearance-none bg-white border border-gray-200 rounded-lg px-2 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
                       <option value="lead_date">Lead date</option>
                       <option value="created_at">Created date</option>
                     </select>
-                    <div className="flex items-center gap-1.5">
-                      <DatePicker value={filters.date_from}
-                        onChange={v => handleFilterChange(f => ({ ...f, date_from: v }))}
-                        className="flex-1 min-w-0" />
-                      <span className="text-gray-400 text-xs shrink-0">–</span>
-                      <DatePicker value={filters.date_to}
-                        onChange={v => handleFilterChange(f => ({ ...f, date_to: v }))}
-                        className="flex-1 min-w-0" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="min-w-[9rem]"><span className="block text-[11px] text-gray-400 mb-0.5">From</span>
+                        <DatePicker value={filters.date_from}
+                          onChange={v => handleFilterChange(f => ({ ...f, date_from: v }))}
+                          className="w-full" /></div>
+                      <div className="min-w-[9rem]"><span className="block text-[11px] text-gray-400 mb-0.5">To</span>
+                        <DatePicker value={filters.date_to}
+                          onChange={v => handleFilterChange(f => ({ ...f, date_to: v }))}
+                          className="w-full" /></div>
                     </div>
                   </div>
 
@@ -1134,10 +1189,17 @@ const LeadsPage = () => {
           </div>
         )}
 
-        {view !== 'followups' && (activeFilterCount > 0 || filters.search) && (
+        {view === 'list' && filters.include_all_stages !== '1' && !filters.stage && (
+          <label className="flex items-center gap-2 px-4 pt-3 text-xs text-gray-600 cursor-pointer w-fit">
+            <input type="checkbox" checked={hidesClosed} onChange={toggleHideClosed} disabled={savingHiddenStages || !preferencesReady}
+              className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+            Hide unqualified and lost leads
+          </label>
+        )}
+        {view !== 'followups' && (activeFilterCount > 0 || filters.search || appliedHiddenStages.length > 0) && (
           <div className="flex flex-wrap gap-2 px-4 py-3" aria-label="Active lead filters">
             {Object.entries(filters).filter(([key, value]) => !['date_field','from','to','include_all_stages'].includes(key) && value).map(([key, value]) => (
-              <span key={key} className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs px-2.5 py-1 rounded-full">
+              <span key={key} className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 border border-brand-200 text-xs px-2.5 py-1 rounded-full">
                 {key === 'metric' ? `Period: ${value === 'won' ? 'Won' : 'Created'} · ${formatDateTime(filters.from)} – ${formatDateTime(filters.to)} (end exclusive)` : key === 'activity' ? `Activity: ${value.replace(/_/g,' ')}` : `${key.replace(/_/g, ' ')}: ${key === 'source' ? sourceLabel(value) : key === 'assigned_to' ? staff.find(s => s.id === value)?.name || value : value}`}
                 <button aria-label={`Remove ${key.replace(/_/g, ' ')} filter`} onClick={() => handleFilterChange(f => ({ ...f, [key]: '', ...(key==='metric'?{from:'',to:''}:{}) }))}><X size={11} /></button>
               </span>
@@ -1158,7 +1220,7 @@ const LeadsPage = () => {
           <div className="overflow-hidden px-5 pb-5 relative">
             {loading && leads.length > 0 && (
               <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-start justify-center pt-10 transition-opacity">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
               </div>
             )}
             {loading && leads.length === 0 ? (
@@ -1171,15 +1233,15 @@ const LeadsPage = () => {
               <div className="overflow-x-auto">
                 {/* Bulk action toolbar */}
                 {selectedIds.size > 0 && (
-                  <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-cyan-50 border border-cyan-200 rounded-xl flex-wrap">
-                    <span className="text-sm font-bold text-cyan-700">{selectedIds.size} selected</span>
+                  <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-brand-50 border border-brand-200 rounded-xl flex-wrap">
+                    <span className="text-sm font-bold text-brand-700">{selectedIds.size} selected</span>
                     <div className="flex items-center gap-1.5">
                       <GitBranch size={14} className="text-gray-500" />
                       <select
                         value={bulkStage}
                         onChange={e => { setBulkStage(e.target.value); handleBulkStage(e.target.value); }}
                         disabled={bulkLoading}
-                        className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50">
+                        className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50">
                         <option value="">Change Stage…</option>
                         {stages.map(s => <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>)}
                       </select>
@@ -1190,7 +1252,7 @@ const LeadsPage = () => {
                         value={bulkAssign}
                         onChange={e => { setBulkAssign(e.target.value); handleBulkAssign(e.target.value === 'unassigned' ? '' : e.target.value); }}
                         disabled={bulkLoading}
-                        className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50">
+                        className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50">
                         <option value="">Assign To…</option>
                         <option value="unassigned">Unassign</option>
                         {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -1203,7 +1265,7 @@ const LeadsPage = () => {
                           value={bulkSequence}
                           onChange={e => { setBulkSequence(e.target.value); handleBulkSequence(e.target.value); }}
                           disabled={bulkLoading}
-                          className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50">
+                          className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50">
                           <option value="">Apply Sequence…</option>
                           {sequences.map(sq => <option key={sq.id} value={sq.id}>{sq.name}</option>)}
                         </select>
@@ -1229,38 +1291,48 @@ const LeadsPage = () => {
 
                 <div className="md:hidden space-y-3">{leads.map(lead=><article key={lead.id} className="border rounded-xl p-3">
                   <button onClick={()=>setOpenLeadId(lead.id)} className="w-full text-left space-y-1"><p className="font-semibold break-words">{lead.name}</p><p className="text-sm text-gray-500">{lead.phone||'No phone'}</p><p className="text-xs capitalize">{lead.stage} · Score: {lead.lead_score||'Unscored'}</p><p className="text-xs text-gray-500">Next follow-up: {lead.next_followup_at?formatDateTime(lead.next_followup_at):'Not scheduled'}</p></button>
-                  <label className="text-xs flex gap-2 mt-2"><input type="checkbox" checked={selectedIds.has(lead.id)} onChange={()=>toggleSelect(lead.id)}/>Select lead</label>
+                  <div className="flex items-center justify-between mt-2">
+                    <label className="text-xs flex gap-2"><input type="checkbox" checked={selectedIds.has(lead.id)} onChange={()=>toggleSelect(lead.id)}/>Select lead</label>
+                    {lead.phone && (
+                      <div className="flex gap-2">
+                        <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} aria-label={`Call ${lead.name}`}
+                          className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><Phone size={16} /></a>
+                        <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${lead.name}`}
+                          className="w-9 h-9 rounded-full bg-green-50 text-green-600 flex items-center justify-center"><MessageCircle size={16} /></a>
+                      </div>
+                    )}
+                  </div>
                 </article>)}</div>
                 <table className="hidden md:table w-full text-sm">
-                  <thead className="border-y border-gray-200 text-xs uppercase text-gray-500">
+                  <thead className="border-y border-gray-200 text-xs text-gray-500">
                     <tr>
                       <th className="px-3 py-3 w-8">
-                        <button onClick={toggleSelectAll} className="text-gray-400 hover:text-cyan-600">
+                        <button onClick={toggleSelectAll} className="text-gray-400 hover:text-brand-600">
                           {selectedIds.size === leads.length && leads.length > 0
-                            ? <CheckSquare size={16} className="text-cyan-600" />
+                            ? <CheckSquare size={16} className="text-brand-600" />
                             : <Square size={16} />}
                         </button>
                       </th>
                       {visibleColumns.lead_id && <SortTh sortKey="lead_id" label="Lead ID" sortState={sortState} onSort={handleSort} />}
-                      <SortTh sortKey="name" label="Name" sortState={sortState} onSort={handleSort} />
-                      {visibleColumns.date && <SortTh sortKey="date" label="Date" sortState={sortState} onSort={handleSort} />}
-                      {visibleColumns.phone && <SortTh sortKey="phone" label="Phone Number" sortState={sortState} onSort={handleSort} />}
+                      <SortTh sortKey="name" label="Name" sortState={sortState} onSort={handleSort} sticky />
+                      {visibleColumns.date && <SortTh sortKey="date" label="Created" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.phone && <SortTh sortKey="phone" label="Phone" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.source && <SortTh sortKey="source" label="Source" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.score && <SortTh sortKey="score" label="Score" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.stage && <SortTh sortKey="stage" label="Stage" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.status && <SortTh sortKey="status" label="Status" sortState={sortState} onSort={handleSort} />}
-                      {visibleColumns.followup_health && <th className="px-3 py-3 text-left">Follow-up Health</th>}
-                      {visibleColumns.assigned_to && <SortTh sortKey="assigned_to" label="Assigned To" sortState={sortState} onSort={handleSort} />}
-                      <th className="text-right px-3 py-3">Actions</th>
+                      {visibleColumns.followup_health && <th className="px-3 py-3 text-left font-medium whitespace-nowrap">Follow-up health</th>}
+                      {visibleColumns.assigned_to && <SortTh sortKey="assigned_to" label="Owner" sortState={sortState} onSort={handleSort} />}
+                      <th className="text-right px-3 py-3 font-medium sticky right-0 bg-white">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {leads.map(l => (
-                      <tr key={l.id} className={`border-b border-gray-200 hover:bg-gray-50 ${selectedIds.has(l.id) ? 'bg-cyan-50/50' : ''}`}>
+                      <tr key={l.id} className={`border-b border-gray-200 hover:bg-gray-50 ${selectedIds.has(l.id) ? 'bg-brand-50/50' : ''}`}>
                         <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => toggleSelect(l.id)} className="text-gray-400 hover:text-cyan-600">
+                          <button onClick={() => toggleSelect(l.id)} className="text-gray-400 hover:text-brand-600">
                             {selectedIds.has(l.id)
-                              ? <CheckSquare size={16} className="text-cyan-600" />
+                              ? <CheckSquare size={16} className="text-brand-600" />
                               : <Square size={16} />}
                           </button>
                         </td>
@@ -1269,7 +1341,10 @@ const LeadsPage = () => {
                           <SearchHighlight value={l.lead_number || '—'} search={displayedSearch} />
                         </td>
                         )}
-                        <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}><SearchHighlight value={l.name} search={displayedSearch} /></td>
+                        <td className={`px-3 py-3 cursor-pointer sticky left-0 z-[1] ${selectedIds.has(l.id) ? 'bg-brand-50' : 'bg-white'}`} onClick={() => setOpenLeadId(l.id)}>
+                          <span className="block font-bold text-gray-900"><SearchHighlight value={l.name} search={displayedSearch} /></span>
+                          {!visibleColumns.phone && <span className="block text-xs text-gray-500"><SearchHighlight value={l.phone} search={displayedSearch} phone /></span>}
+                        </td>
                         {visibleColumns.date && (
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
                           {l.created_at ? (
@@ -1304,7 +1379,7 @@ const LeadsPage = () => {
                               defaultValue={(l.stage || '').toLowerCase()}
                               onBlur={() => setEditingStageId(null)}
                               onChange={e => handleStageChange(l.id, e.target.value)}
-                              className="border border-cyan-400 rounded px-2 py-1 text-xs font-medium bg-white text-left focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                              className="border border-brand-400 rounded px-2 py-1 text-xs font-medium bg-white text-left focus:outline-none focus:ring-2 focus:ring-brand-500"
                             >
                               {stages.map(s => (
                                 <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>
@@ -1313,7 +1388,7 @@ const LeadsPage = () => {
                           ) : (
                             <button
                               onClick={() => setEditingStageId(l.id)}
-                              className="text-xs text-gray-600 capitalize hover:text-cyan-700 hover:underline cursor-pointer"
+                              className="text-xs text-gray-600 capitalize hover:text-brand-700 hover:underline cursor-pointer"
                               title="Click to change stage"
                             >
                               {l.stage || '—'}
@@ -1368,7 +1443,7 @@ const LeadsPage = () => {
                               defaultValue={l.assigned_to || ''}
                               onBlur={() => setEditingAssignId(null)}
                               onChange={e => handleAssignChange(l.id, e.target.value)}
-                              className="border border-cyan-400 rounded px-2 py-1 text-xs bg-white text-left focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                              className="border border-brand-400 rounded px-2 py-1 text-xs bg-white text-left focus:outline-none focus:ring-2 focus:ring-brand-500"
                             >
                               <option value="">Unassigned</option>
                               {staff.map(s => (
@@ -1378,7 +1453,7 @@ const LeadsPage = () => {
                           ) : (
                             <button
                               onClick={() => setEditingAssignId(l.id)}
-                              className="inline-flex items-center gap-1 text-gray-500 hover:text-cyan-700 hover:underline cursor-pointer"
+                              className="inline-flex items-center gap-1 text-gray-500 hover:text-brand-700 hover:underline cursor-pointer"
                               title="Click to reassign"
                             >
                               <User size={12} className="text-gray-400" />
@@ -1387,7 +1462,7 @@ const LeadsPage = () => {
                           )}
                         </td>
                         )}
-                        <td className="px-3 py-3 text-right">
+                        <td className={`px-3 py-3 text-right sticky right-0 ${selectedIds.has(l.id) ? 'bg-brand-50' : 'bg-white'}`}>
                           <div className="flex justify-end items-center gap-1" data-actions-menu>
                             <a href={`tel:${l.phone}`} onClick={() => leadAPI.logCall(l.id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                             <a href={`https://wa.me/${l.phone}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
@@ -1436,7 +1511,7 @@ const LeadsPage = () => {
                         <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
                       ) : (
                         <button key={n} onClick={() => setPage(n)}
-                          className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${page === n ? 'bg-cyan-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                          className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${page === n ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
                           {n}
                         </button>
                       )
@@ -1454,12 +1529,12 @@ const LeadsPage = () => {
           <div className="overflow-hidden px-5 pb-5 relative">
             {loading && followups.length > 0 && (
               <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-start justify-center pt-10 transition-opacity">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
               </div>
             )}
             {loading && followups.length === 0 ? (
               <div className="flex items-center justify-center h-48 gap-3 text-gray-400">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
                 <span className="text-sm font-medium">Loading follow-ups…</span>
               </div>
             ) : followups.length === 0 ? (
@@ -1470,9 +1545,9 @@ const LeadsPage = () => {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <p className="text-xs text-gray-500 mb-3 pt-1">{followups.length} {followupSummary}{followups.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-gray-500 mb-3 pt-1">{followupSummary(followups.length)}</p>
                 <table className="w-full text-sm">
-                  <thead className="border-y border-gray-200 text-xs uppercase text-gray-500">
+                  <thead className="border-y border-gray-200 text-xs text-gray-500">
                     <tr>
                       <th className="text-left px-3 py-3">Lead</th>
                       <th className="text-left px-3 py-3">Phone</th>
@@ -1497,15 +1572,8 @@ const LeadsPage = () => {
                               {(f.followup_type || 'call').replace(/_/g, ' ')}
                             </span>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-xs font-semibold ${health === 'good' ? 'text-amber-600' : 'text-red-600'}`}>
-                                {health !== 'good' ? '⚠ ' : ''}{formatDateTime(f.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                              <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${healthStyle.cls}`}>
-                                {healthStyle.label}
-                              </span>
-                            </div>
+                          <td className="px-3 py-3 whitespace-nowrap" title={healthStyle.label}>
+                            <span className={`text-xs font-semibold ${health === 'good' ? 'text-gray-700' : 'text-red-600'}`}>{dueLabel(f.next_followup_at)}</span>
                           </td>
                           <td className="px-3 py-3 text-gray-500 text-xs max-w-[200px] truncate">{f.notes || '—'}</td>
                           <td className="px-3 py-3 text-right">
@@ -1557,11 +1625,11 @@ const LeadsPage = () => {
       {/* Add Lead Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} />
+          <div className="fixed inset-0 bg-black/50" onClick={closeAddModal} />
           <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b shrink-0">
               <h2 className="text-lg font-bold">Add New Lead</h2>
-              <button onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+              <button onClick={closeAddModal} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3 overflow-y-auto">
               <div>
@@ -1578,16 +1646,26 @@ const LeadsPage = () => {
                 {newLeadErrors.name && <p className="text-xs text-red-500 mt-1">{newLeadErrors.name}</p>}
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
-                <input ref={newLeadPhoneRef} type="tel" placeholder="Phone" value={newLead.phone}
-                  onChange={e => { setNewLead({ ...newLead, phone: e.target.value.replace(/[^0-9]/g, '') }); setNewLeadErrors(er => ({ ...er, phone: undefined })); }}
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.phone ? 'border-red-400' : ''}`} />
-                {newLeadErrors.phone && <p className="text-xs text-red-500 mt-1">{newLeadErrors.phone}</p>}
+                <label htmlFor="new-lead-phone" className="block text-xs text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
+                <div className="flex gap-2">
+                  <select aria-label="Country code" value={newLeadCountry} onChange={e => { setNewLeadCountry(e.target.value); setNewLeadErrors(er => ({ ...er, phone: undefined })); }}
+                    className="px-2 py-2.5 border rounded-lg text-sm bg-white w-28 shrink-0">
+                    {PHONE_COUNTRIES.map(c => <option key={c} value={c}>{c} +{getCountryCallingCode(c)}</option>)}
+                  </select>
+                  <input id="new-lead-phone" ref={newLeadPhoneRef} type="tel" inputMode="tel" placeholder="98765 43210" value={newLead.phone}
+                    onChange={e => { setNewLead({ ...newLead, phone: e.target.value }); setNewLeadErrors(er => ({ ...er, phone: undefined })); }}
+                    aria-invalid={!!newLeadErrors.phone}
+                    className={`flex-1 min-w-0 px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.phone ? 'border-red-400' : ''}`} />
+                </div>
+                {newLeadErrors.phone
+                  ? <p className="text-xs text-red-500 mt-1">{newLeadErrors.phone}</p>
+                  : <p className="text-[11px] text-gray-400 mt-1">Pick the country, then type the number. A number starting with + uses its own code.</p>}
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Email</label>
-                <input type="email" placeholder="Email" value={newLead.email} onChange={e => setNewLead({ ...newLead, email: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                <input ref={newLeadEmailRef} type="email" placeholder="Email" value={newLead.email} onChange={e => setNewLead({ ...newLead, email: e.target.value })}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.email ? 'border-red-400' : ''}`} />
+                {newLeadErrors.email && <p className="text-xs text-red-500 mt-1">{newLeadErrors.email}</p>}
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Business Name</label>
@@ -1633,7 +1711,7 @@ const LeadsPage = () => {
                   rows={3} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               </div>
               <div className="flex gap-2 pt-2">
-                <button onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={closeAddModal} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
                 <button onClick={handleAdd} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Add Lead</button>
               </div>
             </div>
@@ -1866,7 +1944,7 @@ const LeadsPage = () => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                <Copy size={18} className="text-cyan-600" /> Duplicate Leads
+                <Copy size={18} className="text-brand-600" /> Duplicate Leads
               </h2>
               <button onClick={() => setShowDuplicates(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
             </div>
@@ -1879,7 +1957,7 @@ const LeadsPage = () => {
 
               {duplicatesLoading ? (
                 <div className="py-10 flex justify-center">
-                  <span className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : duplicateGroups.length === 0 ? (
                 <div className="py-10 text-center text-sm text-gray-500">
@@ -1893,20 +1971,20 @@ const LeadsPage = () => {
                     <div className="space-y-2">
                       {group.leads.map(lead => (
                         <label key={lead.id}
-                          className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${duplicateKeepChoice[group.norm_phone] === lead.id ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200'}`}>
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${duplicateKeepChoice[group.norm_phone] === lead.id ? 'border-brand-500 bg-brand-50' : 'border-gray-200'}`}>
                           <input type="radio" name={`keep-${group.norm_phone}`}
                             checked={duplicateKeepChoice[group.norm_phone] === lead.id}
                             disabled aria-label="Oldest lead is kept"
-                            className="accent-cyan-600" />
+                            className="accent-brand-600" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold text-gray-900 truncate">{lead.name} <span className="font-normal text-gray-400">#{lead.lead_number}</span></p>
-                            <p className="text-xs text-gray-500">{lead.phone} · {sourceLabel(lead.source)} · {lead.stage} · {new Date(lead.created_at).toLocaleDateString()}</p>
+                            <p className="text-xs text-gray-500">{lead.phone} · {sourceLabel(lead.source)} · {lead.stage} · {formatDateTime(lead.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', year: 'numeric' })}</p>
                           </div>
                         </label>
                       ))}
                     </div>
                     <button onClick={() => handleMergeGroup(group)} disabled={mergingPhone === group.norm_phone}
-                      className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+                      className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                       {mergingPhone === group.norm_phone
                         ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Merging...</>
                         : `Keep selected, remove ${group.leads.length - 1} duplicate${group.leads.length - 1 > 1 ? 's' : ''}`}

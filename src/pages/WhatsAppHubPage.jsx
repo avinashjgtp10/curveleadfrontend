@@ -55,10 +55,10 @@ const WhatsAppHubPage = () => {
   const go = (t) => setParams(t.id === 'chats' ? {} : { tab: t.id });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {groups.length > 1 && (
         <div className="space-y-2">
-          <div className="inline-flex max-w-full overflow-x-auto bg-white rounded-xl border border-gray-200 p-1 gap-1 shadow-sm">
+          <div className="inline-flex max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-white rounded-xl border border-gray-200 p-1 gap-1 shadow-sm">
             {groups.map(g => (
               <button key={g.id} onClick={() => go(g.tabs[0])}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors ${
@@ -69,7 +69,7 @@ const WhatsAppHubPage = () => {
             ))}
           </div>
           {group.tabs.length > 1 && (
-            <div className="flex items-center gap-5 border-b border-gray-200 overflow-x-auto">
+            <div className="flex items-center gap-5 border-b border-gray-200 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {group.tabs.map(t => (
                 <button key={t.id} onClick={() => go(t)}
                   className={`py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${

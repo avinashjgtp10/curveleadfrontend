@@ -1,8 +1,9 @@
 import FeatureSettings from '../components/FeatureSettings';
 import AssignmentRulesSection from './LeadAutomation/AssignmentRulesSection';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useSearchParams } from 'react-router-dom';
-import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, campaignAPI } from '../services/api';
+import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, campaignAPI, leadAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import { User, Building, CheckCircle, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -251,6 +252,22 @@ const SettingsPage = () => {
     if (!stageForm.name.trim()) { setStageErrors({ name: 'Stage name is required' }); return; }
     setStageErrors({});
     setModalError('');
+    // Won/Lost drive conversion, revenue, intent and the conversions sent to Meta — say
+    // how many existing leads a new outcome tag reclassifies before applying it.
+    const newOutcome = editingStage && ((stageForm.is_won && !editingStage.is_won) ? 'won' : (stageForm.is_lost && !editingStage.is_lost) ? 'lost' : null);
+    if (newOutcome) {
+      let count = null;
+      try { ({ data: { pagination: { total: count } } } = await leadAPI.getAll({ stage: editingStage.name, limit: 1 }, { force: true })); } catch { /* count unknown */ }
+      const who = count == null ? `Every lead in "${editingStage.name}"` : `${count} lead${count === 1 ? '' : 's'} in "${editingStage.name}"`;
+      const ok = await confirm({
+        title: `Mark "${editingStage.name}" as a ${newOutcome} stage?`,
+        confirmText: `Mark as ${newOutcome}`, destructive: false,
+        message: newOutcome === 'won'
+          ? `${who} will count as customers: conversion, revenue, lead intent and Sales Coaching change, and won conversions may be sent to Meta. Only tag the stage where a lead actually becomes a customer.`
+          : `${who} will count as lost in reports and conversion figures.`,
+      });
+      if (!ok) return;
+    }
     try {
       if (editingStage) {
         await stageAPI.update(editingStage.id, stageForm);
@@ -643,8 +660,8 @@ const SettingsPage = () => {
 
           {tab === 'templates' && (
             <>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">Message Templates</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-lg font-bold flex items-center gap-2">Saved replies <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Session only · 24 h</span></h2>
                 {user?.role === 'admin' && (
                   <button onClick={openCreateTmpl}
                     className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">
@@ -653,6 +670,10 @@ const SettingsPage = () => {
                 )}
               </div>
 
+              <p className="text-xs text-gray-500 mb-4">
+                Free-text messages with {'{name}'}-style fields. WhatsApp only delivers these within 24 hours of the customer's last message.
+                To start or restart a conversation, use an approved template from <Link to="/whatsapp?tab=templates" className="text-brand-600 font-semibold hover:underline">WhatsApp → Templates</Link>.
+              </p>
               {templates.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No templates yet. Create one to get started.</p>
               ) : (
@@ -774,6 +795,21 @@ const SettingsPage = () => {
                   </button>
                 )}
               </div>
+
+              {(() => {
+                // Saved before the first-stage guard existed: a won entry stage counts every new
+                // lead as a customer, so call it out until it's fixed.
+                const active = stages.filter(s => s.id && s.is_active !== false);
+                const wonFirst = active[0]?.is_won ? active[0] : null;
+                const wonStages = active.filter(s => s.is_won);
+                if (!wonFirst && wonStages.length <= 1) return null;
+                return (
+                  <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {wonFirst && <p><b>"{wonFirst.name}" is tagged WON but it's where new leads start</b>, so every new lead counts as a customer. Conversion, revenue, lead intent and the conversions sent to Meta are all wrong until you edit this stage and untick Won.</p>}
+                    {wonStages.length > 1 && <p className={wonFirst ? 'mt-1' : ''}>{wonStages.length} stages are tagged WON ({wonStages.map(s => `"${s.name}"`).join(', ')}). Usually only the stage where a lead becomes a customer should be.</p>}
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 {stages.filter(s => s.id).map((s) => {

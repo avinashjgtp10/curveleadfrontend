@@ -3,6 +3,7 @@ export const PAGE_TITLES = {
   "/leads": "Leads",
   "/campaigns": "Campaigns",
   "/ads": "Ads Manager",
+  "/social": "Social",
   "/ai-agent": "AI Agent",
   "/whatsapp": "WhatsApp",
   "/followups": "Follow-ups",
@@ -31,7 +32,9 @@ export const PAGE_TITLES = {
 };
 export const pageTitle = (pathname) =>
   PAGE_TITLES["/" + pathname.split("/")[1]] || "CurveLead";
+const HOME_TITLE = "CurveLead – WhatsApp CRM for Meta & Google Ads leads";
 export const documentTitle = (pathname) => {
+  if (pathname === "/") return HOME_TITLE;
   const title = pageTitle(pathname);
   return title === "CurveLead" ? title : `${title} · CurveLead`;
 };

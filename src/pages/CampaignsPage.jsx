@@ -49,7 +49,7 @@ const num = v => formatNumber(v);
 // Campaign start/end are plain dates; format them without a timezone shift.
 const shortDate = v => {
   const [y, m, d] = String(v || '').split('T')[0].split('-').map(Number);
-  return y ? new Date(y, m - 1, d).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: '2-digit' }) : null;
+  return y ? new Date(y, m - 1, d).toLocaleDateString(intlLocale(), { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 };
 
 // Numbers on the card are for the selected range (services/metrics.js) except the budget
@@ -128,8 +128,8 @@ const CampaignCard = ({ c, onOpen, onEdit, onDelete, onOpenMeta }) => {
 
       {hasMeta && (
         <div className="mt-3 flex items-center gap-3 text-xs text-gray-500">
-          <span className="flex items-center gap-1"><Eye size={12} /> {num(c.impressions)}</span>
-          <span className="flex items-center gap-1"><MousePointerClick size={12} /> {num(c.clicks)}</span>
+          <span className="flex items-center gap-1"><Eye size={12} /> {num(c.impressions)} impressions</span>
+          <span className="flex items-center gap-1"><MousePointerClick size={12} /> {num(c.clicks)} clicks</span>
           {ctr && <span className="flex items-center gap-1"><Percent size={12} /> {ctr}% CTR</span>}
         </div>
       )}
@@ -168,6 +168,7 @@ const CampaignsPage = () => {
   const [errors, setErrors] = useState({});
   const [syncingInsights, setSyncingInsights] = useState(false);
   const [tab, setTab] = useState('active');
+  const [showEmpty, setShowEmpty] = useState(false);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
   const [loadError, setLoadError] = useState('');
@@ -242,7 +243,12 @@ const CampaignsPage = () => {
   const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const activeCount = campaigns.filter(c => c.status === 'active').length;
   const inactiveCount = campaigns.length - activeCount;
-  const visible = campaigns.filter(c => tab === 'active' ? c.status === 'active' : c.status !== 'active');
+  // Campaigns with no leads, spend or impressions in the period (often Meta's auto-created
+  // duplicates) are hidden by default so the list shows what's actually running.
+  const isEmpty = c => !Number(c.crm_leads ?? c.total_leads) && !Number(c.spend) && !Number(c.impressions) && !Number(c.converted);
+  const inTab = campaigns.filter(c => tab === 'active' ? c.status === 'active' : c.status !== 'active');
+  const hiddenEmpty = showEmpty ? 0 : inTab.filter(isEmpty).length;
+  const visible = showEmpty ? inTab : inTab.filter(c => !isEmpty(c));
   const focus = campaigns.filter(c => c.verdict === 'high_quality');
   const watch = campaigns.filter(c => c.verdict === 'high_volume_low_quality');
   const firstLoad = loading && !campaigns.length && !metrics;
@@ -348,11 +354,18 @@ const CampaignsPage = () => {
             <Plus size={16} /> New campaign
           </button>
         </div>
-      ) : visible.length === 0 ? (
+      ) : visible.length === 0 && hiddenEmpty === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-10 text-center text-sm text-gray-500">
           {tab === 'active' ? 'No active campaigns on this page.' : 'No paused, draft or completed campaigns on this page.'}
         </div>
       ) : (
+        <>
+        {(hiddenEmpty > 0 || showEmpty) && (
+          <p className="text-xs text-gray-500">
+            {showEmpty ? 'Showing campaigns with no activity in this period. ' : `${hiddenEmpty} campaign${hiddenEmpty === 1 ? '' : 's'} with no leads, spend or impressions in this period hidden. `}
+            <button onClick={() => setShowEmpty(v => !v)} className="font-semibold text-brand-600 hover:underline">{showEmpty ? 'Hide them' : 'Show them'}</button>
+          </p>
+        )}
         <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
           {visible.map(c => (
             <CampaignCard key={c.id} c={c}
@@ -362,6 +375,7 @@ const CampaignsPage = () => {
               onDelete={() => handleDelete(c.id)} />
           ))}
         </div>
+        </>
       )}
 
       {pageCount > 1 && (

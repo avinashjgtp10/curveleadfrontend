@@ -38,8 +38,7 @@ const OptInsTab = () => {
     <div className="space-y-4">
       {data.needs_migration && (
         <ErrorBox>
-          Opt-in tracking isn't set up in the database yet. Run <code className="bg-amber-100 px-1 rounded">backend/models/migration_whatsapp_hub.sql</code>,
-          then refresh. Opt-outs already work.
+          Opt-in tracking is temporarily unavailable while we finish an update. Opt-outs (STOP) still work.
         </ErrorBox>
       )}
 

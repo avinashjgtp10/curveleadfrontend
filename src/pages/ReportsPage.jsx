@@ -14,6 +14,15 @@ import {
   Search, SlidersHorizontal, ChevronDown, X, Download, FileText, Eye, Share2, Trash2, Square, CheckSquare, Calendar,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
+import StageBars from '../components/ui/StageBars';
+import { workspaceCurrency } from '../utils/locale';
+
+// Revenue is in the workspace currency, spend in the ad account's — only divide like with like.
+const roas = (c) => {
+  const spend = Number(c.spend), revenue = Number(c.revenue);
+  if (!spend || !revenue || (c.currency && c.currency !== workspaceCurrency())) return '—';
+  return `${(revenue / spend).toFixed(1)}×`;
+};
 import EmptyState from '../components/ui/EmptyState';
 import { BROCHURE_PAGE_SIZE_OPTIONS, BROCHURE_REPORT_CATEGORIES } from './brochureFilter.constants';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -114,7 +123,7 @@ const FilterDropdown = ({ label, value, options, onChange }) => {
       <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">{label}</label>
       <div className="relative">
         <button type="button" onClick={() => setOpen(v => !v)}
-          className="h-10 w-full flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent">
+          className="h-10 w-full flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent">
           <span className="truncate">{current?.label}</span>
           <ChevronDown size={14} className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
@@ -122,7 +131,7 @@ const FilterDropdown = ({ label, value, options, onChange }) => {
           <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto py-1">
             {options.map(o => (
               <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
-                className={`w-full text-left px-3 py-2 text-sm hover:bg-cyan-50 ${o.value === value ? 'bg-cyan-50 text-cyan-700 font-semibold' : 'text-gray-700'}`}>
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-brand-50 ${o.value === value ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700'}`}>
                 {o.label}
               </button>
             ))}
@@ -241,6 +250,8 @@ const ReportsPage = () => {
   const [showMsgFilters, setShowMsgFilters] = useState(false);
   const [msgStatus, setMsgStatus] = useState('');
   const [msgDirection, setMsgDirection] = useState('');
+  const [msgFrom, setMsgFrom] = useState('');
+  const [msgTo, setMsgTo] = useState('');
   const [msgAutomated, setMsgAutomated] = useState('');
   const [msgPage, setMsgPage] = useState(1);
   const [msgPageSize, setMsgPageSize] = useState(20);
@@ -281,7 +292,7 @@ const ReportsPage = () => {
 
   useEffect(() => {
     if (activeTab === 'messages') loadMessages();
-  }, [activeTab, msgSearch, msgStatus, msgDirection, msgAutomated, msgPage, msgPageSize]);
+  }, [activeTab, msgSearch, msgStatus, msgDirection, msgAutomated, msgFrom, msgTo, msgPage, msgPageSize]);
 
   useEffect(() => {
     const onDocClick = (e) => {
@@ -398,6 +409,8 @@ const ReportsPage = () => {
       if (msgStatus) params.status = msgStatus;
       if (msgDirection) params.direction = msgDirection;
       if (msgAutomated) params.is_automated = msgAutomated;
+      if (msgFrom) params.date_from = msgFrom;
+      if (msgTo) params.date_to = msgTo;
       const res = await reportsAPI.messages(params);
       if (requestId !== msgRequestRef.current) return;
       setMessages(res.data.messages || []);
@@ -576,14 +589,16 @@ const ReportsPage = () => {
   };
 
 
-  const conversionRate = conversion?.total_leads > 0
-    ? ((conversion.won / conversion.total_leads) * 100).toFixed(1)
-    : 0;
+  // Same definition as the dashboard and coaching (services/metrics.js): of the leads created
+  // in the period, the share that became customers. "Won this period" is a separate count.
+  const conversionRate = conversion?.conversion_rate ?? 0;
 
   const stats = [
     { label: 'Total Leads', value: conversion?.total_leads || 0, icon: Users, color: 'bg-blue-100 text-blue-600' },
-    { label: 'Won', value: conversion?.won || 0, icon: Target, color: 'bg-green-100 text-green-600' },
-    { label: 'Conversion Rate', value: `${conversionRate}%`, icon: TrendingUp, color: 'bg-purple-100 text-purple-600' },
+    { label: 'Won this period', value: conversion?.won || 0, icon: Target, color: 'bg-green-100 text-green-600',
+      sub: 'Reached a won stage in this period' },
+    { label: 'Conversion Rate', value: `${conversionRate}%`, icon: TrendingUp, color: 'bg-purple-100 text-purple-600',
+      sub: `${conversion?.converted ?? 0} of ${conversion?.total_leads ?? 0} leads became customers` },
     { label: 'Active Campaigns', value: activeCampaigns, icon: Megaphone, color: 'bg-amber-100 text-amber-600' },
   ];
 
@@ -644,16 +659,12 @@ const ReportsPage = () => {
               </div>
 
               <div className="bg-white rounded-2xl border p-5">
-                <h3 className="font-semibold mb-4">Conversion Funnel</h3>
+                <h3 className="font-semibold">Leads by current stage</h3>
+                <p className="text-xs text-gray-400 mb-4">Leads created in this period, by the stage they're in now. The full step-by-step funnel is on the Funnel tab.</p>
                 {conversion?.stages?.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={conversion.stages}>
-                      <XAxis dataKey="stage" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#6366f1" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <StageBars
+                    rows={conversion.stages.filter(s => !s.is_exit).map(s => ({ name: s.stage, count: s.count, note: `${s.percentage}%`, tone: s.is_won ? 'won' : 'brand' }))}
+                    exits={conversion.stages.filter(s => s.is_exit).map(s => ({ name: s.stage, count: s.count, note: `${s.percentage}%` }))} />
                 ) : <EmptyState />}
               </div>
             </div>
@@ -671,17 +682,12 @@ const ReportsPage = () => {
 
             <div className="bg-white rounded-2xl border p-5">
               <h3 className="font-semibold mb-4">Sales Funnel · New → Won</h3>
-              {!!funnel.terminal_stages?.length&&<div className="flex flex-wrap gap-4 mb-4" aria-label="Outside active pipeline">{funnel.terminal_stages.map(stage=><span key={stage.name} className="rounded bg-gray-100 px-3 py-2 text-sm">{stage.name}: {stage.count}</span>)}</div>}
               {funnel.stages.length === 0 ? <EmptyState /> : (
                 <>
-                  <ResponsiveContainer width="100%" height={Math.max(180, funnel.stages.length * 40)}>
-                    <BarChart data={funnel.stages} layout="vertical" margin={{ left: 24 }}>
-                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
-                      <Tooltip />
-                      <Bar dataKey="reached_count" name="Reached" fill="#6366f1" radius={[0, 8, 8, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <StageBars
+                    rows={funnel.stages.map((st, i) => ({ name: st.name, count: st.reached_count, tone: st.is_won ? 'won' : 'brand',
+                      note: i > 0 && Number(st.drop_off_pct) > 0 ? `−${st.drop_off_pct}% from previous` : undefined }))}
+                    exits={(funnel.terminal_stages || []).map(st => ({ name: st.name, count: st.count }))} />
                   <div className="overflow-x-auto mt-4">
                     <table className="w-full text-sm">
                       <thead className="text-xs text-gray-500 uppercase">
@@ -808,10 +814,10 @@ const ReportsPage = () => {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl border p-5">
-              <h3 className="font-semibold mb-4">Response Time Trend</h3>
+              <h3 className="font-semibold mb-4">Response Time Trend <span className="text-xs font-normal text-gray-400">· average minutes to first reply</span></h3>
               {trendLoading ? <Spinner /> : responseTrendChartData.length === 0 ? <EmptyState /> : (
                 <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={responseTrendChartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <AreaChart data={responseTrendChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                     <defs>
                       <linearGradient id="respGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6366f1" stopOpacity={0.18} />
@@ -819,7 +825,7 @@ const ReportsPage = () => {
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} unit=" min" width={64} />
                     <Tooltip
                       contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }}
                       cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 2' }}
@@ -861,25 +867,29 @@ const ReportsPage = () => {
                 <table className="w-full text-sm">
                   <thead className="text-xs text-gray-500 uppercase">
                     <tr>
-                      <th className="text-left py-2">Campaign</th>
-                      <th className="text-left py-2">Source</th>
-                      <th className="text-right py-2" title="Ad spend in this period (daily insights)">Spent</th>
-                      <th className="text-right py-2" title="Leads in CurveLead created in this period">Leads</th>
-                      <th className="text-right py-2" title="Spend in this period ÷ leads in this period">CPL</th>
-                      <th className="text-right py-2" title="Of these leads, how many became customers">Converted</th>
-                      <th className="text-right py-2" title="Leads that reached a won stage in this period">Won this period</th>
+                      <th className="text-left py-2 pr-4">Campaign</th>
+                      <th className="text-left py-2 pr-4">Source</th>
+                      <th className="text-right py-2 pl-4" title="Ad spend in this period (daily insights)">Spent</th>
+                      <th className="text-right py-2 pl-4" title="Leads in CurveLead created in this period">Leads</th>
+                      <th className="text-right py-2 pl-4" title="Spend in this period ÷ leads in this period">CPL</th>
+                      <th className="text-right py-2 pl-4" title="Of these leads, how many became customers">Converted</th>
+                      <th className="text-right py-2 pl-4 whitespace-nowrap" title="Leads that reached a won stage in this period">Won this period</th>
+                      <th className="text-right py-2 pl-4" title="Deal value of leads won in this period">Revenue</th>
+                      <th className="text-right py-2 pl-4" title="Revenue ÷ spend. Shown only when both are in the same currency.">ROAS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {byCampaign.map((c, i) => (
                       <tr key={i} className="border-t">
-                        <td className="py-2.5 font-medium">{c.name}</td>
-                        <td className="capitalize text-gray-600">{sourceLabel(c.source)}</td>
-                        <td className="text-right" title={c.spend == null ? (c.spend_by_currency ? 'More than one currency — not added up' : `No daily spend — lifetime ${formatMoney(Math.round(Number(c.lifetime_spend || 0)), c.currency)}`) : ''}>{c.spend == null ? (c.spend_by_currency ? formatMoneyByCurrency(c.spend_by_currency) : '—') : formatMoney(Math.round(Number(c.spend)), c.currency)}</td>
-                        <td className="text-right">{c.crm_leads ?? c.total_leads}</td>
-                        <td className="text-right font-semibold text-brand-600">{c.cpl == null ? '—' : formatMoney(Math.round(Number(c.cpl)), c.currency)}</td>
-                        <td className="text-right">{c.converted ?? 0}</td>
-                        <td className="text-right text-green-600">{c.won || 0}</td>
+                        <td className="py-2.5 pr-4 font-medium">{c.name}</td>
+                        <td className="pr-4 capitalize text-gray-600">{sourceLabel(c.source)}</td>
+                        <td className="text-right pl-4" title={c.spend == null ? (c.spend_by_currency ? 'More than one currency — not added up' : `No daily spend — lifetime ${formatMoney(Math.round(Number(c.lifetime_spend || 0)), c.currency)}`) : ''}>{c.spend == null ? (c.spend_by_currency ? formatMoneyByCurrency(c.spend_by_currency) : '—') : formatMoney(Math.round(Number(c.spend)), c.currency)}</td>
+                        <td className="text-right pl-4">{c.crm_leads ?? c.total_leads}</td>
+                        <td className="text-right pl-4 font-semibold text-brand-600">{c.cpl == null ? '—' : formatMoney(Math.round(Number(c.cpl)), c.currency)}</td>
+                        <td className="text-right pl-4">{c.converted ?? 0}</td>
+                        <td className="text-right pl-4 text-green-600">{c.won || 0}</td>
+                        <td className="text-right pl-4">{Number(c.revenue) ? formatMoney(Math.round(Number(c.revenue))) : '—'}</td>
+                        <td className="text-right pl-4 font-semibold">{roas(c)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -933,16 +943,16 @@ const ReportsPage = () => {
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input type="text" placeholder="Search by name or phone..."
                       value={gridSearchInput} onChange={e => setGridSearchInput(e.target.value)}
-                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
+                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
                   </div>
                   <button
                     onClick={() => setShowGridFilters(v => !v)}
-                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showGridFilters || gridActiveFilterCount > 0 ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showGridFilters || gridActiveFilterCount > 0 ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
                   >
                     <SlidersHorizontal size={15} />
                     Filters
                     {gridActiveFilterCount > 0 && (
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showGridFilters ? 'bg-white text-cyan-600' : 'bg-cyan-600 text-white'}`}>
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showGridFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
                         {gridActiveFilterCount}
                       </span>
                     )}
@@ -950,7 +960,7 @@ const ReportsPage = () => {
                   </button>
                   {gridActiveFilterCount > 0 && (
                     <button onClick={clearGridFilters}
-                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                       <X size={13} /> Clear filters
                     </button>
                   )}
@@ -990,8 +1000,8 @@ const ReportsPage = () => {
           ) : (
             <div className="overflow-x-auto">
               {selectedGridIds.size > 0 && (
-                <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-cyan-50 border border-cyan-200 rounded-xl flex-wrap">
-                  <span className="text-sm font-bold text-cyan-700">{selectedGridIds.size} selected</span>
+                <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-brand-50 border border-brand-200 rounded-xl flex-wrap">
+                  <span className="text-sm font-bold text-brand-700">{selectedGridIds.size} selected</span>
                   <button
                     onClick={handleGridBulkDelete}
                     disabled={bulkDeleteLoading}
@@ -1008,9 +1018,9 @@ const ReportsPage = () => {
                 <thead className="text-xs text-gray-500 uppercase">
                   <tr>
                     <th className="text-left py-2 w-8">
-                      <button onClick={toggleGridSelectAll} className="text-gray-400 hover:text-cyan-600">
+                      <button onClick={toggleGridSelectAll} className="text-gray-400 hover:text-brand-600">
                         {selectedGridIds.size === gridLeads.length && gridLeads.length > 0
-                          ? <CheckSquare size={16} className="text-cyan-600" />
+                          ? <CheckSquare size={16} className="text-brand-600" />
                           : <Square size={16} />}
                       </button>
                     </th>
@@ -1024,11 +1034,11 @@ const ReportsPage = () => {
                 </thead>
                 <tbody>
                   {gridLeads.map(l => (
-                    <tr key={l.id} className={`border-t hover:bg-gray-50 ${selectedGridIds.has(l.id) ? 'bg-cyan-50/50' : ''}`}>
+                    <tr key={l.id} className={`border-t hover:bg-gray-50 ${selectedGridIds.has(l.id) ? 'bg-brand-50/50' : ''}`}>
                       <td className="py-2.5">
-                        <button onClick={() => toggleGridSelect(l.id)} className="text-gray-400 hover:text-cyan-600">
+                        <button onClick={() => toggleGridSelect(l.id)} className="text-gray-400 hover:text-brand-600">
                           {selectedGridIds.has(l.id)
-                            ? <CheckSquare size={16} className="text-cyan-600" />
+                            ? <CheckSquare size={16} className="text-brand-600" />
                             : <Square size={16} />}
                         </button>
                       </td>
@@ -1109,16 +1119,16 @@ const ReportsPage = () => {
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input type="text" placeholder="Search brochures..."
                       value={brochureSearchInput} onChange={e => setBrochureSearchInput(e.target.value)}
-                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
+                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
                   </div>
                   <button
                     onClick={() => setShowBrochureFilters(v => !v)}
-                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showBrochureFilters || activeFilterCount > 0 ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showBrochureFilters || activeFilterCount > 0 ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
                   >
                     <SlidersHorizontal size={15} />
                     Filters
                     {activeFilterCount > 0 && (
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showBrochureFilters ? 'bg-white text-cyan-600' : 'bg-cyan-600 text-white'}`}>
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showBrochureFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
                         {activeFilterCount}
                       </span>
                     )}
@@ -1126,7 +1136,7 @@ const ReportsPage = () => {
                   </button>
                   {activeFilterCount > 0 && (
                     <button onClick={clearFilters}
-                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                       <X size={13} /> Clear filters
                     </button>
                   )}
@@ -1240,11 +1250,11 @@ const ReportsPage = () => {
       {activeTab === 'messages' && (
         <div className="bg-white rounded-2xl border p-5">
           {(() => {
-            const msgActiveFilterCount = [msgSearchInput, msgStatus, msgDirection, msgAutomated].filter(Boolean).length;
+            const msgActiveFilterCount = [msgSearchInput, msgStatus, msgDirection, msgAutomated, msgFrom || msgTo].filter(Boolean).length;
             const clearMsgFilters = () => {
               setMsgPage(1);
               setMsgSearchInput(''); setMsgSearch('');
-              setMsgStatus(''); setMsgDirection(''); setMsgAutomated('');
+              setMsgStatus(''); setMsgDirection(''); setMsgAutomated(''); setMsgFrom(''); setMsgTo('');
             };
             return (
               <>
@@ -1257,16 +1267,16 @@ const ReportsPage = () => {
                     <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     <input type="text" placeholder="Search by name or phone..."
                       value={msgSearchInput} onChange={e => setMsgSearchInput(e.target.value)}
-                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
+                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
                   </div>
                   <button
                     onClick={() => setShowMsgFilters(v => !v)}
-                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showMsgFilters || msgActiveFilterCount > 0 ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showMsgFilters || msgActiveFilterCount > 0 ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
                   >
                     <SlidersHorizontal size={15} />
                     Filters
                     {msgActiveFilterCount > 0 && (
-                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showMsgFilters ? 'bg-white text-cyan-600' : 'bg-cyan-600 text-white'}`}>
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showMsgFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
                         {msgActiveFilterCount}
                       </span>
                     )}
@@ -1274,7 +1284,7 @@ const ReportsPage = () => {
                   </button>
                   {msgActiveFilterCount > 0 && (
                     <button onClick={clearMsgFilters}
-                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                       <X size={13} /> Clear filters
                     </button>
                   )}
@@ -1314,6 +1324,16 @@ const ReportsPage = () => {
                         { value: 'false', label: 'Manual only' },
                       ]}
                     />
+                    <label className="block">
+                      <span className="block text-xs font-medium text-gray-500 mb-1">From</span>
+                      <input type="date" value={msgFrom} max={msgTo || undefined} onChange={e => { setMsgPage(1); setMsgFrom(e.target.value); }}
+                        className="h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm" />
+                    </label>
+                    <label className="block">
+                      <span className="block text-xs font-medium text-gray-500 mb-1">To</span>
+                      <input type="date" value={msgTo} min={msgFrom || undefined} onChange={e => { setMsgPage(1); setMsgTo(e.target.value); }}
+                        className="h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm" />
+                    </label>
                   </div>
                 )}
               </>
@@ -1328,29 +1348,30 @@ const ReportsPage = () => {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b">
-                    <th className="pb-2 font-semibold">Lead</th>
-                    <th className="pb-2 font-semibold">Direction</th>
-                    <th className="pb-2 font-semibold">Type</th>
-                    <th className="pb-2 font-semibold">Template</th>
-                    <th className="pb-2 font-semibold">Source</th>
-                    <th className="pb-2 font-semibold">Status</th>
-                    <th className="pb-2 font-semibold text-right">Sent At</th>
+                    <th className="pb-2 pr-4 font-semibold">Lead</th>
+                    <th className="pb-2 pr-4 font-semibold">Direction</th>
+                    <th className="pb-2 pr-4 font-semibold">Type</th>
+                    <th className="pb-2 pr-4 font-semibold">Template</th>
+                    <th className="pb-2 pr-4 font-semibold">Source</th>
+                    <th className="pb-2 pr-4 font-semibold">Status</th>
+                    <th className="pb-2 pr-4 font-semibold">Reason</th>
+                    <th className="pb-2 font-semibold text-right whitespace-nowrap">Sent at</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-50">
                   {messages.map(m => (
                     <tr key={m.id} className="hover:bg-gray-50">
-                      <td className="py-2.5">
+                      <td className="py-2.5 pr-4">
                         <p className="font-medium text-gray-800">{m.lead_name}</p>
                         <p className="text-xs text-gray-400">{m.lead_phone}</p>
                       </td>
-                      <td className="capitalize text-gray-600">{m.direction}</td>
-                      <td className="capitalize text-gray-600">{m.message_type}</td>
-                      <td className="text-gray-600">{m.template_name || '—'}</td>
-                      <td className="text-gray-600">
+                      <td className="pr-4 capitalize text-gray-600">{m.direction}</td>
+                      <td className="pr-4 capitalize text-gray-600">{m.message_type}</td>
+                      <td className="pr-4 text-gray-600">{m.template_name || '—'}</td>
+                      <td className="pr-4 text-gray-600">
                         {m.is_automated ? (m.is_ai_generated ? 'AI Automated' : 'Automated') : 'Manual'}
                       </td>
-                      <td>
+                      <td className="pr-4">
                         <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                           m.status === 'delivered' || m.status === 'read' ? 'bg-emerald-50 text-emerald-700'
                           : m.status === 'sent' ? 'bg-blue-50 text-blue-700'
@@ -1360,7 +1381,8 @@ const ReportsPage = () => {
                           {m.status?.toUpperCase()}
                         </span>
                       </td>
-                      <td className="text-right text-gray-500">{formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</td>
+                      <td className="pr-4 text-xs text-red-600 max-w-[16rem]">{m.status === 'failed' ? (m.error_detail || 'No reason recorded') : ''}</td>
+                      <td className="text-right text-gray-500 whitespace-nowrap">{formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</td>
                     </tr>
                   ))}
                 </tbody>

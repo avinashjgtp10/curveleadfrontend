@@ -162,7 +162,8 @@ const TemplatesPage = () => {
     <div className="max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-sm text-gray-500">
-          WhatsApp message templates, their Meta approval status, and AI-assisted creation.
+          <span className="mr-1.5 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Approved · any time</span>
+          Meta-approved templates can start a conversation at any time. Use <b>Utility</b> for confirmations and reminders (no marketing opt-in needed); <b>Marketing</b> needs the lead's opt-in.
         </p>
         <div className="flex items-center gap-2">
           <button onClick={load} disabled={loading}

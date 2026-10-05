@@ -78,7 +78,7 @@ const CampaignDetailPage = () => {
       hint: notMeasured ? 'No daily spend (manual campaign)' : data.spend_basis === 'mixed_currencies' ? 'More than one currency — not added up' : 'In this period' },
     { label: 'Cost per lead', value: money(data.cpl), icon: Banknote, color: 'bg-purple-100 text-purple-600' },
     { label: 'Cost per customer', value: money(data.cost_per_customer), icon: Banknote, color: 'bg-blue-100 text-blue-600' },
-    ...(data.platform_leads != null ? [{ label: 'Reported by Meta', value: formatNumber(data.platform_leads), icon: Eye, color: 'bg-cyan-100 text-cyan-600', hint: data.platform_cpl != null ? `${money(data.platform_cpl)} per Meta lead` : null }] : []),
+    ...(data.platform_leads != null ? [{ label: 'Reported by Meta', value: formatNumber(data.platform_leads), icon: Eye, color: 'bg-brand-100 text-brand-600', hint: data.platform_cpl != null ? `${money(data.platform_cpl)} per Meta lead` : null }] : []),
   ];
   const RANGES = [['this_month', 'This month'], ['last_30_days', 'Last 30 days'], ['last_month', 'Last month'], ['this_year', 'This year'], ['lifetime', 'Lifetime']];
 

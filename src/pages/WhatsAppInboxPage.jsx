@@ -426,6 +426,18 @@ const WhatsAppInboxPage = () => {
     setShowNewChat(false);
   };
 
+  // Resend a failed text message; the failed bubble is replaced by the new attempt.
+  const [retryingId, setRetryingId] = useState(null);
+  const retryMessage = async (m) => {
+    setRetryingId(m.id);
+    try {
+      const { data } = await whatsappAPI.send(activeId, m.message);
+      setMessages(prev => prev.map(x => (x.id === m.id ? data.message : x)));
+      if (data.delivery?.success === false) toast.error(`Still not delivered: ${data.delivery.error || 'WhatsApp rejected it.'}`);
+    } catch (e) { toast.error(e.response?.data?.error || 'Retry failed'); }
+    finally { setRetryingId(null); }
+  };
+
   const handleBrochureShared = (brochure) => {
     setMessages(prev => [...prev, {
       id: `tmp-brochure-${Date.now()}`, direction: 'outbound', message: `📄 ${brochure.name}`,
@@ -484,17 +496,9 @@ const WhatsAppInboxPage = () => {
 
   return (
     <div className="h-full">
-      <div className="flex items-center gap-3 mb-5">
-        <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center shrink-0">
-          <MessageCircle size={20} className="text-green-600" />
-        </div>
-        <div>
-          <h1 className="text-lg font-bold text-gray-900 leading-tight">WhatsApp Inbox</h1>
-          <p className="text-sm text-gray-500">Manage and respond to your customer conversations</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 min-[900px]:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_280px] gap-4 h-[calc(100dvh-250px)] min-h-[420px]">
+      {/* The hub's tabs already title this page; the chat gets the height instead. */}
+      <h1 className="sr-only">WhatsApp Inbox</h1>
+      <div className="grid grid-cols-1 min-[900px]:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)_280px] gap-4 h-[calc(100dvh-190px)] min-h-[480px]">
         {/* Conversations */}
         <div className={`min-w-0 bg-white border rounded-2xl flex-col overflow-hidden ${activeId ? 'hidden min-[900px]:flex' : 'flex'}`}>
           <div className="p-4 pb-3 border-b">
@@ -597,8 +601,8 @@ const WhatsAppInboxPage = () => {
                     <p className="font-semibold text-sm text-gray-900 truncate">{c.lead_name || 'Unknown'}</p>
                     <span className="text-xs text-gray-400 shrink-0">{relTime(c.sent_at)}</span>
                   </div>
-                  <p className={`text-xs truncate mt-0.5 ${c.message ? 'text-gray-500' : 'italic text-gray-400'}`}>
-                    {c.message || 'No messages yet — tap to start chatting'}
+                  <p className={`text-xs truncate mt-0.5 ${c.direction === 'outbound' && c.status === 'failed' ? 'text-red-600' : c.message ? 'text-gray-500' : 'italic text-gray-400'}`}>
+                    {c.direction === 'outbound' && c.status === 'failed' ? `Failed to send: ${c.message || ''}` : c.message || 'No messages yet — tap to start chatting'}
                   </p>
                   {(c.tags || []).length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
@@ -723,6 +727,17 @@ const WhatsAppInboxPage = () => {
                                 : <Check size={13} className="text-gray-400" title="Sent" />
                               )}
                             </div>
+                            {outbound && m.status === 'failed' && (
+                              <div className="mt-1.5 pt-1.5 border-t border-red-100 text-[11px] text-red-600">
+                                <span className="font-semibold">Not delivered</span>{m.error_detail ? ` · ${m.error_detail}` : ''}
+                                {m.message_type === 'text' && m.message && (
+                                  <button onClick={() => retryMessage(m)} disabled={retryingId === m.id}
+                                    className="ml-2 font-semibold underline hover:text-red-700 disabled:opacity-50">
+                                    {retryingId === m.id ? 'Retrying…' : 'Retry'}
+                                  </button>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                         </div>
@@ -735,7 +750,7 @@ const WhatsAppInboxPage = () => {
 
               <InboxComposer
                 leadId={activeId} leadName={active.lead_name} messages={messages} messagesLoading={msgLoading}
-                setMessages={setMessages} onSent={() => patchConversation(activeId, { ai_paused: true })}
+                setMessages={setMessages} onSent={() => { patchConversation(activeId, { ai_paused: true }); loadInbox(true); }}
                 onOpenBrochure={() => setShowBrochureModal(true)} />
             </>
           )}

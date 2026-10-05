@@ -38,12 +38,12 @@ export const ConfirmDialogProvider = ({ children }) => {
           <div className="relative w-full max-w-sm rounded-lg border border-gray-200 bg-white shadow-2xl">
             <div className="p-4">
               <div className="flex items-start gap-3">
-                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${dialog.destructive ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                <div className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${dialog.destructive ? 'bg-red-50 text-red-600' : 'bg-brand-50 text-brand-600'}`}>
                   {dialog.destructive ? <Trash2 size={17} /> : <HelpCircle size={17} />}
                 </div>
                 <div className="min-w-0">
                   <h2 className="text-sm font-bold text-gray-900">{dialog.title}</h2>
-                  <p className="mt-1 text-xs leading-5 text-gray-500">{dialog.message}</p>
+                  <p className="mt-1 text-xs leading-5 text-gray-500 whitespace-pre-wrap">{dialog.message}</p>
                 </div>
               </div>
               <div className="mt-4 flex justify-end gap-2">
@@ -55,7 +55,7 @@ export const ConfirmDialogProvider = ({ children }) => {
                 </button>
                 <button
                   onClick={() => close(true)}
-                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white ${dialog.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
+                  className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold text-white ${dialog.destructive ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-600 hover:bg-brand-700'}`}
                 >
                   {dialog.destructive && <Trash2 size={14} />}
                   {dialog.confirmText}

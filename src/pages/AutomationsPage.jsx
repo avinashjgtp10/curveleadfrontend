@@ -2,17 +2,18 @@ import { Link } from "react-router-dom";
 import { useOverview } from "../components/workspace/Overview";
 import PageLoader from "../components/ui/PageLoader";
 import { useAuth } from "../context/AuthContext";
+// [id, title, where to configure, what it does]
 export const AUTOMATIONS = [
-  ["sources", "Lead sources", "/integrations"],
-  ["assignment", "Assignment rules", "/settings?tab=assignment"],
-  ["dedupe", "Dedupe", "/settings?tab=business"],
-  ["responder", "Auto-responder", "/integrations"],
-  ["sequences", "Sequences", "/lead-automation"],
-  ["inbound", "Inbound auto-reply", "/settings?tab=messaging"],
-  ["bulk", "Bulk campaigns", "/whatsapp?tab=broadcasts"],
-  ["capi", "Conversions API", "/settings?tab=developer"],
-  ["webhooks", "Webhooks", "/settings?tab=developer"],
-  ["reviews", "GMB review request", "/gmb"],
+  ["sources", "Lead sources", "/integrations", "New leads arrive automatically from Meta, Google Ads, your website or the API."],
+  ["assignment", "Assignment rules", "/settings?tab=assignment", "New leads go to the right person by source, campaign or round-robin."],
+  ["dedupe", "Dedupe", "/settings?tab=business", "Repeat enquiries from the same number join the existing lead."],
+  ["responder", "Auto-responder", "/integrations", "A WhatsApp welcome message the moment a new lead arrives."],
+  ["sequences", "Sequences", "/lead-automation", "Scripted WhatsApp and email follow-ups for matching leads."],
+  ["inbound", "Inbound auto-reply", "/whatsapp?tab=ai", "Replies to customer messages: AI auto-reply or keyword rules."],
+  ["bulk", "Bulk campaigns", "/whatsapp?tab=broadcasts", "Approved-template broadcasts to opted-in lists."],
+  ["capi", "Conversions API", "/integrations", "Tells Meta which leads qualified or became customers, so ads find more like them."],
+  ["webhooks", "Webhooks", "/settings?tab=developer", "Sends lead events to your other systems."],
+  ["reviews", "GMB review request", "/gmb", "Asks won customers for a Google review on WhatsApp."],
 ];
 export default function AutomationsPage() {
   const { data, isPending, isError, refetch } = useOverview();
@@ -31,21 +32,23 @@ export default function AutomationsPage() {
         Manage your workspace automations in one place.
       </p>
       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
-        {AUTOMATIONS.map(([id, title, to]) => (
+        {AUTOMATIONS.map(([id, title, to, desc]) => (
           <section
             key={id}
             className="bg-white border rounded-xl p-5 space-y-4"
           >
-            <h2 className="font-semibold">{title}</h2>
-            <p
-              className={`text-sm ${data.automations[id] ? "text-green-700" : "text-gray-500"}`}
-            >
-              {data.automations[id]
-                ? id === "bulk"
-                  ? "Campaigns created"
-                  : "Enabled"
-                : "Not configured"}
-            </p>
+            <div>
+              <h2 className="font-semibold">{title}</h2>
+              <p className="mt-1 text-sm text-gray-500">{desc}</p>
+            </div>
+            {(() => {
+              // true = working, false = off, a string = switched on but not working yet.
+              const v = data.automations[id];
+              const [cls, text] = v === "not_set_up" ? ["text-red-600", "On, but not set up"]
+                : v ? ["text-green-700", id === "bulk" ? "Campaigns created" : "Enabled"]
+                : ["text-gray-500", "Not configured"];
+              return <p className={`text-sm ${cls}`}>{text}</p>;
+            })()}
             {admin || id === "sequences" ? (
               <Link className="inline-block btn-primary" to={to}>
                 Configure <span className="sr-only">{title}</span>

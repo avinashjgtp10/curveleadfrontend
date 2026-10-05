@@ -3,12 +3,13 @@ import { documentTitle } from './utils/pageTitles';
 import AutomationsPage from './pages/AutomationsPage';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import PageLoader from './components/ui/PageLoader';
 import { ConfirmDialogProvider } from './components/ui/ConfirmDialog';
 import { ToastProvider } from './components/ui/Toast';
 
 // Public
 import LandingPage from './pages/LandingPage';
+import NotFoundPage from './pages/NotFoundPage';
+import AppShellSkeleton from './components/layout/AppShellSkeleton';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -49,7 +50,7 @@ import QuotationPublicPage from './pages/QuotationPublicPage';
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <PageLoader message="Checking your session..." minHeight="h-screen" />;
+  if (loading) return <AppShellSkeleton />;
   return user ? children : <Navigate to="/login" replace />;
 };
 
@@ -109,6 +110,7 @@ const App = () => (
           <Route path="integrations" element={<IntegrationsPage />} />
           <Route path="help" element={<HelpPage />} />
         </Route>
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </ConfirmDialogProvider>
     </ToastProvider>

@@ -1,3 +1,4 @@
+import { formatDateTime } from '../utils/dateTime';
 import PageLoader from '../components/ui/PageLoader';
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { brochuresAPI } from '../services/api';
@@ -39,12 +40,7 @@ const fmtSize = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const fmtDate = (d) => {
-  if (!d) return '';
-  const dt = new Date(d);
-  if (isNaN(dt)) return '';
-  return dt.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-};
+const fmtDate = (d) => (d ? formatDateTime(d, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', year: 'numeric' }) : '');
 
 const Toggle = ({ checked, onChange }) => (
   <button
@@ -99,7 +95,8 @@ const BrochuresPage = () => {
     const totalViews = brochures.reduce((sum, b) => sum + (b.views || 0), 0);
     const sharedCount = brochures.filter(b => (b.times_shared || 0) > 0).length;
     const totalBytes = brochures.reduce((sum, b) => sum + (b.file_size || 0), 0);
-    return { total: brochures.length, shared: sharedCount, views: totalViews, size: fmtSize(totalBytes) || '0 MB' };
+    const totalShares = brochures.reduce((n, b) => n + (Number(b.times_shared) || 0), 0);
+    return { total: brochures.length, shared: sharedCount, shares: totalShares, views: totalViews, size: fmtSize(totalBytes) || '0 MB' };
   }, [brochures]);
 
   const filtered = useMemo(() => {
@@ -173,7 +170,7 @@ const BrochuresPage = () => {
 
   const STATS = [
     { key: '', label: 'Total Brochures', value: stats.total, sub: 'All categories', icon: FileText, iconCls: 'bg-indigo-100 text-indigo-600' },
-    { key: 'shared', label: 'Shared Brochures', value: stats.shared, sub: 'With leads', icon: Send, iconCls: 'bg-emerald-100 text-emerald-600' },
+    { key: 'shared', label: 'Times shared', value: stats.shares, sub: `${stats.shared} of ${stats.total} brochures shared`, icon: Send, iconCls: 'bg-emerald-100 text-emerald-600' },
     { key: 'viewed', label: 'Total Views', value: stats.views, sub: 'All brochures', icon: Eye, iconCls: 'bg-orange-100 text-orange-600' },
     { key: '', label: 'Total Size', value: stats.size, sub: 'All files', icon: HardDrive, iconCls: 'bg-blue-100 text-blue-600' },
   ];
@@ -253,7 +250,7 @@ const BrochuresPage = () => {
           </button>
           {(category || sortBy !== 'recent') && (
             <button onClick={() => { setCategory(''); setSortBy('recent'); }}
-              className="px-2.5 py-2.5 flex items-center gap-1 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+              className="px-2.5 py-2.5 flex items-center gap-1 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
               <X size={12} /> Clear
             </button>
           )}

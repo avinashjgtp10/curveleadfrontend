@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Star, MessageSquareText, Megaphone, BarChart3, Sparkles, Lock, CheckCircle, LinkIcon } from 'lucide-react';
-import { gmbAPI } from '../services/api';
+import { gmbAPI, whatsappAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Card, Toggle, Loading, LoadError, useLoad } from '../components/whatsapp/hubUi';
@@ -49,6 +49,7 @@ const ConnectionBar = ({ gmb, reload }) => {
               Connected{gmb.gmb_account_name ? ` — ${gmb.gmb_account_name}` : ''}.
               {!gmb.gmb_locations_loaded && ' Waiting on Google to approve API access before reviews/posts/insights can load.'}
             </span>
+            {!gmb.gmb_locations_loaded && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Beta · pending Google approval</span>}
           </div>
           <button onClick={disconnect} disabled={disconnecting}
             className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50">
@@ -91,12 +92,17 @@ const ReviewRequestsTab = () => {
   const [enabled, setEnabled] = useState(false);
   const [reviewLink, setReviewLink] = useState('');
   const [message, setMessage] = useState('');
+  const [templateName, setTemplateName] = useState('');
+  const [templates, setTemplates] = useState(null);
   const [saving, setSaving] = useState(false);
   const [drafting, setDrafting] = useState(false);
 
   useEffect(() => {
-    if (data) { setEnabled(data.enabled); setReviewLink(data.review_link); setMessage(data.message); }
+    if (data) { setEnabled(data.enabled); setReviewLink(data.review_link); setMessage(data.message); setTemplateName(data.template_name || ''); }
   }, [data]);
+  useEffect(() => {
+    whatsappAPI.getSendableTemplates().then(({ data: t }) => setTemplates(t.templates || [])).catch(() => setTemplates([]));
+  }, []);
 
   if (loading && !data) return <Loading />;
   if (error) return <LoadError error={error} onRetry={reload} />;
@@ -104,7 +110,7 @@ const ReviewRequestsTab = () => {
   const save = async () => {
     setSaving(true);
     try {
-      await gmbAPI.updateSettings({ enabled, review_link: reviewLink, message });
+      await gmbAPI.updateSettings({ enabled, review_link: reviewLink, message, template_name: templateName });
       toast.success('Saved.');
       reload();
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to save'); }
@@ -125,7 +131,7 @@ const ReviewRequestsTab = () => {
     <div className="space-y-4">
       <Card>
         <Toggle checked={enabled} onChange={setEnabled} label="Ask for a Google review when a lead is won"
-          hint="The moment a lead reaches a Won stage, this message is sent to them on WhatsApp automatically — no staff involved." />
+          hint="When a lead reaches a Won stage, CurveLead asks them for a review on WhatsApp. Make sure only your real customer stage is tagged Won (Settings → Pipeline)." />
       </Card>
 
       <Card title="Your Google review link">
@@ -136,7 +142,17 @@ const ReviewRequestsTab = () => {
           className="w-full px-3 py-2 border rounded-lg text-sm" />
       </Card>
 
-      <Card title="Message"
+      <Card title="Approved template (outside the 24-hour window)">
+        <p className="text-xs text-gray-500 mb-3">
+          WhatsApp only allows free text within 24 hours of the customer's last message. Most won leads are outside that window, so pick an approved template — ideally a <b>Utility</b> one — with <code className="bg-gray-100 px-1 rounded">{'{{1}}'}</code> for the name and <code className="bg-gray-100 px-1 rounded">{'{{2}}'}</code> for the review link. Without one, the request is skipped and the lead's timeline says why.
+        </p>
+        <select value={templateName} onChange={e => setTemplateName(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+          <option value="">No template — send only inside the 24-hour window</option>
+          {(templates || []).map(t => <option key={`${t.name}-${t.language}`} value={t.name}>{t.name} · {String(t.category || '').toLowerCase()} · {t.language}</option>)}
+        </select>
+      </Card>
+
+      <Card title="Message (inside the 24-hour window)"
         action={<button onClick={draft} disabled={drafting}
           className="px-3 py-1.5 bg-violet-600 text-white rounded-lg text-xs font-semibold hover:bg-violet-700 disabled:opacity-50 flex items-center gap-1.5">
           <Sparkles size={13} /> {drafting ? 'Drafting…' : 'Draft with AI'}

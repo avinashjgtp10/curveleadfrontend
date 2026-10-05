@@ -65,7 +65,7 @@ const AiAutoReplyTab = () => {
     <div className="space-y-4">
       <Card>
         <Toggle checked={enabled} onChange={setEnabled} label="AI auto-reply on WhatsApp"
-          hint="When on, the AI answers incoming messages from leads, qualifies them, and hands off to your team when it isn't sure. A human reply from the inbox pauses it for that lead." />
+          hint="When on, the AI answers incoming messages from leads, qualifies them, and hands off to your team when it isn't sure. A human reply from the inbox pauses it for that lead. This is the same switch and knowledge as the AI Agent page." />
       </Card>
 
       <Card title="Files the AI can share">
