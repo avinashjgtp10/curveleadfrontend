@@ -35,7 +35,13 @@ export function WhatsAppStatus() {
         <Link to="/integrations">WhatsApp status unavailable</Link>
       ) : (
         <>
-          <span className="font-medium">WhatsApp: {wa?.status}</span>
+          {wa?.status === "Action needed" ? (
+            <Link to="/integrations" className="font-semibold text-red-600 hover:underline" title="Meta rejected a recent send (token or permission). Reconnect WhatsApp to restore sending.">
+              WhatsApp: Action needed
+            </Link>
+          ) : (
+            <span className="font-medium">WhatsApp: {wa?.status}</span>
+          )}
           <br />
           {wa?.limit == null ? (
             <Link to="/settings?tab=messaging">

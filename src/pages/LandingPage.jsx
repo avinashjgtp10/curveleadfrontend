@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
@@ -22,8 +22,8 @@ import {
   Send,
   Shuffle,
   Sparkles,
+  Star,
   Target,
-  Timer,
   Users,
   Wallet,
   Workflow,
@@ -73,24 +73,40 @@ const featureAccents = {
   green: { card: 'bg-emerald-50/60 border-emerald-100', icon: 'bg-emerald-100 text-emerald-600' },
 };
 
+// Six core cards carry the main promise (ad lead → WhatsApp → follow-up → ROI); everything
+// else sits in three collapsed groups so the page isn't a feature dump. `beta` marks
+// features that aren't fully live yet, so the page never promises more than the product.
 const features = [
-  { icon: Gauge, title: 'Lead Intent Index', accent: 'blue', desc: 'A live 0-100 score, Hot/Warm/Cold label, and follow-up health for every lead, with a plain-language reason and a suggested next action. Fully explainable, never a black box.' },
-  { icon: Timer, title: 'Response Time Tracking', accent: 'pink', desc: 'See exactly how fast each enquiry gets a first response, and get flagged before you breach your own SLA.' },
-  { icon: Clock, title: 'Follow-up Discipline', accent: 'purple', desc: 'Schedule, complete, and track callbacks so fewer enquiries slip away.' },
-  { icon: MessageCircle, title: 'Shared WhatsApp Inbox', accent: 'green', desc: 'Reply, qualify, and keep conversation history tied to the right lead.' },
-  { icon: Megaphone, title: 'Campaign ROI', accent: 'blue', desc: 'Connect ad spend to leads, won deals, CPL, and revenue outcomes.' },
-  { icon: Lightbulb, title: 'AI Sales Coaching', accent: 'pink', desc: 'An AI-built playbook of best practices and objection handling, generated from your own team’s won and lost calls.' },
-  { icon: FileText, title: 'Quotations', accent: 'purple', desc: 'Create, send, accept, reject, and manage quotations inside the sales flow.' },
-  { icon: BookOpen, title: 'Brochures & Files', accent: 'green', desc: 'Keep product material ready and share it with leads from the same workspace.' },
-  { icon: Users, title: 'Team Workspace', accent: 'blue', desc: 'Invite staff, assign ownership, monitor activity, and keep customer data separated by tenant.' },
-  { icon: Shuffle, title: 'Smart Lead Routing', accent: 'pink', desc: 'Auto-assign new leads to the right person, or round-robin across a team, based on source, campaign, or location — nothing sits unclaimed.' },
-  { icon: Workflow, title: 'Automation Sequences', accent: 'purple', desc: 'Auto-enroll matched leads into a scripted follow-up sequence the moment they land, so early nurture never depends on someone remembering.' },
-  { icon: PhoneCall, title: 'AI Calling Agent', accent: 'green', desc: 'A configurable AI voice agent that calls new leads automatically — pick the voice, persona, and opening line.' },
-  { icon: Calendar, title: 'Appointments', accent: 'blue', desc: 'Schedule, track, and manage sales appointments tied to each lead, so nothing gets double-booked or forgotten.' },
-  { icon: PieChart, title: 'Reports & Analytics', accent: 'pink', desc: 'Conversion funnels, lead sources, staff performance, and campaign breakdowns, all in one reporting dashboard.' },
-  { icon: Globe, title: 'Market Intelligence', accent: 'purple', desc: 'AI-powered competitor and market analysis for your business, industry, and positioning.' },
-  { icon: Plug, title: 'Integrations', accent: 'green', desc: 'Connect Meta, Google Ads, and other lead sources so new enquiries flow into CurveLead automatically.' },
+  { icon: Zap, title: 'Meta & Google lead capture', accent: 'blue', desc: 'Facebook, Instagram and Google lead form enquiries land in your pipeline in real time, with campaign, ad and owner attached.' },
+  { icon: MessageCircle, title: 'Shared WhatsApp Inbox', accent: 'green', desc: 'Reply, qualify, send approved templates and keep every conversation tied to the right lead.' },
+  { icon: Gauge, title: 'Lead Intent Index', accent: 'purple', desc: 'A live 0-100 score, Hot/Warm/Cold label and a suggested next action for every lead, built from real activity. Fully explainable.' },
+  { icon: Clock, title: 'Follow-up Discipline', accent: 'pink', desc: 'Schedule, complete and track callbacks, with response-time tracking that flags slow replies before they cost you.' },
+  { icon: Shuffle, title: 'Smart Lead Routing', accent: 'blue', desc: 'Auto-assign new leads by source, campaign or location, or round-robin across the team, so nothing sits unclaimed.' },
+  { icon: Megaphone, title: 'Campaign ROI', accent: 'green', desc: 'Connect ad spend to leads, customers, cost per lead and revenue, campaign by campaign.' },
 ];
+
+const featureGroups = [
+  { label: 'Sell', items: [
+    { icon: FileText, title: 'Quotations', desc: 'Create, send and track quotations inside the sales flow.' },
+    { icon: BookOpen, title: 'Brochures & Files', desc: 'Share product material with leads from the same workspace.' },
+    { icon: Calendar, title: 'Appointments', desc: 'Book demos and visits with automatic WhatsApp confirmations and reminders.' },
+    { icon: Users, title: 'Team Workspace', desc: 'Invite staff, assign ownership and monitor activity.' },
+  ] },
+  { label: 'Automate', items: [
+    { icon: Workflow, title: 'Automation Sequences', desc: 'Enrol matching leads into a scripted WhatsApp or email follow-up the moment they land.' },
+    { icon: PhoneCall, title: 'AI Calling Agent', desc: 'A configurable AI voice agent that calls new leads.', beta: true },
+    { icon: Plug, title: 'Integrations & API', desc: 'Website forms, webhooks and a REST API for any other lead source.' },
+  ] },
+  { label: 'Grow', items: [
+    { icon: PieChart, title: 'Reports & Analytics', desc: 'Funnels, lead sources, staff performance and campaign breakdowns.' },
+    { icon: Lightbulb, title: 'AI Sales Coaching', desc: "A playbook built from your own team's won and lost calls." },
+    { icon: Globe, title: 'Market Intelligence', desc: 'AI competitor and market analysis for your business.' },
+    { icon: Star, title: 'Google Business Profile', desc: 'Review requests on WhatsApp today; review replies and profile insights once Google approves access.', beta: true },
+  ] },
+];
+
+const BetaChip = () => <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-[10px] font-semibold text-amber-800">Beta</span>;
+
 
 const plans = [
   { name: 'Free', monthly: '$0', yearly: '$0', sub: 'for getting started', features: ['20 leads', '1 user', 'Pipeline', 'Email support'] },
@@ -101,17 +117,10 @@ const plans = [
 
 const faqs = [
   { q: 'Who is CurveLead built for?', a: 'Sales teams that receive leads from Meta Ads, Google Ads, websites, forms, and WhatsApp, especially teams that need faster follow-up and campaign visibility.' },
-  { q: 'Is CurveLead only for academies?', a: 'No. The current product is a lead engagement CRM for any business that captures, follows up, and closes enquiries.' },
+  { q: 'Which industries use CurveLead?', a: 'Any business that runs ads or forms to get enquiries and closes them over WhatsApp or phone: salons and clinics, education and coaching, real estate, agencies, home services, retail and B2B sales teams.' },
   { q: 'Does it replace WhatsApp?', a: 'No. It helps your team manage lead context, follow-ups, files, and reporting around WhatsApp conversations.' },
   { q: 'Is the lead scoring AI?', a: 'No, and that is deliberate. Every lead’s Intent Score and follow-up health are calculated from real activity in your account, like response times and call outcomes, so you can always see exactly why a lead is Hot or Cold. We do use AI elsewhere, for the sales coaching playbook, market analysis, and optional AI calling, but never as an unexplainable scoring layer.' },
   { q: 'Can I try it before paying?', a: 'Yes. Start free, test the workflow, and upgrade when your team needs higher lead limits or advanced features.' },
-];
-
-const productStats = [
-  { value: 'Meta + Google', label: 'lead capture ready' },
-  { value: 'Live', label: 'intent score & follow-up health' },
-  { value: 'WhatsApp', label: 'shared sales inbox' },
-  { value: 'ROI', label: 'campaign reporting' },
 ];
 
 const LandingPage = () => {
@@ -122,6 +131,15 @@ const LandingPage = () => {
   const [billingPeriod, setBillingPeriod] = useState('monthly');
 
   const closeMenu = () => setMobileMenu(false);
+  // The open mobile menu closes on Escape or once the page scrolls.
+  useEffect(() => {
+    if (!mobileMenu) return;
+    const onKey = (e) => { if (e.key === 'Escape') setMobileMenu(false); };
+    const onScroll = () => setMobileMenu(false);
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => { window.removeEventListener('keydown', onKey); window.removeEventListener('scroll', onScroll); };
+  }, [mobileMenu]);
   const handlePlanClick = (planName) => {
     if (planName === 'Pro') {
       window.location.href = 'mailto:support@curvelead.com?subject=CurveLead%20Pro%20plan';
@@ -142,13 +160,13 @@ const LandingPage = () => {
             <a href="#workflow" className="text-sm text-gray-600 hover:text-gray-950">Workflow</a>
             <a href="#features" className="text-sm text-gray-600 hover:text-gray-950">Features</a>
             <a href="#pricing" className="text-sm text-gray-600 hover:text-gray-950">Pricing</a>
-            <a href="/login" className="text-sm font-semibold text-brand-700">Sign In</a>
+            <a href="/login" className="text-sm font-semibold text-brand-700">Sign in</a>
             <a href="/signup" className="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700">
-              Start Free
+              Start free
             </a>
           </div>
 
-          <button onClick={() => setMobileMenu(!mobileMenu)} className="p-2 md:hidden" aria-label="Open menu">
+          <button onClick={() => setMobileMenu(!mobileMenu)} className="p-2 md:hidden" aria-label={mobileMenu ? 'Close menu' : 'Open menu'} aria-expanded={mobileMenu}>
             {mobileMenu ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
@@ -158,7 +176,8 @@ const LandingPage = () => {
             <a href="#workflow" onClick={closeMenu} className="block py-2 text-gray-600">Workflow</a>
             <a href="#features" onClick={closeMenu} className="block py-2 text-gray-600">Features</a>
             <a href="#pricing" onClick={closeMenu} className="block py-2 text-gray-600">Pricing</a>
-            <a href="/signup" className="block w-full rounded-lg bg-brand-600 px-5 py-2.5 text-center text-sm font-semibold text-white">Start Free</a>
+            <a href="/login" onClick={closeMenu} className="block py-2 font-semibold text-brand-700">Sign in</a>
+            <a href="/signup" onClick={closeMenu} className="block w-full rounded-lg bg-brand-600 px-5 py-2.5 text-center text-sm font-semibold text-white">Start free</a>
           </div>
         )}
       </nav>
@@ -178,20 +197,13 @@ const LandingPage = () => {
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <a href="/signup" className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand-600 px-7 py-3.5 font-semibold text-white shadow-lg shadow-brand-100 hover:bg-brand-700">
-                  Start Free Trial <ArrowRight size={18} />
+                  Start free <ArrowRight size={18} />
                 </a>
                 <a href="#workflow" className="inline-flex items-center justify-center rounded-xl border border-gray-300 px-7 py-3.5 font-semibold text-gray-800 hover:bg-gray-50">
                   See how it works
                 </a>
               </div>
-              <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                {productStats.map((stat) => (
-                  <div key={stat.label} className="rounded-lg border border-gray-200 bg-white p-3">
-                    <p className="text-lg font-bold text-gray-950">{stat.value}</p>
-                    <p className="mt-1 text-xs text-gray-500">{stat.label}</p>
-                  </div>
-                ))}
-              </div>
+              <p className="mt-6 text-sm text-gray-500">Works with Meta Lead Ads · Google Ads · WhatsApp Business API</p>
             </div>
 
             <div className="rounded-2xl border border-gray-200 bg-gray-50 p-3 shadow-2xl shadow-gray-200/70">
@@ -201,7 +213,7 @@ const LandingPage = () => {
                     <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">Today</p>
                     <p className="font-semibold">Lead command center</p>
                   </div>
-                  <span className="rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">Live</span>
+                  <span className="rounded-full bg-gray-100 px-3 py-1 text-xs font-semibold text-gray-500">Sample data</span>
                 </div>
                 <div className="grid gap-3 p-4 sm:grid-cols-2">
                   <div className="rounded-lg bg-brand-600 p-4 text-white">
@@ -301,6 +313,7 @@ const LandingPage = () => {
                   CurveLead keeps lead context, WhatsApp conversations, campaign reporting, sales material, quotations, and staff activity together.
                 </p>
               </div>
+              <div>
               <div className="grid gap-5 sm:grid-cols-2">
                 {features.map((feature) => {
                   const accent = featureAccents[feature.accent] ?? { card: 'bg-white border-gray-100', icon: 'bg-gray-100 text-gray-600' };
@@ -317,6 +330,28 @@ const LandingPage = () => {
                     </div>
                   );
                 })}
+              </div>
+              <div className="mt-6 space-y-3">
+                {featureGroups.map(group => (
+                  <details key={group.label} className="group rounded-2xl border border-gray-200 bg-white px-5 py-4">
+                    <summary className="flex cursor-pointer list-none items-center justify-between font-semibold text-gray-900">
+                      <span>{group.label} <span className="ml-1 text-sm font-normal text-gray-500">· {group.items.map(i => i.title).join(', ')}</span></span>
+                      <ChevronDown size={18} className="shrink-0 text-gray-400 transition-transform group-open:rotate-180" />
+                    </summary>
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      {group.items.map(item => (
+                        <div key={item.title} className="flex gap-3">
+                          <item.icon size={18} className="mt-0.5 shrink-0 text-brand-600" />
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900">{item.title}{item.beta && <BetaChip />}</p>
+                            <p className="mt-0.5 text-sm text-gray-600">{item.desc}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                ))}
+              </div>
               </div>
             </div>
           </div>
@@ -355,7 +390,7 @@ const LandingPage = () => {
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-xl shadow-gray-100">
               <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">June Campaign ROI</p>
+                  <p className="text-sm text-gray-500">June Campaign ROI <span className="ml-1 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-500">Sample data</span></p>
                   <p className="text-2xl font-bold">$84,000 revenue</p>
                 </div>
                 <Target className="text-brand-600" size={28} />
@@ -422,7 +457,7 @@ const LandingPage = () => {
                     ))}
                   </ul>
                   <button onClick={() => handlePlanClick(plan.name)} className={`mt-7 w-full rounded-lg py-2.5 text-sm font-semibold ${plan.popular ? 'bg-brand-600 text-white hover:bg-brand-700' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'}`}>
-                    {plan.name === 'Pro' ? 'Talk to us' : user ? 'Open Billing' : 'Start Free'}
+                    {plan.name === 'Pro' ? 'Talk to us' : user ? 'Open billing' : 'Start free'}
                   </button>
                 </div>
               ))}
@@ -454,7 +489,7 @@ const LandingPage = () => {
               Bring your Meta Ads leads, WhatsApp follow-ups, team pipeline, brochures, quotations, and reporting into CurveLead.
             </p>
             <a href="/signup" className="mt-8 inline-flex items-center justify-center gap-2 rounded-xl bg-white px-8 py-3.5 font-bold text-brand-700 hover:bg-gray-50">
-              Get Started Free <ArrowRight size={18} />
+              Start free <ArrowRight size={18} />
             </a>
           </div>
         </section>
@@ -467,6 +502,9 @@ const LandingPage = () => {
               <BrandLogo className="w-28 h-auto" />
             </div>
             <nav className="flex flex-wrap gap-x-6 gap-y-2">
+              <a href="#features" className="hover:text-gray-950 transition-colors">Features</a>
+              <a href="#pricing" className="hover:text-gray-950 transition-colors">Pricing</a>
+              <a href="/login" className="hover:text-gray-950 transition-colors">Sign in</a>
               <a href="#google-business-profile" className="hover:text-gray-950 transition-colors">Google Business Profile</a>
               <a href="/privacy-policy" className="hover:text-gray-950 transition-colors">Privacy Policy</a>
               <a href="/terms-of-service" className="hover:text-gray-950 transition-colors">Terms of Service</a>

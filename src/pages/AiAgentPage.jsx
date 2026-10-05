@@ -183,6 +183,21 @@ const AiAgentPage = () => {
 
   return (
     <div className="max-w-3xl mx-auto space-y-4">
+      {/* One map of CurveLead's AI, so it's clear what this page controls and where the rest lives. */}
+      <div className="bg-white rounded-2xl border p-4 grid gap-3 sm:grid-cols-3 text-sm">
+        <div>
+          <p className="font-semibold text-gray-900">WhatsApp replies <span className="text-[10px] font-semibold text-brand-600">· this page</span></p>
+          <p className="text-xs text-gray-500 mt-0.5">The knowledge base below; fine-tune in <Link to="/whatsapp?tab=ai" className="text-brand-600 hover:underline">WhatsApp → AI Auto-reply</Link>.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">Calling</p>
+          <p className="text-xs text-gray-500 mt-0.5">AI voice calls to new leads — set up in <Link to="/integrations" className="text-brand-600 hover:underline">Integrations → AI Calling Agent</Link>.</p>
+        </div>
+        <div>
+          <p className="font-semibold text-gray-900">Coaching</p>
+          <p className="text-xs text-gray-500 mt-0.5">A playbook from your won and lost calls — <Link to="/coaching" className="text-brand-600 hover:underline">Sales Coaching</Link>.</p>
+        </div>
+      </div>
       {!hasAgent ? (
         <div className="bg-white rounded-2xl border p-12 text-center">
           <Bot size={40} className="mx-auto text-gray-300 mb-3" />

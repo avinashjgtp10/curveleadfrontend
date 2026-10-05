@@ -1,10 +1,10 @@
 import { formatDateTime } from '../utils/dateTime.js';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   LayoutDashboard, Users, Gauge, Clock, FileText, BookOpen, Megaphone,
   MessageCircle, UserCog, BarChart3, Lightbulb, Plug, Settings,
   CreditCard, HelpCircle, Flame, CheckCircle, AlertTriangle,
-  LifeBuoy, Mail, Send, Inbox, RefreshCw, Bell,
+  LifeBuoy, Mail, Send, Inbox, RefreshCw, Bell, Workflow, Bot, TrendingUp, Share2, Star,
 } from 'lucide-react';
 import { supportAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
@@ -36,7 +36,17 @@ const GROUPS = [
   {
     label: 'Communication',
     topics: [
-      { id: 'whatsapp', label: 'WhatsApp Inbox', icon: MessageCircle },
+      { id: 'whatsapp', label: 'WhatsApp', icon: MessageCircle },
+      { id: 'automations', label: 'Automations', icon: Workflow },
+      { id: 'ai-agent', label: 'AI Agent', icon: Bot },
+    ],
+  },
+  {
+    label: 'Marketing',
+    topics: [
+      { id: 'ads', label: 'Ads Manager', icon: TrendingUp },
+      { id: 'social', label: 'Social', icon: Share2 },
+      { id: 'gmb', label: 'Google Business Profile', icon: Star },
     ],
   },
   {
@@ -92,10 +102,17 @@ const SupportTicketForm = ({ onSubmitted }) => {
   const toast = useToast();
   const [form, setForm] = useState(emptyTicketForm());
   const [submitting, setSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
+  const subjectRef = useRef(null);
+  const messageRef = useRef(null);
 
+  // Same pattern as Add lead: every error inline under its field, focus on the first one.
   const handleSubmit = async () => {
-    if (!form.subject.trim()) return toast.error('Subject is required.');
-    if (!form.message.trim()) return toast.error('Please describe your issue.');
+    const next = {};
+    if (!form.subject.trim()) next.subject = 'Subject is required.';
+    if (!form.message.trim()) next.message = 'Please describe your issue.';
+    setErrors(next);
+    if (next.subject || next.message) { (next.subject ? subjectRef : messageRef).current?.focus(); return; }
     setSubmitting(true);
     try {
       await supportAPI.createTicket(form);
@@ -114,16 +131,18 @@ const SupportTicketForm = ({ onSubmitted }) => {
 
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Subject <span className="text-red-500">*</span></label>
-          <input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))}
+          <label htmlFor="ticket-subject" className="block text-sm font-medium text-gray-700 mb-1.5">Subject <span className="text-red-500">*</span></label>
+          <input id="ticket-subject" ref={subjectRef} required aria-invalid={!!errors.subject} aria-describedby={errors.subject ? 'ticket-subject-error' : undefined}
+            value={form.subject} onChange={e => { setForm(f => ({ ...f, subject: e.target.value })); setErrors(x => ({ ...x, subject: undefined })); }}
             placeholder="Briefly describe your issue..."
-            className="w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+            className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none ${errors.subject ? 'border-red-400' : ''}`} />
+          {errors.subject && <p id="ticket-subject-error" className="text-xs text-red-500 mt-1">{errors.subject}</p>}
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
-            <select value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+            <label htmlFor="ticket-category" className="block text-sm font-medium text-gray-700 mb-1.5">Category</label>
+            <select id="ticket-category" value={form.category} onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
               className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white focus:ring-2 focus:ring-brand-500 focus:outline-none">
               {TICKET_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
             </select>
@@ -144,12 +163,16 @@ const SupportTicketForm = ({ onSubmitted }) => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1.5">Message <span className="text-red-500">*</span></label>
-          <textarea value={form.message} onChange={e => setForm(f => ({ ...f, message: e.target.value.slice(0, 1000) }))}
+          <label htmlFor="ticket-message" className="block text-sm font-medium text-gray-700 mb-1.5">Message <span className="text-red-500">*</span></label>
+          <textarea id="ticket-message" ref={messageRef} required aria-invalid={!!errors.message} aria-describedby={errors.message ? 'ticket-message-error' : undefined}
+            value={form.message} onChange={e => { setForm(f => ({ ...f, message: e.target.value.slice(0, 1000) })); setErrors(x => ({ ...x, message: undefined })); }}
             rows={5} maxLength={1000}
             placeholder="Describe your issue in detail — include any error messages, steps you've already tried, etc."
-            className="w-full px-3 py-2.5 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-brand-500 focus:outline-none" />
-          <p className="text-right text-[11px] text-gray-400 mt-1">{form.message.length} / 1000</p>
+            className={`w-full px-3 py-2.5 border rounded-lg text-sm resize-none focus:ring-2 focus:ring-brand-500 focus:outline-none ${errors.message ? 'border-red-400' : ''}`} />
+          <div className="flex justify-between mt-1">
+            {errors.message ? <p id="ticket-message-error" className="text-xs text-red-500">{errors.message}</p> : <span />}
+            <p className="text-[11px] text-gray-400">{form.message.length} / 1000</p>
+          </div>
         </div>
 
         <div className="flex gap-2">
@@ -170,7 +193,7 @@ const SupportTicketForm = ({ onSubmitted }) => {
 const SupportSidebar = () => (
   <div className="space-y-4">
     <div className="bg-white rounded-2xl border p-4">
-      <h3 className="font-semibold text-sm text-gray-900 flex items-center gap-1.5 mb-3"><Clock size={14} className="text-brand-600" /> Support Hours</h3>
+      <h3 className="font-semibold text-sm text-gray-900 flex items-center gap-1.5 mb-3"><Clock size={14} className="text-brand-600" /> Support Hours <span className="font-normal text-gray-400">(IST)</span></h3>
       <dl className="space-y-2 text-xs">
         <div className="flex justify-between"><dt className="text-gray-500">Monday – Friday</dt><dd className="font-semibold text-gray-800">9:00 AM – 8:00 PM</dd></div>
         <div className="flex justify-between"><dt className="text-gray-500">Saturday</dt><dd className="font-semibold text-gray-800">10:00 AM – 5:00 PM</dd></div>
@@ -435,8 +458,45 @@ const HelpPage = () => {
           </ul>
         </Section>
 
-        <Section id="whatsapp" icon={MessageCircle} title="WhatsApp Inbox">
-          <p>A directory of every WhatsApp conversation you're having with leads — search by name or phone, click a conversation to jump into that lead's chat thread on their detail page. New inbound messages appear here automatically; there's nothing to set up beyond connecting WhatsApp in Integrations.</p>
+        <Section id="whatsapp" icon={MessageCircle} title="WhatsApp">
+          <p>Engage → WhatsApp is your team's shared WhatsApp: a live inbox, message templates, broadcasts, opt-ins and automatic replies. The green number next to WhatsApp in the sidebar is how many chats have unread messages.</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li><strong>Inbox</strong> — every conversation, newest first. Open a chat to reply; it updates on its own every few seconds.</li>
+            <li><strong>24-hour window</strong> — WhatsApp allows free text only within 24 hours of the customer's last message. Outside it, send an approved template.</li>
+            <li><strong>Templates</strong> — submit templates to Meta for approval. Use <b>Utility</b> for confirmations and reminders; <b>Marketing</b> templates only go to leads who opted in.</li>
+            <li><strong>Opt-ins</strong> — record who agreed to marketing messages. Customers can also send START to opt in and STOP to opt out.</li>
+          </ul>
+          <Tip>If a message shows "Not delivered", the reason is under the bubble. "Access denied" means WhatsApp needs reconnecting in Integrations → WhatsApp.</Tip>
+        </Section>
+
+        <Section id="automations" icon={Workflow} title="Automations">
+          <p>The Automations page lists everything that runs on its own — lead sources, assignment rules, dedupe, welcome messages, sequences, auto-replies, broadcasts, the Conversions API, webhooks and review requests — with whether each is on, and a Configure button.</p>
+          <ul className="list-disc pl-4 space-y-1">
+            <li><strong>Sequences</strong> send scripted WhatsApp or email follow-ups to matching leads. A step using a Marketing template stops as <b>"Blocked – no opt-in"</b> for leads without an opt-in, and resumes by itself once they opt in.</li>
+            <li><strong>Lead Automation</strong> shows every enrolled lead, their current step and status.</li>
+          </ul>
+        </Section>
+
+        <Section id="ai-agent" icon={Bot} title="AI Agent">
+          <p>Teach the AI about your business (what you sell, prices, hours, tone). It uses this to reply to WhatsApp customers automatically (WhatsApp → Automation → AI Auto-reply) and to draft messages elsewhere. When a team member replies in a chat, the AI steps back for that customer until you resume it.</p>
+        </Section>
+
+        <Section id="ads" icon={TrendingUp} title="Ads Manager">
+          <ul className="list-disc pl-4 space-y-1">
+            <li><strong>Campaigns</strong> — spend, leads, cost per lead and customers per campaign. Campaigns with no activity in the period are hidden; "Show them" brings them back.</li>
+            <li><strong>Meta Ads</strong> — connect your ad account to sync campaigns, ad sets and ads with daily spend.</li>
+            <li><strong>Lead Forms</strong> — your Meta lead forms, and whether lead-quality feedback is being sent back to Meta.</li>
+            <li><strong>Google Ads</strong> — reporting is coming soon. Google Ads lead-form leads already arrive through Integrations → Google Ads Lead Forms.</li>
+          </ul>
+        </Section>
+
+        <Section id="social" icon={Share2} title="Social">
+          <p>Write one post and publish or schedule it to your Facebook Pages, Instagram accounts and Google Business Profile. Connect accounts in Social → Accounts, write in the composer, and follow everything on the Calendar — each entry shows its channels and status (scheduled, published, failed).</p>
+        </Section>
+
+        <Section id="gmb" icon={Star} title="Google Business Profile">
+          <p>Ask won customers for a Google review on WhatsApp automatically. Add your review link, then pick an approved template for customers outside the 24-hour window. Review replies, posts and profile insights are in beta and appear once Google approves API access.</p>
+          <Tip>Only the stage where a lead really becomes a customer should be tagged Won (Settings → Pipeline), or review requests go to the wrong people.</Tip>
         </Section>
 
         <Section id="team" icon={UserCog} title="Team">

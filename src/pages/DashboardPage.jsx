@@ -97,6 +97,11 @@ const PERIOD_OPTIONS = [
   { id: 'custom', label: 'Custom' },
 ];
 
+// "this month" / "last month" / "1 Oct – 4 Oct" — every widget states the period it counts.
+const periodCaptionFor = (period, from, to) => period === 'this_month' ? 'this month'
+  : period === 'last_month' ? 'last month'
+  : from && to ? `${from} – ${to}` : 'in this period';
+
 const STATUS_STYLE = {
   new: 'bg-blue-100 text-blue-700',
   contacted: 'bg-teal-100 text-teal-700',
@@ -215,6 +220,8 @@ const DashboardPage = () => {
     { label: 'Escalated Leads', activity:'escalations', period:'Last 7 days', value: data?.escalations_this_week || 0, icon: AlertTriangle, cls: 'text-amber-500 bg-amber-100' },
   ];
 
+  const periodCaption = periodCaptionFor(period, customFrom, customTo);
+
   return (
     <div className="space-y-5 max-w-[1536px] mx-auto pb-4">
       {loadError&&<p role="alert" className="text-red-600">{loadError} <button className="underline" onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
@@ -305,6 +312,7 @@ const DashboardPage = () => {
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <GitBranch size={16} className="text-gray-400" />
               Lead Pipeline
+              <span className="text-xs font-normal text-gray-400">· leads created {periodCaption}</span>
             </h3>
             <button onClick={() => navigate('/leads?view=pipeline')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
@@ -348,9 +356,8 @@ const DashboardPage = () => {
             <table className="w-full text-sm table-fixed">
               <thead>
                 <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
-                  <th className="text-left pb-2 font-semibold truncate">Name</th>
-                  <th className="text-left pb-2 pr-4 font-semibold whitespace-nowrap w-28">Status</th>
-                  <th className="text-left pb-2 font-semibold whitespace-nowrap w-28">Temperature</th>
+                  <th className="text-left pb-2 font-semibold">Name</th>
+                  <th className="text-left pb-2 font-semibold whitespace-nowrap w-28">Stage</th>
                   <th className="pb-2 w-6"></th>
                 </tr>
               </thead>
@@ -366,17 +373,15 @@ const DashboardPage = () => {
                           <div className="w-7 h-7 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-[11px] font-bold text-gray-600 shrink-0">
                             {initials(l.name, 1)}
                           </div>
-                          <span className="font-medium text-gray-800 truncate">{l.name}</span>
+                          <span className="font-medium text-gray-800 truncate" title={l.name}>{l.name}</span>
+                          <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${TEMP_STYLE[tempKey] || 'bg-gray-100 text-gray-500'}`}>
+                            {l.lead_score || 'New'}
+                          </span>
                         </div>
                       </td>
-                      <td className="py-2.5 pr-4">
-                        <span className={`inline-block max-w-full truncate align-bottom text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${statusStyleFor(stageKey)}`}>
+                      <td className="py-2.5 pl-2">
+                        <span className={`inline-block max-w-full truncate align-bottom text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${statusStyleFor(stageKey)}`} title={l.stage}>
                           {l.stage}
-                        </span>
-                      </td>
-                      <td className="py-2.5 whitespace-nowrap">
-                        <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${TEMP_STYLE[tempKey] || 'bg-gray-100 text-gray-500'}`}>
-                          {l.lead_score || 'New'}
                         </span>
                       </td>
                       <td className="py-2.5 text-right"><ChevronRight size={14} className="text-gray-300" /></td>
@@ -499,19 +504,20 @@ const DashboardPage = () => {
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <PieChart size={16} className="text-gray-400" />
               Lead Sources
+              <span className="text-xs font-normal text-gray-400">· {periodCaption}</span>
             </h3>
             <button onClick={() => navigate('/leads')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
             </button>
           </div>
           {(data?.sources || []).length > 0 ? (
-            <div className="overflow-x-auto -mx-5 px-5">
-              <table className="w-full text-sm min-w-[420px] table-fixed">
+            <div>
+              <table className="w-full text-sm table-fixed">
                 <colgroup>
                   <col />
-                  <col style={{ width: '70px' }} />
-                  <col style={{ width: '70px' }} />
-                  <col style={{ width: '140px' }} />
+                  <col style={{ width: '56px' }} />
+                  <col style={{ width: '56px' }} />
+                  <col style={{ width: '96px' }} />
                 </colgroup>
                 <thead>
                   <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
@@ -526,19 +532,16 @@ const DashboardPage = () => {
                     const meta = SOURCE_ICON[s.source?.toLowerCase()] || { icon: Megaphone, cls: 'text-gray-400' };
                     return (
                       <tr key={sourceLabel(s.source)} className="border-b last:border-0 hover:bg-gray-50/70 transition-colors">
-                        <td className="py-2.5 whitespace-nowrap">
-                          <div className="flex items-center gap-2">
-                            <meta.icon size={15} className={meta.cls} />
-                            <span className="font-medium text-gray-700 capitalize">{sourceLabel(s.source)}</span>
+                        <td className="py-2.5 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <meta.icon size={15} className={`${meta.cls} shrink-0`} />
+                            <span className="font-medium text-gray-700 capitalize truncate" title={sourceLabel(s.source)}>{sourceLabel(s.source)}</span>
                           </div>
                         </td>
                         <td className="py-2.5 text-right text-gray-500 whitespace-nowrap">{s.total}</td>
                         <td className="py-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap">{s.won}</td>
                         <td className="py-2.5 whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
-                            <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden hidden sm:block">
-                              <div className="h-full bg-emerald-400 rounded-full" style={{ width: `${Math.min(100, parseFloat(s.conversion_rate) || 0)}%` }} />
-                            </div>
                             <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
                               parseFloat(s.conversion_rate) >= 20 ? 'bg-emerald-100 text-emerald-700' :
                               parseFloat(s.conversion_rate) >= 10 ? 'bg-amber-100 text-amber-700' :
@@ -562,6 +565,7 @@ const DashboardPage = () => {
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <UserCheck size={16} className="text-gray-400" />
               Team Performance
+              <span className="text-xs font-normal text-gray-400">· {periodCaption}</span>
             </h3>
             <button onClick={() => navigate('/staff')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
@@ -572,12 +576,11 @@ const DashboardPage = () => {
               <table className="w-full text-sm table-fixed">
                 <thead>
                   <tr className="text-[10px] text-gray-400 uppercase tracking-wide border-b">
-                    <th className="text-left pb-2 font-semibold truncate">Member</th>
-                    <th className="text-right pb-2 font-semibold truncate">Leads</th>
-                    <th className="text-right pb-2 font-semibold truncate">Won</th>
-                    <th className="text-right pb-2 font-semibold truncate">Revenue</th>
-                    <th className="text-right pb-2 font-semibold truncate">Response</th>
-                    <th className="text-right pb-2 font-semibold truncate">F/ups</th>
+                    <th className="text-left pb-2 font-semibold">Member</th>
+                    <th className="text-right pb-2 font-semibold w-12">Leads</th>
+                    <th className="text-right pb-2 font-semibold w-12">Won</th>
+                    <th className="text-right pb-2 font-semibold w-20">Revenue</th>
+                    <th className="text-right pb-2 font-semibold w-20" title="Average time to first response">Response</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -588,14 +591,13 @@ const DashboardPage = () => {
                           <div className="w-6 h-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-600 shrink-0">
                             {initials(t.name, 1)}
                           </div>
-                          <span className="font-medium text-gray-700 truncate">{t.name}</span>
+                          <span className="font-medium text-gray-700 truncate" title={t.name}>{t.name}</span>
                         </div>
                       </td>
                       <td className="py-2.5 text-right text-gray-500 truncate">{t.total_leads}</td>
                       <td className="py-2.5 text-right font-semibold text-emerald-600 truncate">{t.won}</td>
                       <td className="py-2.5 text-right font-semibold text-gray-700 truncate">{fmtMoney(t.revenue)}</td>
                       <td className="py-2.5 text-right text-gray-500 truncate">{fmtDuration(t.avg_response_seconds)}</td>
-                      <td className="py-2.5 text-right text-gray-500 truncate">{t.completed_followups}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -623,11 +625,7 @@ const DashboardPage = () => {
                 <span className="w-2 h-2 rounded-full bg-indigo-500" />
                 Total Leads <span className="font-bold text-gray-900">{fmt(data?.leads_in_period)}</span>
               </span>
-              {data?.leads_change !== undefined && (
-                <span className="flex items-center gap-0.5 text-emerald-600 text-xs font-semibold bg-emerald-50 px-2 py-1 rounded-full">
-                  <ArrowUpRight size={12} />{data.leads_change}%
-                </span>
-              )}
+              {data?.leads_change !== undefined && <Trend change={data.leads_change} />}
             </div>
           </div>
           <ResponsiveContainer width="100%" height={220}>

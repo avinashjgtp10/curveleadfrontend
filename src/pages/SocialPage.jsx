@@ -110,9 +110,18 @@ const CalendarView = ({ month, setMonth, days, today, onOpenDay, onEdit }) => {
                 {posts.slice(0, 3).map(p => {
                   const s = statusOf(p);
                   return (
-                    <button key={p.id} onClick={(e) => { e.stopPropagation(); onEdit(p); }} title={p.caption}
-                      className={`w-full text-left truncate rounded px-1 py-0.5 text-[10px] ${s.cls}`}>
-                      {formatDateTime(p.published_at || p.scheduled_at, undefined, { dateStyle: undefined, timeStyle: 'short' })} {p.caption || '(media)'}
+                    <button key={p.id} onClick={(e) => { e.stopPropagation(); onEdit(p); }}
+                      title={`${s.label} · ${[...new Set((p.targets || []).map(t => PLATFORMS[t.platform]?.label || t.platform))].join(', ')}\n${p.caption || '(media)'}`}
+                      className="w-full text-left rounded border border-gray-100 bg-white px-1 py-0.5 text-[10px] hover:border-brand-200">
+                      <span className="flex items-center gap-1">
+                        {[...new Set((p.targets || []).map(t => t.platform))].map(pl => {
+                          const P = PLATFORMS[pl];
+                          return P ? <P.icon key={pl} size={10} className={P.color.split(' ')[0]} aria-label={P.label} /> : null;
+                        })}
+                        <span className="text-gray-500">{formatDateTime(p.published_at || p.scheduled_at, undefined, { dateStyle: undefined, timeStyle: 'short' })}</span>
+                        <span className={`ml-auto shrink-0 rounded px-1 text-[9px] font-semibold ${s.cls}`}>{s.label}</span>
+                      </span>
+                      <span className="block truncate text-gray-700">{p.caption || '(media)'}</span>
                     </button>
                   );
                 })}

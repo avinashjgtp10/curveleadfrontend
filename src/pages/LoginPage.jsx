@@ -129,7 +129,7 @@ const LoginPage = () => {
 
             <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-xl shadow-gray-200/70 sm:p-8">
               <div>
-                <p className="text-sm font-bold uppercase text-cyan-600">Welcome back</p>
+                <p className="text-sm font-bold uppercase text-brand-600">Welcome back</p>
                 <h2 className="mt-1 text-3xl font-extrabold">Sign in to CurveLead</h2>
                 <p className="mt-2 text-sm leading-6 text-gray-500">
                   Use your password or request a one-time email code.

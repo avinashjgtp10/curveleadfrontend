@@ -62,6 +62,9 @@ const AppointmentsPage = () => {
   const [leadOptions, setLeadOptions] = useState([]);
   const [leadSearch, setLeadSearch] = useState('');
   const [leadSearchLoading, setLeadSearchLoading] = useState(false);
+  // The results list opens on focus/typing and closes on Escape, outside click or a pick,
+  // so it never sits over the other fields or their error messages.
+  const [leadListOpen, setLeadListOpen] = useState(false);
   const [newForm, setNewForm] = useState(EMPTY_NEW_APPOINTMENT_FORM);
   const [newErrors, setNewErrors] = useState({});
   const [pageSize, setPageSize] = useState(100);
@@ -208,6 +211,8 @@ const AppointmentsPage = () => {
       return true;
     })
     .filter(a => (hideCompleted ? !a.is_completed : true))
+    // Dismissed rows with no date are clutter unless you're searching for something specific.
+    .filter(a => searchLower || a.next_followup_at || !a.dismissed_at)
     .filter(a => (apptFilters.type ? a.followup_type === apptFilters.type : true))
     .filter(a => (apptFilters.assigned_to ? a.assigned_to === apptFilters.assigned_to : true))
     .filter(a => (apptFilters.date_from ? localDay(a.next_followup_at) >= apptFilters.date_from : true))
@@ -340,7 +345,7 @@ const AppointmentsPage = () => {
             </button>
             {activeFilterCount > 0 && (
               <button onClick={() => { setApptFilters(EMPTY_APPT_FILTERS); setPage(1); }}
-                className="px-2.5 py-2 flex items-center gap-1 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                className="px-2.5 py-2 flex items-center gap-1 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                 <X size={12} /> Clear
               </button>
             )}
@@ -437,14 +442,12 @@ const AppointmentsPage = () => {
                           </div>
                         ) : <span className="text-gray-300">Unassigned</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 text-gray-700">
-                          <Calendar size={12} className="text-gray-400" />
-                          {formatDateTime(a.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: '2-digit', month: 'short', year: 'numeric' })}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
-                          <Clock size={11} />
-                          {formatDateTime(a.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  hour: '2-digit', minute: '2-digit' })}
+                          <Calendar size={12} className="text-gray-400 shrink-0" />
+                          {a.next_followup_at
+                            ? formatDateTime(a.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                            : <span className="text-gray-400">Not scheduled</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -565,7 +568,7 @@ const AppointmentsPage = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Lead <span className="text-red-500">*</span></label>
+                <label htmlFor="appt-lead" className="block text-xs font-medium text-gray-500 mb-1">Lead <span className="text-red-500">*</span></label>
                 {newForm.lead_id ? (
                   <div className="flex items-center justify-between px-3 py-2.5 border rounded-lg text-sm bg-gray-50">
                     <span className="font-medium">{newForm.lead_name}</span>
@@ -573,10 +576,14 @@ const AppointmentsPage = () => {
                   </div>
                 ) : (
                   <div className="relative">
-                    <input value={leadSearch}
-                      onChange={e => { setLeadSearch(e.target.value); if (newErrors.lead_id) setNewErrors(er => ({ ...er, lead_id: undefined })); }}
-                      placeholder="Search leads by name or phone..."
+                    <input id="appt-lead" value={leadSearch}
+                      onChange={e => { setLeadSearch(e.target.value); setLeadListOpen(true); if (newErrors.lead_id) setNewErrors(er => ({ ...er, lead_id: undefined })); }}
+                      onFocus={() => setLeadListOpen(true)}
+                      onBlur={() => setTimeout(() => setLeadListOpen(false), 150)}
+                      onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setLeadListOpen(false); } }}
+                      placeholder="Search leads by name or phone..." aria-expanded={leadListOpen} aria-invalid={!!newErrors.lead_id}
                       className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newErrors.lead_id ? 'border-red-500' : ''}`} />
+                    {leadListOpen && (
                     <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {leadSearchLoading ? (
                         <p className="px-3 py-2 text-xs text-gray-400">Searching...</p>
@@ -584,13 +591,15 @@ const AppointmentsPage = () => {
                         <p className="px-3 py-2 text-xs text-gray-400">No leads found</p>
                       ) : leadOptions.map(l => (
                         <button key={l.id} type="button"
-                          onClick={() => { setNewForm(f => ({ ...f, lead_id: l.id, lead_name: l.name })); setLeadSearch(''); setNewErrors(er => ({ ...er, lead_id: undefined })); }}
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => { setNewForm(f => ({ ...f, lead_id: l.id, lead_name: l.name })); setLeadSearch(''); setLeadListOpen(false); setNewErrors(er => ({ ...er, lead_id: undefined })); }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2">
                           <span className="font-medium truncate">{l.name}</span>
                           <span className="text-xs text-gray-400 shrink-0">{l.phone}</span>
                         </button>
                       ))}
                     </div>
+                    )}
                   </div>
                 )}
                 {newErrors.lead_id && <p className="text-xs text-red-500 mt-1">{newErrors.lead_id}</p>}

@@ -26,6 +26,7 @@ const STATUS_STYLES = {
   'In Progress': 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200',
   'Completed': 'bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200',
   'Cancelled': 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200',
+  'Blocked': 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200',
   'Converted': 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
   'Lost': 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200',
 };
@@ -35,11 +36,12 @@ const STATUS_DOT = {
   'In Progress': 'bg-blue-500',
   'Completed': 'bg-teal-500',
   'Cancelled': 'bg-gray-400',
+  'Blocked': 'bg-red-500',
   'Converted': 'bg-emerald-500',
   'Lost': 'bg-red-500',
 };
 
-const STATUS_OPTIONS = ['All Status', 'Not Enrolled', 'In Progress', 'Completed', 'Cancelled', 'Converted', 'Lost'];
+const STATUS_OPTIONS = ['All Status', 'Not Enrolled', 'In Progress', 'Completed', 'Blocked', 'Cancelled', 'Converted', 'Lost'];
 
 // Real per-lead journey, built from automation_enrollments + its sequence's
 // steps. Verified against automationSequenceRunner.js: while active,
@@ -391,7 +393,7 @@ const LeadAutomationPage = () => {
       )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatTile label="Total Leads" value={summary.total} icon={Users} gradient="from-brand-500 to-indigo-600" />
+        <StatTile label="All leads (incl. unqualified)" value={summary.total} icon={Users} gradient="from-brand-500 to-indigo-600" />
         <StatTile label="In Progress" value={summary.inProgress} icon={Clock} gradient="from-amber-400 to-amber-600" />
         <StatTile label="Converted" value={summary.converted} icon={CheckCircle2} gradient="from-emerald-400 to-emerald-600" />
         <StatTile label="Lost" value={summary.lost} icon={XCircle} gradient="from-rose-400 to-rose-600" />
@@ -463,7 +465,8 @@ const LeadAutomationPage = () => {
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 bg-gradient-to-br ${avatarColor(lead.id)} text-white shadow-sm`}>
                         <span className="text-xs font-semibold">{initials(lead.name, 1)}</span>
                       </div>
-                      <span className="font-medium text-gray-800">{lead.name}</span>
+                      {/* NFKC turns decorative Unicode (𝓐𝓷𝓾, 🅰…) back into plain letters so rows stay aligned. */}
+                      <span className="font-medium text-gray-800 truncate max-w-[14rem]" title={lead.name}>{(lead.name || '').normalize('NFKC')}</span>
                     </div>
                   </td>
                   <td className="py-3 pr-4 text-gray-600">{lead.phone}</td>

@@ -6,6 +6,8 @@ import { formatDateTime, toDateTimeInput, dateTimeInputToUTC } from '../utils/da
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import InboxComposer, { lastInboundAt } from '../components/whatsapp/InboxComposer';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI, notesAPI, automationAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
@@ -38,7 +40,7 @@ const activityConfig = (type) => {
     source_change:       { Icon: Radio,        bg: 'bg-sky-50',     color: 'text-sky-600' },
     note:                { Icon: StickyNote,   bg: 'bg-gray-50',    color: 'text-gray-500' },
     quotation:           { Icon: FileText,     bg: 'bg-indigo-50',  color: 'text-indigo-600' },
-    followup_scheduled:  { Icon: Calendar,     bg: 'bg-cyan-50',    color: 'text-cyan-600' },
+    followup_scheduled:  { Icon: Calendar,     bg: 'bg-brand-50',    color: 'text-brand-600' },
     demo:                { Icon: Video,        bg: 'bg-violet-50',  color: 'text-violet-600' },
     demo_scheduled:      { Icon: Video,        bg: 'bg-violet-50',  color: 'text-violet-600' },
     demo_completed:      { Icon: CheckCircle,  bg: 'bg-green-50',   color: 'text-green-600' },
@@ -52,7 +54,7 @@ const activityConfig = (type) => {
     created:             { Icon: PlusCircle,   bg: 'bg-brand-50',   color: 'text-brand-600' },
     ai_scored:           { Icon: Star,         bg: 'bg-yellow-50',  color: 'text-yellow-600' },
     score_change:        { Icon: Gauge,        bg: 'bg-yellow-50',  color: 'text-yellow-600' },
-    team_message:        { Icon: Users,        bg: 'bg-cyan-50',    color: 'text-cyan-600' },
+    team_message:        { Icon: Users,        bg: 'bg-brand-50',    color: 'text-brand-600' },
     // Automation lifecycle events (written by automationTriggers.js / automationSequenceRunner.js)
     automation_triggered:        { Icon: Workflow,      bg: 'bg-brand-50',   color: 'text-brand-600' },
     sequence_started:            { Icon: PlayCircle,    bg: 'bg-green-50',   color: 'text-green-600' },
@@ -60,6 +62,8 @@ const activityConfig = (type) => {
     automation_next_scheduled:   { Icon: Calendar,      bg: 'bg-cyan-50',    color: 'text-cyan-600' },
     sequence_completed:          { Icon: CheckCircle,   bg: 'bg-green-50',   color: 'text-green-600' },
     automation_cancelled:        { Icon: Ban,           bg: 'bg-red-50',     color: 'text-red-500' },
+    automation_blocked:          { Icon: Ban,           bg: 'bg-red-50',     color: 'text-red-600' },
+    automation_skipped:          { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
     automation_ai_failed:        { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
     automation_template_required:{ Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
     email:                       { Icon: Mail,          bg: 'bg-indigo-50',  color: 'text-indigo-600' },
@@ -72,6 +76,39 @@ const activityConfig = (type) => {
   };
   return map[type] || { Icon: StickyNote, bg: 'bg-gray-50', color: 'text-gray-400' };
 };
+
+// Enrolments the runner stopped because WhatsApp consent rules block the step's template.
+const isBlockedEnrollment = (e) => e?.status === 'cancelled' && (e.cancelled_reason || '').startsWith('blocked');
+const blockedLabel = (e) => (e.cancelled_reason === 'blocked_no_opt_in' ? 'Blocked – no opt-in' : 'Blocked – no consent');
+
+// Older Meta leads have the form's raw JSON appended to their notes; keep it out of the way.
+const LeadNoteText = ({ notes }) => {
+  const [showRaw, setShowRaw] = useState(false);
+  const idx = notes.indexOf('Raw Meta Field Data:');
+  const readable = (idx >= 0 ? notes.slice(0, idx) : notes).trim();
+  const raw = idx >= 0 ? notes.slice(idx + 'Raw Meta Field Data:'.length).trim() : '';
+  return (
+    <div>
+      {readable && <p className="text-sm whitespace-pre-wrap">{readable}</p>}
+      {raw && (
+        <div className="mt-2">
+          <button onClick={() => setShowRaw(v => !v)} className="text-xs font-semibold text-brand-600 hover:underline">{showRaw ? 'Hide raw form data' : 'View raw form data'}</button>
+          {showRaw && <pre className="mt-1 text-[11px] bg-gray-50 border rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all text-gray-600">{raw}</pre>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Back-to-back identical entries (e.g. an automation skip logged every cycle) show as one
+// line with a count instead of flooding the timeline. Activities arrive newest first.
+const collapseRepeats = (list) => list.reduce((out, a) => {
+  const prev = out[out.length - 1];
+  const same = prev && prev.activity_type === a.activity_type && prev.title === a.title && prev.description === a.description
+    && !a.old_value && !a.whatsapp_message && !prev.old_value && !prev.whatsapp_message;
+  if (same) { prev.repeat += 1; prev.first_at = a.created_at; } else out.push({ ...a, repeat: 1, first_at: a.created_at });
+  return out;
+}, []);
 
 const formatDuration = (date) => {
   const diff = Math.floor((Date.now() - new Date(date)) / 1000);
@@ -132,6 +169,7 @@ const InlineSelect = ({ value, onChange, options, disabled, placeholder, ringCol
 };
 
 const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = {}) => {
+  const confirm = useConfirmDialog();
   const toast = useToast();
   const { id: routeId } = useParams();
   const id = leadId || routeId;
@@ -451,10 +489,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     } catch (e) { toast.error('Failed to generate message'); }
   };
 
+  // Saved (free-text) templates only work inside WhatsApp's 24-hour window, and they go to
+  // a real customer — so check the window first and show the filled-in text before sending.
   const handleSendTemplateWhatsApp = async (tmpl, e) => {
     e.stopPropagation();
+    const last = lastInboundAt(messages);
+    if (!last || Date.now() - last > 24 * 60 * 60 * 1000) {
+      toast.error("It's been more than 24 hours since this lead's last message, so only an approved template can be sent. Use Templates in the chat composer.");
+      return;
+    }
     try {
       const { data } = await templateAPI.generate(tmpl.id, { lead_id: id });
+      if (!await confirm({ title: `Send "${tmpl.name}" to ${lead.name}?`, message: data.message, confirmText: 'Send', destructive: false })) return;
       await whatsappAPI.send(id, data.message);
       setShowTmplPicker(false);
       await loadData();
@@ -637,7 +683,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               <FileText size={14} /> New Quotation
             </button>
             <button onClick={() => { loadStaff(); setTeamCommError(''); setTeamCommForm(f => ({ ...f, recipient_id: lead?.assigned_to || '' })); setShowTeamComm(true); }}
-              className="whitespace-nowrap px-3 py-2 bg-cyan-50 text-cyan-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              className="whitespace-nowrap px-3 py-2 bg-brand-50 text-brand-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
               <Users size={14} /> Team Communication
             </button>
           </div>
@@ -686,9 +732,10 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
                 enrollment.status === 'active' ? 'bg-blue-50 text-blue-700'
                 : enrollment.status === 'completed' ? 'bg-teal-50 text-teal-700'
+                : isBlockedEnrollment(enrollment) ? 'bg-red-50 text-red-700'
                 : 'bg-gray-100 text-gray-500'
               }`}>
-                {enrollment.status === 'active' ? 'In Progress' : enrollment.status === 'completed' ? 'Completed' : 'Cancelled'}
+                {enrollment.status === 'active' ? 'In Progress' : enrollment.status === 'completed' ? 'Completed' : isBlockedEnrollment(enrollment) ? blockedLabel(enrollment) : 'Cancelled'}
               </span>
             </div>
             <p className="text-sm font-medium text-gray-800">{enrollment.sequence_name}</p>
@@ -806,7 +853,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     {lead.business_name ? (
                       <span className="truncate">{lead.business_name}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add business name →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Add business name →</button>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -824,7 +871,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     {lead.location ? (
                       <span>{lead.location}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add city →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Add city →</button>
                     )}
                   </div>
                   <div className="flex items-start gap-2">
@@ -832,7 +879,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     {lead.address ? (
                       <span className="whitespace-pre-wrap">{lead.address}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add address →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Add address →</button>
                     )}
                   </div>
                   <div className="pt-2 border-t">
@@ -843,7 +890,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     <div className="pt-2 border-t">
                       <p className="text-xs text-gray-500">Campaign</p>
                       {lead.campaign_name ? (
-                        <button onClick={() => navigate(`/campaigns/${lead.campaign_id}`)} className="font-medium text-cyan-600 hover:underline text-left">
+                        <button onClick={() => navigate(`/campaigns/${lead.campaign_id}`)} className="font-medium text-brand-600 hover:underline text-left">
                           {lead.campaign_name}
                         </button>
                       ) : (
@@ -853,26 +900,30 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     </div>
                   )}
                   <div className="pt-2 border-t">
-                    <p className="text-xs text-gray-500">Lead Date</p>
+                    <p className="text-xs text-gray-500">Lead date</p>
                     <p className="font-medium flex items-center gap-1.5">
                       <Calendar size={13} className="text-gray-400" />
-                      {formatDateTime(lead.lead_date || lead.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {formatDateTime(lead.lead_date || lead.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                     </p>
+                    {/* The list shows when CurveLead saved the lead; say so when it differs from the lead date. */}
+                    {lead.lead_date && lead.created_at && Math.abs(new Date(lead.lead_date) - new Date(lead.created_at)) > 60000 && (
+                      <p className="text-[11px] text-gray-400 mt-0.5">Added to CurveLead {formatDateTime(lead.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</p>
+                    )}
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Assigned To</p>
                     {lead.assigned_to_name ? (
                       <p className="font-medium">{lead.assigned_to_name}</p>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Assign a staff member →</button>
                     )}
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Notes</p>
                     {lead.notes ? (
-                      <p className="text-sm whitespace-pre-wrap">{lead.notes}</p>
+                      <LeadNoteText notes={lead.notes} />
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add notes →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Add notes →</button>
                     )}
                   </div>
                   {(!!Number(lead.deal_value) || isWon) && (
@@ -946,7 +997,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             </div>
 
             {!lead.first_response_at && (
-              <button onClick={handleMarkContacted} className="mt-2 w-full py-2 bg-cyan-50 text-cyan-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
+              <button onClick={handleMarkContacted} className="mt-2 w-full py-2 bg-brand-50 text-brand-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
                 <CheckCircle size={14} /> Mark as Contacted
               </button>
             )}
@@ -1117,7 +1168,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                           <div className="flex items-center gap-1.5 min-w-0">
                             {f.is_completed
                               ? <CheckCircle size={13} className="text-green-500 shrink-0" />
-                              : <Calendar size={13} className="text-cyan-500 shrink-0" />
+                              : <Calendar size={13} className="text-brand-500 shrink-0" />
                             }
                             <span className={`text-xs font-medium capitalize ${f.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
                               {f.followup_type}
@@ -1208,53 +1259,24 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               ) : messages.map(m => (
                 <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm ${m.direction === 'outbound' ? 'bg-brand-600 text-white' : 'bg-gray-100'}`}>
-                    <p>{m.message}</p>
+                    <p className="whitespace-pre-wrap">{m.message}</p>
                     <p className={`text-[10px] mt-1 flex items-center gap-1 ${m.direction === 'outbound' ? 'text-white/70 justify-end' : 'text-gray-400'}`}>
-                      {formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined,  hour: '2-digit', minute: '2-digit' })}
+                      {formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined,  hour: 'numeric', minute: '2-digit' })}
                       {m.direction === 'outbound' && <MessageStatus status={m.status} />}
                     </p>
+                    {m.direction === 'outbound' && m.status === 'failed' && (
+                      <p className="mt-1 text-[11px] font-medium text-red-100">Not delivered{m.error_detail ? ` · ${m.error_detail}` : ''}</p>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
 
-            {showTmplPicker && (
-              <div className="mb-2 border rounded-xl overflow-hidden shadow-sm">
-                {templates.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-3">No templates yet. Create them in Settings → Templates.</p>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto divide-y">
-                    {templates.map(t => (
-                      <div key={t.id} className="flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 transition-colors">
-                        <button onClick={() => handleSelectTemplate(t)} className="flex-1 text-left min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{t.name}</span>
-                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">{t.category.replace(/_/g, ' ')}</span>
-                          </div>
-                          <p className="text-xs text-gray-400 truncate mt-0.5">{t.message}</p>
-                        </button>
-                        <button onClick={(e) => handleSendTemplateWhatsApp(t, e)}
-                          title="Send via WhatsApp"
-                          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium transition-colors">
-                          <Send size={12} /> Send
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Type a message..."
-                className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-              <button onClick={handleOpenTmplPicker}
-                className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 border transition-colors whitespace-nowrap ${showTmplPicker ? 'bg-brand-50 text-brand-600 border-brand-200' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}>
-                <List size={14} /> Templates
-              </button>
-              <button onClick={handleSendMessage} className="px-4 py-2 bg-brand-600 text-white rounded-lg"><Send size={16} /></button>
+            {/* Same composer as the inbox: 24-hour window banner, approved-template picker,
+                free text locked when the window is closed. */}
+            <div className="-mx-5 -mb-5 border-t">
+              <InboxComposer leadId={id} leadName={lead.name} messages={messages} messagesLoading={false}
+                setMessages={setMessages} onSent={() => setLead(prev => ({ ...prev, ai_paused: true }))} />
             </div>
           </div>
 
@@ -1339,7 +1361,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           </div>
         ) : (() => {
           const totalSteps = enrollment.steps?.length || 0;
-          const status = automationStatusStyle[enrollment.status] || automationStatusStyle.cancelled;
+          const status = isBlockedEnrollment(enrollment)
+            ? { label: blockedLabel(enrollment), cls: 'bg-red-50 text-red-700', dot: 'bg-red-500' }
+            : automationStatusStyle[enrollment.status] || automationStatusStyle.cancelled;
           const nextStep = enrollment.status === 'active' ? enrollment.steps?.[enrollment.current_step] : null;
           const progressPct = totalSteps ? Math.min(100, Math.round(((enrollment.status === 'completed' ? totalSteps : enrollment.current_step) / totalSteps) * 100)) : 0;
           return (
@@ -1386,7 +1410,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   </div>
                 )}
 
-                {enrollment.status === 'cancelled' && (
+                {enrollment.status === 'cancelled' && isBlockedEnrollment(enrollment) && (
+                  <div className="col-span-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+                    <p className="text-xs font-semibold text-red-700">{blockedLabel(enrollment)} · stopped {fmtDateTime(enrollment.cancelled_at)}</p>
+                    <p className="text-xs text-red-600 mt-0.5">
+                      {enrollment.cancelled_reason === 'blocked_no_opt_in'
+                        ? 'This step uses a Marketing template and the lead has no WhatsApp opt-in. It resumes automatically when they opt in (WhatsApp → Opt-ins, or they send START). Or switch the step to a Utility template.'
+                        : "The lead hasn't opted in or asked to be contacted, so WhatsApp templates can't be sent yet."}
+                    </p>
+                  </div>
+                )}
+
+                {enrollment.status === 'cancelled' && !isBlockedEnrollment(enrollment) && (
                   <div>
                     <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Cancelled</p>
                     <p className="text-sm text-gray-700 mt-0.5">{fmtDateTime(enrollment.cancelled_at)}</p>
@@ -1421,7 +1456,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               <div className="relative">
                 <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-100" />
                 <div className="space-y-4">
-                  {activities.map(a => {
+                  {collapseRepeats(activities).map(a => {
                     const cfg = activityConfig(a.activity_type);
                     return (
                       <div key={a.id} className="flex gap-3 relative">
@@ -1431,6 +1466,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                         <div className="flex-1 pt-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-medium">{a.title}</p>
+                            {a.repeat > 1 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600" title={`Repeated ${a.repeat} times, first ${formatDateTime(a.first_at, undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}>×{a.repeat}</span>
+                            )}
                             {a.created_by_name && (
                               <span className="text-[10px] text-gray-400">by {a.created_by_name}</span>
                             )}
@@ -1526,7 +1564,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b">
               <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-                <Users size={18} className="text-cyan-600" /> Team Communication
+                <Users size={18} className="text-brand-600" /> Team Communication
               </h2>
               <button onClick={() => setShowTeamComm(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
@@ -1539,7 +1577,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                 <label className="block text-xs font-medium text-gray-500 mb-1">Send to</label>
                 {lead?.assigned_to ? (
                   <div className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 flex items-center gap-2">
-                    <span className="w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+                    <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
                       {initials(lead.assigned_to_name, 1)}
                     </span>
                     <span className="font-medium text-gray-800">{lead.assigned_to_name || 'Assigned staff'}</span>
@@ -1563,7 +1601,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   ].map(m => (
                     <button key={m.id} type="button" onClick={() => setTeamCommForm(f => ({ ...f, method: m.id }))}
                       className={`flex-1 flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
-                        teamCommForm.method === m.id ? 'bg-cyan-50 border-cyan-300 text-cyan-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                        teamCommForm.method === m.id ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
                       }`}>
                       <m.Icon size={15} /> {m.label}
                     </button>
@@ -1579,7 +1617,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   onChange={e => { setTeamCommForm(f => ({ ...f, message: e.target.value })); setTeamCommError(''); }}
                   rows={4}
                   placeholder="e.g. I called Rajkumar regarding the scheduled demo. Please follow up tomorrow."
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-300 ${teamCommError && !teamCommForm.message.trim() ? 'border-red-500' : ''}`}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 ${teamCommError && !teamCommForm.message.trim() ? 'border-red-500' : ''}`}
                 />
                 <p className="text-[10px] text-gray-400 mt-1">This gets logged to the lead's Notes & Activity so the whole team can see it.</p>
               </div>

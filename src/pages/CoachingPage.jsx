@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { initials } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
@@ -64,7 +65,7 @@ const CoachingPage = () => {
         <label>Metrics period <select aria-label="Metrics period" value={period} onChange={e => setPeriod(e.target.value)} className="border rounded-lg p-2 ml-2">
           <option value="today">Today</option><option value="this_week">This week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="this_year">This year</option>
         </select></label>
-        {metrics && <span>Workspace: {metrics.total_leads} leads · {metrics.won} won · {metrics.conversion_rate}% conversion · {metrics.active_campaigns} active campaigns</span>}
+        {metrics && <span title="Conversion = leads created in this period that became customers. Won = leads that reached a won stage in this period.">Workspace: {metrics.total_leads} leads · {metrics.converted ?? metrics.won} became customers ({metrics.conversion_rate}%) · {metrics.won} won this period · {metrics.active_campaigns} active campaigns</span>}
       </div>
       <div className="flex items-center justify-between flex-wrap gap-3 bg-gradient-to-r from-brand-50 to-white border border-brand-100 rounded-2xl px-5 py-4">
         <div>
@@ -86,7 +87,12 @@ const CoachingPage = () => {
             <Lightbulb size={24} className="text-brand-400" />
           </div>
           <p className="text-sm font-medium text-gray-700">No playbook yet</p>
-          <p className="text-xs text-gray-400 mt-1 max-w-sm mx-auto">Once you have a few leads marked won or lost with analyzed calls attached, click "Regenerate Now" to build one.</p>
+          <p className="text-xs text-gray-500 mt-1 max-w-md mx-auto">The playbook learns from recorded sales calls on leads that were won or lost. To get calls in:</p>
+          <ol className="text-xs text-gray-600 mt-3 max-w-md mx-auto text-left list-decimal pl-5 space-y-1">
+            <li>Upload a call recording on a lead (Lead → Notes &amp; files → Recordings), or connect the AI Calling Agent in <Link to="/integrations" className="text-brand-600 font-semibold hover:underline">Integrations</Link>.</li>
+            <li>Move those leads to a won or lost stage.</li>
+            <li>Once a few calls are analysed, click "Regenerate now".</li>
+          </ol>
         </div>
       ) : (
         <>

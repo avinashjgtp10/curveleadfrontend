@@ -33,7 +33,7 @@ const BroadcastsTab = () => {
       </div>
       {scheduled.data?.needs_migration && (
         <ErrorBox>
-          Scheduling isn't set up in the database yet. Run <code className="bg-amber-100 px-1 rounded">backend/models/migration_scheduled_broadcasts.sql</code>, then refresh.
+          Scheduled broadcasts are temporarily unavailable while we finish an update. Sending now still works.
         </ErrorBox>
       )}
       {scheduled.data?.scheduled?.length > 0 && (

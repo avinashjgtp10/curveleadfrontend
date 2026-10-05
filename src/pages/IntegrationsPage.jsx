@@ -1,6 +1,6 @@
 import { formatDateTime } from '../utils/dateTime.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI } from '../services/api';
+import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI, featureAPI } from '../services/api';
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff, Infinity as InfinityIcon } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
@@ -83,8 +83,8 @@ const INTEGRATIONS = [
   },
   {
     id: 'google',
-    label: 'Google Ads',
-    description: 'Capture leads from Google Lead Form Assets in real-time.',
+    label: 'Google Ads Lead Forms',
+    description: 'Capture leads from Google Ads lead form assets in real time (webhook).',
     icon: <GoogleGIcon size={20} />,
     bg: 'bg-green-50',
     border: 'border-green-100',
@@ -285,7 +285,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(capiForm);
       await onRefresh();
-      toast.error('Meta Conversions API settings saved.');
+      toast.success('Meta Conversions API settings saved.');
     } catch (e) { setCapiError(e.response?.data?.error || 'Failed to save'); }
     finally { setCapiSaving(false); }
   };
@@ -1069,7 +1069,7 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(autoForm);
       await onRefresh();
-      toast.error('Automation settings saved.');
+      toast.success('Automation settings saved.');
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to save'); }
     finally { setAutoSaving(false); }
   };
@@ -1298,7 +1298,7 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
   const handleSave = async () => {
     setSaving(true);
-    try { await aiCallingAPI.updateSettings(form); await onRefresh(); toast.error('AI Calling settings saved.'); }
+    try { await aiCallingAPI.updateSettings(form); await onRefresh(); toast.success('AI Calling settings saved.'); }
     catch { toast.error('Failed to save.'); }
     finally { setSaving(false); }
   };
@@ -1432,10 +1432,19 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
+// Integration card id → provider name in /features/health.
+const HEALTH_PROVIDER = { meta: 'facebook', google: 'google_ads', whatsapp: 'whatsapp' };
+
 const IntegrationsPage = () => {
   const toast = useToast();
   const [selected, setSelected] = useState(() => new URLSearchParams(window.location.search).get('open'));
   const [category, setCategory] = useState('All');
+  // Same lead-flow health check as the dashboard banner, so a card never says "Connected"
+  // while the banner says leads stopped arriving.
+  const [health, setHealth] = useState({});
+  useEffect(() => {
+    featureAPI.health().then(({ data }) => setHealth(Object.fromEntries((data.integrations || []).map(i => [i.provider, i.state])))).catch(() => {});
+  }, []);
   const [settings, setSettings] = useState({
     meta_configured: false, google_configured: false, whatsapp_configured: false,
     api_key: null, api_key_created_at: null,
@@ -1554,9 +1563,15 @@ const IntegrationsPage = () => {
                   {integration.icon || integration.emoji}
                 </div>
                 {isLive ? (
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${configured ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {configured ? '● Connected' : '○ Available'}
-                  </span>
+                  (() => {
+                    const state = configured ? health[HEALTH_PROVIDER[integration.id]] : null;
+                    const [cls, text] = !configured ? ['bg-gray-100 text-gray-500', '○ Available']
+                      : state === 'disconnected' ? ['bg-red-100 text-red-700', '● Disconnected']
+                      : state === 'stale' ? ['bg-amber-100 text-amber-800', '▲ No recent leads']
+                      : ['bg-green-100 text-green-700', '● Connected'];
+                    return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cls}`}
+                      title={state === 'stale' ? 'Connected, but no leads arrived within your alert threshold.' : undefined}>{text}</span>;
+                  })()
                 ) : (
                   <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
                     <Lock size={9} /> Coming soon

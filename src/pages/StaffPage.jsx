@@ -1,10 +1,20 @@
 import { initials } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
-import { staffAPI, teamAPI } from '../services/api';
-import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, Phone, Calendar, RotateCcw, RefreshCw, MessageCircle, KeyRound, ShieldCheck, MoreVertical } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { staffAPI, teamAPI, assignmentRuleAPI } from '../services/api';
+import { Plus, UserCog, X, Trash2, Users, Edit2, Mail, Phone, Calendar, RotateCcw, RefreshCw, MessageCircle, KeyRound, ShieldCheck, MoreVertical, ChevronDown } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
+
+// One line describing where new leads go, e.g. "Meta Ads → Neha · everything else → round-robin in Sales".
+const assignmentSummary = (rules) => {
+  const active = rules.filter(r => r.is_active !== false);
+  if (!active.length) return 'stay unassigned until someone picks them up (no assignment rules).';
+  const target = r => r.assign_to_user_name || (r.assign_to_team_name ? `round-robin in ${r.assign_to_team_name}` : 'nobody');
+  const scope = r => (r.sources?.length ? r.sources.join(', ') : r.location_contains ? `location "${r.location_contains}"` : r.campaign_ids?.length ? 'selected campaigns' : 'all leads');
+  return active.slice(0, 3).map(r => `${scope(r)} → ${target(r)}`).join(' · ') + (active.length > 3 ? ` · +${active.length - 3} more rules` : '');
+};
 
 const StaffPage = () => {
   const confirm = useConfirmDialog();
@@ -29,6 +39,7 @@ const StaffPage = () => {
   const [editStaffErrors, setEditStaffErrors] = useState({});
 
   const [myWhatsApp, setMyWhatsApp] = useState(null);
+  const [assignmentRules, setAssignmentRules] = useState(null);
   const [myWaForm, setMyWaForm] = useState({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
   const [waModalStaff, setWaModalStaff] = useState(null); // { id, name } — admin editing someone else's number
   const [waForm, setWaForm] = useState({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
@@ -43,6 +54,7 @@ const StaffPage = () => {
   useEffect(() => {
     loadData(); loadTeams(); loadInvitations();
     loadMyWhatsApp();
+    assignmentRuleAPI.getAll().then(({ data }) => setAssignmentRules(data.rules || [])).catch(() => setAssignmentRules(null));
   }, []);
 
   const loadMyWhatsApp = async () => {
@@ -268,24 +280,12 @@ const StaffPage = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl border p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold flex items-center gap-2"><MessageCircle size={16} className="text-brand-600" /> My WhatsApp Number</h2>
-          {myWhatsApp?.configured && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>}
+      {assignmentRules && (
+        <div className="bg-white rounded-2xl border px-5 py-3 text-sm text-gray-700 flex items-center justify-between gap-3 flex-wrap">
+          <span><span className="font-semibold">New leads:</span> {assignmentSummary(assignmentRules)}</span>
+          <Link to="/settings?tab=assignment" className="text-xs font-semibold text-brand-600 hover:underline">Edit assignment rules</Link>
         </div>
-        <p className="text-xs text-gray-400 -mt-2">Connect your own WhatsApp Business number so messages to leads assigned to you send from it instead of the shared number.</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <input type="text" name="whatsapp_phone_number_id" autoComplete="off" inputMode="numeric" placeholder="Phone number ID"
-            value={myWaForm.whatsapp_phone_number_id !== '' ? myWaForm.whatsapp_phone_number_id : (myWhatsApp?.whatsapp_phone_number_id || '')}
-            onChange={e => setMyWaForm({ ...myWaForm, whatsapp_phone_number_id: e.target.value })}
-            className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" />
-          <input type="password" name="whatsapp_access_token" autoComplete="new-password" placeholder={myWhatsApp?.whatsapp_access_token ? 'Access token (saved — leave blank to keep)' : 'Access token'}
-            value={myWaForm.whatsapp_access_token}
-            onChange={e => setMyWaForm({ ...myWaForm, whatsapp_access_token: e.target.value })}
-            className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" />
-        </div>
-        <button onClick={handleSaveMyWhatsApp} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-xs font-semibold hover:bg-brand-700">Save</button>
-      </div>
+      )}
 
       <div className="bg-white rounded-2xl border p-5 space-y-3">
         <div className="flex items-center justify-between">
@@ -533,6 +533,28 @@ const StaffPage = () => {
         </div>
       )}
 
+      <details className="bg-white rounded-2xl border p-5 group">
+        <summary className="flex items-center justify-between cursor-pointer list-none">
+          <span className="font-semibold flex items-center gap-2"><MessageCircle size={16} className="text-brand-600" /> Advanced: send from my own WhatsApp number</span>
+          {myWhatsApp?.configured
+            ? <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Connected</span>
+            : <ChevronDown size={16} className="text-gray-400 transition-transform group-open:rotate-180" />}
+        </summary>
+        <div className="space-y-3 mt-3">
+        <p className="text-xs text-gray-500">Optional. Most teams use the workspace's shared number (Integrations → WhatsApp). If you have your own WhatsApp Business number, messages to leads assigned to you can go from it instead. Find the <b>Phone number ID</b> in Meta WhatsApp Manager → Phone numbers, and create a permanent <b>access token</b> for a system user in Meta Business Settings.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input type="text" name="whatsapp_phone_number_id" autoComplete="off" inputMode="numeric" placeholder="Phone number ID"
+            value={myWaForm.whatsapp_phone_number_id !== '' ? myWaForm.whatsapp_phone_number_id : (myWhatsApp?.whatsapp_phone_number_id || '')}
+            onChange={e => setMyWaForm({ ...myWaForm, whatsapp_phone_number_id: e.target.value })}
+            className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" />
+          <input type="password" name="whatsapp_access_token" autoComplete="new-password" placeholder={myWhatsApp?.whatsapp_access_token ? 'Access token (saved — leave blank to keep)' : 'Access token'}
+            value={myWaForm.whatsapp_access_token}
+            onChange={e => setMyWaForm({ ...myWaForm, whatsapp_access_token: e.target.value })}
+            className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-200 focus:border-brand-400" />
+        </div>
+        <button onClick={handleSaveMyWhatsApp} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-xs font-semibold hover:bg-brand-700">Save</button>
+        </div>
+      </details>
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/50" onClick={() => setShowModal(false)} />

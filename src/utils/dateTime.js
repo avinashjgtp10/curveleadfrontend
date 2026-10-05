@@ -12,10 +12,17 @@ export function parseTimestamp(value) {
   const date = new Date(value);
   return Number.isFinite(date.getTime()) && date.getTime() !== 0 ? date : null;
 }
+// One house style everywhere ("4 Oct 2026", "7:29 pm"): callers choose which parts to show,
+// but two-digit years and zero-padded hours are normalised away.
 export function formatDateTime(value, tz = workspaceTimezone, options = {}) {
   const date = parseTimestamp(value);
   if (!date) return 'No date';
-  return new Intl.DateTimeFormat(intlLocale(), { dateStyle: 'medium', timeStyle: 'short', ...options, timeZone: tz }).format(date);
+  const opts = { dateStyle: 'medium', timeStyle: 'short', ...options, timeZone: tz };
+  if (opts.year === '2-digit') opts.year = 'numeric';
+  if (opts.hour === '2-digit') opts.hour = 'numeric';
+  if (opts.day === '2-digit') opts.day = 'numeric';
+  if (opts.month === 'numeric' || opts.month === '2-digit') opts.month = 'short';
+  return new Intl.DateTimeFormat(intlLocale(), opts).format(date);
 }
 export function toDateTimeInput(value, tz = workspaceTimezone) {
   const date = parseTimestamp(value);

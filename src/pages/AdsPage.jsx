@@ -265,7 +265,7 @@ const AdsPage = ({ provider = 'meta' }) => {
         <h2 className="text-lg font-bold">Connect Google Ads</h2>
         <p className="text-sm text-gray-500">See cost, clicks and conversions for every Google Ads campaign, ad group and ad — next to how many of those leads qualified and converted in CurveLead.</p>
         {googleStatus && !googleStatus.configured ? (
-          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">Google Ads isn't set up on the server yet: it needs a Google Ads developer token (GOOGLE_ADS_DEVELOPER_TOKEN). Ask your administrator.</p>
+          <p className="text-sm text-gray-600 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2"><span className="inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full bg-brand-50 text-brand-700 mr-1.5">Coming soon</span>Google Ads reporting isn't available yet. Leads from Google Ads lead forms already arrive through Integrations → Google Ads Lead Forms.</p>
         ) : (
           <button onClick={connect} disabled={connecting} className="px-4 py-2.5 bg-white border-2 border-gray-200 rounded-xl text-sm font-semibold disabled:opacity-50 inline-flex items-center gap-2 hover:bg-gray-50">
             <LogIn size={16} /> {connecting ? 'Opening Google…' : 'Connect with Google'}
