@@ -31,6 +31,7 @@ import {
   Zap,
 } from 'lucide-react';
 import BrandLogo from '../components/ui/BrandLogo';
+import LandingAiAgent from '../components/landing/LandingAiAgent';
 
 const painPoints = [
   'Meta leads sit unseen until someone exports a CSV.',
@@ -515,6 +516,8 @@ const LandingPage = () => {
           <p className="mt-6 text-sm text-gray-400">© 2026 CurveLead. Built in India.</p>
         </div>
       </footer>
+
+      <LandingAiAgent />
     </div>
   );
 };
