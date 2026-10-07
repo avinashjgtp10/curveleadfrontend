@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --border: #e5e7eb;
+}
+
+/* Neutral borders: visible card edges and stronger form-field outlines.
+   Utilities still control border width, focus/error colors, and border removal. */
+@layer base {
+  :where(input, select, textarea) {
+    border-color: theme('colors.gray.300');
+  }
+}
+
+@layer utilities {
+  .border-gray-100,
+  .border-gray-200 {
+    border-color: var(--border);
+  }
+
+  :where(input, select, textarea).border-gray-100,
+  :where(input, select, textarea).border-gray-200 {
+    border-color: theme('colors.gray.300');
+  }
+}
+
 /* Shared buttons (design system): primary = filled brand, secondary = white with border. */
 @layer components {
   .btn-primary {

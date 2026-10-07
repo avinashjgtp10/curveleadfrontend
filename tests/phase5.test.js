@@ -156,7 +156,9 @@ test("notification opening groups by type, marks only visible IDs and refreshes 
   );
   assert.deepEqual([...marked], ["a", "b"]);
   assert.ok(r.root.findByProps({ "aria-label": "Notifications, 135 unread" }));
-  assert.equal(r.root.findAllByType("section").length, 2);
+  assert.equal(r.root.findAllByType("details").length, 2);
+  assert.equal(r.root.findAllByType("summary").length, 2);
+  assert.ok(r.root.findAllByType("details").every(group => group.props.open === false));
   await act(async () => r.unmount());
 });
 test("skeleton announces loading and empty state provides an action", () => {

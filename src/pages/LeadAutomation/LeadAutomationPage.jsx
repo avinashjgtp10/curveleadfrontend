@@ -1,3 +1,4 @@
+import AutomationRecovery from '../../components/lead/AutomationRecovery';
 import { initials } from '../../utils/leadData.js';
 import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
@@ -26,6 +27,10 @@ const STATUS_STYLES = {
   'In Progress': 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200',
   'Completed': 'bg-teal-50 text-teal-700 ring-1 ring-inset ring-teal-200',
   'Cancelled': 'bg-gray-100 text-gray-500 ring-1 ring-inset ring-gray-200',
+  'Failed': 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200',
+  'Uncertain': 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200',
+  'Needs Review': 'bg-amber-50 text-amber-800 ring-1 ring-inset ring-amber-200',
+  'Awaiting Reply': 'bg-blue-50 text-blue-700 ring-1 ring-inset ring-blue-200',
   'Blocked': 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200',
   'Converted': 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200',
   'Lost': 'bg-red-50 text-red-700 ring-1 ring-inset ring-red-200',
@@ -37,11 +42,12 @@ const STATUS_DOT = {
   'Completed': 'bg-teal-500',
   'Cancelled': 'bg-gray-400',
   'Blocked': 'bg-red-500',
+  'Failed': 'bg-red-500', 'Uncertain': 'bg-amber-500', 'Needs Review': 'bg-amber-500', 'Awaiting Reply': 'bg-blue-500',
   'Converted': 'bg-emerald-500',
   'Lost': 'bg-red-500',
 };
 
-const STATUS_OPTIONS = ['All Status', 'Not Enrolled', 'In Progress', 'Completed', 'Blocked', 'Cancelled', 'Converted', 'Lost'];
+const STATUS_OPTIONS = ['All Status', 'Not Enrolled', 'In Progress', 'Completed', 'Blocked', 'Failed', 'Uncertain', 'Needs Review', 'Awaiting Reply', 'Cancelled', 'Converted', 'Lost'];
 
 // Real per-lead journey, built from automation_enrollments + its sequence's
 // steps. Verified against automationSequenceRunner.js: while active,
@@ -243,7 +249,7 @@ const CallRecordingModal = ({ lead, onClose }) => {
   );
 };
 
-const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls, onReEnable }) => {
+const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls, onReEnable, onRecovered }) => {
   if (!lead) return null;
   return (
     <div className="fixed inset-0 z-[70] flex justify-end">
@@ -302,6 +308,7 @@ const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls, onReEnable }) => {
               <>
                 <p className="text-xs text-gray-500 mb-3">{lead.enrollment.sequence_name}</p>
                 <Timeline steps={buildTimeline(lead.enrollment)} />
+                <AutomationRecovery enrollment={lead.enrollment} onRecovered={onRecovered} />
               </>
             ) : (
               <p className="text-sm text-gray-400">This lead isn't enrolled in an automation sequence yet.</p>
@@ -543,6 +550,7 @@ const LeadAutomationPage = () => {
         onClose={() => setSelectedLead(null)}
         onViewChat={(l) => { setSelectedLead(null); setChatLead(l); }}
         onViewCalls={(l) => { setSelectedLead(null); setCallLead(l); }}
+        onRecovered={() => { setSelectedLead(null); setRetry(v => v + 1); }}
         onReEnable={async (l) => {
           try {
             await leadAPI.update(l.id, { opted_out: false });

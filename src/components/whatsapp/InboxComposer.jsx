@@ -131,7 +131,9 @@ const TemplatePickerModal = ({ leadId, leadName, onClose, onSent }) => {
   );
 };
 
-const InboxComposer = ({ leadId, leadName, messages, messagesLoading, setMessages, onSent, onOpenBrochure }) => {
+// templateRequest: a counter the parent bumps to open the template picker (e.g. from a
+// message that failed because the 24-hour window had closed).
+const InboxComposer = ({ leadId, leadName, messages, messagesLoading, setMessages, onSent, onOpenBrochure, templateRequest = 0 }) => {
   const toast = useToast();
   const [canned,setCanned]=useState([]);
   useEffect(()=>{featureAPI.cannedReplies().then(({data})=>setCanned(data.replies||[])).catch(()=>{});},[]);
@@ -140,6 +142,7 @@ const InboxComposer = ({ leadId, leadName, messages, messagesLoading, setMessage
   const [showAttach, setShowAttach] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  useEffect(() => { if (templateRequest) setShowTemplates(true); }, [templateRequest]);
   const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(null); // null = not loaded yet
   const [savedQuery, setSavedQuery] = useState('');

@@ -34,6 +34,7 @@ import {
   Zap,
 } from 'lucide-react';
 import BrandLogo from '../components/ui/BrandLogo';
+import LandingAiAgent from '../components/landing/LandingAiAgent';
 
 const painPoints = [
   { icon: FileText, text: 'Meta leads sit unseen until someone exports a CSV.', tone: 'bg-violet-50 text-violet-600' },
@@ -887,13 +888,15 @@ const LandingPage = () => {
             </nav>
           </div>
           <div className="mt-8 flex flex-col gap-3 border-t border-gray-200 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm text-gray-400">© 2026 CurveLead. Built in India.</p>
+            <p className="text-sm text-gray-400">© 2026 CurveLead is a product of Salonox Tech, Pune, India.</p>
             <p className="flex items-center gap-1.5 text-xs text-gray-400">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> All systems operational
             </p>
           </div>
         </div>
       </footer>
+
+      <LandingAiAgent />
     </div>
   );
 };

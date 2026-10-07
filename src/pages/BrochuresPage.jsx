@@ -1,5 +1,16 @@
 import { formatDateTime } from '../utils/dateTime';
 import PageLoader from '../components/ui/PageLoader';
+import FileThumbnail from '../components/ui/FileThumbnail';
+
+// Brochures store a mime type, not a kind. PDFs are previewed through the API (same origin),
+// because the file bucket doesn't allow browsers to read it cross-origin.
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api';
+const previewOf = (b) => {
+  const isPdf = b.mime_type === 'application/pdf' || /\.pdf(\?|$)/i.test(b.file_url || b.file_name || '');
+  if (isPdf) return { type: 'pdf', url: `${API_BASE}/brochures/${b.id}/preview`, httpHeaders: { Authorization: `Bearer ${localStorage.getItem('token') || ''}` } };
+  if ((b.mime_type || '').startsWith('image/')) return { type: 'image', url: b.file_url };
+  return { type: 'other', url: b.file_url };
+};
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { brochuresAPI } from '../services/api';
 import {
@@ -302,9 +313,9 @@ const BrochuresPage = () => {
             if (viewMode === 'list') {
               return (
                 <div key={b.id} className="bg-white rounded-xl border p-3 flex items-center gap-3 hover:shadow-md transition">
-                  <div className={`w-14 h-14 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center shrink-0`}>
-                    <FileText size={20} />
-                  </div>
+                  <FileThumbnail {...previewOf(b)} alt="" width={56}
+                    className="w-14 h-14 rounded-lg shrink-0 border bg-white"
+                    fallback={<div className={`w-14 h-14 rounded-lg bg-gradient-to-br ${gradient} flex items-center justify-center`}><FileText size={20} /></div>} />
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm truncate">{b.name}</p>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -322,9 +333,11 @@ const BrochuresPage = () => {
             return (
               <div key={b.id} className="bg-white rounded-2xl border overflow-hidden hover:shadow-md transition">
                 <div className={`relative h-32 bg-gradient-to-br ${gradient} p-4 flex flex-col justify-between`}>
+                  {/* Real first page / image when it can be read; the coloured cover shows otherwise. */}
+                  <FileThumbnail {...previewOf(b)} alt={`${b.name} preview`} width={320} className="absolute inset-0 w-full h-full" />
                   <div className="relative">
                     <button onClick={() => setOpenMenu(openMenu === b.id ? null : b.id)}
-                      className="absolute top-0 right-0 p-1 rounded-md hover:bg-black/10">
+                      className="absolute top-0 right-0 p-1 rounded-md bg-white/80 text-gray-700 shadow-sm hover:bg-white" aria-label="Brochure actions">
                       <MoreVertical size={16} />
                     </button>
                     {openMenu === b.id && (
@@ -337,7 +350,7 @@ const BrochuresPage = () => {
                       </>
                     )}
                   </div>
-                  {b.file_type === 'image' ? <ImageIcon size={26} className="opacity-80" /> : <FileText size={26} className="opacity-80" />}
+                  {previewOf(b).type === 'image' ? <ImageIcon size={26} className="opacity-80" /> : <FileText size={26} className="opacity-80" />}
                   <p className="font-bold text-sm leading-tight uppercase line-clamp-2">{b.name}</p>
                 </div>
                 <div className="p-4">
