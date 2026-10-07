@@ -464,8 +464,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
     try {
-      await whatsappAPI.send(id, newMessage);
+      const { data } = await whatsappAPI.send(id, newMessage);
       setNewMessage('');
+      // Show the sent message immediately — the backend already returns the saved
+      // row, so don't wait on the full loadData() refetch (which can lag or race)
+      // just to see what we ourselves just sent.
+      if (data?.message) setMessages(prev => [...prev, data.message]);
       loadData();
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to send'); }
   };
