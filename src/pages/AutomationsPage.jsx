@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { useOverview } from "../components/workspace/Overview";
 import PageLoader from "../components/ui/PageLoader";
+import StatusBadge from "../components/ui/StatusBadge";
 import { useAuth } from "../context/AuthContext";
 // [id, title, where to configure, what it does]
 export const AUTOMATIONS = [
@@ -44,10 +45,10 @@ export default function AutomationsPage() {
             {(() => {
               // true = working, false = off, a string = switched on but not working yet.
               const v = data.automations[id];
-              const [cls, text] = v === "not_set_up" ? ["text-red-600", "On, but not set up"]
-                : v ? ["text-green-700", id === "bulk" ? "Campaigns created" : "Enabled"]
-                : ["text-gray-500", "Not configured"];
-              return <p className={`text-sm ${cls}`}>{text}</p>;
+              return v === "not_set_up"
+                ? <StatusBadge status="warning" label="On, but not set up" reason="Switched on, but required details are missing." />
+                : v ? <StatusBadge status="working" label={id === "bulk" ? "Campaigns created" : "Working"} />
+                : <StatusBadge status="not_set_up" />;
             })()}
             {admin || id === "sequences" ? (
               <Link className="inline-block btn-primary" to={to}>

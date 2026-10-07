@@ -1,5 +1,6 @@
 import { formatDateTime } from '../utils/dateTime.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import StatusBadge from '../components/ui/StatusBadge';
 import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI, featureAPI } from '../services/api';
 import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff, Infinity as InfinityIcon } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -1571,12 +1572,10 @@ const IntegrationsPage = () => {
                 {isLive ? (
                   (() => {
                     const state = configured ? health[HEALTH_PROVIDER[integration.id]] : null;
-                    const [cls, text] = !configured ? ['bg-gray-100 text-gray-500', '○ Available']
-                      : state === 'disconnected' ? ['bg-red-100 text-red-700', '● Disconnected']
-                      : state === 'stale' ? ['bg-amber-100 text-amber-800', '▲ No recent leads']
-                      : ['bg-green-100 text-green-700', '● Connected'];
-                    return <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cls}`}
-                      title={state === 'stale' ? 'Connected, but no leads arrived within your alert threshold.' : undefined}>{text}</span>;
+                    return !configured ? <StatusBadge status="not_set_up" />
+                      : state === 'disconnected' ? <StatusBadge status="failing" label="Disconnected" reason="Leads are not syncing. Open to reconnect." />
+                      : state === 'stale' ? <StatusBadge status="warning" label="No recent leads" reason="Connected, but no leads arrived within your alert threshold." />
+                      : <StatusBadge status="working" label="Connected" />;
                   })()
                 ) : (
                   <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">

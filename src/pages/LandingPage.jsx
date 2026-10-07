@@ -31,6 +31,7 @@ import {
   Zap,
 } from 'lucide-react';
 import BrandLogo from '../components/ui/BrandLogo';
+import LandingAiAgent from '../components/landing/LandingAiAgent';
 
 const painPoints = [
   'Meta leads sit unseen until someone exports a CSV.',
@@ -512,9 +513,11 @@ const LandingPage = () => {
               <a href="mailto:support@curvelead.com" className="hover:text-gray-950 transition-colors">support@curvelead.com</a>
             </nav>
           </div>
-          <p className="mt-6 text-sm text-gray-400">© 2026 CurveLead. Built in India.</p>
+          <p className="mt-6 text-sm text-gray-400">© 2026 CurveLead is a product of Salonox Tech, Pune, India.</p>
         </div>
       </footer>
+
+      <LandingAiAgent />
     </div>
   );
 };

@@ -461,7 +461,12 @@ const WhatsAppInboxPage = () => {
   };
 
   // Resend a failed text message; the failed bubble is replaced by the new attempt.
+  // A message refused because the 24-hour window had closed (WhatsApp error 131047) would
+  // fail again as text, so it offers an approved template instead.
   const [retryingId, setRetryingId] = useState(null);
+  const [templateRequest, setTemplateRequest] = useState(0);
+  useEffect(() => { setTemplateRequest(0); }, [activeId]);   // never reopen the picker in another chat
+  const windowClosedError = (m) => /131047|re-engagement|24 hours/i.test(m.error_detail || '');
   const retryMessage = async (m) => {
     setRetryingId(m.id);
     try {
@@ -764,7 +769,11 @@ const WhatsAppInboxPage = () => {
                             {outbound && m.status === 'failed' && (
                               <div className="mt-1.5 pt-1.5 border-t border-red-100 text-[11px] text-red-600">
                                 <span className="font-semibold">Not delivered</span>{m.error_detail ? ` · ${m.error_detail}` : ''}
-                                {m.message_type === 'text' && m.message && (
+                                {windowClosedError(m) ? (
+                                  <button onClick={() => setTemplateRequest(n => n + 1)} className="ml-2 font-semibold underline hover:text-red-700">
+                                    Send a template instead
+                                  </button>
+                                ) : m.message_type === 'text' && m.message && (
                                   <button onClick={() => retryMessage(m)} disabled={retryingId === m.id}
                                     className="ml-2 font-semibold underline hover:text-red-700 disabled:opacity-50">
                                     {retryingId === m.id ? 'Retrying…' : 'Retry'}
@@ -785,7 +794,7 @@ const WhatsAppInboxPage = () => {
               <InboxComposer
                 leadId={activeId} leadName={active.lead_name} messages={messages} messagesLoading={msgLoading}
                 setMessages={setMessages} onSent={() => { patchConversation(activeId, { ai_paused: true }); loadInbox(true); }}
-                onOpenBrochure={() => setShowBrochureModal(true)} />
+                onOpenBrochure={() => setShowBrochureModal(true)} templateRequest={templateRequest} />
             </>
           )}
         </div>
