@@ -301,7 +301,7 @@ const LeadsPage = () => {
   const [pageSize, setPageSize] = useState(100);
   const PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
   const [newLeadErrors, setNewLeadErrors] = useState({});
   const newLeadNameRef = useRef(null);
   const newLeadPhoneRef = useRef(null);
@@ -666,7 +666,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.create(lead);
       setShowAddModal(false);
-      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
       setNewLeadErrors({});
       loadData();
     } catch (e) { toast.error(e.response?.data?.error || e.message || 'Failed'); }
@@ -1682,6 +1682,7 @@ const LeadsPage = () => {
                 <textarea placeholder="Address" value={newLead.address} onChange={e => setNewLead({ ...newLead, address: e.target.value })}
                   rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               </div>
+              <div><label className="block text-xs text-gray-600 mb-1">Product interest</label><input value={newLead.product || ''} onChange={e => setNewLead({ ...newLead, product: e.target.value })} className="w-full border rounded-lg px-3 py-2.5 text-sm" /></div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Source</label>
                 <select value={newLead.source} onChange={e => setNewLead({ ...newLead, source: e.target.value })}
