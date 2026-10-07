@@ -5,25 +5,26 @@ import {
   ArrowRight,
   BarChart3,
   BookOpen,
+  Bot,
   Calendar,
   CheckCircle,
   ChevronDown,
   Clock,
+  CreditCard,
   FileText,
   Gauge,
   Globe,
   HelpCircle,
+  LayoutDashboard,
   Lightbulb,
   Menu,
   MessageCircle,
-  Megaphone,
   PhoneCall,
-  PieChart,
   Plug,
-  Shuffle,
+  Settings,
+  Share2,
   Sparkles,
   Star,
-  Tag,
   Target,
   TrendingUp,
   Users,
@@ -75,48 +76,125 @@ const workflowAccents = {
   Measure: { icon: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-50 text-emerald-600', bar: 'bg-emerald-500', label: 'text-emerald-600' },
 };
 
-const featureAccents = {
-  purple: { icon: 'bg-violet-100 text-violet-600', badge: 'bg-violet-50 text-violet-600', bar: 'bg-violet-500', blob: 'bg-violet-300' },
-  green: { icon: 'bg-emerald-100 text-emerald-600', badge: 'bg-emerald-50 text-emerald-600', bar: 'bg-emerald-500', blob: 'bg-emerald-300' },
-  pink: { icon: 'bg-pink-100 text-pink-600', badge: 'bg-pink-50 text-pink-600', bar: 'bg-pink-500', blob: 'bg-pink-300' },
-  blue: { icon: 'bg-blue-100 text-blue-600', badge: 'bg-blue-50 text-blue-600', bar: 'bg-blue-500', blob: 'bg-blue-300' },
-  violet: { icon: 'bg-indigo-100 text-indigo-600', badge: 'bg-indigo-50 text-indigo-600', bar: 'bg-indigo-500', blob: 'bg-indigo-300' },
-};
-
 // Six core cards carry the main promise (ad lead → WhatsApp → follow-up → ROI); everything
-// else sits in three collapsed groups so the page isn't a feature dump. `beta` marks
-// features that aren't fully live yet, so the page never promises more than the product.
-const features = [
-  { icon: Zap, title: 'Meta & Google lead capture', accent: 'purple', desc: 'Facebook, Instagram and Google lead form enquiries land in your pipeline in real time, with campaign, ad and owner attached.' },
-  { icon: MessageCircle, title: 'Shared WhatsApp Inbox', accent: 'green', desc: 'Reply, qualify, send approved templates and keep every conversation tied to the right lead.' },
-  { icon: Gauge, title: 'Lead Intent Index', accent: 'pink', desc: 'A live 0-100 score, Hot/Warm/Cold label and a suggested next action for every lead, built from real activity. Fully explainable.' },
-  { icon: Clock, title: 'Follow-up Discipline', accent: 'blue', desc: 'Schedule, complete and track callbacks, with response-time tracking that flags slow replies before they cost you.' },
-  { icon: Shuffle, title: 'Smart Lead Routing', accent: 'violet', desc: 'Auto-assign new leads by source, campaign or location, or round-robin across the team, so nothing sits unclaimed.' },
-  { icon: Megaphone, title: 'Campaign ROI', accent: 'green', desc: 'Connect ad spend to leads, customers, cost per lead and revenue, campaign by campaign.' },
-];
-
 const featureGroups = [
-  { label: 'Sell', items: [
-    { icon: FileText, title: 'Quotations', desc: 'Create, send and track quotations inside the sales flow.' },
-    { icon: BookOpen, title: 'Brochures & Files', desc: 'Share product material with leads from the same workspace.' },
-    { icon: Calendar, title: 'Appointments', desc: 'Book demos and visits with automatic WhatsApp confirmations and reminders.' },
-    { icon: Users, title: 'Team Workspace', desc: 'Invite staff, assign ownership and monitor activity.' },
-  ] },
-  { label: 'Automate', items: [
-    { icon: Workflow, title: 'Automation Sequences', desc: 'Enrol matching leads into a scripted WhatsApp or email follow-up the moment they land.' },
-    { icon: PhoneCall, title: 'AI Calling Agent', desc: 'A configurable AI voice agent that calls new leads.', beta: true },
-    { icon: Plug, title: 'Integrations & API', desc: 'Website forms, webhooks and a REST API for any other lead source.' },
-  ] },
-  { label: 'Grow', items: [
-    { icon: PieChart, title: 'Reports & Analytics', desc: 'Funnels, lead sources, staff performance and campaign breakdowns.' },
-    { icon: Lightbulb, title: 'AI Sales Coaching', desc: "A playbook built from your own team's won and lost calls." },
-    { icon: Globe, title: 'Market Intelligence', desc: 'AI competitor and market analysis for your business.' },
-    { icon: Star, title: 'Google Business Profile', desc: 'Review requests on WhatsApp today; review replies and profile insights once Google approves access.', beta: true },
-  ] },
+  {
+    label: 'Sell',
+    desc: 'Daily sales work in one clean place.',
+    gradient: 'from-sky-500 to-brand-600',
+    tint: 'bg-sky-50 text-sky-700 ring-sky-100',
+    items: [
+      { icon: LayoutDashboard, title: 'Dashboard', desc: 'Track new leads, hot enquiries, follow-ups and wins at a glance.' },
+      { icon: Users, title: 'Leads', desc: 'Every contact, source, stage and note stays attached to the lead.' },
+      { icon: Calendar, title: 'Appointments', desc: 'Book calls, visits and demos with WhatsApp confirmations.' },
+      { icon: Users, title: 'Team', desc: 'Assign owners, monitor workload and keep staff activity visible.' },
+    ],
+  },
+  {
+    label: 'Engage',
+    desc: 'Talk, share and follow up faster.',
+    gradient: 'from-emerald-500 to-teal-600',
+    tint: 'bg-emerald-50 text-emerald-700 ring-emerald-100',
+    items: [
+      { icon: MessageCircle, title: 'WhatsApp', desc: 'A shared inbox for replies, templates, broadcasts and opt-ins.' },
+      { icon: BookOpen, title: 'Brochures', desc: 'Send approved product files to leads without hunting through folders.' },
+      { icon: Bot, title: 'AI Agent', desc: 'Draft answers and automate replies using your business knowledge.' },
+    ],
+  },
+  {
+    label: 'Grow',
+    desc: 'See what works and improve it.',
+    gradient: 'from-amber-500 to-rose-500',
+    tint: 'bg-amber-50 text-amber-700 ring-amber-100',
+    items: [
+      { icon: TrendingUp, title: 'Ads Manager', desc: 'Compare spend, leads, cost per lead and campaign outcomes.' },
+      { icon: Share2, title: 'Social', desc: 'Plan and publish posts from the same workspace.' },
+      { icon: Star, title: 'GMB', desc: 'Manage Google profile updates, reviews and local visibility.', beta: true },
+      { icon: Lightbulb, title: 'Sales Coaching', desc: 'Turn call history and outcomes into a practical sales playbook.' },
+      { icon: BarChart3, title: 'Reports', desc: 'Measure source, staff, stage, revenue and follow-up performance.' },
+    ],
+  },
+  {
+    label: 'Setup',
+    desc: 'Control how the workspace runs.',
+    gradient: 'from-brand-500 to-violet-700',
+    tint: 'bg-brand-50 text-brand-700 ring-brand-100',
+    items: [
+      { icon: Workflow, title: 'Automations', desc: 'Route leads and trigger follow-up sequences automatically.' },
+      { icon: Plug, title: 'Integrations', desc: 'Connect Meta, Google, WhatsApp, website forms and API sources.' },
+      { icon: CreditCard, title: 'Billing', desc: 'Manage plan, usage and team limits clearly.' },
+      { icon: Settings, title: 'Settings', desc: 'Tune assignment, templates, permissions and notifications.' },
+      { icon: HelpCircle, title: 'Help & Support', desc: 'Find answers and reach support whenever your team needs help.' },
+    ],
+  },
 ];
 
 const BetaChip = () => <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-[10px] font-semibold text-amber-800">Beta</span>;
 
+const FloatingSupportTray = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!isOpen) {
+    return (
+      <div className="fixed bottom-5 left-5 z-50">
+        <button
+          type="button"
+          onClick={() => setIsOpen(true)}
+          aria-label="Open support tray"
+          className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 via-brand-600 to-violet-700 text-white shadow-2xl shadow-brand-500/35 ring-4 ring-white transition-all hover:-translate-y-1 hover:scale-105"
+        >
+          <span className="absolute inset-0 rounded-full bg-white/20 opacity-0 transition-opacity group-hover:opacity-100" />
+          <MessageCircle size={23} className="relative" />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed bottom-5 left-5 z-50 flex items-end gap-3">
+      <div className="w-[240px] rounded-2xl border border-white/70 bg-white/95 p-2 shadow-2xl shadow-slate-300/60 ring-1 ring-slate-200 backdrop-blur">
+        <a
+          href="https://wa.me/919999999999?text=Hi%20CurveLead%2C%20I%20want%20to%20learn%20more%20about%20the%20platform."
+          target="_blank"
+          rel="noreferrer"
+          className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-emerald-50"
+          aria-label="Chat on WhatsApp"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-md shadow-emerald-500/25 transition-transform group-hover:scale-105">
+            <MessageCircle size={20} />
+          </span>
+          <span>
+            <span className="block text-sm font-bold text-slate-900">WhatsApp</span>
+            <span className="block text-xs text-slate-500">Quick chat support</span>
+          </span>
+        </a>
+
+        <a
+          href="tel:+919999999999"
+          className="group mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-brand-50"
+          aria-label="Call Support"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 via-brand-600 to-violet-700 text-white shadow-md shadow-brand-500/25 transition-transform group-hover:scale-105">
+            <PhoneCall size={20} />
+          </span>
+          <span>
+            <span className="block text-sm font-bold text-slate-900">Call</span>
+            <span className="block text-xs text-slate-500">Talk to our team</span>
+          </span>
+        </a>
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setIsOpen(false)}
+        aria-label="Close support tray"
+        className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white shadow-2xl shadow-slate-400/50 ring-4 ring-white transition-all hover:-translate-y-1 hover:scale-105 hover:bg-brand-700"
+      >
+        <X size={21} />
+      </button>
+    </div>
+  );
+};
 
 const plans = [
   { name: 'Free', monthly: '$0', yearly: '$0', sub: 'for getting started', features: ['20 leads', '1 user', 'Pipeline', 'Email support'] },
@@ -195,7 +273,7 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-white text-gray-950">
-      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
+      <nav className="fixed top-0 left-0 right-0 z-50 border-b border-gray-200 bg-white shadow-sm">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
           <button className="flex items-center gap-2" onClick={() => navigate('/')}>
             <BrandLogo className="site-logo" />
@@ -226,6 +304,8 @@ const LandingPage = () => {
           </div>
         )}
       </nav>
+
+      <FloatingSupportTray />
 
       <main>
         <section className="relative overflow-hidden bg-gray-950 px-4 pb-20 pt-32 sm:px-6">
@@ -268,48 +348,51 @@ const LandingPage = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
                   {[
-                    { label: 'New Leads', value: '1,284', delta: '+12.4%' },
-                    { label: 'Contacted', value: '812', delta: '+6.1%' },
-                    { label: 'Hot Leads', value: '396', delta: '+0.4%' },
-                    { label: 'Won', value: '148', delta: '+8.2%', highlight: true },
+                    { label: 'New Leads', value: '1,284', delta: '+12.4%', card: 'border-sky-400/30 bg-sky-500/10', valueTone: 'text-sky-300' },
+                    { label: 'Contacted', value: '812', delta: '+6.1%', card: 'border-emerald-400/30 bg-emerald-500/10', valueTone: 'text-emerald-300' },
+                    { label: 'Hot Leads', value: '396', delta: '+0.4%', card: 'border-amber-400/30 bg-amber-500/10', valueTone: 'text-amber-300' },
+                    { label: 'Won', value: '148', delta: '+8.2%', card: 'border-brand-400/40 bg-brand-500/15', valueTone: 'text-brand-300' },
                   ].map((s) => (
-                    <div key={s.label} className={`rounded-xl border p-3 ${s.highlight ? 'border-brand-500/40 bg-brand-500/10' : 'border-white/10 bg-white/[0.02]'}`}>
+                    <div key={s.label} className={`rounded-xl border p-3 shadow-lg shadow-black/10 ${s.card}`}>
                       <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-500">{s.label}</p>
-                      <p className={`mt-1.5 text-xl font-extrabold ${s.highlight ? 'text-brand-400' : 'text-white'}`}>{s.value}</p>
+                      <p className={`mt-1.5 text-xl font-extrabold ${s.valueTone}`}>{s.value}</p>
                       <p className="mt-1 text-[10px] font-semibold text-emerald-400">▲ {s.delta}</p>
                     </div>
                   ))}
                 </div>
                 <div className="grid gap-3 px-4 pb-4 sm:grid-cols-[1.2fr_1fr]">
-                  <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+                  <div className="rounded-xl border border-sky-400/20 bg-gradient-to-br from-sky-500/10 to-white/[0.02] p-3.5 shadow-lg shadow-black/10">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold text-gray-300">Leads by Source</p>
                       <p className="text-[10px] text-gray-500">Last 30 days</p>
                     </div>
                     <div className="mt-4 flex h-20 items-end gap-2.5">
                       {[
-                        { h: 'h-[55%]', label: 'FB' }, { h: 'h-[85%]', label: 'IG' }, { h: 'h-[40%]', label: 'Web' },
-                        { h: 'h-[62%]', label: 'WA' }, { h: 'h-[30%]', label: 'Ads' },
+                        { h: 'h-[55%]', label: 'FB', color: 'bg-sky-400' },
+                        { h: 'h-[85%]', label: 'IG', color: 'bg-brand-400' },
+                        { h: 'h-[40%]', label: 'Web', color: 'bg-amber-400' },
+                        { h: 'h-[62%]', label: 'WA', color: 'bg-emerald-400' },
+                        { h: 'h-[30%]', label: 'Ads', color: 'bg-rose-400' },
                       ].map((bar) => (
                         <div key={bar.label} className="flex flex-1 flex-col items-center gap-1.5">
                           <div className="flex h-full w-full items-end rounded-md bg-white/5">
-                            <div className={`w-full rounded-md bg-brand-500 ${bar.h}`} />
+                            <div className={`w-full rounded-md ${bar.color} ${bar.h}`} />
                           </div>
                           <span className="text-[9px] font-medium text-gray-500">{bar.label}</span>
                         </div>
                       ))}
                     </div>
                   </div>
-                  <div className="rounded-xl border border-white/10 bg-white/[0.02] p-3.5">
+                  <div className="rounded-xl border border-brand-400/25 bg-gradient-to-br from-brand-500/12 to-violet-500/5 p-3.5 shadow-lg shadow-black/10">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-semibold text-gray-300">Assignment Load</p>
                       <span className="text-[9px] font-bold text-brand-400">Round robin</span>
                     </div>
                     <div className="mt-3 space-y-2.5">
                       {[
-                        { name: 'Rohan M.', count: '7/12', w: 'w-[58%]' },
-                        { name: 'Priya N.', count: '10/12', w: 'w-[83%]' },
-                        { name: 'Arjun R.', count: '4/12', w: 'w-[33%]' },
+                        { name: 'Rohan M.', count: '7/12', w: 'w-[58%]', color: 'bg-sky-400' },
+                        { name: 'Priya N.', count: '10/12', w: 'w-[83%]', color: 'bg-brand-400' },
+                        { name: 'Arjun R.', count: '4/12', w: 'w-[33%]', color: 'bg-emerald-400' },
                       ].map((p) => (
                         <div key={p.name}>
                           <div className="flex items-center justify-between text-[10px]">
@@ -317,7 +400,7 @@ const LandingPage = () => {
                             <span className="text-gray-500">{p.count}</span>
                           </div>
                           <div className="mt-1 h-1.5 rounded-full bg-white/5">
-                            <div className={`h-1.5 rounded-full bg-brand-500 ${p.w}`} />
+                            <div className={`h-1.5 rounded-full ${p.color} ${p.w}`} />
                           </div>
                         </div>
                       ))}
@@ -432,146 +515,58 @@ const LandingPage = () => {
           </Reveal>
         </section>
 
-        <section id="features" className="relative overflow-hidden bg-gradient-to-b from-white via-violet-50/40 to-white px-4 py-24 sm:px-6">
-          <div className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-gradient-to-br from-violet-200 to-transparent opacity-55 blur-3xl" />
-          <div className="pointer-events-none absolute bottom-0 -right-32 h-96 w-96 rounded-full bg-gradient-to-br from-blue-200 to-transparent opacity-45 blur-3xl" />
+        <section id="features" className="relative overflow-hidden bg-gradient-to-b from-white via-slate-50 to-white px-4 py-24 sm:px-6">
+          <div className="pointer-events-none absolute left-1/2 top-0 h-72 w-[42rem] -translate-x-1/2 rounded-full bg-brand-100/60 blur-3xl" />
 
           <Reveal className="relative mx-auto max-w-7xl">
-            <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-14">
-              {/* Left: intro + product visual */}
-              <div>
-                <span className="inline-flex items-center rounded-full bg-violet-50 px-3 py-1 text-sm font-bold uppercase tracking-wider text-violet-700 ring-1 ring-violet-100">
-                  Product surface
-                </span>
-                <h2 className="mt-4 text-3xl font-extrabold leading-tight text-gray-950 sm:text-4xl lg:text-5xl">
-                  More than a CRM list. It is your{' '}
-                  <span className="bg-gradient-to-r from-brand-600 to-violet-500 bg-clip-text text-transparent">sales operating room</span>.
-                </h2>
-                <p className="mt-5 leading-7 text-gray-600">
-                  CurveLead keeps lead context, WhatsApp conversations, campaign reporting, sales material, quotations, and staff activity together.
-                </p>
+            <div className="mx-auto max-w-3xl text-center">
+              <span className="inline-flex items-center rounded-full bg-brand-50 px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-brand-700 ring-1 ring-brand-100">
+                Product modules
+              </span>
+              <h2 className="mt-4 text-3xl font-extrabold leading-tight text-gray-950 sm:text-4xl lg:text-5xl">
+                Everything your team uses, grouped the way they work.
+              </h2>
+              <p className="mx-auto mt-5 max-w-2xl leading-7 text-gray-600">
+                A simpler workspace with clear sections for selling, engaging leads, growing campaigns, and setting up the system.
+              </p>
+            </div>
 
-                {/* Floating product mockup with integration nodes */}
-                <div className="relative mx-auto mt-14 h-72 w-full max-w-sm sm:mt-16">
-                  <svg viewBox="0 0 320 260" className="pointer-events-none absolute inset-0 h-full w-full overflow-visible">
-                    <path d="M230,55 C255,65 270,75 262,95" fill="none" stroke="#c7d2fe" strokeWidth="1.5" strokeDasharray="3 3" />
-                    <path d="M235,120 C262,120 278,120 282,130" fill="none" stroke="#c7d2fe" strokeWidth="1.5" strokeDasharray="3 3" />
-                    <path d="M225,175 C250,185 262,190 262,200" fill="none" stroke="#c7d2fe" strokeWidth="1.5" strokeDasharray="3 3" />
-                  </svg>
-
-                  <div className="absolute left-0 top-6 w-[230px] rounded-2xl border border-gray-100 bg-white p-3 shadow-xl shadow-gray-200/70">
-                    <div className="flex items-center gap-1.5 border-b border-gray-100 pb-2">
-                      <div className="flex h-4 w-4 items-center justify-center rounded bg-brand-600"><Sparkles size={9} className="text-white" /></div>
-                      <span className="text-[11px] font-extrabold text-gray-900">CurveLead</span>
-                    </div>
-                    <div className="flex gap-2.5 pt-2.5">
-                      <div className="w-16 shrink-0 space-y-1">
-                        {[
-                          { icon: Users, label: 'Leads', active: true },
-                          { icon: MessageCircle, label: 'Conversations' },
-                          { icon: Megaphone, label: 'Campaigns' },
-                          { icon: BarChart3, label: 'Reports' },
-                          { icon: Users, label: 'Team' },
-                        ].map((item) => (
-                          <div key={item.label} className={`flex items-center gap-1 rounded px-1 py-0.5 text-[7.5px] font-medium ${item.active ? 'bg-brand-50 text-brand-700' : 'text-gray-400'}`}>
-                            <item.icon size={9} /> {item.label}
-                          </div>
-                        ))}
+            <div className="mt-12 grid gap-5 lg:grid-cols-2">
+              {featureGroups.map((group) => (
+                <div
+                  key={group.label}
+                  className="group overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-lg shadow-gray-200/60 transition-all duration-300 hover:-translate-y-1 hover:border-gray-200 hover:shadow-2xl hover:shadow-brand-100/70"
+                >
+                  <div className={`bg-gradient-to-r ${group.gradient} p-5 text-white`}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-xs font-bold uppercase tracking-wider text-white/70">{group.label}</p>
+                        <h3 className="mt-1 text-xl font-extrabold">{group.desc}</h3>
                       </div>
-                      <div className="flex-1 space-y-1.5">
-                        {[
-                          { tone: 'bg-emerald-50 text-emerald-700', tag: 'New' },
-                          { tone: 'bg-red-50 text-red-700', tag: 'Hot' },
-                          { tone: 'bg-amber-50 text-amber-700', tag: 'Warm' },
-                        ].map((row, i) => (
-                          <div key={i} className="flex items-center gap-1.5 rounded-lg border border-gray-100 px-1.5 py-1.5">
-                            <div className="h-4 w-4 shrink-0 rounded-full bg-gray-100" />
-                            <div className="h-1.5 flex-1 rounded-full bg-gray-100" />
-                            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[7px] font-bold ${row.tone}`}>{row.tag}</span>
-                          </div>
-                        ))}
-                      </div>
+                      <span className="rounded-full bg-white/15 px-3 py-1 text-xs font-bold ring-1 ring-white/20">
+                        {group.items.length} tools
+                      </span>
                     </div>
                   </div>
 
-                  {/* Integration nodes */}
-                  <div className="absolute right-6 top-0 flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-gray-100">
-                    <Target size={16} className="text-blue-600" />
-                  </div>
-                  <div className="absolute right-0 top-[108px] flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-gray-100">
-                    <Globe size={16} className="text-red-500" />
-                  </div>
-                  <div className="absolute right-4 top-[192px] flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-md ring-1 ring-gray-100">
-                    <MessageCircle size={16} className="text-emerald-600" />
-                  </div>
-
-                  {/* Floating stat chip */}
-                  <div className="absolute bottom-0 left-6 flex items-center gap-2 rounded-xl bg-white px-3 py-2 shadow-lg ring-1 ring-gray-100">
-                    <TrendingUp size={14} className="text-brand-600" />
-                    <div className="text-[10px] leading-3">
-                      <p className="font-bold text-gray-900">More conversations</p>
-                      <p className="text-gray-400">More customers</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Right: feature cards + Sell/Automate/Grow strip */}
-              <div>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  {features.map((feature, i) => {
-                    const accent = featureAccents[feature.accent] ?? { icon: 'bg-gray-100 text-gray-600', badge: 'bg-gray-100 text-gray-500', bar: 'bg-gray-400', blob: 'bg-gray-300' };
-                    return (
+                  <div className="grid gap-3 p-4 sm:grid-cols-2">
+                    {group.items.map((item) => (
                       <div
-                        key={feature.title}
-                        className="group relative overflow-hidden rounded-[20px] border border-gray-100 bg-white p-5 shadow-md shadow-gray-200/50 transition-all duration-300 hover:-translate-y-1.5 hover:border-gray-200 hover:shadow-2xl hover:shadow-violet-200/50"
+                        key={item.title}
+                        className="flex min-h-[116px] gap-3 rounded-xl border border-gray-100 bg-gray-50/70 p-4 transition-all hover:border-gray-200 hover:bg-white hover:shadow-md hover:shadow-gray-200/60"
                       >
-                        <div className={`pointer-events-none absolute -right-6 -top-6 h-20 w-20 rounded-full opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-50 ${accent.blob}`} />
-                        <span className={`absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold ${accent.badge}`}>0{i + 1}</span>
-                        <div className={`relative inline-flex h-11 w-11 items-center justify-center rounded-xl transition-transform duration-300 group-hover:scale-110 ${accent.icon}`}>
-                          <feature.icon size={21} />
+                        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ${group.tint}`}>
+                          <item.icon size={19} />
+                        </span>
+                        <div>
+                          <h4 className="text-sm font-bold text-gray-950">{item.title}{item.beta && <BetaChip />}</h4>
+                          <p className="mt-1.5 text-sm leading-5 text-gray-600">{item.desc}</p>
                         </div>
-                        <h3 className="relative mt-4 font-bold text-gray-950">{feature.title}</h3>
-                        <p className="relative mt-2 text-sm leading-6 text-gray-600">{feature.desc}</p>
-                        <div className={`relative mt-4 h-1 w-9 rounded-full ${accent.bar}`} />
                       </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-6 overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm">
-                  <div className="grid divide-y divide-gray-100 sm:grid-cols-3 sm:divide-y-0 sm:divide-x">
-                    {featureGroups.map((group, i) => {
-                      const GroupIcon = [Tag, Workflow, TrendingUp][i];
-                      return (
-                        <details key={group.label} className="group/acc">
-                          <summary className="flex cursor-pointer list-none items-center gap-2.5 px-5 py-4 transition-colors hover:bg-violet-50/50">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                              <GroupIcon size={15} />
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <p className="font-semibold text-gray-900">{group.label}</p>
-                              <p className="truncate text-xs text-gray-400">{group.items.map((it) => it.title).join(', ')}</p>
-                            </div>
-                            <ChevronDown size={16} className="shrink-0 text-gray-400 transition-transform group-open/acc:rotate-180" />
-                          </summary>
-                          <div className="space-y-3 px-5 pb-4">
-                            {group.items.map((item) => (
-                              <div key={item.title} className="flex gap-2.5">
-                                <item.icon size={16} className="mt-0.5 shrink-0 text-brand-600" />
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-900">{item.title}{item.beta && <BetaChip />}</p>
-                                  <p className="text-xs text-gray-500">{item.desc}</p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </details>
-                      );
-                    })}
+                    ))}
                   </div>
                 </div>
-              </div>
+              ))}
             </div>
           </Reveal>
         </section>
