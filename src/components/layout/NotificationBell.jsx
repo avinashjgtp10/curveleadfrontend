@@ -125,7 +125,7 @@ const NotificationBell = () => {
         <Bell size={20} className="text-gray-600" />
         {unread > 0 && (
           <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
-            {unread}
+            {unread > 99 ? '99+' : unread}
           </span>
         )}
       </button>
@@ -154,18 +154,18 @@ const NotificationBell = () => {
             ) : notifications.length === 0 ? (
               <p className="text-center text-sm text-gray-400 py-8">No notifications yet</p>
             ) : (
-              groupNotifications(notifications).map(([type,items])=><section key={type}><h4 className="px-4 py-2 text-xs font-semibold bg-gray-50 capitalize">{type.replace(/_/g,' ')}</h4>{items.map(n => (
+              groupNotifications(notifications).map(([type,items])=><details key={type} open={groupNotifications(notifications).length === 1}><summary className="px-4 py-2 text-xs font-semibold bg-gray-50 capitalize cursor-pointer">{type.replace(/_/g,' ')} <span className="text-gray-600">({items.length})</span></summary>{items.map(n => (
                 <button key={n.id} onClick={() => handleMarkRead(n)}
                   className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-gray-50 transition-colors border-b last:border-0 ${!n.is_read ? 'bg-blue-50/50' : ''}`}>
                   <div className="mt-0.5 shrink-0">{typeIcon(n.type)}</div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm ${!n.is_read ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>{n.title}</p>
                     {n.message && <p className="text-xs text-gray-500 truncate">{n.message}</p>}
-                    <p className="text-[10px] text-gray-400 mt-0.5">{timeAgo(n.created_at)}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{timeAgo(n.created_at)}</p>
                   </div>
                   {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />}
                 </button>
-              ))}</section>)
+              ))}</details>)
             )}
           </div>
         </div>

@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Mail, MessageSquare, CheckCircle } from 'lucide-react';
 import PublicPageLayout from '../components/layout/PublicPageLayout';
+import { supportAPI } from '../services/api';
 
 const ContactUsPage = () => {
   const [form, setForm] = useState({ name: '', email: '', phone: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
 
   const validate = () => {
@@ -22,12 +24,21 @@ const ContactUsPage = () => {
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: undefined }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const validationErrors = validate();
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
+    }
+    setSubmitting(true);
+    try {
+      await supportAPI.submitTicket(form);
+    } catch (err) {
+      console.error('Failed to submit support ticket:', err);
+      // Still fall through to the mailto fallback below so the message isn't lost.
+    } finally {
+      setSubmitting(false);
     }
     const subject = encodeURIComponent(`CurveLead Contact: ${form.name}`);
     const body = encodeURIComponent(
@@ -175,9 +186,10 @@ const ContactUsPage = () => {
 
                   <button
                     type="submit"
-                    className="w-full rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2"
+                    disabled={submitting}
+                    className="w-full rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-60"
                   >
-                    Send Message
+                    {submitting ? 'Sending…' : 'Send Message'}
                   </button>
 
                   <p className="text-xs text-center text-gray-400">

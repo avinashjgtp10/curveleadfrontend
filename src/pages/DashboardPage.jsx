@@ -1,7 +1,8 @@
+import { stageBadgeClass } from '../utils/stageStyles';
 import { formatMoney, formatNumber } from '../utils/locale';
 import EmptyState from '../components/ui/EmptyState';
 import { metricLeadLink, activityLeadLink } from '../utils/dashboardLinks';
-import { OnboardingChecklist, WhatsAppStatus } from '../components/workspace/Overview';
+import { OnboardingChecklist } from '../components/workspace/Overview';
 import OverdueReview from '../components/workspace/OverdueReview';
 import PageLoader from '../components/ui/PageLoader';
 import IntegrationHealthBanner from '../components/IntegrationHealthBanner';
@@ -9,10 +10,9 @@ import { sourceLabel } from '../utils/leadData.js';
 import { initials } from '../utils/leadData.js';
 import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
-import { useNavigate, useOutletContext } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { reportsAPI } from '../services/api';
 import { AreaChart, Area, LineChart as RLineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import NotificationBell from '../components/layout/NotificationBell';
 import DatePicker from '../components/ui/DatePicker';
 import {
   Users, Banknote, Target, Coins,
@@ -20,7 +20,7 @@ import {
   Calendar, Video, AlertTriangle, ChevronRight, ChevronDown, Flame, Clock,
   Zap, Sparkles, CheckCircle2, Megaphone, Send, UserX,
   GitBranch, UserCheck, PieChart, LineChart as LineChartIcon,
-  Menu, Infinity as InfinityIcon, PenLine, MessageCircle,
+  Infinity as InfinityIcon, PenLine, MessageCircle,
 } from 'lucide-react';
 
 const GoogleGIcon = ({ size = 15 }) => (
@@ -85,7 +85,7 @@ const Trend = ({ change }) => {
     </span>
   );
   return (
-    <span className="flex items-center gap-0.5 text-gray-400 text-xs">
+    <span className="flex items-center gap-0.5 text-gray-600 text-xs">
       <Minus size={13} />0%
     </span>
   );
@@ -102,35 +102,10 @@ const periodCaptionFor = (period, from, to) => period === 'this_month' ? 'this m
   : period === 'last_month' ? 'last month'
   : from && to ? `${from} – ${to}` : 'in this period';
 
-const STATUS_STYLE = {
-  new: 'bg-blue-100 text-blue-700',
-  contacted: 'bg-teal-100 text-teal-700',
-  qualified: 'bg-purple-100 text-purple-700',
-  demo: 'bg-orange-100 text-orange-700',
-  proposal: 'bg-amber-100 text-amber-700',
-  negotiation: 'bg-pink-100 text-pink-700',
-  won: 'bg-emerald-100 text-emerald-700',
-  lost: 'bg-gray-200 text-gray-600',
-  follow: 'bg-indigo-100 text-indigo-700',
-  unqualified: 'bg-red-100 text-red-600',
-};
-
-const statusStyleFor = (stageKey) => {
-  const found = Object.keys(STATUS_STYLE).find(k => stageKey.startsWith(k));
-  return found ? STATUS_STYLE[found] : 'bg-gray-100 text-gray-600';
-};
-
-const TEMP_STYLE = {
-  hot: 'bg-red-100 text-red-600',
-  warm: 'bg-amber-100 text-amber-600',
-  cold: 'bg-gray-100 text-gray-500',
-};
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const DashboardPage = () => {
   const navigate = useNavigate();
-  const { onMenuClick } = useOutletContext() || {};
   const [data, setData] = useState(null);
   const [loadError,setLoadError]=useState('');
   const [loading, setLoading] = useState(true);
@@ -232,9 +207,7 @@ const DashboardPage = () => {
       {/* ── Page Header ── */}
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="flex items-start gap-2">
-          <button onClick={onMenuClick} className="lg:hidden p-2 -ml-2 mt-0.5 hover:bg-gray-100 rounded-lg shrink-0"><Menu size={20} /></button>
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
             <p className="text-sm text-gray-500 mt-0.5">Track your leads, team activity and business performance.</p>
           </div>
         </div>
@@ -246,27 +219,26 @@ const DashboardPage = () => {
                   period === opt.id ? 'text-gray-900 font-semibold bg-gray-50' : 'text-gray-500 hover:bg-gray-50'
                 }`}>
                 {opt.label}
-                {opt.id === 'this_month' && <ChevronDown size={14} className="text-gray-400" />}
-                {opt.id === 'custom' && <ChevronRight size={14} className="text-gray-400" />}
+                {opt.id === 'this_month' && <ChevronDown size={14} className="text-gray-600" />}
+                {opt.id === 'custom' && <ChevronRight size={14} className="text-gray-600" />}
               </button>
             ))}
           </div>
           {period === 'custom' && (
             <div className="flex items-center gap-2">
               <DatePicker value={customFrom} onChange={setCustomFrom} className="w-32" />
-              <span className="text-xs text-gray-400">to</span>
+              <span className="text-xs text-gray-600">to</span>
               <DatePicker value={customTo} onChange={setCustomTo} className="w-32" />
             </div>
           )}
           {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full" />}
-          <WhatsAppStatus/><NotificationBell />
         </div>
       </div>
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {kpiCards.map(s => (
-          <button onClick={()=>navigate(metricLeadLink(data?.metrics,{metric:s.label==='Total Leads'?'created':'won'}))} key={s.label} className="text-left bg-white rounded-2xl p-5 border border-gray-100 shadow-sm relative overflow-hidden">
+          <button onClick={()=>navigate(metricLeadLink(data?.metrics,{metric:s.label==='Total Leads'?'created':'won'}))} key={s.label} className="text-left flex flex-col bg-white rounded-2xl p-5 border border-gray-200 shadow-sm relative overflow-hidden">
             <div className="flex items-center justify-between">
               <div className={`w-11 h-11 ${s.iconBg} rounded-full flex items-center justify-center shrink-0`}>
                 <s.icon size={20} strokeWidth={2} className="w-5 h-5 shrink-0" />
@@ -287,17 +259,17 @@ const DashboardPage = () => {
                 </ResponsiveContainer>
               </div>
             </div>
-            <p className="text-sm text-gray-500 mt-3">{s.label}</p><p className="text-xs text-gray-400">{period==='custom'?`${customFrom} – ${customTo}`:period.replace(/_/g,' ')}</p>
+            <p className="text-sm text-gray-500 mt-3">{s.label}</p><p className="text-xs text-gray-600 min-h-8 sm:min-h-4">{period==='custom'?`${customFrom} – ${customTo}`:period.replace(/_/g,' ')}</p>
             <div className="flex items-center gap-2 mt-0.5">
               <p className="text-2xl font-bold text-gray-900 tracking-tight">{s.value}</p>
             </div>
             {s.trend !== undefined ? (
-              <div className="mt-1">
+              <div className="mt-1 min-h-10">
                 <Trend change={s.trend} />
-                <span className="text-[11px] text-gray-400 ml-1">vs previous period</span>
+                <span className="text-xs text-gray-600 ml-1">vs previous period</span>
               </div>
             ) : (
-              <p className="text-[11px] text-gray-400 mt-1">{s.sub}</p>
+              <p className="text-xs text-gray-600 mt-1 min-h-10">{s.sub}</p>
             )}
           </button>
         ))}
@@ -307,30 +279,30 @@ const DashboardPage = () => {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         {/* Pipeline */}
-        <div className="lg:col-span-3 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <div className="lg:col-span-3 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-              <GitBranch size={16} className="text-gray-400" />
+              <GitBranch size={16} className="text-gray-600" />
               Lead Pipeline
-              <span className="text-xs font-normal text-gray-400">· leads created {periodCaption}</span>
+              <span className="text-xs font-normal text-gray-600">· leads created {periodCaption}</span>
             </h3>
             <button onClick={() => navigate('/leads?view=pipeline')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
             </button>
           </div>
-          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(105px, 1fr))' }}>
+          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
             {(data?.pipeline || []).map(stage => {
               const pct = Math.round((stage.count / pipelineTotal) * 100);
               const bar = STAGE_COLOR[stage.color] || STAGE_COLOR.gray;
               return (
                 <button key={stage.name} onClick={() => navigate(metricLeadLink(data?.metrics,{stage:stage.name}))}
-                  className="text-left group border border-gray-100 rounded-xl p-2.5 hover:shadow-sm hover:border-gray-200 transition-all min-w-0">
-                  <p className="text-[11px] font-semibold leading-snug flex items-start gap-0.5" style={{ color: bar }}>
-                    <span className="break-words">{stage.name}</span>
+                  className="text-left group bg-gray-50 rounded-xl p-2.5 hover:shadow-sm hover:border-gray-200 transition-all min-w-0">
+                  <p className="text-xs font-semibold leading-snug flex items-start gap-0.5" style={{ color: bar }}>
+                    <span className="break-words" title={stage.name}>{stage.name}</span>
                     <ChevronRight size={11} className="text-gray-300 shrink-0 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
                   </p>
                   <p className="text-lg font-bold text-gray-900 mt-1.5">{stage.count}</p>
-                  <p className="text-[10px] text-gray-400">{pct}%</p>
+                  <p className="text-xs text-gray-600">{pct}%</p>
                   <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1.5">
                     <div className="h-full rounded-full" style={{ width: `${pct}%`, background: bar }} />
                   </div>
@@ -338,13 +310,13 @@ const DashboardPage = () => {
               );
             })}
             {!data?.pipeline?.length && (
-              <p className="text-sm text-gray-400 text-center py-6">No stages configured yet</p>
+              <p className="text-sm text-gray-600 text-center py-6">No stages configured yet</p>
             )}
           </div>
         </div>
 
         {/* Recent leads */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-semibold text-gray-900">Recent Leads</h3>
             <button onClick={() => navigate('/leads')}
@@ -355,7 +327,7 @@ const DashboardPage = () => {
           <div className="overflow-hidden">
             <table className="w-full text-sm table-fixed">
               <thead>
-                <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
+                <tr className="text-xs text-gray-600 uppercase tracking-wide border-b">
                   <th className="text-left pb-2 font-semibold">Name</th>
                   <th className="text-left pb-2 font-semibold whitespace-nowrap w-28">Stage</th>
                   <th className="pb-2 w-6"></th>
@@ -364,23 +336,20 @@ const DashboardPage = () => {
               <tbody>
                 {(data?.recentLeads || []).map(l => {
                   const stageKey = (l.stage || 'new').toLowerCase();
-                  const tempKey = (l.lead_score || 'new').toLowerCase();
                   return (
                     <tr key={l.id} onClick={() => navigate('/leads', { state: { openLeadId: l.id } })}
-                      className="border-b last:border-0 hover:bg-gray-50/70 cursor-pointer transition-colors">
+                      className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 cursor-pointer transition-colors">
                       <td className="py-2.5 min-w-0">
                         <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-7 h-7 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-[11px] font-bold text-gray-600 shrink-0">
+                          <div className="w-7 h-7 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">
                             {initials(l.name, 1)}
                           </div>
-                          <span className="font-medium text-gray-800 truncate" title={l.name}>{l.name}</span>
-                          <span className={`shrink-0 text-[10px] font-semibold px-1.5 py-0.5 rounded-full capitalize ${TEMP_STYLE[tempKey] || 'bg-gray-100 text-gray-500'}`}>
-                            {l.lead_score || 'New'}
-                          </span>
+                          <span className="font-medium text-gray-800 break-words" title={l.name}>{l.name}</span>
+
                         </div>
                       </td>
                       <td className="py-2.5 pl-2">
-                        <span className={`inline-block max-w-full truncate align-bottom text-[11px] font-semibold px-2 py-0.5 rounded-full capitalize ${statusStyleFor(stageKey)}`} title={l.stage}>
+                        <span className={`inline-block max-w-full truncate align-bottom text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${stageBadgeClass(stageKey)}`} title={l.stage}>
                           {l.stage}
                         </span>
                       </td>
@@ -391,7 +360,7 @@ const DashboardPage = () => {
               </tbody>
             </table>
             {!data?.recentLeads?.length && (
-              <p className="text-sm text-gray-400 text-center py-8">No leads yet</p>
+              <p className="text-sm text-gray-600 text-center py-8">No leads yet</p>
             )}
           </div>
         </div>
@@ -400,7 +369,7 @@ const DashboardPage = () => {
       {/* ── Today's Activity + Automation & AI ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
               <span className="w-6 h-6 rounded-md bg-blue-100 text-blue-500 flex items-center justify-center">
@@ -412,15 +381,15 @@ const DashboardPage = () => {
               View all <ChevronRight size={12} />
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {activityItems.map(item => (
               <button key={item.label} onClick={() => navigate(item.to)}
-                className="text-left border border-gray-100 rounded-xl p-3 hover:shadow-sm hover:border-gray-200 transition-all">
+                className="text-left bg-gray-50 rounded-xl p-3 hover:shadow-sm hover:border-gray-200 transition-all">
                 <div className="flex items-center gap-2">
                   <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
                     <item.icon size={14} />
                   </span>
-                  <span className="min-w-0 text-xs text-gray-500">{item.label}<span className="block text-[10px] text-gray-400">{item.period || 'Today'}</span></span>
+                  <span className="min-w-0 text-xs text-gray-500">{item.label}<span className="block text-xs text-gray-600">{item.period || 'Today'}</span></span>
                 </div>
                 <p className={`text-xl font-bold mt-1.5 ${item.value > 0 ? item.valueCls : 'text-gray-900'}`}>{item.value}</p>
               </button>
@@ -428,10 +397,10 @@ const DashboardPage = () => {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-              <Sparkles size={16} className="text-gray-400" />
+              <Sparkles size={16} className="text-gray-600" />
               Automation & AI
             </h3>
             <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
@@ -441,12 +410,12 @@ const DashboardPage = () => {
           <div>
             {automationItems.map((item, i) => (
               <button key={item.label} onClick={() => navigate(activityLeadLink(item.activity))}
-                className={`w-full flex items-center gap-3 py-3 hover:bg-gray-50 px-1 -mx-1 transition-colors text-left ${i > 0 ? 'border-t border-gray-100' : ''}`}>
+                className={`w-full flex items-center gap-3 py-3 hover:bg-gray-50 px-1 -mx-1 transition-colors text-left ${i > 0 ? 'border-t border-gray-200' : ''}`}>
                 <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
                   <item.icon size={16} />
                 </span>
                 <div>
-                  <p className="text-xs text-gray-500">{item.label}</p><p className="text-[10px] text-gray-400">{item.period || 'Today'}</p>
+                  <p className="text-xs text-gray-500">{item.label}</p><p className="text-xs text-gray-600">{item.period || 'Today'}</p>
                   <p className="text-lg font-bold text-gray-900 leading-tight">{item.value}</p>
                 </div>
               </button>
@@ -456,10 +425,10 @@ const DashboardPage = () => {
       </div>
 
       {/* ── Automation activity · unique leads ── */}
-      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+      <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-            <Zap size={16} className="text-gray-400" />
+            <Zap size={16} className="text-gray-600" />
             Automation activity · unique leads
           </h3>
           <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
@@ -468,12 +437,12 @@ const DashboardPage = () => {
         </div>
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
           {automatedItems.map(item => (
-            <button onClick={()=>navigate(activityLeadLink(item.activity))} key={item.label} className="text-left border border-gray-100 rounded-xl p-3">
+            <button onClick={()=>navigate(activityLeadLink(item.activity))} key={item.label} className="text-left bg-gray-50 rounded-xl p-3">
               <div className="flex items-center gap-2">
                 <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
                   <item.icon size={14} />
                 </span>
-                <span className="min-w-0 text-xs text-gray-500">{item.label}<span className="block text-[10px] text-gray-400">{item.period || 'Today'}</span></span>
+                <span className="min-w-0 text-xs text-gray-500">{item.label}<span className="block text-xs text-gray-600">{item.period || 'Today'}</span></span>
               </div>
               <p className="text-xl font-bold mt-1.5 text-gray-900">{item.value}</p>
             </button>
@@ -499,12 +468,12 @@ const DashboardPage = () => {
       {/* ── Lead Sources + Team Performance ── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-              <PieChart size={16} className="text-gray-400" />
+              <PieChart size={16} className="text-gray-600" />
               Lead Sources
-              <span className="text-xs font-normal text-gray-400">· {periodCaption}</span>
+              <span className="text-xs font-normal text-gray-600">· {periodCaption}</span>
             </h3>
             <button onClick={() => navigate('/leads')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
@@ -520,7 +489,7 @@ const DashboardPage = () => {
                   <col style={{ width: '96px' }} />
                 </colgroup>
                 <thead>
-                  <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
+                  <tr className="text-xs text-gray-600 uppercase tracking-wide border-b">
                     <th className="text-left pb-2 font-semibold whitespace-nowrap">Source</th>
                     <th className="text-right pb-2 font-semibold whitespace-nowrap">Leads</th>
                     <th className="text-right pb-2 font-semibold whitespace-nowrap">Won</th>
@@ -529,9 +498,9 @@ const DashboardPage = () => {
                 </thead>
                 <tbody>
                   {data.sources.map(s => {
-                    const meta = SOURCE_ICON[s.source?.toLowerCase()] || { icon: Megaphone, cls: 'text-gray-400' };
+                    const meta = SOURCE_ICON[s.source?.toLowerCase()] || { icon: Megaphone, cls: 'text-gray-600' };
                     return (
-                      <tr key={sourceLabel(s.source)} className="border-b last:border-0 hover:bg-gray-50/70 transition-colors">
+                      <tr key={sourceLabel(s.source)} className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 transition-colors">
                         <td className="py-2.5 min-w-0">
                           <div className="flex items-center gap-2 min-w-0">
                             <meta.icon size={15} className={`${meta.cls} shrink-0`} />
@@ -542,7 +511,7 @@ const DashboardPage = () => {
                         <td className="py-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap">{s.won}</td>
                         <td className="py-2.5 whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
-                            <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
                               parseFloat(s.conversion_rate) >= 20 ? 'bg-emerald-100 text-emerald-700' :
                               parseFloat(s.conversion_rate) >= 10 ? 'bg-amber-100 text-amber-700' :
                                                                     'bg-gray-100 text-gray-500'
@@ -560,23 +529,23 @@ const DashboardPage = () => {
           )}
         </div>
 
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-              <UserCheck size={16} className="text-gray-400" />
+              <UserCheck size={16} className="text-gray-600" />
               Team Performance
-              <span className="text-xs font-normal text-gray-400">· {periodCaption}</span>
+              <span className="text-xs font-normal text-gray-600">· {periodCaption}</span>
             </h3>
             <button onClick={() => navigate('/staff')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
             </button>
           </div>
           {(data?.team || []).length > 0 ? (
-            <div className="overflow-hidden">
-              <table className="w-full text-sm table-fixed">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] text-sm table-fixed">
                 <thead>
-                  <tr className="text-[10px] text-gray-400 uppercase tracking-wide border-b">
-                    <th className="text-left pb-2 font-semibold">Member</th>
+                  <tr className="text-xs text-gray-600 uppercase tracking-wide border-b">
+                    <th className="text-left pb-2 font-semibold w-40">Member</th>
                     <th className="text-right pb-2 font-semibold w-12">Leads</th>
                     <th className="text-right pb-2 font-semibold w-12">Won</th>
                     <th className="text-right pb-2 font-semibold w-20">Revenue</th>
@@ -585,10 +554,10 @@ const DashboardPage = () => {
                 </thead>
                 <tbody>
                   {data.team.map((t) => (
-                    <tr key={t.name} className="border-b last:border-0 hover:bg-gray-50/70 transition-colors">
+                    <tr key={t.name} className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 transition-colors">
                       <td className="py-2.5 truncate">
                         <div className="flex items-center gap-1.5 min-w-0">
-                          <div className="w-6 h-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-[10px] font-bold text-gray-600 shrink-0">
+                          <div className="w-6 h-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">
                             {initials(t.name, 1)}
                           </div>
                           <span className="font-medium text-gray-700 truncate" title={t.name}>{t.name}</span>
@@ -604,21 +573,21 @@ const DashboardPage = () => {
               </table>
             </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-8">No team data yet</p>
+            <p className="text-sm text-gray-600 text-center py-8">No team data yet</p>
           )}
         </div>
       </div>
 
       {/* ── Lead Trend ── */}
       {trendData.length > 1 && (
-        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
             <div>
               <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                <LineChartIcon size={16} className="text-gray-400" />
+                <LineChartIcon size={16} className="text-gray-600" />
                 Lead Trend
               </h3>
-              <p className="text-xs text-gray-400 mt-0.5">Lead activity over the selected period</p>
+              <p className="text-xs text-gray-600 mt-0.5">Lead activity over the selected period</p>
             </div>
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1.5 text-sm text-gray-600">

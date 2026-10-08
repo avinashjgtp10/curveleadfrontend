@@ -1,3 +1,4 @@
+import AutomationRecovery from '../components/lead/AutomationRecovery';
 import { isBookingType, notifyBookingWhatsApp } from '../utils/bookingMessages.js';
 import { normalizePhone } from '../utils/leadData.js';
 import { sourceLabel } from '../utils/leadData.js';
@@ -646,6 +647,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const automationStatusStyle = {
     active:    { label: 'Active',    cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
     completed: { label: 'Completed', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500' },
+    blocked: { label: 'Blocked', cls: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
+    failed: { label: 'Failed', cls: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
+    uncertain: { label: 'Uncertain', cls: 'bg-amber-50 text-amber-800', dot: 'bg-amber-500' },
+    human_review: { label: 'Needs review', cls: 'bg-amber-50 text-amber-800', dot: 'bg-amber-500' },
+    awaiting_reply: { label: 'Awaiting reply', cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
     cancelled: { label: 'Cancelled', cls: 'bg-gray-100 text-gray-500', dot: 'bg-gray-400' },
   };
 
@@ -794,6 +800,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       className={`w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 ${leadFormErrors.email ? 'border-red-500' : ''}`} />
                     {leadFormErrors.email && <p className="text-xs text-red-500 mt-1">{leadFormErrors.email}</p>}
                   </div>
+                  <div><label className="block text-xs text-gray-600 mb-1">Product interest</label><input value={form.product || ''} onChange={e => setForm({ ...form, product: e.target.value })} className="w-full border rounded-lg p-2 text-sm" /></div>
                   <div>
                     <label className="text-xs text-gray-500">Business Name</label>
                     <input value={form.business_name || ''} onChange={e => setForm({ ...form, business_name: e.target.value })}
@@ -1381,6 +1388,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                 </span>
               </div>
 
+              <div className="p-5"><AutomationRecovery enrollment={enrollment} onRecovered={async () => { const { data } = await automationAPI.getEnrollments([id]); setEnrollment(data.enrollments?.[id] || null); }} /></div>
               <div className="p-5 grid grid-cols-2 gap-x-4 gap-y-5">
                 <div className="col-span-2">
                   <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Sequence</p>
