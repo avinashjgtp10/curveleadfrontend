@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Bot, ChevronLeft, ChevronRight, Info, Minus, Search, Send, Sparkles, X } from 'lucide-react';
+import { Bot, ChevronLeft, ChevronRight, Info, MessageCircle, Minus, PhoneCall, Search, Send, Sparkles, X } from 'lucide-react';
 import {
   answerFeature, answerQuestion,
   CATEGORIES, CURATED_QUESTIONS, QUESTIONS_BY_CATEGORY, ALL_QUESTIONS,
@@ -85,6 +85,27 @@ const TypingBubble = () => (
         <span key={i} className="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" style={{ animationDelay: `${i * 0.15}s` }} />
       ))}
     </div>
+  </div>
+);
+
+const ContactActions = () => (
+  <div className="mt-5 grid grid-cols-2 gap-2 text-left">
+    <a
+      href="https://wa.me/919999999999?text=Hi%20CurveLead%2C%20I%20want%20to%20learn%20more%20about%20the%20platform."
+      target="_blank"
+      rel="noreferrer"
+      className="flex items-center justify-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+    >
+      <MessageCircle size={15} />
+      WhatsApp
+    </a>
+    <a
+      href="tel:+919999999999"
+      className="flex items-center justify-center gap-2 rounded-xl border border-brand-100 bg-brand-50 px-3 py-2.5 text-xs font-bold text-brand-700 hover:bg-brand-100"
+    >
+      <PhoneCall size={15} />
+      Call
+    </a>
   </div>
 );
 
@@ -250,6 +271,7 @@ const LandingAiAgent = () => {
                   <p className="mx-auto mt-2 max-w-[15rem] text-xs leading-5 text-gray-500">
                     Ask me anything about CurveLead. I can explain features, guide you through workflows, and give you a product demo.
                   </p>
+                  <ContactActions />
                   <div className="mt-5 flex flex-col gap-2 text-left">
                     {CURATED_QUESTIONS.map((q) => (
                       <button

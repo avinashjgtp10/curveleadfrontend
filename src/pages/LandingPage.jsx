@@ -19,7 +19,6 @@ import {
   Lightbulb,
   Menu,
   MessageCircle,
-  PhoneCall,
   Plug,
   Settings,
   Share2,
@@ -132,71 +131,6 @@ const featureGroups = [
 
 const BetaChip = () => <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 align-middle text-[10px] font-semibold text-amber-800">Beta</span>;
 
-const FloatingSupportTray = () => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  if (!isOpen) {
-    return (
-      <div className="fixed bottom-5 left-5 z-50">
-        <button
-          type="button"
-          onClick={() => setIsOpen(true)}
-          aria-label="Open support tray"
-          className="group relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-brand-500 via-brand-600 to-violet-700 text-white shadow-2xl shadow-brand-500/35 ring-4 ring-white transition-all hover:-translate-y-1 hover:scale-105"
-        >
-          <span className="absolute inset-0 rounded-full bg-white/20 opacity-0 transition-opacity group-hover:opacity-100" />
-          <MessageCircle size={23} className="relative" />
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed bottom-5 left-5 z-50 flex items-end gap-3">
-      <div className="w-[240px] rounded-2xl border border-white/70 bg-white/95 p-2 shadow-2xl shadow-slate-300/60 ring-1 ring-slate-200 backdrop-blur">
-        <a
-          href="https://wa.me/919999999999?text=Hi%20CurveLead%2C%20I%20want%20to%20learn%20more%20about%20the%20platform."
-          target="_blank"
-          rel="noreferrer"
-          className="group flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-emerald-50"
-          aria-label="Chat on WhatsApp"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white shadow-md shadow-emerald-500/25 transition-transform group-hover:scale-105">
-            <MessageCircle size={20} />
-          </span>
-          <span>
-            <span className="block text-sm font-bold text-slate-900">WhatsApp</span>
-            <span className="block text-xs text-slate-500">Quick chat support</span>
-          </span>
-        </a>
-
-        <a
-          href="tel:+919999999999"
-          className="group mt-1 flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-brand-50"
-          aria-label="Call Support"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 via-brand-600 to-violet-700 text-white shadow-md shadow-brand-500/25 transition-transform group-hover:scale-105">
-            <PhoneCall size={20} />
-          </span>
-          <span>
-            <span className="block text-sm font-bold text-slate-900">Call</span>
-            <span className="block text-xs text-slate-500">Talk to our team</span>
-          </span>
-        </a>
-      </div>
-
-      <button
-        type="button"
-        onClick={() => setIsOpen(false)}
-        aria-label="Close support tray"
-        className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-950 text-white shadow-2xl shadow-slate-400/50 ring-4 ring-white transition-all hover:-translate-y-1 hover:scale-105 hover:bg-brand-700"
-      >
-        <X size={21} />
-      </button>
-    </div>
-  );
-};
-
 const plans = [
   { name: 'Free', monthly: '$0', yearly: '$0', sub: 'for getting started', features: ['20 leads', '1 user', 'Pipeline', 'Email support'] },
   { name: 'Starter', monthly: '$9', yearly: '$90', features: ['100 leads', '1 user', 'Meta Ads capture', 'WhatsApp inbox'] },
@@ -305,8 +239,6 @@ const LandingPage = () => {
           </div>
         )}
       </nav>
-
-      <FloatingSupportTray />
 
       <main>
         <section className="relative overflow-hidden bg-gray-950 px-4 pb-20 pt-32 sm:px-6">
