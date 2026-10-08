@@ -30,11 +30,17 @@ const LoginPage = () => {
 
   const handlePasswordLogin = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError('');
+
+    // Trim stray whitespace from copy/paste or autofill — a leading/trailing
+    // space silently turns a correct password into a rejected one.
+    const email = form.email.trim();
+    const password = form.password.trim();
+
+    setLoading(true);
     try {
-      await login({ email: form.email, password: form.password });
-      navigate('/dashboard');
+      const data = await login({ email, password });
+      navigate(data.user?.role === 'super_admin' ? '/super-admin/dashboard' : '/dashboard');
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed.');
     } finally {
