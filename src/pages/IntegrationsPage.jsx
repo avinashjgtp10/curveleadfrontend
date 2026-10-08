@@ -1,23 +1,40 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI } from '../services/api';
-import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff } from 'lucide-react';
+import StatusBadge from '../components/ui/StatusBadge';
+import { integrationsAPI, aiCallingAPI, googleAdsIntegrationsAPI, staffAPI, teamAPI, leadAPI, featureAPI } from '../services/api';
+import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLeft, Zap, Globe, BarChart2, ChevronRight, Lock, LogIn, Users, RotateCcw, Plus, Eye, EyeOff, Infinity as InfinityIcon } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
+import { FB_LOGIN_CONFIG_ID, loadFbSdk } from '../utils/facebookSdk';
 
-const FB_APP_ID = import.meta.env.VITE_FACEBOOK_APP_ID || '1551778202757963';
-const FB_LOGIN_CONFIG_ID = import.meta.env.VITE_FACEBOOK_LOGIN_CONFIG_ID || '4416725028596340';
+const GoogleGIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48">
+    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.8 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.5 29.6 3.5 24 3.5 12.7 3.5 3.5 12.7 3.5 24S12.7 44.5 24 44.5 44.5 35.3 44.5 24c0-1.2-.1-2.4-.3-3.5z"/>
+    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 6.5 29.6 4.5 24 4.5c-7.6 0-14.1 4.3-17.7 10.6z"/>
+    <path fill="#4CAF50" d="M24 44.5c5.5 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.6 35.6 26.9 36.5 24 36.5c-5.3 0-9.7-3.4-11.3-8.2l-6.6 5.1C9.8 40.1 16.4 44.5 24 44.5z"/>
+    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.7 2.1-2.1 3.9-3.8 5.1l6.6 5.4C41.6 35.6 44.5 30.2 44.5 24c0-1.2-.1-2.4-.9-3.5z"/>
+  </svg>
+);
 
-const loadFbSdk = () =>
-  new Promise((resolve) => {
-    if (window.FB) return resolve(window.FB);
-    window.fbAsyncInit = () => {
-      window.FB.init({ appId: FB_APP_ID, version: 'v25.0', xfbml: false, cookie: true });
-      resolve(window.FB);
-    };
-    const s = document.createElement('script');
-    s.src = 'https://connect.facebook.net/en_US/sdk.js';
-    s.async = true;
-    document.head.appendChild(s);
-  });
+const WhatsAppIcon = ({ size = 20 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="16" fill="#25D366" />
+    <path fill="#fff" d="M22.7 9.3a8.9 8.9 0 0 0-14.1 10.7L7.3 24l4.1-1.3a8.9 8.9 0 0 0 12.6-11.8 8.9 8.9 0 0 0-1.3-1.6zm-6.6 13.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.8.9.9-2.7-.2-.3a7.4 7.4 0 1 1 6.2 3.3zm4.1-5.5c-.2-.1-1.3-.7-1.5-.7-.2-.1-.4-.1-.5.1s-.6.7-.7.9c-.1.1-.3.2-.5.1a6 6 0 0 1-1.8-1.1 6.7 6.7 0 0 1-1.2-1.5c-.1-.2 0-.3.1-.4l.4-.4.2-.3c.1-.1 0-.3 0-.4l-.6-1.5c-.2-.4-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 1.9s.8 2.2.9 2.4c.1.1 1.6 2.5 3.9 3.5.5.2.9.4 1.3.5.5.2 1 .1 1.4.1.4-.1 1.3-.5 1.5-1 .2-.5.2-.9.1-1z"/>
+  </svg>
+);
+
+// Facebook Login for Business configuration of type "WhatsApp Embedded Signup".
+// Without it, only manual credential entry is offered.
+const WA_SIGNUP_CONFIG_ID = import.meta.env.VITE_WHATSAPP_SIGNUP_CONFIG_ID || '';
+
+// Embedded Signup reports the chosen WABA and number via postMessage, which can
+// arrive just before or after FB.login's callback — wait briefly for it.
+const waitFor = (ref, ms = 4000) => new Promise((resolve) => {
+  const started = Date.now();
+  const tick = () => (ref.current || Date.now() - started > ms ? resolve(ref.current) : setTimeout(tick, 100));
+  tick();
+});
+
 
 // ── Shared helpers ─────────────────────────────────────────────────────────
 
@@ -58,7 +75,7 @@ const INTEGRATIONS = [
     id: 'meta',
     label: 'Facebook / Instagram',
     description: 'Capture leads from Facebook & Instagram Lead Ads automatically.',
-    emoji: '📘',
+    icon: <InfinityIcon size={20} className="text-blue-500" />,
     bg: 'bg-blue-50',
     border: 'border-blue-100',
     category: 'Ads',
@@ -67,9 +84,9 @@ const INTEGRATIONS = [
   },
   {
     id: 'google',
-    label: 'Google Ads',
-    description: 'Capture leads from Google Lead Form Assets in real-time.',
-    emoji: '🟢',
+    label: 'Google Ads Lead Forms',
+    description: 'Capture leads from Google Ads lead form assets in real time (webhook).',
+    icon: <GoogleGIcon size={20} />,
     bg: 'bg-green-50',
     border: 'border-green-100',
     category: 'Ads',
@@ -113,11 +130,12 @@ const INTEGRATIONS = [
     id: 'whatsapp',
     label: 'WhatsApp Business API',
     description: 'Auto-send appointment & demo confirmations to leads via WhatsApp.',
-    emoji: '💬',
+    icon: <WhatsAppIcon size={20} />,
     bg: 'bg-green-50',
     border: 'border-green-100',
     category: 'Messaging',
     live: true,
+    isConfigured: s => s.whatsapp_configured,
   },
   {
     id: null,
@@ -236,6 +254,7 @@ const CATEGORIES = ['All', 'Ads', 'Website', 'Forms', 'Marketplace', 'Automation
 // ── Config panels ──────────────────────────────────────────────────────────
 
 const MetaConfig = ({ settings, onRefresh }) => {
+  const toast = useToast();
   const [pages, setPages] = useState(null);
   const [connecting, setConnecting] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -249,11 +268,6 @@ const MetaConfig = ({ settings, onRefresh }) => {
   const [capiSaving, setCapiSaving] = useState(false);
   const [capiError, setCapiError] = useState('');
   const [capiStats, setCapiStats] = useState(null);
-  const [adAccounts, setAdAccounts] = useState(null);
-  const [loadingAdAccounts, setLoadingAdAccounts] = useState(false);
-  const [adAccountsError, setAdAccountsError] = useState('');
-  const [insightsSyncing, setInsightsSyncing] = useState(false);
-  const [insightsSyncResult, setInsightsSyncResult] = useState(null);
 
   // Load SDK on mount so FB.login() can be called synchronously on click
   useEffect(() => {
@@ -272,19 +286,19 @@ const MetaConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(capiForm);
       await onRefresh();
-      alert('Meta Conversions API settings saved.');
+      toast.success('Meta Conversions API settings saved.');
     } catch (e) { setCapiError(e.response?.data?.error || 'Failed to save'); }
     finally { setCapiSaving(false); }
   };
 
   const handleFbLogin = useCallback(() => {
-    if (!window.FB) return alert('Facebook SDK not loaded yet. Please wait a moment and try again.');
+    if (!window.FB) return toast.error('Facebook SDK not loaded yet. Please wait a moment and try again.');
     setConnecting(true);
     window.FB.login((authResp) => {
       if (authResp.status !== 'connected') { setConnecting(false); return; }
       integrationsAPI.facebookAuth(authResp.authResponse.accessToken)
         .then(({ data }) => { setPages(data.pages); setConnecting(false); })
-        .catch(e => { alert(e.response?.data?.error || 'Facebook auth failed.'); setConnecting(false); });
+        .catch(e => { toast.error(e.response?.data?.error || 'Facebook auth failed.'); setConnecting(false); });
     }, { config_id: FB_LOGIN_CONFIG_ID });
   }, []);
 
@@ -293,7 +307,7 @@ const MetaConfig = ({ settings, onRefresh }) => {
       await integrationsAPI.facebookConnectPage({ page_id: page.id, page_access_token: page.access_token, page_name: page.name });
       setPages(null);
       onRefresh();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to connect page.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to connect page.'); }
   };
 
   const handleSync = async () => {
@@ -305,48 +319,13 @@ const MetaConfig = ({ settings, onRefresh }) => {
     finally { setSyncing(false); }
   };
 
-  const handleLoadAdAccounts = async () => {
-    setLoadingAdAccounts(true); setAdAccountsError('');
-    try {
-      const { data } = await integrationsAPI.getAdAccounts();
-      setAdAccounts(data.ad_accounts);
-    } catch (e) {
-      setAdAccountsError(e.response?.data?.error || 'Failed to load ad accounts.');
-    } finally { setLoadingAdAccounts(false); }
-  };
-
-  const handleSelectAdAccount = async (account) => {
-    try {
-      await integrationsAPI.updateSettings({ meta_ad_account_id: account.id });
-      setAdAccounts(null);
-      onRefresh();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save ad account.'); }
-  };
-
-  const handleChangeAdAccount = async () => {
-    try {
-      await integrationsAPI.updateSettings({ meta_ad_account_id: '' });
-      await onRefresh();
-      handleLoadAdAccounts();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to disconnect ad account.'); }
-  };
-
-  const handleSyncInsights = async () => {
-    setInsightsSyncing(true); setInsightsSyncResult(null);
-    try {
-      const { data } = await integrationsAPI.syncAdInsights();
-      setInsightsSyncResult(data.message);
-    } catch (e) { setInsightsSyncResult(e.response?.data?.error || 'Sync failed.'); }
-    finally { setInsightsSyncing(false); }
-  };
-
   const handleDisconnect = async () => {
     if (!window.confirm('Disconnect Facebook page? Real-time webhook will also stop.')) return;
     setDisconnecting(true);
     try {
       await integrationsAPI.updateSettings({ meta_page_id: '', meta_page_access_token: '' });
       onRefresh();
-    } catch { alert('Failed to disconnect.'); }
+    } catch { toast.error('Failed to disconnect.'); }
     finally { setDisconnecting(false); }
   };
 
@@ -384,7 +363,13 @@ const MetaConfig = ({ settings, onRefresh }) => {
           <div className="flex items-center gap-2">
             <CheckCircle size={18} className="text-green-500" />
             <div>
-              <p className="text-sm font-semibold text-green-800">Connected</p>
+              <p className="text-sm font-semibold text-green-800 flex items-center gap-2">Connected
+                {settings.meta_page_token_status === 'expired' && (
+                  <button onClick={handleFbLogin} disabled={connecting}
+                    title="Facebook ended this Page login, so lead-ad leads aren't being imported. Reconnect to resume."
+                    className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-100 text-red-700 hover:bg-red-200">Expired – Reconnect</button>
+                )}
+              </p>
               <p className="text-xs text-green-600">{settings.meta_page_name || `Page ID: ${settings.meta_page_id}`}</p>
             </div>
           </div>
@@ -431,68 +416,22 @@ const MetaConfig = ({ settings, onRefresh }) => {
         </div>
       )}
 
-      {/* Ad spend & performance sync */}
+      {/* Ad spend & performance — lives in Ads Manager */}
       {settings.meta_configured && (
         <div className="bg-white rounded-2xl border p-5 space-y-3">
           <div>
             <h2 className="font-semibold">Ad Spend & Performance</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Automatically sync spend, impressions and clicks from Meta Ads Manager into your campaigns — no more manual entry.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Ad accounts, spend, ad sets, ads and cost per lead are managed in Ads Manager, which also keeps your campaigns' spend up to date.</p>
           </div>
-
-          {settings.meta_ads_configured ? (
-            <>
-              <div className="flex items-center justify-between gap-2 bg-green-50 rounded-xl px-3 py-2">
-                <div className="flex items-center gap-2">
-                  <CheckCircle size={14} className="text-green-500 shrink-0" />
-                  <p className="text-xs text-green-700">Ad account connected: {settings.meta_ad_account_id}</p>
-                </div>
-                <button onClick={handleChangeAdAccount} className="text-xs text-green-700 hover:text-green-900 font-medium underline shrink-0">
-                  Change
-                </button>
-              </div>
-              {insightsSyncResult && (
-                <div className="flex items-start gap-2 bg-blue-50 rounded-xl px-3 py-2">
-                  <CheckCircle size={14} className="text-blue-500 shrink-0 mt-0.5" />
-                  <p className="text-xs text-blue-700">{insightsSyncResult}</p>
-                </div>
-              )}
-              <button onClick={handleSyncInsights} disabled={insightsSyncing}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-                <RotateCcw size={14} className={insightsSyncing ? 'animate-spin' : ''} />
-                {insightsSyncing ? 'Syncing…' : 'Sync Now'}
-              </button>
-            </>
-          ) : adAccounts ? (
-            <div className="space-y-2">
-              {adAccounts.length === 0 && <p className="text-sm text-gray-500">No ad accounts found for this Facebook login.</p>}
-              {adAccounts.map(acc => (
-                <button key={acc.id} onClick={() => handleSelectAdAccount(acc)}
-                  className="w-full flex items-center justify-between px-4 py-3 border rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-colors text-left">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-800">{acc.name}</p>
-                    <p className="text-xs text-gray-400">{acc.id} · {acc.account_status === 1 ? 'Active' : 'Inactive'}</p>
-                  </div>
-                  <ChevronRight size={16} className="text-gray-400" />
-                </button>
-              ))}
-              <button onClick={() => setAdAccounts(null)} className="text-xs text-gray-400 hover:text-gray-600">← Cancel</button>
-            </div>
-          ) : (
-            <>
-              {adAccountsError && (
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                  <p className="text-xs text-amber-800">{adAccountsError}</p>
-                  {adAccountsError.toLowerCase().includes('reconnect') && (
-                    <p className="text-xs text-amber-700 mt-1">Click "Reconnect with Facebook" above, then try again.</p>
-                  )}
-                </div>
-              )}
-              <button onClick={handleLoadAdAccounts} disabled={loadingAdAccounts}
-                className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-                {loadingAdAccounts ? 'Loading…' : 'Connect Ad Account'}
-              </button>
-            </>
+          {settings.meta_ads_configured && (
+            <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2">
+              Ad account {settings.meta_ad_account_id} is connected the old way. Connect it once in Ads Manager to get daily insights, ad sets and creatives.
+            </p>
           )}
+          <a href="/ads?tab=meta"
+            className="w-full flex items-center justify-center gap-2 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700">
+            Open Ads Manager <ChevronRight size={14} />
+          </a>
         </div>
       )}
 
@@ -650,7 +589,7 @@ const ApiKeyConfig = ({ settings, newKeyValue, handleGenerateKey, handleRevokeKe
             <span className="text-[10px] text-green-600 font-medium">Active</span>
           </div>
           {settings.api_key_created_at && (
-            <p className="text-[10px] text-gray-400">Created {new Date(settings.api_key_created_at).toLocaleString('en-IN')}</p>
+            <p className="text-[10px] text-gray-400">Created {formatDateTime(settings.api_key_created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</p>
           )}
           <div className="flex gap-2">
             <button onClick={handleGenerateKey}
@@ -685,6 +624,7 @@ const ApiKeyConfig = ({ settings, newKeyValue, handleGenerateKey, handleRevokeKe
 
 const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefresh, showAddButton, onAdd }) => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [form, setForm] = useState({
     name: integration.name,
     is_active: integration.is_active,
@@ -710,7 +650,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
   const handleSave = async () => {
     setSaving(true);
     try { await googleAdsIntegrationsAPI.update(integration.id, form); await onRefresh(); }
-    catch (e) { alert(e.response?.data?.error || 'Failed to save.'); }
+    catch (e) { toast.error(e.response?.data?.error || 'Failed to save.'); }
     finally { setSaving(false); }
   };
 
@@ -718,14 +658,14 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
     const next = !form.is_active;
     setForm(f => ({ ...f, is_active: next }));
     try { await googleAdsIntegrationsAPI.update(integration.id, { ...form, is_active: next }); await onRefresh(); }
-    catch { alert('Failed to update status.'); }
+    catch { toast.error('Failed to update status.'); }
   };
 
   const handleShowKey = async () => {
     if (revealedKey) { setRevealedKey(null); return; }
     setRevealing(true);
     try { const { data } = await googleAdsIntegrationsAPI.revealKey(integration.id); setRevealedKey(data.webhook_key); }
-    catch { alert('Failed to reveal key.'); }
+    catch { toast.error('Failed to reveal key.'); }
     finally { setRevealing(false); }
   };
 
@@ -739,7 +679,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
         const { data } = await googleAdsIntegrationsAPI.revealKey(integration.id);
         key = data.webhook_key;
         setRevealedKey(key);
-      } catch { alert('Failed to copy key.'); return; }
+      } catch { toast.error('Failed to copy key.'); return; }
       finally { setRevealing(false); }
     }
     navigator.clipboard.writeText(key);
@@ -752,7 +692,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
       setNewKeyValue(data.webhook_key);
       setRevealedKey(null);
       await onRefresh();
-    } catch { alert('Failed to regenerate key.'); }
+    } catch { toast.error('Failed to regenerate key.'); }
   };
 
   const handleCheckConnection = () => {
@@ -783,8 +723,8 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
   const handleDeleteTestLeads = async () => {
     if (!await confirm({ title: 'Delete all test leads?', message: 'This will delete all test leads created by this integration.' })) return;
     setDeletingTestLeads(true);
-    try { const { data } = await googleAdsIntegrationsAPI.deleteTestLeads(integration.id); alert(data.message); }
-    catch { alert('Failed to delete test leads.'); }
+    try { const { data } = await googleAdsIntegrationsAPI.deleteTestLeads(integration.id); toast.error(data.message); }
+    catch { toast.error('Failed to delete test leads.'); }
     finally { setDeletingTestLeads(false); }
   };
 
@@ -900,8 +840,8 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
       <div className="bg-white rounded-2xl border p-5 space-y-3">
         <h2 className="font-semibold">Connection Status</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-gray-500">
-          <div>Last test received: <span className="text-gray-800 font-medium">{integration.last_test_received_at ? new Date(integration.last_test_received_at).toLocaleString('en-IN') : 'Never'}</span></div>
-          <div>Last live lead received: <span className="text-gray-800 font-medium">{integration.last_live_lead_received_at ? new Date(integration.last_live_lead_received_at).toLocaleString('en-IN') : 'Never'}</span></div>
+          <div>Last test received: <span className="text-gray-800 font-medium">{integration.last_test_received_at ? formatDateTime(integration.last_test_received_at, undefined, { dateStyle: undefined, timeStyle: undefined, }) : 'Never'}</span></div>
+          <div>Last live lead received: <span className="text-gray-800 font-medium">{integration.last_live_lead_received_at ? formatDateTime(integration.last_live_lead_received_at, undefined, { dateStyle: undefined, timeStyle: undefined, }) : 'Never'}</span></div>
         </div>
         {checking && (
           <div className="flex items-center gap-2 bg-blue-50 rounded-xl px-3 py-2 text-xs text-blue-700">
@@ -955,6 +895,7 @@ const GoogleAdsIntegrationDetail = ({ integration, staff, teams, stages, onRefre
 };
 
 const GoogleAdsConfig = () => {
+  const toast = useToast();
   const [integrations, setIntegrations] = useState(null);
   const [activeId, setActiveId] = useState(null);
   const [staff, setStaff] = useState([]);
@@ -981,7 +922,7 @@ const GoogleAdsConfig = () => {
       const { data } = await googleAdsIntegrationsAPI.create({ name: 'Google Ads Lead Form' });
       await loadIntegrations();
       setActiveId(data.id);
-    } catch (e) { alert(e.response?.data?.error || 'Failed to create integration.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to create integration.'); }
   };
 
   if (integrations === null) return <div className="text-sm text-gray-400 py-8 text-center">Loading…</div>;
@@ -1024,13 +965,89 @@ const GoogleAdsConfig = () => {
 };
 
 const WhatsAppConfig = ({ settings, onRefresh }) => {
-  const isConfigured = !!(settings.whatsapp_configured || settings.whatsapp_phone_number_id);
-  const [form, setForm] = useState({
+  const toast = useToast();
+  const isConfigured = !!settings.whatsapp_configured;
+  const savedForm = {
     whatsapp_phone_number_id: settings.whatsapp_phone_number_id || '',
     whatsapp_access_token: isConfigured ? '••••••••' : '',
-  });
+    whatsapp_business_account_id: settings.whatsapp_business_account_id || '',
+  };
+  const [form, setForm] = useState(savedForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const isDirty = form.whatsapp_phone_number_id !== savedForm.whatsapp_phone_number_id
+    || form.whatsapp_access_token !== savedForm.whatsapp_access_token
+    || form.whatsapp_business_account_id !== savedForm.whatsapp_business_account_id;
+
+  const [testingWebhook, setTestingWebhook] = useState(false);
+  const [webhookTestResult, setWebhookTestResult] = useState(null); // null | 'success' | 'fail'
+
+  const oneClick = !!WA_SIGNUP_CONFIG_ID;
+  const viaSignup = settings.whatsapp_connected_via === 'embedded_signup';
+  const [showManual, setShowManual] = useState(!oneClick || (isConfigured && !viaSignup));
+  const [signingUp, setSigningUp] = useState(false);
+  const signupSession = useRef(null);
+
+  useEffect(() => {
+    if (!oneClick) return undefined;
+    loadFbSdk().catch(console.error);
+    const onMessage = (event) => {
+      let host = '';
+      try { host = new URL(event.origin).hostname; } catch { return; }
+      if (host !== 'facebook.com' && !host.endsWith('.facebook.com')) return;
+      let msg;
+      try { msg = typeof event.data === 'string' ? JSON.parse(event.data) : event.data; } catch { return; }
+      if (msg?.type !== 'WA_EMBEDDED_SIGNUP') return;
+      if (msg.event === 'FINISH') signupSession.current = { waba_id: msg.data?.waba_id, phone_number_id: msg.data?.phone_number_id };
+      else if (msg.event === 'CANCEL') signupSession.current = { cancelled: true };
+      else if (msg.event === 'ERROR') signupSession.current = { error: msg.data?.error_message || 'Meta reported an error during signup.' };
+      else if (msg.event === 'FINISH_ONLY_WABA') signupSession.current = { error: 'No phone number was added. Run Connect again and add a number.' };
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [oneClick]);
+
+  const handleOneClickConnect = () => {
+    if (!window.FB) return toast.error('Facebook is still loading. Please try again in a moment.');
+    signupSession.current = null;
+    setSigningUp(true);
+    // FB.login must be called directly from the click, and its callback must not be async.
+    window.FB.login((resp) => {
+      const code = resp?.authResponse?.code;
+      if (!code) { setSigningUp(false); return; }
+      waitFor(signupSession)
+        .then((session) => {
+          if (session?.error) throw new Error(session.error);
+          if (!session?.waba_id || !session?.phone_number_id) throw new Error('Signup was not completed. Please try again.');
+          return integrationsAPI.whatsappEmbeddedSignup({ code, ...session });
+        })
+        .then(async ({ data }) => {
+          await onRefresh();
+          setShowManual(false);
+          toast.success(`WhatsApp connected${data.display_phone_number ? ` (${data.display_phone_number})` : ''}.`);
+        })
+        .catch((e) => toast.error(e.response?.data?.error || e.message || 'Could not connect WhatsApp.'))
+        .finally(() => setSigningUp(false));
+    }, {
+      config_id: WA_SIGNUP_CONFIG_ID,
+      response_type: 'code',
+      override_default_response_type: true,
+      extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
+    });
+  };
+
+  const handleTestWebhook = async () => {
+    setTestingWebhook(true);
+    setWebhookTestResult(null);
+    try {
+      const challenge = String(Date.now());
+      const url = `${settings.whatsapp_webhook_url}?hub.mode=subscribe&hub.verify_token=${encodeURIComponent(settings.whatsapp_webhook_verify_token)}&hub.challenge=${challenge}`;
+      const res = await fetch(url);
+      const text = await res.text();
+      setWebhookTestResult(res.ok && text === challenge ? 'success' : 'fail');
+    } catch (e) { setWebhookTestResult('fail'); }
+    finally { setTestingWebhook(false); }
+  };
 
   const [autoForm, setAutoForm] = useState({
     whatsapp_auto_responder_enabled: settings.whatsapp_auto_responder_enabled || false,
@@ -1048,7 +1065,8 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(form);
       await onRefresh();
-      alert('WhatsApp settings saved.');
+      setForm(f => ({ ...f, whatsapp_access_token: '••••••••' }));
+      toast.success('WhatsApp connected.');
     } catch (e) { setError(e.response?.data?.error || 'Failed to save'); }
     finally { setSaving(false); }
   };
@@ -1058,24 +1076,86 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
     try {
       await integrationsAPI.updateSettings(autoForm);
       await onRefresh();
-      alert('Automation settings saved.');
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save'); }
+      toast.success('Automation settings saved.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save'); }
     finally { setAutoSaving(false); }
+  };
+
+  const [reconnecting, setReconnecting] = useState(false);
+  const hasSavedCreds = !!settings.whatsapp_phone_number_id;
+
+  // Re-checks the saved token with Meta and re-subscribes webhooks. If the token is
+  // dead, opens the credentials form so a new one can be pasted (or Facebook reconnect used).
+  const handleReconnect = async () => {
+    setReconnecting(true);
+    setError('');
+    try {
+      const { data } = await integrationsAPI.whatsappReconnect();
+      await onRefresh();
+      if (data.warning) toast.error(data.warning);
+      else toast.success(`WhatsApp reconnected${data.display_phone_number ? ` (${data.display_phone_number})` : ''}.`);
+    } catch (e) {
+      const msg = e.response?.data?.error || 'Could not reconnect WhatsApp.';
+      toast.error(msg);
+      if (e.response?.data?.needs_new_token) {
+        await onRefresh();
+        if (oneClick && viaSignup) {
+          setError(`${msg} Click "Reconnect with Facebook" to connect again.`);
+        } else {
+          setShowManual(true);
+          setForm(f => ({ ...f, whatsapp_access_token: '' }));
+          setError(`${msg} Paste a new Permanent Access Token below and save.`);
+        }
+      }
+    } finally { setReconnecting(false); }
   };
 
   const handleDisconnect = async () => {
     if (!confirm('Disconnect WhatsApp Business API?')) return;
-    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '' });
+    await integrationsAPI.updateSettings({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
     await onRefresh();
+    setForm({ whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '' });
   };
 
   return (
     <div className="space-y-5">
       <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${isConfigured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
-        {isConfigured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-        {isConfigured ? 'WhatsApp Business API connected — appointment messages will auto-send.' : 'Not configured — paste your Meta WhatsApp API credentials below.'}
+        {isConfigured ? <CheckCircle size={16} className="shrink-0" /> : <AlertCircle size={16} className="shrink-0" />}
+        <span className="flex-1 min-w-0">{isConfigured
+          ? `Connected${settings.whatsapp_verified_name ? ` as "${settings.whatsapp_verified_name}"` : ''}${settings.whatsapp_display_number ? ` (${settings.whatsapp_display_number})` : ''} — appointment messages will auto-send.`
+          : settings.whatsapp_error
+            ? `Saved credentials are invalid: ${settings.whatsapp_error}. Re-enter them below.`
+            : oneClick ? 'Not connected — connect your WhatsApp Business number below.' : 'Not connected — paste your Meta WhatsApp API credentials below.'}</span>
+        {hasSavedCreds && (
+          <button onClick={handleReconnect} disabled={reconnecting}
+            title="Re-check the saved credentials with Meta and re-subscribe webhooks"
+            className="shrink-0 px-3 py-1.5 bg-white border border-black/10 rounded-lg text-xs font-semibold hover:bg-white/70 disabled:opacity-50 flex items-center gap-1.5">
+            <RotateCcw size={13} className={reconnecting ? 'animate-spin' : ''} /> {reconnecting ? 'Reconnecting…' : 'Reconnect'}
+          </button>
+        )}
       </div>
 
+      {oneClick && (
+        <div className="bg-white rounded-2xl border p-5 space-y-3">
+          <div>
+            <h2 className="font-semibold mb-1">{isConfigured ? 'Reconnect or switch number' : 'Connect WhatsApp'}</h2>
+            <p className="text-xs text-gray-500">Log in with Facebook, then choose or create your WhatsApp Business Account and phone number. Messages and replies start flowing automatically — no tokens or webhook setup needed.</p>
+          </div>
+          <button onClick={handleOneClickConnect} disabled={signingUp}
+            className="w-full py-2.5 bg-[#25D366] text-white rounded-xl text-sm font-semibold hover:brightness-95 disabled:opacity-50 flex items-center justify-center gap-2">
+            <WhatsAppIcon size={18} /> {signingUp ? 'Connecting…' : isConfigured ? 'Reconnect with Facebook' : 'Connect with Facebook'}
+          </button>
+          {error && !showManual && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
+          {isConfigured && viaSignup && (
+            <button onClick={handleDisconnect} className="w-full py-2 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">Disconnect</button>
+          )}
+          <button onClick={() => setShowManual(v => !v)} className="text-xs text-gray-500 underline">
+            {showManual ? 'Hide manual setup' : 'Enter credentials manually instead'}
+          </button>
+        </div>
+      )}
+
+      {showManual && (<>
       <div className="bg-white rounded-2xl border p-5 space-y-4">
         <div>
           <h2 className="font-semibold mb-1">Step 1 — Get credentials from Meta</h2>
@@ -1089,6 +1169,13 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
             className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
         </div>
         <div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">WhatsApp Business Account ID <span className="text-gray-400 font-normal">(optional — needed for template broadcasts)</span></label>
+          <input value={form.whatsapp_business_account_id}
+            onChange={e => setForm(f => ({ ...f, whatsapp_business_account_id: e.target.value }))}
+            placeholder="e.g. 987654321098765"
+            className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
+        </div>
+        <div>
           <label className="block text-xs font-medium text-gray-600 mb-1">Permanent Access Token</label>
           <input value={form.whatsapp_access_token}
             onChange={e => setForm(f => ({ ...f, whatsapp_access_token: e.target.value }))}
@@ -1098,9 +1185,9 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
         </div>
         {error && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
         <div className="flex gap-2">
-          <button onClick={handleSave} disabled={saving}
-            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save WhatsApp Settings'}
+          <button onClick={handleSave} disabled={saving || !isDirty}
+            className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed">
+            {saving ? 'Connecting…' : isConfigured && !isDirty ? 'Connected' : 'Save WhatsApp Settings'}
           </button>
           {isConfigured && (
             <button onClick={handleDisconnect} className="px-4 py-2.5 border border-red-200 text-red-600 rounded-xl text-sm hover:bg-red-50">
@@ -1109,6 +1196,31 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
           )}
         </div>
       </div>
+
+      {isConfigured && (
+        <div className="bg-white rounded-2xl border p-5 space-y-3">
+          <div>
+            <h2 className="font-semibold mb-1">Step 2 — Set up the Webhook</h2>
+            <p className="text-xs text-gray-500">This makes replies and delivery status show up in CurveLead. Open <strong>Meta Developer Console → the app this number lives under → WhatsApp → Configuration → Webhook</strong>, paste these two values in, and subscribe to the <code className="bg-gray-100 px-1 rounded">messages</code> field.</p>
+          </div>
+          <UrlRow label="Callback URL" url={settings.whatsapp_webhook_url} />
+          <UrlRow label="Verify Token" url={settings.whatsapp_webhook_verify_token} />
+          <div className="flex items-center gap-3">
+            <button onClick={handleTestWebhook} disabled={testingWebhook}
+              className="px-4 py-2 border rounded-xl text-sm font-medium hover:bg-gray-50 disabled:opacity-50">
+              {testingWebhook ? 'Testing…' : 'Test Webhook'}
+            </button>
+            {webhookTestResult === 'success' && (
+              <span className="text-sm text-green-700 flex items-center gap-1"><CheckCircle size={14} /> Reachable — safe to paste into Meta.</span>
+            )}
+            {webhookTestResult === 'fail' && (
+              <span className="text-sm text-red-600 flex items-center gap-1"><AlertCircle size={14} /> Not responding correctly — check your server before configuring Meta.</span>
+            )}
+          </div>
+          <p className="text-[11px] text-gray-400">This only confirms CurveLead's server responds correctly — it can't confirm Meta itself can reach it (network/DNS issues would still need checking separately).</p>
+        </div>
+      )}
+      </>)}
 
       {isConfigured && (
         <div className="bg-white rounded-2xl border p-5 space-y-5">
@@ -1172,6 +1284,7 @@ const emptyAgentForm = () => ({
 
 const AiCallingConfig = ({ settings, onRefresh }) => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [form, setForm] = useState({
     voice_ai_api_key: settings.voice_ai_configured ? '••••••••' : '',
     voice_ai_phone_number_id: settings.voice_ai_phone_number_id || '',
@@ -1192,8 +1305,8 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
   const handleSave = async () => {
     setSaving(true);
-    try { await aiCallingAPI.updateSettings(form); await onRefresh(); alert('AI Calling settings saved.'); }
-    catch { alert('Failed to save.'); }
+    try { await aiCallingAPI.updateSettings(form); await onRefresh(); toast.success('AI Calling settings saved.'); }
+    catch { toast.error('Failed to save.'); }
     finally { setSaving(false); }
   };
 
@@ -1208,14 +1321,14 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
   const handleSaveAgent = async () => {
     if (!agentForm.name || !agentForm.voice_id || !agentForm.system_prompt) {
-      return alert('Name, voice and system prompt are required.');
+      return toast.error('Name, voice and system prompt are required.');
     }
     try {
       if (editingAgent) await aiCallingAPI.updateAgent(editingAgent.id, agentForm);
       else await aiCallingAPI.createAgent(agentForm);
       setShowAgentForm(false);
       reloadAgents();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save agent.'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to save agent.'); }
   };
 
   const handleDeleteAgent = async (id) => {
@@ -1326,15 +1439,26 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
 // ── Main page ──────────────────────────────────────────────────────────────
 
+// Integration card id → provider name in /features/health.
+const HEALTH_PROVIDER = { meta: 'facebook', google: 'google_ads', whatsapp: 'whatsapp' };
+
 const IntegrationsPage = () => {
-  const [selected, setSelected] = useState(null);
+  const toast = useToast();
+  const [selected, setSelected] = useState(() => new URLSearchParams(window.location.search).get('open'));
   const [category, setCategory] = useState('All');
+  // Same lead-flow health check as the dashboard banner, so a card never says "Connected"
+  // while the banner says leads stopped arriving.
+  const [health, setHealth] = useState({});
+  useEffect(() => {
+    featureAPI.health().then(({ data }) => setHealth(Object.fromEntries((data.integrations || []).map(i => [i.provider, i.state])))).catch(() => {});
+  }, []);
   const [settings, setSettings] = useState({
     meta_configured: false, google_configured: false, whatsapp_configured: false,
     api_key: null, api_key_created_at: null,
     webhook_url: '', api_ingest_url: '', google_webhook_url: '',
     meta_page_id: '', meta_page_access_token: '', google_webhook_secret: '',
-    whatsapp_phone_number_id: '', whatsapp_access_token: '',
+    whatsapp_phone_number_id: '', whatsapp_access_token: '', whatsapp_business_account_id: '',
+    whatsapp_webhook_url: '', whatsapp_webhook_verify_token: '',
     voice_ai_configured: false, voice_ai_phone_number_id: '',
   });
   const [loading, setLoading] = useState(true);
@@ -1365,18 +1489,18 @@ const IntegrationsPage = () => {
   const handleGenerateKey = async () => {
     if (!window.confirm('Generate a new API key? Any existing key will be replaced.')) return;
     try { const { data } = await integrationsAPI.generateApiKey(); setNewKeyValue(data.api_key); load(); }
-    catch { alert('Failed to generate key.'); }
+    catch { toast.error('Failed to generate key.'); }
   };
 
   const handleRevokeKey = async () => {
     if (!window.confirm('Revoke the API key? All integrations using it will stop working.')) return;
     try { await integrationsAPI.revokeApiKey(); setNewKeyValue(null); load(); }
-    catch { alert('Failed.'); }
+    catch { toast.error('Failed.'); }
   };
 
   const handleLoadEmbed = async () => {
     try { const { data } = await integrationsAPI.getEmbedScript(); setEmbedScript(data.script); }
-    catch (e) { alert(e.response?.data?.error || 'Generate an API key first.'); }
+    catch (e) { toast.error(e.response?.data?.error || 'Generate an API key first.'); }
   };
 
   if (loading) return <div className="p-8 text-center text-gray-400">Loading integrations…</div>;
@@ -1391,7 +1515,7 @@ const IntegrationsPage = () => {
             <ArrowLeft size={18} />
           </button>
           <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${integration.bg}`}>
-            {integration.emoji}
+            {integration.icon || integration.emoji}
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900">{integration.label}</h1>
@@ -1443,12 +1567,16 @@ const IntegrationsPage = () => {
                 ${isLive ? 'bg-white hover:shadow-md cursor-pointer group' : 'bg-gray-50 cursor-default opacity-70'}`}>
               <div className="flex items-start justify-between">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl ${integration.bg}`}>
-                  {integration.emoji}
+                  {integration.icon || integration.emoji}
                 </div>
                 {isLive ? (
-                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${configured ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-                    {configured ? '● Connected' : '○ Available'}
-                  </span>
+                  (() => {
+                    const state = configured ? health[HEALTH_PROVIDER[integration.id]] : null;
+                    return !configured ? <StatusBadge status="not_set_up" />
+                      : state === 'disconnected' ? <StatusBadge status="failing" label="Disconnected" reason="Leads are not syncing. Open to reconnect." />
+                      : state === 'stale' ? <StatusBadge status="warning" label="No recent leads" reason="Connected, but no leads arrived within your alert threshold." />
+                      : <StatusBadge status="working" label="Connected" />;
+                  })()
                 ) : (
                   <span className="flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-400">
                     <Lock size={9} /> Coming soon

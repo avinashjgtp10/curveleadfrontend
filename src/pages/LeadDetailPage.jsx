@@ -1,13 +1,34 @@
-import { useEffect, useState } from 'react';
+import AutomationRecovery from '../components/lead/AutomationRecovery';
+import { isBookingType, notifyBookingWhatsApp } from '../utils/bookingMessages.js';
+import { normalizePhone } from '../utils/leadData.js';
+import { sourceLabel } from '../utils/leadData.js';
+import { initials } from '../utils/leadData.js';
+import { formatDateTime, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI } from '../services/api';
+import InboxComposer, { lastInboundAt } from '../components/whatsapp/InboxComposer';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI, notesAPI, automationAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
 import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
 import LeadIntentCard from '../components/lead/LeadIntentCard';
-import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, X, Send, FileText, List, ExternalLink, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2 } from 'lucide-react';
+import ShareBrochureModal from '../components/lead/ShareBrochureModal';
+import { useToast } from '../components/ui/Toast';
+import DateTimePicker from '../components/ui/DateTimePicker';
+import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2, Users, Workflow, PlayCircle, Ban, AlertTriangle } from 'lucide-react';
+import { formatMoney, currencySymbol } from '../utils/locale';
+
+// Mirrors WhatsApp's own delivery ticks for an outbound message.
+const MessageStatus = ({ status }) => {
+  if (status === 'failed') return <AlertCircle size={11} className="text-red-300" title="Failed to send" />;
+  if (status === 'read') return <CheckCheck size={13} className="text-sky-300" title="Read" />;
+  if (status === 'delivered') return <CheckCheck size={13} title="Delivered" />;
+  if (status === 'sent') return <Check size={13} title="Sent" />;
+  return <Clock size={11} title="Sending…" />;
+};
 
 const activityConfig = (type) => {
   const map = {
@@ -20,7 +41,7 @@ const activityConfig = (type) => {
     source_change:       { Icon: Radio,        bg: 'bg-sky-50',     color: 'text-sky-600' },
     note:                { Icon: StickyNote,   bg: 'bg-gray-50',    color: 'text-gray-500' },
     quotation:           { Icon: FileText,     bg: 'bg-indigo-50',  color: 'text-indigo-600' },
-    followup_scheduled:  { Icon: Calendar,     bg: 'bg-cyan-50',    color: 'text-cyan-600' },
+    followup_scheduled:  { Icon: Calendar,     bg: 'bg-brand-50',    color: 'text-brand-600' },
     demo:                { Icon: Video,        bg: 'bg-violet-50',  color: 'text-violet-600' },
     demo_scheduled:      { Icon: Video,        bg: 'bg-violet-50',  color: 'text-violet-600' },
     demo_completed:      { Icon: CheckCircle,  bg: 'bg-green-50',   color: 'text-green-600' },
@@ -34,9 +55,61 @@ const activityConfig = (type) => {
     created:             { Icon: PlusCircle,   bg: 'bg-brand-50',   color: 'text-brand-600' },
     ai_scored:           { Icon: Star,         bg: 'bg-yellow-50',  color: 'text-yellow-600' },
     score_change:        { Icon: Gauge,        bg: 'bg-yellow-50',  color: 'text-yellow-600' },
+    team_message:        { Icon: Users,        bg: 'bg-brand-50',    color: 'text-brand-600' },
+    // Automation lifecycle events (written by automationTriggers.js / automationSequenceRunner.js)
+    automation_triggered:        { Icon: Workflow,      bg: 'bg-brand-50',   color: 'text-brand-600' },
+    sequence_started:            { Icon: PlayCircle,    bg: 'bg-green-50',   color: 'text-green-600' },
+    automated_whatsapp:          { Icon: MessageSquare, bg: 'bg-green-50',   color: 'text-green-600' },
+    automation_next_scheduled:   { Icon: Calendar,      bg: 'bg-cyan-50',    color: 'text-cyan-600' },
+    sequence_completed:          { Icon: CheckCircle,   bg: 'bg-green-50',   color: 'text-green-600' },
+    automation_cancelled:        { Icon: Ban,           bg: 'bg-red-50',     color: 'text-red-500' },
+    automation_blocked:          { Icon: Ban,           bg: 'bg-red-50',     color: 'text-red-600' },
+    automation_skipped:          { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
+    automation_ai_failed:        { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
+    automation_template_required:{ Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
+    email:                       { Icon: Mail,          bg: 'bg-indigo-50',  color: 'text-indigo-600' },
+    // Contact SLA breaches (written by jobs/leadSlaMonitor.js) — escalating severity.
+    sla_risk:                    { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
+    sla_escalated:               { Icon: AlertTriangle, bg: 'bg-orange-50',  color: 'text-orange-600' },
+    sla_missed:                  { Icon: AlertTriangle, bg: 'bg-red-50',     color: 'text-red-600' },
+    sla_auto_reassigned:         { Icon: UserCheck,     bg: 'bg-amber-50',   color: 'text-amber-600' },
+    no_followup_scheduled:       { Icon: AlertTriangle, bg: 'bg-amber-50',   color: 'text-amber-600' },
   };
   return map[type] || { Icon: StickyNote, bg: 'bg-gray-50', color: 'text-gray-400' };
 };
+
+// Enrolments the runner stopped because WhatsApp consent rules block the step's template.
+const isBlockedEnrollment = (e) => e?.status === 'cancelled' && (e.cancelled_reason || '').startsWith('blocked');
+const blockedLabel = (e) => (e.cancelled_reason === 'blocked_no_opt_in' ? 'Blocked – no opt-in' : 'Blocked – no consent');
+
+// Older Meta leads have the form's raw JSON appended to their notes; keep it out of the way.
+const LeadNoteText = ({ notes }) => {
+  const [showRaw, setShowRaw] = useState(false);
+  const idx = notes.indexOf('Raw Meta Field Data:');
+  const readable = (idx >= 0 ? notes.slice(0, idx) : notes).trim();
+  const raw = idx >= 0 ? notes.slice(idx + 'Raw Meta Field Data:'.length).trim() : '';
+  return (
+    <div>
+      {readable && <p className="text-sm whitespace-pre-wrap">{readable}</p>}
+      {raw && (
+        <div className="mt-2">
+          <button onClick={() => setShowRaw(v => !v)} className="text-xs font-semibold text-brand-600 hover:underline">{showRaw ? 'Hide raw form data' : 'View raw form data'}</button>
+          {showRaw && <pre className="mt-1 text-[11px] bg-gray-50 border rounded-lg p-2 overflow-x-auto whitespace-pre-wrap break-all text-gray-600">{raw}</pre>}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Back-to-back identical entries (e.g. an automation skip logged every cycle) show as one
+// line with a count instead of flooding the timeline. Activities arrive newest first.
+const collapseRepeats = (list) => list.reduce((out, a) => {
+  const prev = out[out.length - 1];
+  const same = prev && prev.activity_type === a.activity_type && prev.title === a.title && prev.description === a.description
+    && !a.old_value && !a.whatsapp_message && !prev.old_value && !prev.whatsapp_message;
+  if (same) { prev.repeat += 1; prev.first_at = a.created_at; } else out.push({ ...a, repeat: 1, first_at: a.created_at });
+  return out;
+}, []);
 
 const formatDuration = (date) => {
   const diff = Math.floor((Date.now() - new Date(date)) / 1000);
@@ -53,7 +126,52 @@ const scoreColors = {
   cold: 'bg-gray-100 text-gray-600',
 };
 
+// Custom-rendered dropdown — native <select> popups are OS-anchored and can overlap
+// a modal's own header/content in odd ways, so this keeps the open list in normal page flow.
+const InlineSelect = ({ value, onChange, options, disabled, placeholder, ringColor = 'focus:ring-brand-300', capitalize }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    const onClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
+
+  const selected = options.find(o => o.value === value);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={() => setOpen(v => !v)}
+        className={`w-full flex items-center justify-between px-3 py-2 border rounded-lg text-sm bg-white ${ringColor} focus:outline-none disabled:opacity-60 ${capitalize ? 'capitalize' : ''} ${!selected ? 'text-gray-400' : 'text-gray-800'}`}
+      >
+        <span className="truncate">{selected ? selected.label : (placeholder || 'Select...')}</span>
+        <ChevronDown size={14} className={`text-gray-400 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-white border border-gray-100 rounded-lg shadow-lg py-1">
+          {options.map(opt => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 transition-colors ${capitalize ? 'capitalize' : ''} ${opt.value === value ? 'bg-brand-50 text-brand-700 font-medium' : 'text-gray-700'}`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = {}) => {
+  const confirm = useConfirmDialog();
+  const toast = useToast();
   const { id: routeId } = useParams();
   const id = leadId || routeId;
   const navigate = useNavigate();
@@ -73,7 +191,16 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [brochures, setBrochures] = useState([]);
   const [brochuresLoaded, setBrochuresLoaded] = useState(false);
   const [shareTab, setShareTab] = useState('templates');
+  const [showShareBrochure, setShowShareBrochure] = useState(false);
+  const [sharingBrochureId, setSharingBrochureId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  const [enrollment, setEnrollment] = useState(null);
+
+  // Team Communication
+  const [showTeamComm, setShowTeamComm] = useState(false);
+  const [teamCommForm, setTeamCommForm] = useState({ recipient_id: '', method: 'internal', message: '' });
+  const [teamCommError, setTeamCommError] = useState('');
+  const [sendingTeamComm, setSendingTeamComm] = useState(false);
 
   // Stages, Statuses & Staff
   const [stages, setStages] = useState([]);
@@ -86,15 +213,17 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
 
   // Follow-up
   const [followups, setFollowups] = useState([]);
-  const getLocalNow = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-  const getDateShortcut = (daysOffset, hour = 10) => { const d = new Date(); d.setDate(d.getDate() + daysOffset); d.setHours(hour, 0, 0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
+  const getLocalNow = () => toDateTimeInput(new Date());
+  const getDateShortcut = (daysOffset, hour = 10) => { const d = new Date(toDateTimeInput(new Date()).slice(0, 10) + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + daysOffset); return `${d.toISOString().slice(0, 10)}T${String(hour).padStart(2, '0')}:00`; };
   const [followupForm, setFollowupForm] = useState({
     next_followup_at: getLocalNow(),
     followup_type: 'call',
     notes: '',
     meeting_url: '',
+    notify_lead: true,
   });
   const [savingFollowup, setSavingFollowup] = useState(false);
+  const [dateShortcutOpen, setDateShortcutOpen] = useState(false);
 
   // Follow-up history with pagination
   const [followupHistory, setFollowupHistory] = useState([]);
@@ -107,7 +236,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [savingFollowupEdit, setSavingFollowupEdit] = useState(false);
   const FOLLOWUP_LIMIT = 5;
 
-  useEffect(() => { loadData(); loadStages(); loadTemplatesAndBrochures(); }, [id]);
+  const loadedForId = useRef(null);
+  useEffect(() => {
+    if (loadedForId.current === id) return; // StrictMode dev double-invoke guard
+    loadedForId.current = id;
+    loadData(); loadStages(); loadTemplatesAndBrochures();
+  }, [id]);
   useEffect(() => { if (id) loadFollowupHistory(); }, [id, followupPage]);
 
   // Reset ephemeral UI state when switching leads via Prev/Next — the component
@@ -123,7 +257,10 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     setNewMessage('');
     setStageSaving(false);
     setLostReasonModal({ open: false, newStage: null, reason: '', customReason: '' });
-    setFollowupForm({ next_followup_at: getLocalNow(), followup_type: 'call', notes: '', meeting_url: '' });
+    setFollowupForm({ next_followup_at: getLocalNow(), followup_type: 'call', notes: '', meeting_url: '', notify_lead: true });
+    setShowTeamComm(false);
+    setTeamCommForm({ recipient_id: '', method: 'internal', message: '' });
+    setTeamCommError('');
   }, [id]);
 
   const loadTemplatesAndBrochures = async () => {
@@ -142,18 +279,28 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [leadRes, msgRes, quoteRes] = await Promise.all([
+      const [leadRes, msgRes, quoteRes, enrollRes] = await Promise.all([
         leadAPI.getOne(id),
         whatsappAPI.getConversation(id).catch(() => ({ data: { messages: [] } })),
         quotationsAPI.getAll({ lead_id: id }).catch(() => ({ data: { quotations: [] } })),
+        automationAPI.getEnrollments([id]).catch(() => ({ data: { enrollments: {} } })),
       ]);
       setLead(leadRes.data.lead);
       setFollowups(leadRes.data.followups || []);
       setActivities(leadRes.data.activities || []);
       setMessages(msgRes.data.messages || []);
       setQuotations(quoteRes.data.quotations || []);
+      setEnrollment(enrollRes.data.enrollments?.[id] || null);
       setForm(leadRes.data.lead);
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      // A merged duplicate (old link, notification, bookmark): open the lead it was merged into.
+      if (e.response?.data?.code === 'LEAD_MERGED' && e.response.data.merged_into_id) {
+        toast.success('This lead was merged with a duplicate — showing the combined lead.');
+        navigate(`/leads/${e.response.data.merged_into_id}`, { replace: true });
+        return;
+      }
+      console.error(e);
+    }
     finally { setLoading(false); }
   };
 
@@ -197,7 +344,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     const errors = {};
     const phoneDigits = (form.phone || '').replace(/\D/g, '');
     if (!form.phone?.trim()) errors.phone = 'Phone number is required';
-    else if (phoneDigits.length < 3) errors.phone = 'Enter a valid phone number (at least 3 digits)';
+    else { try { normalizePhone(form.phone); } catch (error) { errors.phone = error.message; } }
     if (form.email?.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) errors.email = 'Enter a valid email address';
     setLeadFormErrors(errors);
     if (Object.keys(errors).length) return;
@@ -211,7 +358,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setActivities(data.activities || []);
       setEditing(false);
       setLeadFormErrors({});
-    } catch (e) { alert('Failed to save'); }
+    } catch (e) { toast.error(e.response?.data?.error || e.message || 'Failed to save'); }
   };
 
   const handleStageChange = async (newStage) => {
@@ -224,7 +371,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await leadAPI.update(id, { stage: newStage, lead_status: '' });
       setLead(prev => ({ ...prev, stage: newStage, lead_status: '' }));
-    } catch (e) { alert('Failed to update stage'); }
+    } catch (e) { toast.error('Failed to update stage'); }
     finally { setStageSaving(false); }
   };
 
@@ -239,7 +386,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setLead(prev => ({ ...prev, stage: lostReasonModal.newStage, lead_status: '' }));
       closeLostModal();
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to update stage'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update stage'); }
     finally { setStageSaving(false); }
   };
 
@@ -247,32 +394,30 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await leadAPI.update(id, { lead_status: newStatus });
       setLead(prev => ({ ...prev, lead_status: newStatus }));
-    } catch (e) { alert('Failed to update status'); }
+    } catch (e) { toast.error('Failed to update status'); }
   };
 
   const handleScheduleFollowup = async () => {
-    if (!followupForm.next_followup_at) return alert('Please pick a date and time');
+    if (!followupForm.next_followup_at) return toast.error('Please pick a date and time');
     setSavingFollowup(true);
     try {
       // Convert local datetime string to UTC ISO so the server (UTC) stores it correctly
-      const utcAt = new Date(followupForm.next_followup_at).toISOString();
-      await leadAPI.addFollowup(id, {
+      const utcAt = dateTimeInputToUTC(followupForm.next_followup_at);
+      const { data } = await leadAPI.addFollowup(id, {
         ...followupForm,
         next_followup_at: utcAt,
         notes: (followupForm.notes || '').trim() || null,
       });
-      setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '', meeting_url: '' });
+      notifyBookingWhatsApp(toast, data);
+      setFollowupForm({ next_followup_at: '', followup_type: 'call', notes: '', meeting_url: '', notify_lead: true });
       setFollowupPage(1);
       loadData();
       loadFollowupHistory();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to schedule follow-up'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to schedule follow-up'); }
     finally { setSavingFollowup(false); }
   };
 
-  const toLocalInputValue = (isoString) => {
-    const d = new Date(isoString);
-    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  };
+  const toLocalInputValue = toDateTimeInput;
 
   const startEditFollowup = (f) => {
     setEditingFollowupId(f.id);
@@ -287,10 +432,10 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const cancelEditFollowup = () => setEditingFollowupId(null);
 
   const saveFollowupEdit = async () => {
-    if (!editFollowupForm.next_followup_at) return alert('Please pick a date and time');
+    if (!editFollowupForm.next_followup_at) return toast.error('Please pick a date and time');
     setSavingFollowupEdit(true);
     try {
-      const utcAt = new Date(editFollowupForm.next_followup_at).toISOString();
+      const utcAt = dateTimeInputToUTC(editFollowupForm.next_followup_at);
       await followupAPI.update(editingFollowupId, {
         ...editFollowupForm,
         next_followup_at: utcAt,
@@ -299,7 +444,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       setEditingFollowupId(null);
       loadFollowupHistory();
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to update follow-up'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update follow-up'); }
     finally { setSavingFollowupEdit(false); }
   };
 
@@ -307,23 +452,27 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       await aiAPI.scoreLead(id);
       loadData();
-    } catch (e) { alert('AI scoring failed'); }
+    } catch (e) { toast.error('AI scoring failed'); }
   };
 
   const handleMarkContacted = async () => {
     try {
       await leadAPI.markContacted(id);
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to mark as contacted'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to mark as contacted'); }
   };
 
   const handleSendMessage = async () => {
     if (!newMessage.trim()) return;
     try {
-      await whatsappAPI.send(id, newMessage);
+      const { data } = await whatsappAPI.send(id, newMessage);
       setNewMessage('');
+      // Show the sent message immediately — the backend already returns the saved
+      // row, so don't wait on the full loadData() refetch (which can lag or race)
+      // just to see what we ourselves just sent.
+      if (data?.message) setMessages(prev => [...prev, data.message]);
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to send'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to send'); }
   };
 
   const handleOpenTmplPicker = async () => {
@@ -342,28 +491,107 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       const { data } = await templateAPI.generate(tmpl.id, { lead_id: id });
       setNewMessage(data.message);
       setShowTmplPicker(false);
-    } catch (e) { alert('Failed to generate message'); }
+    } catch (e) { toast.error('Failed to generate message'); }
   };
 
+  // Saved (free-text) templates only work inside WhatsApp's 24-hour window, and they go to
+  // a real customer — so check the window first and show the filled-in text before sending.
   const handleSendTemplateWhatsApp = async (tmpl, e) => {
     e.stopPropagation();
+    const last = lastInboundAt(messages);
+    if (!last || Date.now() - last > 24 * 60 * 60 * 1000) {
+      toast.error("It's been more than 24 hours since this lead's last message, so only an approved template can be sent. Use Templates in the chat composer.");
+      return;
+    }
     try {
       const { data } = await templateAPI.generate(tmpl.id, { lead_id: id });
-      if (data.whatsappUrl) {
-        window.open(data.whatsappUrl, '_blank');
-        setShowTmplPicker(false);
-      } else {
-        alert('No phone number found for this lead');
-      }
-    } catch (e) { alert('Failed to generate message'); }
+      if (!await confirm({ title: `Send "${tmpl.name}" to ${lead.name}?`, message: data.message, confirmText: 'Send', destructive: false })) return;
+      await whatsappAPI.send(id, data.message);
+      setShowTmplPicker(false);
+      await loadData();
+      toast.success('Message sent.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to send message'); }
   };
 
   const handleShareBrochureWA = async (brochureId) => {
+    if (sharingBrochureId) return;
+    setSharingBrochureId(brochureId);
     try {
       const { data } = await brochuresAPI.shareWithLead(brochureId, id);
-      window.open(data.whatsapp_url, '_blank');
-      loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to share brochure'); }
+      if (!data.sent) toast.error(data.error || 'Message queued but delivery failed.');
+      else toast.success('Brochure sent.');
+      const shared = brochures.find(b => b.id === brochureId);
+      await handleBrochureShared(shared);
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to share brochure'); }
+    finally { setSharingBrochureId(null); }
+  };
+
+  const handleBrochureShared = async (brochure) => {
+    await loadData();
+    setActivities(prev => {
+      const alreadyLogged = prev.some(a => a.activity_type === 'share_material' && brochure?.name && a.description?.includes(brochure.name));
+      if (alreadyLogged) return prev;
+      return [{
+        id: `local-share-${Date.now()}`,
+        activity_type: 'share_material',
+        title: 'Brochure shared',
+        description: brochure?.name ? `Shared "${brochure.name}" via WhatsApp` : 'Shared a brochure via WhatsApp',
+        created_at: new Date().toISOString(),
+      }, ...prev];
+    });
+  };
+
+  const handleSendTeamComm = async () => {
+    if (!teamCommForm.recipient_id) return setTeamCommError('Select who this is for');
+    if (!teamCommForm.message.trim()) return setTeamCommError('Write a message first');
+    const recipient = staff.find(s => String(s.id) === String(teamCommForm.recipient_id));
+
+    if ((teamCommForm.method === 'call' || teamCommForm.method === 'whatsapp') && !recipient?.phone) {
+      return setTeamCommError(`No phone number on file for ${recipient?.name || 'this staff member'}`);
+    }
+    setTeamCommError('');
+
+    // Open the tab synchronously (inside the click gesture) so the browser's
+    // popup blocker doesn't swallow it once we await the note creation below.
+    let waWindow = null;
+    if (teamCommForm.method === 'whatsapp') {
+      waWindow = window.open('', '_blank');
+      // Sever window.opener ourselves (same effect as the `noopener` feature flag)
+      // without it nulling out the window reference we need to redirect below.
+      if (waWindow) waWindow.opener = null;
+    }
+
+    setSendingTeamComm(true);
+    try {
+      const methodLabel = { internal: 'Internal note', call: 'Call', whatsapp: 'WhatsApp' }[teamCommForm.method];
+      await notesAPI.create(id, {
+        note: `[To ${recipient?.name || 'Team'} · ${methodLabel}] ${teamCommForm.message.trim()}`,
+        note_type: teamCommForm.method === 'call' ? 'call' : 'general',
+      });
+      setActivities(prev => [{
+        id: `local-team-msg-${Date.now()}`,
+        activity_type: 'team_message',
+        title: `${methodLabel} to ${recipient?.name || 'team'}`,
+        description: teamCommForm.message.trim(),
+        created_at: new Date().toISOString(),
+      }, ...prev]);
+
+      if (teamCommForm.method === 'call' && recipient?.phone) {
+        window.open(`tel:${recipient.phone}`, '_self');
+      } else if (teamCommForm.method === 'whatsapp' && recipient?.phone) {
+        const waUrl = `https://wa.me/${recipient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(teamCommForm.message.trim())}`;
+        if (waWindow) waWindow.location.href = waUrl;
+        else window.open(waUrl, '_blank', 'noopener,noreferrer');
+      }
+
+      toast.success('Sent to ' + (recipient?.name || 'team member'));
+      setTeamCommForm({ recipient_id: '', method: 'internal', message: '' });
+      setShowTeamComm(false);
+    } catch (e) {
+      if (waWindow) waWindow.close();
+      toast.error(e.response?.data?.error || 'Failed to send');
+    }
+    finally { setSendingTeamComm(false); }
   };
 
   const nextFollowup = followups.find(f => !f.is_completed && f.next_followup_at);
@@ -411,8 +639,21 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     { id: 'overview', label: 'Overview' },
     { id: 'chat', label: 'Chat' },
     { id: 'notes', label: 'Notes & Files' },
+    { id: 'automation', label: 'Automation' },
     { id: 'activity', label: 'Activity' },
   ];
+
+  const fmtDateTime = (d) => d ? formatDateTime(d, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+  const automationStatusStyle = {
+    active:    { label: 'Active',    cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
+    completed: { label: 'Completed', cls: 'bg-teal-50 text-teal-700', dot: 'bg-teal-500' },
+    blocked: { label: 'Blocked', cls: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
+    failed: { label: 'Failed', cls: 'bg-red-50 text-red-700', dot: 'bg-red-500' },
+    uncertain: { label: 'Uncertain', cls: 'bg-amber-50 text-amber-800', dot: 'bg-amber-500' },
+    human_review: { label: 'Needs review', cls: 'bg-amber-50 text-amber-800', dot: 'bg-amber-500' },
+    awaiting_reply: { label: 'Awaiting reply', cls: 'bg-blue-50 text-blue-700', dot: 'bg-blue-500' },
+    cancelled: { label: 'Cancelled', cls: 'bg-gray-100 text-gray-500', dot: 'bg-gray-400' },
+  };
 
   return (
     <div className="max-w-5xl mx-auto relative">
@@ -442,29 +683,35 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               </div>
             )}
           </div>
-          <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
-            className="shrink-0 whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
-            <FileText size={14} /> New Quotation
-          </button>
+          <div className="flex gap-1.5 shrink-0">
+            <button onClick={() => setShowShareBrochure(true)}
+              className="whitespace-nowrap px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <Share2 size={14} /> Share Brochure
+            </button>
+            <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
+              className="whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <FileText size={14} /> New Quotation
+            </button>
+            <button onClick={() => { loadStaff(); setTeamCommError(''); setTeamCommForm(f => ({ ...f, recipient_id: lead?.assigned_to || '' })); setShowTeamComm(true); }}
+              className="whitespace-nowrap px-3 py-2 bg-brand-50 text-brand-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
+              <Users size={14} /> Team Communication
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center justify-between flex-wrap gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            {lead.lead_number && (
-              <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
-            )}
-            <h2 className="text-base font-bold truncate">{lead.name}</h2>
-            <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
-              {lead.lead_score?.toUpperCase()}
-            </span>
-            <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
-              {lead.stage}
-            </span>
-          </div>
-          <div className="flex gap-1.5 shrink-0">
-            <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
-            <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
-          </div>
+        <div className="flex items-center flex-wrap gap-2">
+          {lead.lead_number && (
+            <span className="shrink-0 text-xs font-mono text-gray-400">{lead.lead_number}</span>
+          )}
+          <h2 className="text-base font-bold truncate">{lead.name}</h2>
+          <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>
+            {lead.lead_score?.toUpperCase()}
+          </span>
+          <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
+            {lead.stage}
+          </span>
+          <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="shrink-0 p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
+          <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="shrink-0 p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
         </div>
 
         <div className="flex flex-wrap gap-1">
@@ -483,7 +730,30 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 pt-4">
        <div className="space-y-4">
         {/* Lead Intent */}
-        <LeadIntentCard lead={lead} activities={activities} />
+        <LeadIntentCard lead={lead} activities={activities} onRecalculate={handleAIScore} />
+
+        {/* Automation Sequence — only shown if this lead has ever been enrolled */}
+        {enrollment && (
+          <div className="bg-white rounded-2xl border p-5">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-sm font-bold flex items-center gap-1.5 text-gray-800">
+                <Zap size={14} className="text-brand-500" /> Automation Sequence
+              </h3>
+              <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                enrollment.status === 'active' ? 'bg-blue-50 text-blue-700'
+                : enrollment.status === 'completed' ? 'bg-teal-50 text-teal-700'
+                : isBlockedEnrollment(enrollment) ? 'bg-red-50 text-red-700'
+                : 'bg-gray-100 text-gray-500'
+              }`}>
+                {enrollment.status === 'active' ? 'In Progress' : enrollment.status === 'completed' ? 'Completed' : isBlockedEnrollment(enrollment) ? blockedLabel(enrollment) : 'Cancelled'}
+              </span>
+            </div>
+            <p className="text-sm font-medium text-gray-800">{enrollment.sequence_name}</p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Step {enrollment.current_step + 1} of {enrollment.steps?.length || 1}
+            </p>
+          </div>
+        )}
 
         {/* Lead Info */}
         <div className="bg-white rounded-2xl border p-5">
@@ -530,6 +800,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       className={`w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 ${leadFormErrors.email ? 'border-red-500' : ''}`} />
                     {leadFormErrors.email && <p className="text-xs text-red-500 mt-1">{leadFormErrors.email}</p>}
                   </div>
+                  <div><label className="block text-xs text-gray-600 mb-1">Product interest</label><input value={form.product || ''} onChange={e => setForm({ ...form, product: e.target.value })} className="w-full border rounded-lg p-2 text-sm" /></div>
                   <div>
                     <label className="text-xs text-gray-500">Business Name</label>
                     <input value={form.business_name || ''} onChange={e => setForm({ ...form, business_name: e.target.value })}
@@ -567,14 +838,14 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs text-gray-500">Quoted Price (₹)</label>
+                    <label className="text-xs text-gray-500">Quoted Price ({currencySymbol()})</label>
                     <input type="number" min="0" value={form.deal_value || ''} onChange={e => setForm({ ...form, deal_value: e.target.value })}
                       placeholder="0"
                       className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
                   </div>
                   {isWon && (
                     <div>
-                      <label className="text-xs text-gray-500">Advance Received (₹)</label>
+                      <label className="text-xs text-gray-500">Advance Received ({currencySymbol()})</label>
                       <input type="number" min="0" value={form.advance_received || ''} onChange={e => setForm({ ...form, advance_received: e.target.value })}
                         placeholder="0"
                         className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
@@ -593,7 +864,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     {lead.business_name ? (
                       <span className="truncate">{lead.business_name}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add business name →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Add business name →</button>
                     )}
                   </div>
                   <div className="flex items-center gap-2">
@@ -611,7 +882,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     {lead.location ? (
                       <span>{lead.location}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add city →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Add city →</button>
                     )}
                   </div>
                   <div className="flex items-start gap-2">
@@ -619,18 +890,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     {lead.address ? (
                       <span className="whitespace-pre-wrap">{lead.address}</span>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add address →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Add address →</button>
                     )}
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Source</p>
-                    <p className="capitalize font-medium">{lead.source?.replace(/_/g, ' ')}</p>
+                    <p className="capitalize font-medium">{sourceLabel(lead.source)}</p>
                   </div>
                   {(lead.campaign_name || lead.source_detail) && (
                     <div className="pt-2 border-t">
                       <p className="text-xs text-gray-500">Campaign</p>
                       {lead.campaign_name ? (
-                        <button onClick={() => navigate(`/campaigns/${lead.campaign_id}`)} className="font-medium text-cyan-600 hover:underline text-left">
+                        <button onClick={() => navigate(`/campaigns/${lead.campaign_id}`)} className="font-medium text-brand-600 hover:underline text-left">
                           {lead.campaign_name}
                         </button>
                       ) : (
@@ -640,26 +911,30 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     </div>
                   )}
                   <div className="pt-2 border-t">
-                    <p className="text-xs text-gray-500">Lead Date</p>
+                    <p className="text-xs text-gray-500">Lead date</p>
                     <p className="font-medium flex items-center gap-1.5">
                       <Calendar size={13} className="text-gray-400" />
-                      {new Date(lead.lead_date || lead.created_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {formatDateTime(lead.lead_date || lead.created_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
                     </p>
+                    {/* The list shows when CurveLead saved the lead; say so when it differs from the lead date. */}
+                    {lead.lead_date && lead.created_at && Math.abs(new Date(lead.lead_date) - new Date(lead.created_at)) > 60000 && (
+                      <p className="text-[11px] text-gray-400 mt-0.5">Added to CurveLead {formatDateTime(lead.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })}</p>
+                    )}
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Assigned To</p>
                     {lead.assigned_to_name ? (
                       <p className="font-medium">{lead.assigned_to_name}</p>
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Assign a staff member →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Assign a staff member →</button>
                     )}
                   </div>
                   <div className="pt-2 border-t">
                     <p className="text-xs text-gray-500">Notes</p>
                     {lead.notes ? (
-                      <p className="text-sm whitespace-pre-wrap">{lead.notes}</p>
+                      <LeadNoteText notes={lead.notes} />
                     ) : (
-                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-cyan-600 hover:underline">Add notes →</button>
+                      <button onClick={() => { setEditing(true); loadStaff(); }} className="text-xs text-brand-600 hover:underline">Add notes →</button>
                     )}
                   </div>
                   {(!!Number(lead.deal_value) || isWon) && (
@@ -667,18 +942,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       {!!Number(lead.deal_value) && (
                         <div className="flex-1 min-w-[100px] bg-gray-50 rounded-lg px-3 py-2">
                           <p className="text-[10px] text-gray-500">Quoted Price</p>
-                          <p className="text-sm font-bold">₹{Number(lead.deal_value).toLocaleString('en-IN')}</p>
+                          <p className="text-sm font-bold">{formatMoney(Number(lead.deal_value))}</p>
                         </div>
                       )}
                       {isWon && (
                         <>
                           <div className="flex-1 min-w-[100px] bg-green-50 rounded-lg px-3 py-2">
                             <p className="text-[10px] text-gray-500">Advance Received</p>
-                            <p className="text-sm font-bold text-green-700">₹{Number(lead.advance_received || 0).toLocaleString('en-IN')}</p>
+                            <p className="text-sm font-bold text-green-700">{formatMoney(Number(lead.advance_received || 0))}</p>
                           </div>
                           <div className="flex-1 min-w-[100px] bg-amber-50 rounded-lg px-3 py-2">
                             <p className="text-[10px] text-gray-500">Balance Due</p>
-                            <p className="text-sm font-bold text-amber-700">₹{balanceDue.toLocaleString('en-IN')}</p>
+                            <p className="text-sm font-bold text-amber-700">{formatMoney(balanceDue)}</p>
                           </div>
                         </>
                       )}
@@ -690,21 +965,18 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               {/* Stage Dropdown — always visible */}
               <div className={editing ? '' : 'pt-2 border-t'}>
                 <p className="text-xs text-gray-500 mb-1">Stage</p>
-                <div className="relative">
-                  <select
-                    value={(lead.stage || '').toLowerCase()}
-                    onChange={e => handleStageChange(e.target.value)}
-                    disabled={stageSaving}
-                    className="w-full appearance-none px-3 py-2 border rounded-lg text-sm font-medium bg-white pr-8 focus:outline-none focus:ring-2 focus:ring-brand-300 capitalize disabled:opacity-60">
-                    {stages.length > 0
-                      ? stages.map(s => <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>)
-                      : <option value={(lead.stage || '').toLowerCase()}>{lead.stage || 'Select stage'}</option>
-                    }
-                  </select>
-                  <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                </div>
+                <InlineSelect
+                  value={(lead.stage || '').toLowerCase()}
+                  onChange={handleStageChange}
+                  disabled={stageSaving}
+                  capitalize
+                  options={stages.length > 0
+                    ? stages.map(s => ({ value: s.name.toLowerCase(), label: s.name }))
+                    : [{ value: (lead.stage || '').toLowerCase(), label: lead.stage || 'Select stage' }]
+                  }
+                />
                 {stageSince && (
-                  <p className="text-[10px] text-gray-400 mt-1" title={new Date(stageSince).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}>
+                  <p className="text-[10px] text-gray-400 mt-1" title={formatDateTime(stageSince, undefined, { dateStyle: 'medium', timeStyle: 'short' })}>
                     In this stage for {formatDuration(stageSince)}
                   </p>
                 )}
@@ -714,18 +986,16 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               {(stageStatuses[lead.stage?.toLowerCase()]?.length > 0 || allStatuses.length > 0) && (
                 <div>
                   <p className="text-xs text-gray-500 mb-1">Status</p>
-                  <div className="relative">
-                    <select
-                      value={lead.lead_status || ''}
-                      onChange={e => handleStatusChange(e.target.value)}
-                      className="w-full appearance-none px-3 py-2 border rounded-lg text-sm bg-white pr-8 focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                      <option value="">— No status —</option>
-                      {(stageStatuses[lead.stage?.toLowerCase()] || allStatuses).map(st => (
-                        <option key={st.id} value={st.name}>{st.name}</option>
-                      ))}
-                    </select>
-                    <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-                  </div>
+                  <InlineSelect
+                    value={lead.lead_status || ''}
+                    onChange={handleStatusChange}
+                    ringColor="focus:ring-indigo-300"
+                    placeholder="— No status —"
+                    options={[
+                      { value: '', label: '— No status —' },
+                      ...(stageStatuses[lead.stage?.toLowerCase()] || allStatuses).map(st => ({ value: st.name, label: st.name })),
+                    ]}
+                  />
                 </div>
               )}
 
@@ -737,20 +1007,11 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               )}
             </div>
 
-            <div className="mt-4 flex gap-2">
-              <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} className="flex-1 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium text-center flex items-center justify-center gap-1"><Phone size={14} /> Call</a>
-              <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" className="flex-1 py-2 bg-green-50 text-green-600 rounded-lg text-sm font-medium text-center flex items-center justify-center gap-1"><MessageCircle size={14} /> WhatsApp</a>
-            </div>
-
             {!lead.first_response_at && (
-              <button onClick={handleMarkContacted} className="mt-2 w-full py-2 bg-cyan-50 text-cyan-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
+              <button onClick={handleMarkContacted} className="mt-2 w-full py-2 bg-brand-50 text-brand-700 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
                 <CheckCircle size={14} /> Mark as Contacted
               </button>
             )}
-
-            <button onClick={handleAIScore} className="mt-2 w-full py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center justify-center gap-1">
-              <Zap size={14} /> Recalculate Intent
-            </button>
           </div>
        </div>
 
@@ -767,7 +1028,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   {nextFollowup.followup_type === 'demo' ? '🎥 Demo scheduled:' : 'Next scheduled:'}
                 </p>
                 <p className={`text-xs mt-0.5 ${nextFollowup.followup_type === 'demo' ? 'text-violet-600' : 'text-amber-600'}`}>
-                  {new Date(nextFollowup.next_followup_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                  {formatDateTime(nextFollowup.next_followup_at, undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                   {' '}· <span className="capitalize">{nextFollowup.followup_type}</span>
                 </p>
               </div>
@@ -776,35 +1037,41 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
             <div className="space-y-2">
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-gray-500">Date & Time *</label>
-                  <div className="flex gap-1">
-                    {[['Today', 0], ['Tomorrow', 1], ['In 2 days', 2]].map(([label, days]) => (
-                      <button key={label} type="button"
-                        onClick={() => setFollowupForm({ ...followupForm, next_followup_at: getDateShortcut(days) })}
-                        className="px-2 py-0.5 text-[11px] font-medium rounded-md border bg-gray-50 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 text-gray-500 transition-colors">
-                        {label}
-                      </button>
-                    ))}
+                  <label className="text-xs text-gray-500">Date & Time <span className="text-red-500">*</span></label>
+                  <div className="relative">
+                    <button type="button" onClick={() => setDateShortcutOpen(v => !v)}
+                      className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md border bg-gray-50 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 text-gray-500 transition-colors">
+                      <List size={11} /> Filter <ChevronDown size={11} className={`transition-transform ${dateShortcutOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {dateShortcutOpen && (
+                      <div className="absolute right-0 top-full mt-1 w-32 bg-white border rounded-lg shadow-lg z-20 py-1">
+                        {[['Today', 0], ['Tomorrow', 1], ['In 2 days', 2]].map(([label, days]) => (
+                          <button key={label} type="button"
+                            onClick={() => { setFollowupForm({ ...followupForm, next_followup_at: getDateShortcut(days) }); setDateShortcutOpen(false); }}
+                            className="w-full text-left px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-brand-50 hover:text-brand-600">
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </div>
-                <input
-                  type="datetime-local"
+                <DateTimePicker
                   value={followupForm.next_followup_at}
-                  onChange={e => setFollowupForm({ ...followupForm, next_followup_at: e.target.value })}
+                  onChange={v => setFollowupForm({ ...followupForm, next_followup_at: v })}
                   min={getLocalNow()}
-                  className="w-full px-3 py-2 border rounded-lg text-sm" />
+                  className="w-full" />
               </div>
 
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Type</label>
-                <div className="flex gap-2">
+                <select value={followupForm.followup_type}
+                  onChange={e => setFollowupForm({ ...followupForm, followup_type: e.target.value })}
+                  className="w-full px-3 py-2 border rounded-lg text-sm bg-white capitalize">
                   {['call', 'whatsapp', 'visit', 'demo'].map(t => (
-                    <button key={t} onClick={() => setFollowupForm({ ...followupForm, followup_type: t })}
-                      className={`flex-1 py-1.5 rounded-lg text-xs font-medium capitalize border transition-colors ${followupForm.followup_type === t ? (t === 'demo' ? 'bg-violet-600 text-white border-violet-600' : 'bg-brand-600 text-white border-brand-600') : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-                      {t === 'demo' ? '🎥 Demo' : t}
-                    </button>
+                    <option key={t} value={t}>{t === 'demo' ? '🎥 Demo' : t}</option>
                   ))}
-                </div>
+                </select>
               </div>
 
               {followupForm.followup_type === 'demo' && (
@@ -827,6 +1094,15 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                     <p className="text-[11px] text-gray-400 mt-1">No email on file — invite won't be sent</p>
                   )}
                 </div>
+              )}
+
+              {isBookingType(followupForm.followup_type) && (
+                <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={followupForm.notify_lead !== false}
+                    onChange={e => setFollowupForm({ ...followupForm, notify_lead: e.target.checked })}
+                    className="w-4 h-4 mt-0.5 rounded" />
+                  <span>Send WhatsApp confirmation &amp; reminders to {lead?.name || 'the lead'}{!lead?.phone && <span className="text-amber-600"> (no phone number on file)</span>}</span>
+                </label>
               )}
 
               <div>
@@ -867,9 +1143,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   {followupHistory.map(f => (
                     editingFollowupId === f.id ? (
                       <div key={f.id} className="p-2.5 rounded-xl border border-brand-300 bg-brand-50/30 space-y-2">
-                        <input type="datetime-local" value={editFollowupForm.next_followup_at}
-                          onChange={e => setEditFollowupForm({ ...editFollowupForm, next_followup_at: e.target.value })}
-                          className="w-full px-2 py-1.5 border rounded-lg text-xs" />
+                        <DateTimePicker value={editFollowupForm.next_followup_at}
+                          onChange={v => setEditFollowupForm({ ...editFollowupForm, next_followup_at: v })}
+                          className="w-full" />
                         <div className="flex gap-1">
                           {['call', 'whatsapp', 'visit', 'demo'].map(t => (
                             <button key={t} type="button" onClick={() => setEditFollowupForm({ ...editFollowupForm, followup_type: t })}
@@ -903,7 +1179,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                           <div className="flex items-center gap-1.5 min-w-0">
                             {f.is_completed
                               ? <CheckCircle size={13} className="text-green-500 shrink-0" />
-                              : <Calendar size={13} className="text-cyan-500 shrink-0" />
+                              : <Calendar size={13} className="text-brand-500 shrink-0" />
                             }
                             <span className={`text-xs font-medium capitalize ${f.is_completed ? 'text-gray-400 line-through' : 'text-gray-700'}`}>
                               {f.followup_type}
@@ -919,7 +1195,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                         </div>
                         {f.notes && <p className="text-xs text-gray-500 mt-1 truncate">{f.notes}</p>}
                         <p className="text-[10px] text-gray-400 mt-1">
-                          {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          {formatDateTime(f.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </p>
                       </div>
                     )
@@ -964,7 +1240,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                         q.status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-700'
                       }`}>{q.status?.toUpperCase()}</span>
                     </div>
-                    <p className="text-sm font-bold text-brand-600 mt-1">₹{parseFloat(q.total).toLocaleString('en-IN')}</p>
+                    <p className="text-sm font-bold text-brand-600 mt-1">{formatMoney(parseFloat(q.total), q.currency)}</p>
                   </button>
                 ))}
               </div>
@@ -994,52 +1270,24 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               ) : messages.map(m => (
                 <div key={m.id} className={`flex ${m.direction === 'outbound' ? 'justify-end' : 'justify-start'}`}>
                   <div className={`max-w-[70%] px-3 py-2 rounded-2xl text-sm ${m.direction === 'outbound' ? 'bg-brand-600 text-white' : 'bg-gray-100'}`}>
-                    <p>{m.message}</p>
-                    <p className={`text-[10px] mt-1 ${m.direction === 'outbound' ? 'text-white/70' : 'text-gray-400'}`}>
-                      {new Date(m.sent_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                    <p className="whitespace-pre-wrap">{m.message}</p>
+                    <p className={`text-[10px] mt-1 flex items-center gap-1 ${m.direction === 'outbound' ? 'text-white/70 justify-end' : 'text-gray-400'}`}>
+                      {formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined,  hour: 'numeric', minute: '2-digit' })}
+                      {m.direction === 'outbound' && <MessageStatus status={m.status} />}
                     </p>
+                    {m.direction === 'outbound' && m.status === 'failed' && (
+                      <p className="mt-1 text-[11px] font-medium text-red-100">Not delivered{m.error_detail ? ` · ${m.error_detail}` : ''}</p>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
 
-            {showTmplPicker && (
-              <div className="mb-2 border rounded-xl overflow-hidden shadow-sm">
-                {templates.length === 0 ? (
-                  <p className="text-sm text-gray-400 text-center py-3">No templates yet. Create them in Settings → Templates.</p>
-                ) : (
-                  <div className="max-h-48 overflow-y-auto divide-y">
-                    {templates.map(t => (
-                      <div key={t.id} className="flex items-center gap-2 px-3 py-2.5 hover:bg-gray-50 transition-colors">
-                        <button onClick={() => handleSelectTemplate(t)} className="flex-1 text-left min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium">{t.name}</span>
-                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">{t.category.replace(/_/g, ' ')}</span>
-                          </div>
-                          <p className="text-xs text-gray-400 truncate mt-0.5">{t.message}</p>
-                        </button>
-                        <button onClick={(e) => handleSendTemplateWhatsApp(t, e)}
-                          title="Open in WhatsApp"
-                          className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium transition-colors">
-                          <ExternalLink size={12} /> WA
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex gap-2">
-              <input value={newMessage} onChange={e => setNewMessage(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                placeholder="Type a message..."
-                className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-              <button onClick={handleOpenTmplPicker}
-                className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 border transition-colors whitespace-nowrap ${showTmplPicker ? 'bg-brand-50 text-brand-600 border-brand-200' : 'bg-gray-50 text-gray-600 hover:bg-gray-100 border-gray-200'}`}>
-                <List size={14} /> Templates
-              </button>
-              <button onClick={handleSendMessage} className="px-4 py-2 bg-brand-600 text-white rounded-lg"><Send size={16} /></button>
+            {/* Same composer as the inbox: 24-hour window banner, approved-template picker,
+                free text locked when the window is closed. */}
+            <div className="-mx-5 -mb-5 border-t">
+              <InboxComposer leadId={id} leadName={lead.name} messages={messages} messagesLoading={false}
+                setMessages={setMessages} onSent={() => setLead(prev => ({ ...prev, ai_paused: true }))} />
             </div>
           </div>
 
@@ -1086,9 +1334,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       <p className="text-xs font-medium truncate">{b.name}</p>
                       <p className="text-[11px] text-gray-400 capitalize">{b.category}</p>
                     </div>
-                    <button onClick={() => handleShareBrochureWA(b.id)}
-                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 rounded-lg text-xs font-medium flex items-center gap-1">
-                      <MessageCircle size={11} /> Send
+                    <button onClick={() => handleShareBrochureWA(b.id)} disabled={sharingBrochureId === b.id}
+                      className="shrink-0 px-2.5 py-1.5 bg-green-50 text-green-600 hover:bg-green-100 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg text-xs font-medium flex items-center gap-1">
+                      <MessageCircle size={11} /> {sharingBrochureId === b.id ? 'Sending...' : 'Send'}
                     </button>
                   </div>
                 ))
@@ -1114,6 +1362,101 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
       </div>
       )}
 
+      {activeTab === 'automation' && (
+      <div className="pt-4 max-w-2xl">
+        {!enrollment ? (
+          <div className="bg-white rounded-2xl border p-10 text-center text-gray-400">
+            <Workflow size={32} className="mx-auto mb-3 text-gray-300" />
+            <p className="text-sm">This lead hasn't been enrolled in any automation sequence yet.</p>
+            <p className="text-xs text-gray-300 mt-1">Enrollment happens automatically when a trigger rule matches this lead.</p>
+          </div>
+        ) : (() => {
+          const totalSteps = enrollment.steps?.length || 0;
+          const status = isBlockedEnrollment(enrollment)
+            ? { label: blockedLabel(enrollment), cls: 'bg-red-50 text-red-700', dot: 'bg-red-500' }
+            : automationStatusStyle[enrollment.status] || automationStatusStyle.cancelled;
+          const nextStep = enrollment.status === 'active' ? enrollment.steps?.[enrollment.current_step] : null;
+          const progressPct = totalSteps ? Math.min(100, Math.round(((enrollment.status === 'completed' ? totalSteps : enrollment.current_step) / totalSteps) * 100)) : 0;
+          return (
+            <div className="bg-white rounded-2xl border overflow-hidden">
+              <div className="p-5 border-b flex items-center justify-between">
+                <h3 className="text-sm font-bold flex items-center gap-1.5 text-gray-800">
+                  <Workflow size={15} className="text-brand-500" /> Automation
+                </h3>
+                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${status.cls}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${status.dot}`} /> {status.label}
+                </span>
+              </div>
+
+              <div className="p-5"><AutomationRecovery enrollment={enrollment} onRecovered={async () => { const { data } = await automationAPI.getEnrollments([id]); setEnrollment(data.enrollments?.[id] || null); }} /></div>
+              <div className="p-5 grid grid-cols-2 gap-x-4 gap-y-5">
+                <div className="col-span-2">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Sequence</p>
+                  <p className="text-sm font-semibold text-gray-800 mt-0.5">{enrollment.sequence_name}</p>
+                </div>
+
+                <div className="col-span-2">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Trigger Rule</p>
+                  <p className="text-sm text-gray-700 mt-0.5">{enrollment.rule_name || 'Assignment rule'}</p>
+                </div>
+
+                <div className="col-span-2">
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Progress</p>
+                  <p className="text-sm text-gray-700 mt-0.5">
+                    Step {Math.min(enrollment.current_step + 1, totalSteps || 1)} of {totalSteps}
+                  </p>
+                  <div className="w-full h-1.5 bg-gray-100 rounded-full mt-2 overflow-hidden">
+                    <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: `${progressPct}%` }} />
+                  </div>
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Started</p>
+                  <p className="text-sm text-gray-700 mt-0.5">{fmtDateTime(enrollment.enrolled_at)}</p>
+                </div>
+
+                {enrollment.status === 'completed' && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Completed</p>
+                    <p className="text-sm text-gray-700 mt-0.5">{fmtDateTime(enrollment.completed_at)}</p>
+                  </div>
+                )}
+
+                {enrollment.status === 'cancelled' && isBlockedEnrollment(enrollment) && (
+                  <div className="col-span-2 rounded-lg bg-red-50 border border-red-100 px-3 py-2">
+                    <p className="text-xs font-semibold text-red-700">{blockedLabel(enrollment)} · stopped {fmtDateTime(enrollment.cancelled_at)}</p>
+                    <p className="text-xs text-red-600 mt-0.5">
+                      {enrollment.cancelled_reason === 'blocked_no_opt_in'
+                        ? 'This step uses a Marketing template and the lead has no WhatsApp opt-in. It resumes automatically when they opt in (WhatsApp → Opt-ins, or they send START). Or switch the step to a Utility template.'
+                        : "The lead hasn't opted in or asked to be contacted, so WhatsApp templates can't be sent yet."}
+                    </p>
+                  </div>
+                )}
+
+                {enrollment.status === 'cancelled' && !isBlockedEnrollment(enrollment) && (
+                  <div>
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold">Cancelled</p>
+                    <p className="text-sm text-gray-700 mt-0.5">{fmtDateTime(enrollment.cancelled_at)}</p>
+                    {enrollment.cancelled_reason && <p className="text-xs text-gray-400 mt-0.5 capitalize">{enrollment.cancelled_reason.replace(/_/g, ' ')}</p>}
+                  </div>
+                )}
+
+                {enrollment.status === 'active' && (
+                  <div className="col-span-2 pt-1 border-t">
+                    <p className="text-[10px] uppercase tracking-wide text-gray-400 font-bold mt-4">Next Action</p>
+                    <p className="text-sm font-medium text-gray-800 mt-0.5 capitalize">
+                      {nextStep?.channel === 'email' ? 'Email' : 'WhatsApp Message'}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{fmtDateTime(enrollment.next_send_at)}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </div>
+      )}
+
       {activeTab === 'activity' && (
       <div className="space-y-4 pt-4">
           {/* Activity Timeline */}
@@ -1125,7 +1468,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               <div className="relative">
                 <div className="absolute left-4 top-0 bottom-0 w-px bg-gray-100" />
                 <div className="space-y-4">
-                  {activities.map(a => {
+                  {collapseRepeats(activities).map(a => {
                     const cfg = activityConfig(a.activity_type);
                     return (
                       <div key={a.id} className="flex gap-3 relative">
@@ -1135,11 +1478,16 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                         <div className="flex-1 pt-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <p className="text-sm font-medium">{a.title}</p>
+                            {a.repeat > 1 && (
+                              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600" title={`Repeated ${a.repeat} times, first ${formatDateTime(a.first_at, undefined, { dateStyle: 'medium', timeStyle: 'short' })}`}>×{a.repeat}</span>
+                            )}
                             {a.created_by_name && (
                               <span className="text-[10px] text-gray-400">by {a.created_by_name}</span>
                             )}
                           </div>
-                          {a.description && <p className="text-xs text-gray-500 mt-0.5">{a.description}</p>}
+                          {a.description && <p className="text-xs text-gray-500 mt-0.5">{a.metadata?.scheduled_at
+                            ? `Scheduled for ${formatDateTime(a.metadata.scheduled_at)}${a.metadata.meeting_url ? ` · Link: ${a.metadata.meeting_url}` : ''}`
+                            : a.description}</p>}
                           {a.old_value && a.new_value && (
                             <p className="text-xs text-gray-400 mt-0.5">
                               <span className="line-through">{a.old_value}</span>
@@ -1151,7 +1499,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                             <p className="text-xs text-gray-500 mt-1 bg-green-50 px-2 py-1 rounded-lg italic">"{a.whatsapp_message}"</p>
                           )}
                           <p className="text-[10px] text-gray-400 mt-1">
-                            {new Date(a.created_at).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}
+                            {formatDateTime(a.created_at, undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                           </p>
                         </div>
                       </div>
@@ -1206,6 +1554,94 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   {stageSaving ? 'Saving…' : 'Mark as Lost'}
                 </button>
               </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showShareBrochure && createPortal(
+        <ShareBrochureModal
+          leadId={id}
+          onClose={() => setShowShareBrochure(false)}
+          onShared={handleBrochureShared}
+        />,
+        document.body
+      )}
+
+      {/* ── Team Communication Modal ── */}
+      {showTeamComm && createPortal(
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setShowTeamComm(false)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl">
+            <div className="flex items-center justify-between p-5 border-b">
+              <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                <Users size={18} className="text-brand-600" /> Team Communication
+              </h2>
+              <button onClick={() => setShowTeamComm(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+            </div>
+
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-gray-400 -mt-1">Loop in the Admin or a team member on this lead's follow-up.</p>
+
+              {/* Recipient */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Send to</label>
+                {lead?.assigned_to ? (
+                  <div className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-[11px] font-semibold flex-shrink-0">
+                      {initials(lead.assigned_to_name, 1)}
+                    </span>
+                    <span className="font-medium text-gray-800">{lead.assigned_to_name || 'Assigned staff'}</span>
+                    <span className="text-xs text-gray-400 ml-auto">Assigned to this lead</span>
+                  </div>
+                ) : (
+                  <p className={`w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 text-gray-400 ${teamCommError && !teamCommForm.recipient_id ? 'border-red-500' : ''}`}>
+                    No staff assigned to this lead yet
+                  </p>
+                )}
+              </div>
+
+              {/* Method */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1.5">Via</label>
+                <div className="flex gap-2">
+                  {[
+                    { id: 'internal', label: 'Internal Message', Icon: MessageSquare },
+                    { id: 'call', label: 'Call', Icon: PhoneCall },
+                    { id: 'whatsapp', label: 'WhatsApp', Icon: MessageCircle },
+                  ].map(m => (
+                    <button key={m.id} type="button" onClick={() => setTeamCommForm(f => ({ ...f, method: m.id }))}
+                      className={`flex-1 flex flex-col items-center gap-1 px-2 py-2.5 rounded-lg border text-xs font-medium transition-colors ${
+                        teamCommForm.method === m.id ? 'bg-brand-50 border-brand-300 text-brand-700' : 'border-gray-200 text-gray-500 hover:bg-gray-50'
+                      }`}>
+                      <m.Icon size={15} /> {m.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Message */}
+              <div>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Message</label>
+                <textarea
+                  value={teamCommForm.message}
+                  onChange={e => { setTeamCommForm(f => ({ ...f, message: e.target.value })); setTeamCommError(''); }}
+                  rows={4}
+                  placeholder="e.g. I called Rajkumar regarding the scheduled demo. Please follow up tomorrow."
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 ${teamCommError && !teamCommForm.message.trim() ? 'border-red-500' : ''}`}
+                />
+                <p className="text-[10px] text-gray-400 mt-1">This gets logged to the lead's Notes & Activity so the whole team can see it.</p>
+              </div>
+
+              {teamCommError && (
+                <div className="px-3 py-2 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{teamCommError}</div>
+              )}
+
+              <button onClick={handleSendTeamComm} disabled={sendingTeamComm}
+                className="w-full py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-1.5">
+                <Send size={14} /> {sendingTeamComm ? 'Sending…' : 'Send Message'}
+              </button>
             </div>
           </div>
         </div>,

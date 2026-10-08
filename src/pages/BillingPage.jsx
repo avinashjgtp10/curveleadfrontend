@@ -26,6 +26,9 @@ const planCopy = {
 const statusBadgeStyles = {
   trial: 'bg-amber-100 text-amber-700',
   active: 'bg-green-100 text-green-700',
+  cancelled: 'bg-gray-100 text-gray-600',
+  halted: 'bg-red-100 text-red-700',
+  expired: 'bg-red-100 text-red-700',
 };
 
 const billingPeriods = [
@@ -74,21 +77,18 @@ const BillingPage = () => {
     return tenant?.plan_name || tenant?.planName || '';
   }, [subscriptionStatus, tenant]);
 
-  useEffect(() => {
-    const loadPlans = async () => {
-      try {
-        const { data } = await paymentAPI.getPlans();
-        setPlans(data.plans || []);
-        setRazorpayKeyId(data.razorpayKeyId || '');
-      } catch (err) {
-        setError(err.response?.data?.error || 'Failed to load billing plans.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadPlans();
-  }, []);
+  const loadPlans = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const { data } = await paymentAPI.getPlans();
+      setPlans(data.plans || []);
+      setRazorpayKeyId(data.razorpayKeyId || '');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to load billing plans.');
+    } finally { setLoading(false); }
+  };
+  useEffect(() => { loadPlans(); }, []);
 
   const handleCheckout = async (planName) => {
     setError('');
@@ -98,14 +98,12 @@ const BillingPage = () => {
     try {
       await loadRazorpay();
 
-      const { data } = await paymentAPI.createOrder(planName, billingPeriod);
+      const { data } = await paymentAPI.createSubscription(planName, billingPeriod);
       const options = {
         key: data.razorpayKeyId || razorpayKeyId,
-        amount: data.amount,
-        currency: data.currency,
+        subscription_id: data.subscriptionId,
         name: 'CurveLead',
         description: data.plan?.description || `${planName} subscription`,
-        order_id: data.orderId,
         prefill: {
           name: data.prefill?.name || user?.name || '',
           email: data.prefill?.email || user?.email || '',
@@ -118,7 +116,7 @@ const BillingPage = () => {
         theme: { color: '#4f46e5' },
         handler: async (response) => {
           try {
-            const verifyResult = await paymentAPI.verify({
+            const verifyResult = await paymentAPI.verifySubscription({
               ...response,
               planName,
               billingPeriod,
@@ -197,11 +195,12 @@ const BillingPage = () => {
       {error && (
         <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
+          <button type="button" onClick={loadPlans} disabled={loading} className="ml-3 underline font-semibold">Retry loading plans</button>
         </div>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {plans.map((plan) => {
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {plans.filter(plan => plan.name !== 'Pro').map((plan) => {
           const copy = planCopy[plan.name] || {};
           const isCurrentPlan = currentPlanName === plan.name;
           const isProcessing = processingPlan === plan.name;
@@ -228,10 +227,14 @@ const BillingPage = () => {
                 {plan.name === 'Growth' ? <Zap className="shrink-0 text-brand-600" size={20} /> : <CreditCard className="shrink-0 text-gray-400" size={20} />}
               </div>
 
-              <div className="mt-5 flex items-end gap-1">
-                <span className="text-3xl font-extrabold text-gray-950">{formatPrice(amount, currency)}</span>
-                {amount > 0 && <span className="pb-1 text-sm text-gray-500">/{billingPeriod === 'yearly' ? 'yr' : 'mo'}</span>}
-              </div>
+              {plan.name !== 'Free' && (
+                <div className="mt-5 flex items-end gap-1">
+                  <span className="text-3xl font-extrabold text-gray-950">
+                    {plan.name === 'Pro' ? 'Custom' : formatPrice(amount, currency)}
+                  </span>
+                  {amount > 0 && plan.name !== 'Pro' && <span className="pb-1 text-sm text-gray-500">/{billingPeriod === 'yearly' ? 'yr' : 'mo'}</span>}
+                </div>
+              )}
               {billingPeriod === 'yearly' && selectedPrice && (
                 <p className="mt-2 text-xs font-semibold text-green-700">Two months free</p>
               )}

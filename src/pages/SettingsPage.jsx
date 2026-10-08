@@ -1,37 +1,60 @@
+import FeatureSettings from '../components/FeatureSettings';
+import AssignmentRulesSection from './LeadAutomation/AssignmentRulesSection';
 import { useEffect, useState } from 'react';
-import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, automationAPI } from '../services/api';
+import { Link } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
+import { settingsAPI, authAPI, templateAPI, stageAPI, statusAPI, campaignAPI, leadAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
-import { User, Building, Lock, Webhook, CheckCircle, Copy, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag, Zap, Clock } from 'lucide-react';
+import { User, Building, CheckCircle, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
+import { COUNTRIES, CURRENCIES, timezones, currencySymbol, countryProfile, bankLabel } from '../utils/locale';
 
 const SettingsPage = () => {
   const confirm = useConfirmDialog();
-  const { user, tenant } = useAuth();
-  const [tab, setTab] = useState('profile');
+  const toast = useToast();
+  const { user, tenant, refreshProfile } = useAuth();
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') || 'profile');
   const [settings, setSettings] = useState({});
   const [loading, setLoading] = useState(true);
   const [saved, setSaved] = useState(false);
 
   const [profile, setProfile] = useState({ name: '', email: '', phone: '' });
   const [pwForm, setPwForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [editingPassword, setEditingPassword] = useState(false);
+  const [pwErrors, setPwErrors] = useState({});
   const [business, setBusiness] = useState({
     name: '', email: '', phone: '', address: '', city: '', state: '',
     gst_number: '', pan_number: '', website: '',
     bank_details: { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
+    country: 'IN', currency: 'INR', timezone: 'Asia/Kolkata',
     daily_report_enabled: false,
     daily_report_time: '08:00',
+    dedupe_mode: 'phone',
     email_reply_to: '',
+    automation_business_hours_enabled: false,
+    automation_business_hours_start: '09:00',
+    automation_business_hours_end: '20:00',
+    automation_daily_cap_enabled: false,
+    automation_daily_cap: 1,
   });
+  const [businessOriginal, setBusinessOriginal] = useState(null);
+  const [editingBusiness, setEditingBusiness] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
 
   const [templates, setTemplates] = useState([]);
   const [tmplModal, setTmplModal] = useState(false);
   const [editingTmpl, setEditingTmpl] = useState(null);
-  const [tmplForm, setTmplForm] = useState({ name: '', category: 'follow_up', channel: 'whatsapp', message: '' });
+  const [tmplForm, setTmplForm] = useState({ name: '', category: 'follow_up', channel: 'whatsapp', message: '', stage_name: '', campaign_id: '' });
+  const [tmplErrors, setTmplErrors] = useState({});
+  const [campaigns, setCampaigns] = useState([]);
 
   const [stages, setStages] = useState([]);
   const [stageModal, setStageModal] = useState(false);
   const [editingStage, setEditingStage] = useState(null);
   const [stageForm, setStageForm] = useState({ name: '', color: 'blue', is_won: false, is_lost: false, meta_event_name: '' });
+  const [stageErrors, setStageErrors] = useState({});
   const [expandedStage, setExpandedStage] = useState(null);
 
   const [statusModal, setStatusModal] = useState(false);
@@ -40,24 +63,11 @@ const SettingsPage = () => {
   const [statusStageId, setStatusStageId] = useState(null);
   const [modalError, setModalError] = useState('');
 
-  const emptyStep = () => ({ channel: 'whatsapp', delay_minutes: 0, message: '', email_subject: '' });
-  const [sequences, setSequences] = useState([]);
-  const [seqModal, setSeqModal] = useState(false);
-  const [editingSeq, setEditingSeq] = useState(null);
-  const [seqForm, setSeqForm] = useState({ name: '', description: '', steps: [emptyStep()] });
-  const [seqErrors, setSeqErrors] = useState({});
-
-  const [rules, setRules] = useState([]);
-  const [ruleModal, setRuleModal] = useState(false);
-  const [editingRule, setEditingRule] = useState(null);
-  const [ruleForm, setRuleForm] = useState({ name: '', trigger_type: 'new_lead', stage_name: '', sequence_id: '' });
-
   useEffect(() => { loadSettings(); }, []);
 
   useEffect(() => {
-    if (tab === 'templates') loadTemplates();
+    if (tab === 'templates') { loadTemplates(); loadStages(); loadCampaigns(); }
     if (tab === 'pipeline') loadStages();
-    if (tab === 'automations') { loadSequences(); loadRules(); loadStages(); }
   }, [tab]);
 
   const loadSettings = async () => {
@@ -66,7 +76,7 @@ const SettingsPage = () => {
       setSettings(data.settings || {});
       setProfile({ name: user?.name || '', email: user?.email || '', phone: user?.phone || '' });
       const s = data.settings || {};
-      setBusiness({
+      const loadedBusiness = {
         name: s.name || tenant?.name || '',
         email: s.email || '',
         phone: s.phone || '',
@@ -77,10 +87,21 @@ const SettingsPage = () => {
         pan_number: s.pan_number || '',
         website: s.website || '',
         bank_details: s.bank_details || { account_holder: '', bank_name: '', account_number: '', ifsc: '', upi: '' },
+        country: s.country || 'IN',
+        currency: s.currency || 'INR',
+        timezone: s.timezone || 'Asia/Kolkata',
         daily_report_enabled: !!s.daily_report_enabled,
         daily_report_time: s.daily_report_time || '08:00',
+        dedupe_mode: s.dedupe_mode || 'phone',
         email_reply_to: s.email_reply_to || '',
-      });
+        automation_business_hours_enabled: !!s.automation_business_hours_enabled,
+        automation_business_hours_start: s.automation_business_hours_start || '09:00',
+        automation_business_hours_end: s.automation_business_hours_end || '20:00',
+        automation_daily_cap_enabled: !!s.automation_daily_cap_enabled,
+        automation_daily_cap: s.automation_daily_cap || 1,
+      };
+      setBusiness(loadedBusiness);
+      setBusinessOriginal(loadedBusiness);
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -98,36 +119,81 @@ const SettingsPage = () => {
   };
 
   const handleSaveBusiness = async () => {
+    if (!business.name.trim()) return toast.error('Business Name is required');
     try {
-      await settingsAPI.update({ ...settings, ...business });
+      try {
+        await settingsAPI.update({ ...settings, ...business });
+      } catch (e) {
+        // Money already recorded keeps its numbers — the owner confirms they understand that.
+        if (e.response?.status !== 409 || e.response?.data?.code !== 'CURRENCY_CHANGE_CONFIRM') throw e;
+        if (!window.confirm(`${e.response.data.error}\n\nChange the currency to ${e.response.data.to}?`)) return;
+        await settingsAPI.update({ ...settings, ...business, confirm_currency_change: true });
+      }
+      setBusinessOriginal(business);
+      setEditingBusiness(false);
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+      // Country, currency and timezone drive formatting everywhere — reload them.
+      if (['country', 'currency', 'timezone'].some(k => business[k] !== businessOriginal?.[k])) refreshProfile?.();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+  };
+
+  const handleCancelBusiness = () => {
+    if (businessOriginal) setBusiness(businessOriginal);
+    setEditingBusiness(false);
+  };
+
+  const handleLogoUpload = async (file) => {
+    if (!file) return;
+    setLogoUploading(true);
+    try {
+      const { data } = await settingsAPI.uploadLogo(file);
+      setSettings(s => ({ ...s, logo_url: data.logo_url }));
+      toast.success('Logo updated.');
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to upload logo'); }
+    finally { setLogoUploading(false); }
   };
 
   const handleChangePassword = async () => {
-    if (pwForm.newPassword !== pwForm.confirm) return alert('Passwords do not match');
-    if (pwForm.newPassword.length < 6) return alert('Password must be at least 6 characters');
+    const errors = {};
+    if (!pwForm.currentPassword) errors.currentPassword = 'Current password is required';
+    if (pwForm.newPassword.length < 6) errors.newPassword = 'Password must be at least 6 characters';
+    if (pwForm.confirm !== pwForm.newPassword) errors.confirm = 'Passwords do not match';
+    setPwErrors(errors);
+    if (Object.keys(errors).length) return;
     try {
       await authAPI.changePassword({ currentPassword: pwForm.currentPassword, newPassword: pwForm.newPassword });
       setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
+      setEditingPassword(false);
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { setPwErrors({ currentPassword: e.response?.data?.error || 'Failed' }); }
+  };
+
+  const handleCancelPassword = () => {
+    setPwForm({ currentPassword: '', newPassword: '', confirm: '' });
+    setPwErrors({});
+    setEditingPassword(false);
   };
 
   const openCreateTmpl = () => {
     setEditingTmpl(null);
-    setTmplForm({ name: '', category: 'follow_up', channel: 'whatsapp', message: '' });
+    setTmplForm({ name: '', category: 'follow_up', channel: 'whatsapp', message: '', stage_name: '', campaign_id: '' });
+    setTmplErrors({});
     setTmplModal(true);
   };
 
   const openEditTmpl = (t) => {
     setEditingTmpl(t);
-    setTmplForm({ name: t.name, category: t.category, channel: t.channel, message: t.message });
+    setTmplForm({ name: t.name, category: t.category, channel: t.channel, message: t.message, stage_name: t.stage_name || '', campaign_id: t.campaign_id || '' });
+    setTmplErrors({});
     setTmplModal(true);
   };
 
   const handleSaveTmpl = async () => {
-    if (!tmplForm.name || !tmplForm.message) return alert('Name and message are required');
+    const errs = {};
+    if (!tmplForm.name.trim()) errs.name = 'Template name is required';
+    if (!tmplForm.message.trim()) errs.message = 'Message is required';
+    setTmplErrors(errs);
+    if (Object.keys(errs).length) return;
     try {
       if (editingTmpl) {
         await templateAPI.update(editingTmpl.id, tmplForm);
@@ -137,7 +203,7 @@ const SettingsPage = () => {
       setTmplModal(false);
       loadTemplates();
       showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   const handleDeleteTmpl = async (id) => {
@@ -145,108 +211,7 @@ const SettingsPage = () => {
     try {
       await templateAPI.delete(id);
       loadTemplates();
-    } catch (e) { alert('Failed to delete'); }
-  };
-
-  const loadSequences = async () => {
-    try {
-      const { data } = await automationAPI.getSequences();
-      setSequences(data.sequences || []);
-    } catch (e) { console.error(e); }
-  };
-
-  const loadRules = async () => {
-    try {
-      const { data } = await automationAPI.getRules();
-      setRules(data.rules || []);
-    } catch (e) { console.error(e); }
-  };
-
-  const openCreateSeq = () => {
-    setEditingSeq(null);
-    setSeqForm({ name: '', description: '', steps: [emptyStep()] });
-    setSeqErrors({});
-    setSeqModal(true);
-  };
-
-  const openEditSeq = (s) => {
-    setEditingSeq(s);
-    setSeqForm({
-      name: s.name, description: s.description || '',
-      steps: s.steps?.length ? s.steps.map(st => ({ ...st, email_subject: st.email_subject || '' })) : [emptyStep()],
-    });
-    setSeqErrors({});
-    setSeqModal(true);
-  };
-
-  const updateStep = (idx, patch) => {
-    setSeqForm(f => ({ ...f, steps: f.steps.map((s, i) => i === idx ? { ...s, ...patch } : s) }));
-    if (patch.message?.trim() && seqErrors.steps) setSeqErrors(er => ({ ...er, steps: undefined }));
-  };
-  const addStep = () => setSeqForm(f => ({ ...f, steps: [...f.steps, emptyStep()] }));
-  const removeStep = (idx) => setSeqForm(f => ({ ...f, steps: f.steps.filter((_, i) => i !== idx) }));
-
-  const handleSaveSeq = async () => {
-    const errors = {};
-    if (!seqForm.name.trim()) errors.name = 'Sequence name is required';
-    if (!seqForm.steps.some(s => s.message.trim())) errors.steps = 'At least one step needs a message';
-    setSeqErrors(errors);
-    if (Object.keys(errors).length) return;
-    try {
-      if (editingSeq) {
-        await automationAPI.updateSequence(editingSeq.id, seqForm);
-      } else {
-        await automationAPI.createSequence(seqForm);
-      }
-      setSeqModal(false);
-      loadSequences();
-      showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save sequence'); }
-  };
-
-  const handleDeleteSeq = async (id) => {
-    if (!await confirm({ title: 'Delete this sequence?', message: 'Rules pointing to it will also be deleted.' })) return;
-    try {
-      await automationAPI.deleteSequence(id);
-      loadSequences();
-      loadRules();
-    } catch (e) { alert('Failed to delete'); }
-  };
-
-  const openCreateRule = () => {
-    setEditingRule(null);
-    setRuleForm({ name: '', trigger_type: 'new_lead', stage_name: '', sequence_id: sequences[0]?.id || '' });
-    setRuleModal(true);
-  };
-
-  const openEditRule = (r) => {
-    setEditingRule(r);
-    setRuleForm({ name: r.name, trigger_type: r.trigger_type, stage_name: r.stage_name || '', sequence_id: r.sequence_id });
-    setRuleModal(true);
-  };
-
-  const handleSaveRule = async () => {
-    if (!ruleForm.name.trim()) return alert('Rule name is required');
-    if (!ruleForm.sequence_id) return alert('Pick a sequence for this rule to enroll leads into');
-    if (ruleForm.trigger_type === 'stage_change' && !ruleForm.stage_name) return alert('Pick which stage triggers this rule');
-    try {
-      if (editingRule) {
-        await automationAPI.updateRule(editingRule.id, ruleForm);
-      } else {
-        await automationAPI.createRule(ruleForm);
-      }
-      setRuleModal(false);
-      loadRules();
-      showSaved();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to save rule'); }
-  };
-
-  const handleDeleteRule = async (id) => {
-    if (!await confirm({ title: 'Delete this rule?' })) return;
-    try {
-      await automationAPI.deleteRule(id);
-      loadRules();
-    } catch (e) { alert('Failed to delete'); }
+    } catch (e) { toast.error('Failed to delete'); }
   };
 
   const loadStages = async () => {
@@ -262,21 +227,47 @@ const SettingsPage = () => {
     }
   };
 
+  const loadCampaigns = async () => {
+    try {
+      const { data } = await campaignAPI.getAll();
+      setCampaigns(data.campaigns || []);
+    } catch (e) { console.error(e); }
+  };
+
   const openCreateStage = () => {
     setEditingStage(null);
     setStageForm({ name: '', color: 'blue', is_won: false, is_lost: false, meta_event_name: '' });
+    setStageErrors({});
     setStageModal(true);
   };
 
   const openEditStage = (s) => {
     setEditingStage(s);
     setStageForm({ name: s.name, color: s.color || 'blue', is_won: s.is_won || false, is_lost: s.is_lost || false, meta_event_name: s.meta_event_name || '' });
+    setStageErrors({});
     setStageModal(true);
   };
 
   const handleSaveStage = async () => {
-    if (!stageForm.name.trim()) return setModalError('Stage name is required');
+    if (!stageForm.name.trim()) { setStageErrors({ name: 'Stage name is required' }); return; }
+    setStageErrors({});
     setModalError('');
+    // Won/Lost drive conversion, revenue, intent and the conversions sent to Meta — say
+    // how many existing leads a new outcome tag reclassifies before applying it.
+    const newOutcome = editingStage && ((stageForm.is_won && !editingStage.is_won) ? 'won' : (stageForm.is_lost && !editingStage.is_lost) ? 'lost' : null);
+    if (newOutcome) {
+      let count = null;
+      try { ({ data: { pagination: { total: count } } } = await leadAPI.getAll({ stage: editingStage.name, limit: 1 }, { force: true })); } catch { /* count unknown */ }
+      const who = count == null ? `Every lead in "${editingStage.name}"` : `${count} lead${count === 1 ? '' : 's'} in "${editingStage.name}"`;
+      const ok = await confirm({
+        title: `Mark "${editingStage.name}" as a ${newOutcome} stage?`,
+        confirmText: `Mark as ${newOutcome}`, destructive: false,
+        message: newOutcome === 'won'
+          ? `${who} will count as customers: conversion, revenue, lead intent and Sales Coaching change, and won conversions may be sent to Meta. Only tag the stage where a lead actually becomes a customer.`
+          : `${who} will count as lost in reports and conversion figures.`,
+      });
+      if (!ok) return;
+    }
     try {
       if (editingStage) {
         await stageAPI.update(editingStage.id, stageForm);
@@ -290,12 +281,12 @@ const SettingsPage = () => {
   };
 
   const handleDeleteStage = async (stage) => {
-    if (stage.is_default) return alert('Default stages cannot be deleted');
+    if (stage.is_default) return toast.error('Default stages cannot be deleted');
     if (!await confirm({ title: `Delete stage "${stage.name}"?`, message: 'Leads in this stage will keep the stage label.' })) return;
     try {
       await stageAPI.delete(stage.id);
       loadStages();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to delete'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete'); }
   };
 
   const openCreateStatus = (stageId) => {
@@ -330,29 +321,20 @@ const SettingsPage = () => {
   };
 
   const handleDeleteStatus = async (st) => {
-    if (st.is_default) return alert('Default statuses cannot be deleted');
+    if (st.is_default) return toast.error('Default statuses cannot be deleted');
     if (!await confirm({ title: `Delete status "${st.name}"?` })) return;
     try {
       await statusAPI.delete(st.id);
       loadStages();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to delete'); }
-  };
-
-  const webhookUrl = `${window.location.origin.replace('www.', '')}/api/webhook/meta/${tenant?.id}`;
-
-  const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    showSaved();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to delete'); }
   };
 
   const tabs = [
     { id: 'profile', label: 'My Profile', icon: User },
     { id: 'business', label: 'Business', icon: Building },
-    { id: 'password', label: 'Password', icon: Lock },
     { id: 'templates', label: 'Templates', icon: MessageSquare },
-    { id: 'automations', label: 'Automations', icon: Zap },
+    ...(['admin','super_admin'].includes(user?.role) ? [{id:'assignment',label:'Assignment',icon:User},{id:'messaging',label:'Messaging',icon:MessageSquare},{id:'developer',label:'Developer',icon:Building}] : []),
     { id: 'pipeline', label: 'Pipeline', icon: Layers },
-    { id: 'integrations', label: 'Integrations', icon: Webhook },
   ];
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
@@ -376,6 +358,9 @@ const SettingsPage = () => {
         </div>
 
         <div className="bg-white rounded-2xl border p-5">
+          {tab === 'assignment' && <><AssignmentRulesSection/><div className="mt-5"><FeatureSettings assignment/></div></>}
+          {tab === 'messaging' && <FeatureSettings/>}
+          {tab === 'developer' && <FeatureSettings developer/>}
           {tab === 'profile' && (
             <>
               <h2 className="text-lg font-bold mb-4">My Profile</h2>
@@ -393,171 +378,290 @@ const SettingsPage = () => {
                   <input type="text" value={user?.role} disabled className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 capitalize" />
                 </div>
               </div>
+
+              <div className="flex items-center justify-between mb-4 mt-8">
+                <h2 className="text-lg font-bold">Change Password</h2>
+                {!editingPassword && (
+                  <button onClick={() => { setPwErrors({}); setEditingPassword(true); }}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 shrink-0">
+                    <Edit2 size={14} /> Edit
+                  </button>
+                )}
+              </div>
+              {editingPassword && (
+              <div className="space-y-3 max-w-sm">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Current Password</label>
+                  <input type="password" placeholder="Current Password" value={pwForm.currentPassword}
+                    onChange={e => { setPwForm({ ...pwForm, currentPassword: e.target.value }); setPwErrors({ ...pwErrors, currentPassword: undefined }); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm ${pwErrors.currentPassword ? 'border-red-400' : ''}`} />
+                  {pwErrors.currentPassword && <p className="text-xs text-red-500 mt-1">{pwErrors.currentPassword}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">New Password</label>
+                  <input type="password" placeholder="New Password (min 6)" value={pwForm.newPassword}
+                    onChange={e => { setPwForm({ ...pwForm, newPassword: e.target.value }); setPwErrors({ ...pwErrors, newPassword: undefined }); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm ${pwErrors.newPassword ? 'border-red-400' : ''}`} />
+                  {pwErrors.newPassword && <p className="text-xs text-red-500 mt-1">{pwErrors.newPassword}</p>}
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-600 mb-1">Confirm New Password</label>
+                  <input type="password" placeholder="Confirm New Password" value={pwForm.confirm}
+                    onChange={e => { setPwForm({ ...pwForm, confirm: e.target.value }); setPwErrors({ ...pwErrors, confirm: undefined }); }}
+                    className={`w-full px-3 py-2.5 border rounded-lg text-sm ${pwErrors.confirm ? 'border-red-400' : ''}`} />
+                  {pwErrors.confirm && <p className="text-xs text-red-500 mt-1">{pwErrors.confirm}</p>}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={handleChangePassword} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Save Password</button>
+                  <button onClick={handleCancelPassword} className="px-4 py-2 border rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50">Cancel</button>
+                </div>
+              </div>
+              )}
             </>
           )}
 
           {tab === 'business' && (
             <>
-              <h2 className="text-lg font-bold mb-1">Business Settings</h2>
-              <p className="text-xs text-gray-400 mb-4">These details appear on your quotations and PDFs</p>
-
-              {/* Basic Info */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Basic Info</p>
-              <div className="space-y-3 mb-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
-                    <input type="text" value={business.name} onChange={e => setBusiness({ ...business, name: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Business Email</label>
-                    <input type="email" value={business.email} onChange={e => setBusiness({ ...business, email: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="billing@yourbusiness.com" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
-                    <input type="tel" value={business.phone} onChange={e => setBusiness({ ...business, phone: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Website</label>
-                    <input type="url" value={business.website} onChange={e => setBusiness({ ...business, website: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="https://yourbusiness.com" />
-                  </div>
-                </div>
+              <div className="flex items-start justify-between mb-1 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
-                  <textarea value={business.address} onChange={e => setBusiness({ ...business, address: e.target.value })}
-                    rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                  <h2 className="text-lg font-bold mb-1">Business Settings</h2>
+                  <p className="text-xs text-gray-400 mb-4">These details appear on your quotations and PDFs</p>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
-                    <input type="text" value={business.city} onChange={e => setBusiness({ ...business, city: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
-                    <input type="text" value={business.state} onChange={e => setBusiness({ ...business, state: e.target.value })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Tax Info */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Tax Details</p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">GST Number (GSTIN)</label>
-                  <input type="text" value={business.gst_number} onChange={e => setBusiness({ ...business, gst_number: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="22AAAAA0000A1Z5" maxLength={15} />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-gray-500 mb-1">PAN Number</label>
-                  <input type="text" value={business.pan_number} onChange={e => setBusiness({ ...business, pan_number: e.target.value.toUpperCase() })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="AAAAA0000A" maxLength={10} />
-                </div>
-              </div>
-
-              {/* Bank Details */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bank / Payment Details</p>
-              <div className="space-y-3 mb-5">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Account Holder Name</label>
-                    <input type="text" value={business.bank_details.account_holder}
-                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_holder: e.target.value } })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Bank Name</label>
-                    <input type="text" value={business.bank_details.bank_name}
-                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, bank_name: e.target.value } })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Account Number</label>
-                    <input type="text" value={business.bank_details.account_number}
-                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, account_number: e.target.value } })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-gray-500 mb-1">IFSC Code</label>
-                    <input type="text" value={business.bank_details.ifsc}
-                      onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, ifsc: e.target.value.toUpperCase() } })}
-                      className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono" placeholder="SBIN0001234" maxLength={11} />
-                  </div>
-                </div>
-                <div className="sm:w-1/2">
-                  <label className="block text-xs font-medium text-gray-500 mb-1">UPI ID</label>
-                  <input type="text" value={business.bank_details.upi}
-                    onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, upi: e.target.value } })}
-                    className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="yourname@upi" />
-                </div>
-              </div>
-
-              {/* Email */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Email</p>
-              <div className="mb-5 sm:w-1/2">
-                <label className="block text-xs font-medium text-gray-500 mb-1">Reply-to email</label>
-                <input type="email" value={business.email_reply_to} onChange={e => setBusiness({ ...business, email_reply_to: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder={business.email || 'billing@yourbusiness.com'} />
-                <p className="text-xs text-gray-400 mt-1">Emails sent to leads (demo invites, follow-up sequences) and reports come from CurveLead, but show your business name and route replies here. Leave blank to use your Business Email above.</p>
-              </div>
-
-              {/* Reports */}
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Reports</p>
-              <div className="mb-5">
-                <label className="flex items-center gap-2 text-sm cursor-pointer">
-                  <input type="checkbox" checked={business.daily_report_enabled}
-                    onChange={e => setBusiness({ ...business, daily_report_enabled: e.target.checked })}
-                    className="w-4 h-4 rounded" />
-                  <span className="font-medium">Email me a daily report</span>
-                </label>
-                <p className="text-xs text-gray-400 mt-1 ml-6">Sent once a day to the business email above — new leads, hot leads, follow-ups due/overdue, SLA breaches, deals won, and active campaign spend. Each staff member gets their own version scoped to their assigned leads.</p>
-                {business.daily_report_enabled && (
-                  <div className="mt-3 ml-6">
-                    <label className="block text-xs font-medium text-gray-500 mb-1">Send time (IST)</label>
-                    <input type="time" value={business.daily_report_time}
-                      onChange={e => setBusiness({ ...business, daily_report_time: e.target.value })}
-                      className="px-3 py-2 border rounded-lg text-sm" />
-                  </div>
+                {!editingBusiness && (
+                  <button onClick={() => setEditingBusiness(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 shrink-0">
+                    <Edit2 size={14} /> Edit
+                  </button>
                 )}
               </div>
 
-              <button onClick={handleSaveBusiness} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">
-                Save Changes
-              </button>
-            </>
-          )}
+              {(() => {
+                const inputCls = `w-full px-3 py-2.5 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`;
+                const monoCls = `w-full px-3 py-2.5 border rounded-lg text-sm font-mono ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`;
+                return (
+                  <>
+                    {/* Basic Info */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Basic Info</p>
+                    <div className="space-y-3 mb-5">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Business Logo</label>
+                        <div className="flex items-center gap-3">
+                          {settings.logo_url ? (
+                            <img src={settings.logo_url} alt="Logo" className="w-14 h-14 rounded-lg border object-contain bg-white" />
+                          ) : (
+                            <div className="w-14 h-14 rounded-lg border border-dashed flex items-center justify-center text-gray-300 text-[10px]">No logo</div>
+                          )}
+                          <label className={`px-3 py-2 border rounded-lg text-xs font-semibold cursor-pointer hover:bg-gray-50 ${logoUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                            <input type="file" accept=".jpg,.jpeg,.png" className="hidden"
+                              onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) handleLogoUpload(f); }} />
+                            {logoUploading ? 'Uploading…' : settings.logo_url ? 'Change logo' : 'Upload logo'}
+                          </label>
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-1">Used to watermark WhatsApp template header images. JPG or PNG.</p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Business Name *</label>
+                          <input type="text" disabled={!editingBusiness} value={business.name} onChange={e => setBusiness({ ...business, name: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Business Email</label>
+                          <input type="email" disabled={!editingBusiness} value={business.email} onChange={e => setBusiness({ ...business, email: e.target.value })}
+                            className={inputCls} placeholder="billing@yourbusiness.com" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Phone</label>
+                          <input type="tel" disabled={!editingBusiness} value={business.phone} onChange={e => setBusiness({ ...business, phone: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Website</label>
+                          <input type="url" disabled={!editingBusiness} value={business.website} onChange={e => setBusiness({ ...business, website: e.target.value })}
+                            className={inputCls} placeholder="https://yourbusiness.com" />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Address</label>
+                        <textarea disabled={!editingBusiness} value={business.address} onChange={e => setBusiness({ ...business, address: e.target.value })}
+                          rows={2} className={inputCls} />
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">City</label>
+                          <input type="text" disabled={!editingBusiness} value={business.city} onChange={e => setBusiness({ ...business, city: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">State</label>
+                          <input type="text" disabled={!editingBusiness} value={business.state} onChange={e => setBusiness({ ...business, state: e.target.value })}
+                            className={inputCls} />
+                        </div>
+                      </div>
+                    </div>
 
-          {tab === 'password' && (
-            <>
-              <h2 className="text-lg font-bold mb-4">Change Password</h2>
-              <div className="space-y-3 max-w-sm">
-                <input type="password" placeholder="Current Password" value={pwForm.currentPassword}
-                  onChange={e => setPwForm({ ...pwForm, currentPassword: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                <input type="password" placeholder="New Password (min 6)" value={pwForm.newPassword}
-                  onChange={e => setPwForm({ ...pwForm, newPassword: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                <input type="password" placeholder="Confirm New Password" value={pwForm.confirm}
-                  onChange={e => setPwForm({ ...pwForm, confirm: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
-                <button onClick={handleChangePassword} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Change Password</button>
-              </div>
+                    {/* Region */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Region</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-1">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Country</label>
+                        <select disabled={!editingBusiness} value={business.country}
+                          onChange={e => {
+                            const c = COUNTRIES.find(x => x.code === e.target.value);
+                            // Suggest the country's usual currency and timezone; both stay editable.
+                            setBusiness({ ...business, country: e.target.value, ...(c ? { currency: c.currency, timezone: c.timezone } : {}) });
+                          }}
+                          className={`${inputCls} bg-white`}>
+                          {!COUNTRIES.some(c => c.code === business.country) && <option value={business.country}>{business.country}</option>}
+                          {COUNTRIES.map(c => <option key={c.code} value={c.code}>{c.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Currency</label>
+                        <select disabled={!editingBusiness} value={business.currency} onChange={e => setBusiness({ ...business, currency: e.target.value })}
+                          className={`${inputCls} bg-white`}>
+                          {[...new Set([business.currency, ...CURRENCIES])].map(c => <option key={c} value={c}>{c} ({currencySymbol(c)})</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Timezone</label>
+                        <select disabled={!editingBusiness} value={business.timezone} onChange={e => setBusiness({ ...business, timezone: e.target.value })}
+                          className={`${inputCls} bg-white`}>
+                          {[...new Set([business.timezone, ...timezones()])].map(tz => <option key={tz} value={tz}>{tz.replace(/_/g, ' ')}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <p className="text-[11px] text-gray-400 mb-5">
+                      The country is used for phone numbers without a country code and for tax and bank fields. Money is shown in the currency;
+                      times, AI replies, reminders and report emails use the timezone. Changing the currency doesn't convert amounts already recorded.
+                    </p>
+
+                    {/* Tax Info — fields depend on the country */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Tax Details</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                      {countryProfile(business.country).tax.map(f => (
+                        <div key={f.key}>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                          <input type="text" disabled={!editingBusiness} value={business[f.key] || ''}
+                            onChange={e => setBusiness({ ...business, [f.key]: f.upper ? e.target.value.toUpperCase() : e.target.value })}
+                            className={monoCls} placeholder={f.placeholder || ''} />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Bank Details — fields depend on the country; anything saved earlier stays visible */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Bank / Payment Details</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                      {[...new Set([...countryProfile(business.country).bank.map(f => f.key),
+                        ...Object.keys(business.bank_details || {}).filter(k => business.bank_details[k])])].map(key => {
+                        const f = countryProfile(business.country).bank.find(x => x.key === key) || { key, label: bankLabel(business.country, key) };
+                        return (
+                          <div key={key}>
+                            <label className="block text-xs font-medium text-gray-500 mb-1">{f.label}</label>
+                            <input type="text" disabled={!editingBusiness} value={business.bank_details?.[key] || ''}
+                              onChange={e => setBusiness({ ...business, bank_details: { ...business.bank_details, [key]: f.upper ? e.target.value.toUpperCase() : e.target.value } })}
+                              className={key === 'account_holder' || key === 'bank_name' ? inputCls : monoCls} placeholder={f.placeholder || ''} />
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Email */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Email</p>
+                    <div className="mb-5 sm:w-1/2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">Reply-to email</label>
+                      <input type="email" disabled={!editingBusiness} value={business.email_reply_to} onChange={e => setBusiness({ ...business, email_reply_to: e.target.value })}
+                        className={inputCls} placeholder={business.email || 'billing@yourbusiness.com'} />
+                      <p className="text-xs text-gray-400 mt-1">Emails sent to leads (demo invites, follow-up sequences) and reports come from CurveLead, but show your business name and route replies here. Leave blank to use your Business Email above.</p>
+                    </div>
+
+                    {/* Reports */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Reports</p>
+                    <div className="mb-5">
+                      <label className={`flex items-center gap-2 text-sm ${editingBusiness ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input type="checkbox" disabled={!editingBusiness} checked={business.daily_report_enabled}
+                          onChange={e => setBusiness({ ...business, daily_report_enabled: e.target.checked })}
+                          className="w-4 h-4 rounded" />
+                        <span className="font-medium">Email me a daily report</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1 ml-6">Sent once a day to the business email above — new leads, hot leads, follow-ups due/overdue, SLA breaches, deals won, and active campaign spend. Each staff member gets their own version scoped to their assigned leads.</p>
+                      <label className="block text-sm mt-4">Duplicate lead handling
+                        <select disabled={!editingBusiness} value={business.dedupe_mode} onChange={e => setBusiness({ ...business, dedupe_mode: e.target.value })} className="block border rounded-lg p-2 mt-1">
+                          <option value="phone">Match phone (default)</option><option value="phone_or_email">Match phone or email</option><option value="off">Off</option>
+                        </select>
+                        <span className="text-xs text-gray-500">Matching submissions are added to the existing lead’s activity.</span>
+                      </label>
+                      {business.daily_report_enabled && (
+                        <div className="mt-3 ml-6">
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Send time (IST)</label>
+                          <input type="time" disabled={!editingBusiness} value={business.daily_report_time}
+                            onChange={e => setBusiness({ ...business, daily_report_time: e.target.value })}
+                            className={`px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Automation */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Automation</p>
+                    <div className="mb-5">
+                      <label className={`flex items-center gap-2 text-sm ${editingBusiness ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input type="checkbox" disabled={!editingBusiness} checked={business.automation_business_hours_enabled}
+                          onChange={e => setBusiness({ ...business, automation_business_hours_enabled: e.target.checked })}
+                          className="w-4 h-4 rounded" />
+                        <span className="font-medium">Only send automated messages during business hours</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1 ml-6">Anything due outside this window waits until the next allowed time instead of sending late.</p>
+                      {business.automation_business_hours_enabled && (
+                        <div className="mt-3 ml-6 flex items-center gap-2">
+                          <input type="time" disabled={!editingBusiness} value={business.automation_business_hours_start}
+                            onChange={e => setBusiness({ ...business, automation_business_hours_start: e.target.value })}
+                            className={`px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                          <span className="text-xs text-gray-400">to</span>
+                          <input type="time" disabled={!editingBusiness} value={business.automation_business_hours_end}
+                            onChange={e => setBusiness({ ...business, automation_business_hours_end: e.target.value })}
+                            className={`px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="mb-5">
+                      <label className={`flex items-center gap-2 text-sm ${editingBusiness ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input type="checkbox" disabled={!editingBusiness} checked={business.automation_daily_cap_enabled}
+                          onChange={e => setBusiness({ ...business, automation_daily_cap_enabled: e.target.checked })}
+                          className="w-4 h-4 rounded" />
+                        <span className="font-medium">Cap automated messages per lead per day</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1 ml-6">Even if multiple rules would fire, no lead gets more than this many automated messages in a day.</p>
+                      {business.automation_daily_cap_enabled && (
+                        <div className="mt-3 ml-6">
+                          <input type="number" min="1" disabled={!editingBusiness} value={business.automation_daily_cap}
+                            onChange={e => setBusiness({ ...business, automation_daily_cap: parseInt(e.target.value, 10) || 1 })}
+                            className={`w-24 px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                        </div>
+                      )}
+                    </div>
+                  </>
+                );
+              })()}
+
+              {editingBusiness && (
+                <div className="flex items-center gap-2">
+                  <button onClick={handleSaveBusiness} className="px-4 py-2 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">
+                    Save Changes
+                  </button>
+                  <button onClick={handleCancelBusiness} className="px-4 py-2 border rounded-lg text-sm font-semibold text-gray-600 hover:bg-gray-50">
+                    Cancel
+                  </button>
+                </div>
+              )}
             </>
           )}
 
           {tab === 'templates' && (
             <>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold">Message Templates</h2>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-lg font-bold flex items-center gap-2">Saved replies <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Session only · 24 h</span></h2>
                 {user?.role === 'admin' && (
                   <button onClick={openCreateTmpl}
                     className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700">
@@ -566,6 +670,10 @@ const SettingsPage = () => {
                 )}
               </div>
 
+              <p className="text-xs text-gray-500 mb-4">
+                Free-text messages with {'{name}'}-style fields. WhatsApp only delivers these within 24 hours of the customer's last message.
+                To start or restart a conversation, use an approved template from <Link to="/whatsapp?tab=templates" className="text-brand-600 font-semibold hover:underline">WhatsApp → Templates</Link>.
+              </p>
               {templates.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No templates yet. Create one to get started.</p>
               ) : (
@@ -600,9 +708,11 @@ const SettingsPage = () => {
                     <h3 className="font-bold text-base mb-4">{editingTmpl ? 'Edit Template' : 'New Template'}</h3>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-                        <input value={tmplForm.name} onChange={e => setTmplForm({ ...tmplForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. Welcome Message" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
+                        <input value={tmplForm.name}
+                          onChange={e => { setTmplForm({ ...tmplForm, name: e.target.value }); if (tmplErrors.name) setTmplErrors(er => ({ ...er, name: undefined })); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${tmplErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Welcome Message" />
+                        {tmplErrors.name && <p className="text-xs text-red-500 mt-1">{tmplErrors.name}</p>}
                       </div>
                       <div className="grid grid-cols-2 gap-3">
                         <div>
@@ -626,11 +736,31 @@ const SettingsPage = () => {
                           </select>
                         </div>
                       </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Assign to stage (optional)</label>
+                          <select value={tmplForm.stage_name} onChange={e => setTmplForm({ ...tmplForm, stage_name: e.target.value })}
+                            className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                            <option value="">None</option>
+                            {stages.map(s => <option key={s.id || s.name} value={s.name}>{s.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-500 mb-1">Assign to campaign (optional)</label>
+                          <select value={tmplForm.campaign_id} onChange={e => setTmplForm({ ...tmplForm, campaign_id: e.target.value })}
+                            className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                            <option value="">None</option>
+                            {campaigns.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
+                      </div>
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Message *</label>
-                        <textarea value={tmplForm.message} onChange={e => setTmplForm({ ...tmplForm, message: e.target.value })}
-                          rows={5} className="w-full px-3 py-2.5 border rounded-lg text-sm font-mono"
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Message <span className="text-red-500">*</span></label>
+                        <textarea value={tmplForm.message}
+                          onChange={e => { setTmplForm({ ...tmplForm, message: e.target.value }); if (tmplErrors.message) setTmplErrors(er => ({ ...er, message: undefined })); }}
+                          rows={5} className={`w-full px-3 py-2.5 border rounded-lg text-sm font-mono ${tmplErrors.message ? 'border-red-500' : ''}`}
                           placeholder={'Hi {name}, thanks for your interest in {course} at {business}...'} />
+                        {tmplErrors.message && <p className="text-xs text-red-500 mt-1">{tmplErrors.message}</p>}
                         <p className="text-[10px] text-gray-400 mt-1.5 leading-relaxed">
                           Variables:{' '}
                           {['{name}', '{phone}', '{course}', '{course_fee}', '{course_duration}', '{business}', '{business_phone}'].map(v => (
@@ -643,217 +773,6 @@ const SettingsPage = () => {
                       <button onClick={() => setTmplModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
                       <button onClick={handleSaveTmpl} className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg font-semibold hover:bg-brand-700">
                         {editingTmpl ? 'Update' : 'Create'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          {tab === 'automations' && (
-            <>
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-lg font-bold">Sequences</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Multi-step WhatsApp/email nurture sequences — build these first, then attach a trigger rule below.</p>
-                </div>
-                {user?.role === 'admin' && (
-                  <button onClick={openCreateSeq}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 whitespace-nowrap">
-                    <Plus size={14} /> New Sequence
-                  </button>
-                )}
-              </div>
-
-              {sequences.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No sequences yet. Create one to get started.</p>
-              ) : (
-                <div className="space-y-2 mb-8">
-                  {sequences.map(s => (
-                    <div key={s.id} className="border rounded-xl p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="font-semibold text-sm">{s.name}</span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-50 text-brand-700">{s.steps?.length || 0} step{s.steps?.length === 1 ? '' : 's'}</span>
-                            {!s.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Inactive</span>}
-                          </div>
-                          {s.description && <p className="text-xs text-gray-500 line-clamp-2">{s.description}</p>}
-                        </div>
-                        {user?.role === 'admin' && (
-                          <div className="flex gap-1 shrink-0">
-                            <button onClick={() => openEditSeq(s)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Edit2 size={13} /></button>
-                            <button onClick={() => handleDeleteSeq(s.id)} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><Trash2 size={13} /></button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <h2 className="text-lg font-bold">Automated Triggers</h2>
-                  <p className="text-xs text-gray-400 mt-0.5">Rules that automatically enroll a lead into a sequence when something happens.</p>
-                </div>
-                {user?.role === 'admin' && (
-                  <button onClick={openCreateRule} disabled={!sequences.length}
-                    className="flex items-center gap-1.5 px-3 py-2 bg-brand-600 text-white rounded-lg text-sm font-medium hover:bg-brand-700 disabled:opacity-50">
-                    <Plus size={14} /> New Rule
-                  </button>
-                )}
-              </div>
-
-              {rules.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">
-                  {sequences.length ? 'No trigger rules yet.' : 'Create a sequence first, then add a rule to trigger it.'}
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {rules.map(r => (
-                    <div key={r.id} className="border rounded-xl p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="font-semibold text-sm">{r.name}</span>
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700">
-                              {r.trigger_type === 'new_lead' ? 'New lead received' : `Stage → ${r.stage_name}`}
-                            </span>
-                            {!r.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Inactive</span>}
-                          </div>
-                          <p className="text-xs text-gray-500">Enrolls into <span className="font-medium">{r.sequence_name}</span></p>
-                        </div>
-                        {user?.role === 'admin' && (
-                          <div className="flex gap-1 shrink-0">
-                            <button onClick={() => openEditRule(r)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Edit2 size={13} /></button>
-                            <button onClick={() => handleDeleteRule(r.id)} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><Trash2 size={13} /></button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {seqModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                  <div className="bg-white rounded-2xl p-5 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-xl">
-                    <h3 className="font-bold text-base mb-4">{editingSeq ? 'Edit Sequence' : 'New Sequence'}</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
-                        <input value={seqForm.name} onChange={e => { setSeqForm({ ...seqForm, name: e.target.value }); if (seqErrors.name) setSeqErrors(er => ({ ...er, name: undefined })); }}
-                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${seqErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. New Lead Intro Sequence" />
-                        {seqErrors.name && <p className="text-xs text-red-500 mt-1">{seqErrors.name}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                        <input value={seqForm.description} onChange={e => setSeqForm({ ...seqForm, description: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="Optional — what this sequence is for" />
-                      </div>
-
-                      <div className="pt-2">
-                        <label className="block text-xs font-medium text-gray-500 mb-2">Steps</label>
-                        <div className="space-y-3">
-                          {seqForm.steps.map((step, idx) => (
-                            <div key={idx} className="border rounded-xl p-3 bg-gray-50">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-semibold text-gray-600">Step {idx + 1}</span>
-                                {seqForm.steps.length > 1 && (
-                                  <button onClick={() => removeStep(idx)} className="p-1 hover:bg-red-50 text-red-500 rounded"><Trash2 size={12} /></button>
-                                )}
-                              </div>
-                              <div className="grid grid-cols-2 gap-2 mb-2">
-                                <div>
-                                  <label className="block text-[10px] font-medium text-gray-400 mb-1">Channel</label>
-                                  <select value={step.channel} onChange={e => updateStep(idx, { channel: e.target.value })}
-                                    className="w-full px-2.5 py-2 border rounded-lg text-xs bg-white">
-                                    <option value="whatsapp">WhatsApp</option>
-                                    <option value="email">Email</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Delay after previous step (minutes)</label>
-                                  <input type="number" min="0" value={step.delay_minutes}
-                                    onChange={e => updateStep(idx, { delay_minutes: parseInt(e.target.value) || 0 })}
-                                    className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="0 = send immediately" />
-                                </div>
-                              </div>
-                              {step.channel === 'email' && (
-                                <input value={step.email_subject} onChange={e => updateStep(idx, { email_subject: e.target.value })}
-                                  className="w-full px-2.5 py-2 border rounded-lg text-xs mb-2" placeholder="Email subject" />
-                              )}
-                              <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
-                                rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
-                                placeholder={'Hi {{name}}, ...'} />
-                            </div>
-                          ))}
-                        </div>
-                        <button onClick={addStep} className="mt-2 flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700">
-                          <Plus size={13} /> Add Step
-                        </button>
-                        {seqErrors.steps && <p className="text-xs text-red-500 mt-2">{seqErrors.steps}</p>}
-                        <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
-                          Variables:{' '}
-                          {['{{name}}', '{{phone}}', '{{email}}', '{{city}}', '{{source}}'].map(v => (
-                            <code key={v} className="bg-gray-100 px-1 rounded mr-1">{v}</code>
-                          ))}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                      <button onClick={() => setSeqModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-                      <button onClick={handleSaveSeq} className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg font-semibold hover:bg-brand-700">
-                        {editingSeq ? 'Update' : 'Create'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {ruleModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-                  <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl">
-                    <h3 className="font-bold text-base mb-4">{editingRule ? 'Edit Rule' : 'New Rule'}</h3>
-                    <div className="space-y-3">
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Name *</label>
-                        <input value={ruleForm.name} onChange={e => setRuleForm({ ...ruleForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. Welcome new leads" />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">When...</label>
-                        <select value={ruleForm.trigger_type} onChange={e => setRuleForm({ ...ruleForm, trigger_type: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                          <option value="new_lead">A new lead is received</option>
-                          <option value="stage_change">A lead moves into a stage</option>
-                        </select>
-                      </div>
-                      {ruleForm.trigger_type === 'stage_change' && (
-                        <div>
-                          <label className="block text-xs font-medium text-gray-500 mb-1">Stage</label>
-                          <select value={ruleForm.stage_name} onChange={e => setRuleForm({ ...ruleForm, stage_name: e.target.value })}
-                            className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                            <option value="">Select a stage...</option>
-                            {stages.map(s => <option key={s.id || s.name} value={s.name}>{s.name}</option>)}
-                          </select>
-                        </div>
-                      )}
-                      <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Enroll into sequence</label>
-                        <select value={ruleForm.sequence_id} onChange={e => setRuleForm({ ...ruleForm, sequence_id: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
-                          <option value="">Select a sequence...</option>
-                          {sequences.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                      <button onClick={() => setRuleModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-                      <button onClick={handleSaveRule} className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg font-semibold hover:bg-brand-700">
-                        {editingRule ? 'Update' : 'Create'}
                       </button>
                     </div>
                   </div>
@@ -876,6 +795,21 @@ const SettingsPage = () => {
                   </button>
                 )}
               </div>
+
+              {(() => {
+                // Saved before the first-stage guard existed: a won entry stage counts every new
+                // lead as a customer, so call it out until it's fixed.
+                const active = stages.filter(s => s.id && s.is_active !== false);
+                const wonFirst = active[0]?.is_won ? active[0] : null;
+                const wonStages = active.filter(s => s.is_won);
+                if (!wonFirst && wonStages.length <= 1) return null;
+                return (
+                  <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {wonFirst && <p><b>"{wonFirst.name}" is tagged WON but it's where new leads start</b>, so every new lead counts as a customer. Conversion, revenue, lead intent and the conversions sent to Meta are all wrong until you edit this stage and untick Won.</p>}
+                    {wonStages.length > 1 && <p className={wonFirst ? 'mt-1' : ''}>{wonStages.length} stages are tagged WON ({wonStages.map(s => `"${s.name}"`).join(', ')}). Usually only the stage where a lead becomes a customer should be.</p>}
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2">
                 {stages.filter(s => s.id).map((s) => {
@@ -966,9 +900,11 @@ const SettingsPage = () => {
                     </div>
                     <div className="space-y-3">
                       <div>
-                        <label className="block text-xs font-medium text-gray-500 mb-1">Stage Name *</label>
-                        <input value={stageForm.name} onChange={e => setStageForm({ ...stageForm, name: e.target.value })}
-                          className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="e.g. Negotiation" />
+                        <label className="block text-xs font-medium text-gray-500 mb-1">Stage Name <span className="text-red-500">*</span></label>
+                        <input value={stageForm.name}
+                          onChange={e => { setStageForm({ ...stageForm, name: e.target.value }); if (stageErrors.name) setStageErrors({}); }}
+                          className={`w-full px-3 py-2.5 border rounded-lg text-sm ${stageErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Negotiation" />
+                        {stageErrors.name && <p className="text-xs text-red-500 mt-1">{stageErrors.name}</p>}
                       </div>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-2">Color</label>
@@ -991,6 +927,10 @@ const SettingsPage = () => {
                           <span className="font-medium text-red-700">Mark as Lost</span>
                         </label>
                       </div>
+                      <p className="text-[11px] text-gray-500 -mt-1">
+                        <strong>Won</strong> = the lead became a paying customer. Every “converted”, revenue and cost-per-customer number counts leads in won stages, so only mark the stage where a deal is closed — never the first stage.
+                        The Meta event below is separate: it doesn't need Won.
+                      </p>
                       <div>
                         <label className="block text-xs font-medium text-gray-500 mb-1">Meta Conversion Event</label>
                         <select value={stageForm.meta_event_name} onChange={e => setStageForm({ ...stageForm, meta_event_name: e.target.value })}
@@ -1049,52 +989,6 @@ const SettingsPage = () => {
             </>
           )}
 
-          {tab === 'integrations' && (
-            <>
-              <h2 className="text-lg font-bold mb-4">Integrations</h2>
-
-              <div className="border rounded-xl p-4 mb-4">
-                <div className="flex items-start justify-between gap-3 mb-3">
-                  <div>
-                    <h3 className="font-semibold text-sm">Meta Ads Webhook</h3>
-                    <p className="text-xs text-gray-500 mt-1">Auto-capture leads from Facebook & Instagram</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">ACTIVE</span>
-                </div>
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <p className="text-xs text-gray-500 mb-1">Webhook URL:</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-white px-2 py-1.5 rounded border break-all">{webhookUrl}</code>
-                    <button onClick={() => copyToClipboard(webhookUrl)} className="p-2 hover:bg-gray-100 rounded"><Copy size={14} /></button>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mt-3">
-                  Verify Token: <code className="bg-gray-100 px-1.5 py-0.5 rounded">curvelead_webhook_2026</code>
-                </p>
-              </div>
-
-              <div className="border rounded-xl p-4 mb-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h3 className="font-semibold text-sm">WhatsApp Business API</h3>
-                    <p className="text-xs text-gray-500 mt-1">Send and receive WhatsApp messages</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700">SETUP REQUIRED</span>
-                </div>
-                <p className="text-xs text-gray-500">Configure via environment variables on the server. See documentation.</p>
-              </div>
-
-              <div className="border rounded-xl p-4">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div>
-                    <h3 className="font-semibold text-sm">AI (Groq)</h3>
-                    <p className="text-xs text-gray-500 mt-1">Auto-score leads as hot/warm/cold</p>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-green-100 text-green-700">ACTIVE</span>
-                </div>
-              </div>
-            </>
-          )}
         </div>
       </div>
     </div>

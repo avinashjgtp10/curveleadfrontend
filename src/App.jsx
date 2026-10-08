@@ -1,10 +1,15 @@
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { documentTitle } from './utils/pageTitles';
+import AutomationsPage from './pages/AutomationsPage';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
-import PageLoader from './components/ui/PageLoader';
 import { ConfirmDialogProvider } from './components/ui/ConfirmDialog';
+import { ToastProvider } from './components/ui/Toast';
 
 // Public
 import LandingPage from './pages/LandingPage';
+import NotFoundPage from './pages/NotFoundPage';
+import AppShellSkeleton from './components/layout/AppShellSkeleton';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
@@ -19,17 +24,20 @@ import Layout from './components/layout/Layout';
 import DashboardPage from './pages/DashboardPage';
 import LeadsPage from './pages/LeadsPage';
 import LeadDetailPage from './pages/LeadDetailPage';
-import CampaignsPage from './pages/CampaignsPage';
+import AdsManagerPage from './pages/AdsManagerPage';
+import SocialPage from './pages/SocialPage';
+import AiAgentPage from './pages/AiAgentPage';
 import CampaignDetailPage from './pages/CampaignDetailPage';
-import WhatsAppInboxPage from './pages/WhatsAppInboxPage';
+import WhatsAppHubPage from './pages/WhatsAppHubPage';
+import GmbPage from './pages/GmbPage';
 import FollowupsPage from './pages/FollowupsPage';
 import AppointmentsPage from './pages/AppointmentsPage';
+import LeadAutomationPage from './pages/LeadAutomation/LeadAutomationPage';
 import StaffPage from './pages/StaffPage';
 import ReportsPage from './pages/ReportsPage';
 import CoachingPage from './pages/CoachingPage';
 import SettingsPage from './pages/SettingsPage';
 import BillingPage from './pages/BillingPage';
-import MarketIntelligencePage from './pages/MarketIntelligencePage';
 import HelpPage from './pages/HelpPage';
 
 // ⭐ NEW: Brochures & Quotations
@@ -72,7 +80,7 @@ const SuperAdminProtectedRoute = ({ children }) => {
 
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <PageLoader message="Checking your session..." minHeight="h-screen" />;
+  if (loading) return <AppShellSkeleton />;
   return user ? children : <Navigate to="/login" replace />;
 };
 
@@ -82,9 +90,13 @@ const GuestRoute = ({ children }) => {
   return user ? <Navigate to="/dashboard" replace /> : children;
 };
 
+function RouteTitle() { const { pathname } = useLocation(); useEffect(() => { document.title = documentTitle(pathname); }, [pathname]); return null; }
+
 const App = () => (
   <AuthProvider>
+    <ToastProvider>
     <ConfirmDialogProvider>
+      <RouteTitle />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/login" element={<GuestRoute><LoginPage /></GuestRoute>} />
@@ -93,7 +105,9 @@ const App = () => (
         <Route path="/reset-password" element={<GuestRoute><ResetPasswordPage /></GuestRoute>} />
         <Route path="/accept-invite" element={<GuestRoute><AcceptInvitePage /></GuestRoute>} />
         <Route path="/q/:id" element={<QuotationPublicPage />} />
+        <Route path="/privacy" element={<Navigate to="/privacy-policy" replace />} />
         <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+        <Route path="/terms" element={<Navigate to="/terms-of-service" replace />} />
         <Route path="/terms-of-service" element={<TermsOfServicePage />} />
         <Route path="/contact" element={<ContactUsPage />} />
 
@@ -101,11 +115,18 @@ const App = () => (
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="leads" element={<LeadsPage />} />
           <Route path="leads/:id" element={<LeadDetailPage />} />
-          <Route path="campaigns" element={<CampaignsPage />} />
+          <Route path="campaigns" element={<Navigate to="/ads?tab=campaigns" replace />} />
+          <Route path="ads" element={<AdsManagerPage />} />
+          <Route path="social" element={<SocialPage />} />
           <Route path="campaigns/:id" element={<CampaignDetailPage />} />
-          <Route path="whatsapp" element={<WhatsAppInboxPage />} />
+          <Route path="ai-agent" element={<AiAgentPage />} />
+          <Route path="whatsapp" element={<WhatsAppHubPage />} />
+          <Route path="gmb" element={<GmbPage />} />
+          <Route path="templates" element={<Navigate to="/whatsapp?tab=templates" replace />} />
           <Route path="followups" element={<FollowupsPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />
+          <Route path="automations" element={<AutomationsPage />} />
+          <Route path="lead-automation" element={<LeadAutomationPage />} />
           <Route path="brochures" element={<BrochuresPage />} />
           <Route path="quotations" element={<QuotationsPage />} />
           <Route path="quotations/new" element={<QuotationEditorPage />} />
@@ -117,7 +138,6 @@ const App = () => (
           <Route path="billing" element={<BillingPage />} />
           <Route path="settings" element={<SettingsPage />} />
           <Route path="integrations" element={<IntegrationsPage />} />
-          <Route path="market-intelligence" element={<MarketIntelligencePage />} />
           <Route path="help" element={<HelpPage />} />
         </Route>
 
@@ -149,8 +169,11 @@ const App = () => (
           <Route path="customers" element={<SuperAdminCustomersPage />} />
           <Route path="salons" element={<SuperAdminSalonsPage />} />
         </Route>
+
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </ConfirmDialogProvider>
+    </ToastProvider>
   </AuthProvider>
 );
 

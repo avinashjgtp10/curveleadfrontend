@@ -1,9 +1,13 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { quotationsAPI } from '../services/api';
 import { ArrowLeft, Send, CheckCircle, XCircle, Printer } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
+import { formatMoney } from '../utils/locale';
 
 const QuotationViewPage = () => {
+  const toast = useToast();
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData] = useState(null);
@@ -24,17 +28,17 @@ const QuotationViewPage = () => {
       const { data: res } = await quotationsAPI.send(id);
       window.open(res.whatsapp_url, '_blank');
       load();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
   };
 
   const handleAccept = async () => {
     if (!window.confirm('Mark this quotation as accepted? This will move the lead to Won.')) return;
-    try { await quotationsAPI.accept(id); load(); } catch (e) { alert('Failed'); }
+    try { await quotationsAPI.accept(id); load(); } catch (e) { toast.error('Failed'); }
   };
 
   const handleReject = async () => {
     const reason = prompt('Reason for rejection (optional):');
-    try { await quotationsAPI.reject(id, reason); load(); } catch (e) { alert('Failed'); }
+    try { await quotationsAPI.reject(id, reason); load(); } catch (e) { toast.error('Failed'); }
   };
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>;
@@ -79,8 +83,8 @@ const QuotationViewPage = () => {
           <div className="text-right">
             <h2 className="text-2xl font-bold">QUOTATION</h2>
             <p className="text-sm text-gray-600 mt-1">#{data.quote_number}</p>
-            <p className="text-xs text-gray-500">Date: {new Date(data.created_at).toLocaleDateString('en-IN')}</p>
-            {data.valid_until && <p className="text-xs text-gray-500">Valid Until: {new Date(data.valid_until).toLocaleDateString('en-IN')}</p>}
+            <p className="text-xs text-gray-500">Date: {formatDateTime(data.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</p>
+            {data.valid_until && <p className="text-xs text-gray-500">Valid Until: {formatDateTime(data.valid_until, undefined, { dateStyle: undefined, timeStyle: undefined, })}</p>}
           </div>
         </div>
 
@@ -114,8 +118,8 @@ const QuotationViewPage = () => {
                   {item.description && <p className="text-xs text-gray-500">{item.description}</p>}
                 </td>
                 <td className="text-right py-3">{item.quantity}</td>
-                <td className="text-right py-3">₹{parseFloat(item.price).toFixed(2)}</td>
-                <td className="text-right py-3 font-medium">₹{parseFloat(item.total).toFixed(2)}</td>
+                <td className="text-right py-3">{formatMoney(parseFloat(item.price), data.currency, { decimals: 2 })}</td>
+                <td className="text-right py-3 font-medium">{formatMoney(parseFloat(item.total), data.currency, { decimals: 2 })}</td>
               </tr>
             ))}
           </tbody>
@@ -124,10 +128,10 @@ const QuotationViewPage = () => {
         {/* Totals */}
         <div className="flex justify-end mb-6">
           <div className="w-64 space-y-1 text-sm">
-            <div className="flex justify-between"><span>Subtotal:</span><span>₹{parseFloat(data.subtotal).toFixed(2)}</span></div>
-            {data.discount_percent > 0 && <div className="flex justify-between text-green-600"><span>Discount ({data.discount_percent}%):</span><span>-₹{parseFloat(data.discount_amount).toFixed(2)}</span></div>}
-            <div className="flex justify-between"><span>Tax ({data.tax_percent}%):</span><span>₹{parseFloat(data.tax_amount).toFixed(2)}</span></div>
-            <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2"><span>Total:</span><span className="text-brand-600">₹{parseFloat(data.total).toLocaleString('en-IN')}</span></div>
+            <div className="flex justify-between"><span>Subtotal:</span><span>{formatMoney(parseFloat(data.subtotal), data.currency, { decimals: 2 })}</span></div>
+            {data.discount_percent > 0 && <div className="flex justify-between text-green-600"><span>Discount ({data.discount_percent}%):</span><span>-{formatMoney(parseFloat(data.discount_amount), data.currency, { decimals: 2 })}</span></div>}
+            <div className="flex justify-between"><span>Tax ({data.tax_percent}%):</span><span>{formatMoney(parseFloat(data.tax_amount), data.currency, { decimals: 2 })}</span></div>
+            <div className="flex justify-between text-lg font-bold border-t pt-2 mt-2"><span>Total:</span><span className="text-brand-600">{formatMoney(parseFloat(data.total), data.currency, { decimals: 2 })}</span></div>
           </div>
         </div>
 

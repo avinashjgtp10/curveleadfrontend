@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --border: #e5e7eb;
+}
+
+/* Neutral borders: visible card edges and stronger form-field outlines.
+   Utilities still control border width, focus/error colors, and border removal. */
+@layer base {
+  :where(input, select, textarea) {
+    border-color: theme('colors.gray.300');
+  }
+}
+
+@layer utilities {
+  .border-gray-100,
+  .border-gray-200 {
+    border-color: var(--border);
+  }
+
+  :where(input, select, textarea).border-gray-100,
+  :where(input, select, textarea).border-gray-200 {
+    border-color: theme('colors.gray.300');
+  }
+}
+
+/* Shared buttons (design system): primary = filled brand, secondary = white with border. */
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-brand-700 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2;
+  }
+}
+
 * {
   font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
 }
@@ -61,6 +95,17 @@ input[type='number'] {
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #9ca3af;
+}
+
+/* Hide native number-input increment/decrement spinner arrows app-wide */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+  appearance: textfield;
 }
 
 @keyframes fieldFadeIn {

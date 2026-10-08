@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { pageTitle } from '../../utils/pageTitles';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
@@ -8,30 +9,19 @@ const Layout = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
 
-  const titles = {
-    '/dashboard': 'Dashboard',
-    '/leads': 'Leads',
-    '/campaigns': 'Campaigns',
-    '/whatsapp': 'WhatsApp Inbox',
-    '/followups': 'Follow-ups',
-    '/appointments': 'Appointments',
-    '/staff': 'Team',
-    '/reports': 'Reports',
-    '/billing': 'Billing',
-    '/settings': 'Settings',
-    '/market-intelligence': 'Market Intelligence',
-    '/help': 'User Guide',
-  };
-
-  const title = Object.entries(titles).find(([path]) => location.pathname.startsWith(path))?.[1] || 'CurveLead';
+  const title = pageTitle(location.pathname);
+  const mainRef = useRef(null);
+  useLayoutEffect(() => {
+    if (mainRef.current) mainRef.current.scrollTop = 0;
+  }, [location.pathname]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="min-w-0 flex-1 flex flex-col overflow-hidden">
         <Header title={title} onMenuClick={() => setSidebarOpen(true)} />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <Outlet />
+        <main ref={mainRef} className="min-w-0 flex-1 overflow-y-auto p-4 sm:p-6">
+          <Outlet context={{ onMenuClick: () => setSidebarOpen(true) }} />
         </main>
       </div>
       <TrialExpiredModal />

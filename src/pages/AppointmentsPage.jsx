@@ -1,35 +1,44 @@
-import { useEffect, useState } from 'react';
+import { isBookingType, notifyBookingWhatsApp } from '../utils/bookingMessages.js';
+import { allAppointmentPages } from '../utils/appointmentPages';
+import PageLoader from '../components/ui/PageLoader';
+import OverdueReview from '../components/workspace/OverdueReview';
+import { initials } from '../utils/leadData.js';
+import { formatDateTime, appointmentStatus, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { followupAPI, leadAPI, staffAPI } from '../services/api';
 import { Calendar, Clock, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Plus, ChevronDown, Search, SlidersHorizontal, MoreVertical, Eye, CalendarClock, CheckCircle, XCircle, X } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
+import DatePicker from '../components/ui/DatePicker';
+import DateTimePicker from '../components/ui/DateTimePicker';
 import { AVATAR_COLORS, EMPTY_APPT_FILTERS, EMPTY_NEW_APPOINTMENT_FORM, TYPE_META, STATUS_META, APPOINTMENT_TABS, APPOINTMENTS_PAGE_LIMIT } from '../utils/constants';
 
 const avatarColor = (name) => AVATAR_COLORS[(name || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_COLORS.length];
-const initials = (name) => (name || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]?.toUpperCase()).join('') || '?';
 
-const localDay = (dt) => { const d = new Date(dt); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const localDay = dt => toDateTimeInput(dt).slice(0, 10);
 const todayISO = () => localDay(new Date());
-
-const getStatus = (a) => {
-  if (a.is_completed) return 'completed';
-  if (new Date(a.next_followup_at) < new Date()) return 'overdue';
-  return 'upcoming';
-};
+const getStatus = appointmentStatus;
 
 const AppointmentsPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const confirm = useConfirmDialog();
+  const toast = useToast();
+  const [summary, setSummary] = useState({});
   const [appointments, setAppointments] = useState([]);
+  const [loadError,setLoadError]=useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
-  const [tab, setTab] = useState(new URLSearchParams(location.search).get('scope') === 'today' ? 'today' : 'all');
+  const initialScope = new URLSearchParams(location.search).get('scope');
+  const [tab, setTab] = useState(APPOINTMENT_TABS.some(t => t.id === initialScope) ? initialScope : 'all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [openMenuId, setOpenMenuId] = useState(null);
-  const [menuPos, setMenuPos] = useState({ top: 0, left: 0 });
+  const [anchorRect, setAnchorRect] = useState(null);
+  const [menuPos, setMenuPos] = useState(null);
+  const menuRef = useRef(null);
   const [rescheduleId, setRescheduleId] = useState(null);
   const [rescheduleAt, setRescheduleAt] = useState('');
   const [saving, setSaving] = useState(false);
@@ -40,12 +49,26 @@ const AppointmentsPage = () => {
   const [apptFilters, setApptFilters] = useState(EMPTY_APPT_FILTERS);
   const [filterStaff, setFilterStaff] = useState([]);
 
+  // Keeps the URL's `scope` param in sync with the active tab (replace, no extra history
+  // entry) so that leaving to view a lead's details and closing that modal — which returns
+  // here via browser back — restores the same tab instead of resetting to "All Appointments".
+  const selectTab = (id) => {
+    setTab(id);
+    setPage(1);
+    navigate(id === 'all' ? '/appointments' : `/appointments?scope=${id}`, { replace: true });
+  };
+
   const [newModal, setNewModal] = useState(false);
   const [leadOptions, setLeadOptions] = useState([]);
   const [leadSearch, setLeadSearch] = useState('');
   const [leadSearchLoading, setLeadSearchLoading] = useState(false);
+  // The results list opens on focus/typing and closes on Escape, outside click or a pick,
+  // so it never sits over the other fields or their error messages.
+  const [leadListOpen, setLeadListOpen] = useState(false);
   const [newForm, setNewForm] = useState(EMPTY_NEW_APPOINTMENT_FORM);
   const [newErrors, setNewErrors] = useState({});
+  const [pageSize, setPageSize] = useState(100);
+  const PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
 
   useEffect(() => { load(); }, []);
 
@@ -83,11 +106,11 @@ const AppointmentsPage = () => {
   }, [leadSearch, newModal]);
 
   const load = async () => {
-    setLoading(true);
+    setLoading(true);setLoadError('');
     try {
-      const { data } = await followupAPI.getAll({ status: 'all', page: 1, limit: 500 });
-      setAppointments(data.followups || []);
-    } catch (e) { console.error(e); }
+      const [rows,counts] = await Promise.all([allAppointmentPages(followupAPI.getAll),followupAPI.summary()]);
+      setSummary(counts.data);setAppointments(rows);
+    } catch (e) { setLoadError('Could not load appointments. Please retry.'); }
     finally { setLoading(false); }
   };
 
@@ -107,22 +130,24 @@ const AppointmentsPage = () => {
     if (Object.keys(errors).length) return;
     setSaving(true);
     try {
-      await leadAPI.addFollowup(newForm.lead_id, {
-        next_followup_at: new Date(newForm.next_followup_at).toISOString(),
+      const { data } = await leadAPI.addFollowup(newForm.lead_id, {
+        next_followup_at: dateTimeInputToUTC(newForm.next_followup_at),
         followup_type: newForm.followup_type,
         reminder_minutes: newForm.reminder_minutes === 'none' ? null : Number(newForm.reminder_minutes),
         notes: newForm.notes.trim() || null,
+        notify_lead: newForm.notify_lead !== false,
       });
+      notifyBookingWhatsApp(toast, data);
       setNewModal(false);
       load();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to create appointment'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to create appointment'); }
     finally { setSaving(false); }
   };
 
   const handleComplete = async (id) => {
     setBusyId(id);
     try { await followupAPI.complete(id, { outcome: 'Completed' }); load(); }
-    catch (e) { alert('Failed to mark done'); }
+    catch (e) { toast.error('Failed to mark done'); }
     finally { setBusyId(null); setOpenMenuId(null); }
   };
 
@@ -130,15 +155,13 @@ const AppointmentsPage = () => {
     if (!await confirm({ title: 'Cancel this appointment?', confirmText: 'Cancel Appointment' })) return;
     setBusyId(id);
     try { await followupAPI.delete(id); load(); }
-    catch (e) { alert('Failed to cancel'); }
+    catch (e) { toast.error('Failed to cancel'); }
     finally { setBusyId(null); setOpenMenuId(null); }
   };
 
   const openReschedule = (a) => {
     setOpenMenuId(null);
-    const d = new Date(a.next_followup_at);
-    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-    setRescheduleAt(d.toISOString().slice(0, 16));
+    setRescheduleAt(toDateTimeInput(a.next_followup_at));
     setRescheduleId(a.id);
   };
 
@@ -146,39 +169,50 @@ const AppointmentsPage = () => {
     if (!rescheduleAt) return;
     setSaving(true);
     try {
-      await followupAPI.update(rescheduleId, { next_followup_at: new Date(rescheduleAt).toISOString() });
+      await followupAPI.update(rescheduleId, { next_followup_at: dateTimeInputToUTC(rescheduleAt) });
       setRescheduleId(null);
       load();
-    } catch (e) { alert('Failed to reschedule'); }
+    } catch (e) { toast.error('Failed to reschedule'); }
     finally { setSaving(false); }
   };
 
   const toggleMenu = (id, e) => {
     if (openMenuId === id) { setOpenMenuId(null); return; }
-    const rect = e.currentTarget.getBoundingClientRect();
-    const menuWidth = 190, menuHeight = 160;
-    const openUpward = rect.bottom + menuHeight > window.innerHeight;
-    setMenuPos({
-      top: openUpward ? rect.top - menuHeight - 4 : rect.bottom + 4,
-      left: Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
-    });
+    setAnchorRect(e.currentTarget.getBoundingClientRect());
+    setMenuPos(null);
     setOpenMenuId(id);
   };
 
-  const upcomingCount = appointments.filter(a => getStatus(a) === 'upcoming').length;
-  const todayCount = appointments.filter(a => !a.is_completed && localDay(a.next_followup_at) === todayISO()).length;
-  const overdueCount = appointments.filter(a => getStatus(a) === 'overdue').length;
+  // Position the menu after it renders, using its real (measured) height rather than
+  // a guessed constant, so rows with fewer actions (e.g. completed appointments) don't
+  // get flipped upward by a gap sized for the full menu.
+  useLayoutEffect(() => {
+    if (!openMenuId || !anchorRect || !menuRef.current) return;
+    const menuWidth = 190;
+    const menuHeight = menuRef.current.offsetHeight;
+    const openUpward = anchorRect.bottom + menuHeight + 4 > window.innerHeight;
+    setMenuPos({
+      top: openUpward ? anchorRect.top - menuHeight - 4 : anchorRect.bottom + 4,
+      left: Math.min(anchorRect.right - menuWidth, window.innerWidth - menuWidth - 8),
+    });
+  }, [openMenuId, anchorRect]);
+
+  const upcomingCount = summary.upcoming || 0;
+  const todayCount = summary.today || 0;
+  const overdueCount = summary.overdue || 0;
 
   const searchLower = search.trim().toLowerCase();
   const filtered = appointments
     .filter(a => {
       if (tab === 'upcoming') return getStatus(a) === 'upcoming';
-      if (tab === 'today') return !a.is_completed && localDay(a.next_followup_at) === todayISO();
+      if (tab === 'today') return a.actionable !== false && !a.dismissed_at && !a.is_completed && localDay(a.next_followup_at) === todayISO();
       if (tab === 'overdue') return getStatus(a) === 'overdue';
       if (tab === 'completed') return a.is_completed;
       return true;
     })
     .filter(a => (hideCompleted ? !a.is_completed : true))
+    // Dismissed rows with no date are clutter unless you're searching for something specific.
+    .filter(a => searchLower || a.next_followup_at || !a.dismissed_at)
     .filter(a => (apptFilters.type ? a.followup_type === apptFilters.type : true))
     .filter(a => (apptFilters.assigned_to ? a.assigned_to === apptFilters.assigned_to : true))
     .filter(a => (apptFilters.date_from ? localDay(a.next_followup_at) >= apptFilters.date_from : true))
@@ -188,13 +222,20 @@ const AppointmentsPage = () => {
       const hay = `${a.lead_name || ''} ${TYPE_META[a.followup_type]?.label || ''} ${a.assigned_to_name || ''}`.toLowerCase();
       return hay.includes(searchLower);
     })
-    .sort((a, b) => new Date(b.next_followup_at) - new Date(a.next_followup_at));
+    .sort((a, b) => new Date(a.next_followup_at) - new Date(b.next_followup_at));
 
   const activeFilterCount = Object.values(apptFilters).filter(Boolean).length;
 
-  const pages = Math.max(1, Math.ceil(filtered.length / APPOINTMENTS_PAGE_LIMIT));
+  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages);
-  const pageRows = filtered.slice((currentPage - 1) * APPOINTMENTS_PAGE_LIMIT, currentPage * APPOINTMENTS_PAGE_LIMIT);
+  const pageRows = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
+  const pageNumbers = () => {
+    if (pages <= 7) return Array.from({ length: pages }, (_, i) => i + 1);
+    if (currentPage <= 4) return [1, 2, 3, 4, 5, '…', pages];
+    if (currentPage >= pages - 3) return [1, '…', pages - 4, pages - 3, pages - 2, pages - 1, pages];
+    return [1, '…', currentPage - 1, currentPage, currentPage + 1, '…', pages];
+  };
 
   useEffect(() => {
     if (page > pages) setPage(pages);
@@ -202,6 +243,8 @@ const AppointmentsPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto">
+      <OverdueReview onChanged={load} onSelect={(row) => navigate('/leads', { state: { openLeadId: row.lead_id } })}/>
+      {loadError&&<button role="alert" onClick={load} className="text-red-600 text-sm">{loadError}</button>}
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Appointments</h1>
@@ -222,7 +265,7 @@ const AppointmentsPage = () => {
             </button>
             {showAllMenuOpen && (
               <div className="absolute right-0 top-full mt-1 w-44 bg-white border rounded-lg shadow-lg z-30 py-1 text-left">
-                <button onClick={() => { setHideCompleted(false); setTab('all'); setSearch(''); setPage(1); setShowAllMenuOpen(false); }}
+                <button onClick={() => { setHideCompleted(false); selectTab('all'); setSearch(''); setShowAllMenuOpen(false); }}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!hideCompleted ? 'text-brand-600 font-medium' : 'text-gray-700'}`}>
                   Show All
                 </button>
@@ -269,11 +312,11 @@ const AppointmentsPage = () => {
         </div>
       </div>
 
-      <div className="bg-white border rounded-2xl overflow-hidden">
+      <div id="appointments-table" className="bg-white border rounded-2xl overflow-hidden scroll-mt-4">
         <div className="flex items-center justify-between flex-wrap gap-3 px-4 pt-4">
           <div className="flex gap-1 flex-wrap">
             {APPOINTMENT_TABS.map(t => (
-              <button key={t.id} onClick={() => { setTab(t.id); setPage(1); }}
+              <button key={t.id} onClick={() => selectTab(t.id)}
                 className={`px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                   tab === t.id ? 'border-brand-600 text-brand-600' : 'border-transparent text-gray-500 hover:text-gray-700'
                 }`}>
@@ -302,7 +345,7 @@ const AppointmentsPage = () => {
             </button>
             {activeFilterCount > 0 && (
               <button onClick={() => { setApptFilters(EMPTY_APPT_FILTERS); setPage(1); }}
-                className="px-2.5 py-2 flex items-center gap-1 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                className="px-2.5 py-2 flex items-center gap-1 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                 <X size={12} /> Clear
               </button>
             )}
@@ -330,15 +373,15 @@ const AppointmentsPage = () => {
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">From Date</label>
-                <input type="date" value={apptFilters.date_from}
-                  onChange={e => { setApptFilters(f => ({ ...f, date_from: e.target.value })); setPage(1); }}
-                  className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white" />
+                <DatePicker value={apptFilters.date_from}
+                  onChange={v => { setApptFilters(f => ({ ...f, date_from: v })); setPage(1); }}
+                  className="w-full" />
               </div>
               <div className="space-y-1">
                 <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">To Date</label>
-                <input type="date" value={apptFilters.date_to}
-                  onChange={e => { setApptFilters(f => ({ ...f, date_to: e.target.value })); setPage(1); }}
-                  className="w-full px-2.5 py-2 border rounded-lg text-sm bg-white" />
+                <DatePicker value={apptFilters.date_to}
+                  onChange={v => { setApptFilters(f => ({ ...f, date_to: v })); setPage(1); }}
+                  className="w-full" />
               </div>
             </div>
           </div>
@@ -347,11 +390,11 @@ const AppointmentsPage = () => {
         <div className="border-b mt-3" />
 
         {loading ? (
-          <div className="text-center py-16 text-gray-400 text-sm">Loading...</div>
+          <PageLoader message="Loading appointments"/>
         ) : pageRows.length === 0 ? (
           <div className="text-center py-16">
             <Calendar size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500 font-medium">No appointments found</p>
+            <p className="text-gray-500 font-medium">No appointments found</p><button className="btn-primary mt-3" onClick={openNewModal}>Schedule appointment</button>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -399,14 +442,12 @@ const AppointmentsPage = () => {
                           </div>
                         ) : <span className="text-gray-300">Unassigned</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 whitespace-nowrap">
                         <div className="flex items-center gap-1.5 text-gray-700">
-                          <Calendar size={12} className="text-gray-400" />
-                          {new Date(a.next_followup_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
-                        </div>
-                        <div className="flex items-center gap-1.5 text-xs text-gray-400 mt-0.5">
-                          <Clock size={11} />
-                          {new Date(a.next_followup_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                          <Calendar size={12} className="text-gray-400 shrink-0" />
+                          {a.next_followup_at
+                            ? formatDateTime(a.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+                            : <span className="text-gray-400">Not scheduled</span>}
                         </div>
                       </td>
                       <td className="px-4 py-3">
@@ -418,9 +459,20 @@ const AppointmentsPage = () => {
                           <MoreVertical size={15} />
                         </button>
                         {openMenuId === a.id && createPortal(
-                          <div data-actions-menu style={{ position: 'fixed', top: menuPos.top, left: menuPos.left, width: 190 }}
+                          <div ref={menuRef} data-actions-menu
+                            style={{
+                              position: 'fixed',
+                              top: menuPos ? menuPos.top : anchorRect?.bottom + 4,
+                              left: menuPos ? menuPos.left : anchorRect?.right - 190,
+                              width: 190,
+                              visibility: menuPos ? 'visible' : 'hidden',
+                            }}
                             className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
-                            <button onClick={() => { setOpenMenuId(null); navigate(`/leads/${a.lead_id}`); }}
+                            <button onClick={() => {
+                                setOpenMenuId(null);
+                                const leadSequence = [...new Set(pageRows.map(r => r.lead_id))];
+                                navigate('/leads', { state: { openLeadId: a.lead_id, leadSequence } });
+                              }}
                               className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700">
                               <Eye size={13} /> View Details
                             </button>
@@ -455,22 +507,35 @@ const AppointmentsPage = () => {
         )}
 
         {filtered.length > 0 && (
-          <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-500">
-            <span>Showing {(currentPage - 1) * APPOINTMENTS_PAGE_LIMIT + 1} to {Math.min(currentPage * APPOINTMENTS_PAGE_LIMIT, filtered.length)} of {filtered.length} appointments</span>
+          <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-gray-500 gap-3 flex-wrap">
+            <div className="flex items-center gap-3 flex-wrap">
+              <span>Showing {(currentPage - 1) * pageSize + 1} to {Math.min(currentPage * pageSize, filtered.length)} of {filtered.length} appointments</span>
+              <select
+                value={pageSize}
+                onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }}
+                className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white"
+              >
+                {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </div>
             <div className="flex items-center gap-1.5">
               <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}
-                className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40">
-                <ChevronLeft size={15} />
+                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronLeft size={16} />
               </button>
-              {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
-                <button key={p} onClick={() => setPage(p)}
-                  className={`w-8 h-8 rounded-lg border text-sm font-medium ${p === currentPage ? 'border-brand-600 text-brand-600' : 'hover:bg-gray-50 text-gray-600'}`}>
-                  {p}
-                </button>
-              ))}
+              {pageNumbers().map((p, i) =>
+                p === '…' ? (
+                  <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+                ) : (
+                  <button key={p} onClick={() => setPage(p)}
+                    className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${p === currentPage ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                    {p}
+                  </button>
+                )
+              )}
               <button onClick={() => setPage(p => Math.min(pages, p + 1))} disabled={currentPage === pages}
-                className="p-2 rounded-lg border hover:bg-gray-50 disabled:opacity-40">
-                <ChevronRight size={15} />
+                className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronRight size={16} />
               </button>
             </div>
           </div>
@@ -483,8 +548,7 @@ const AppointmentsPage = () => {
           <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl p-5">
             <h3 className="font-bold text-base mb-3">Reschedule Appointment</h3>
             <label className="block text-xs text-gray-500 mb-1">New Date & Time</label>
-            <input type="datetime-local" value={rescheduleAt} onChange={e => setRescheduleAt(e.target.value)}
-              className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+            <DateTimePicker value={rescheduleAt} onChange={setRescheduleAt} className="w-full" />
             <div className="flex gap-2 pt-4">
               <button onClick={() => setRescheduleId(null)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
               <button onClick={handleReschedule} disabled={saving}
@@ -504,7 +568,7 @@ const AppointmentsPage = () => {
 
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Lead <span className="text-red-500">*</span></label>
+                <label htmlFor="appt-lead" className="block text-xs font-medium text-gray-500 mb-1">Lead <span className="text-red-500">*</span></label>
                 {newForm.lead_id ? (
                   <div className="flex items-center justify-between px-3 py-2.5 border rounded-lg text-sm bg-gray-50">
                     <span className="font-medium">{newForm.lead_name}</span>
@@ -512,10 +576,14 @@ const AppointmentsPage = () => {
                   </div>
                 ) : (
                   <div className="relative">
-                    <input value={leadSearch}
-                      onChange={e => { setLeadSearch(e.target.value); if (newErrors.lead_id) setNewErrors(er => ({ ...er, lead_id: undefined })); }}
-                      placeholder="Search leads by name or phone..."
+                    <input id="appt-lead" value={leadSearch}
+                      onChange={e => { setLeadSearch(e.target.value); setLeadListOpen(true); if (newErrors.lead_id) setNewErrors(er => ({ ...er, lead_id: undefined })); }}
+                      onFocus={() => setLeadListOpen(true)}
+                      onBlur={() => setTimeout(() => setLeadListOpen(false), 150)}
+                      onKeyDown={e => { if (e.key === 'Escape') { e.stopPropagation(); setLeadListOpen(false); } }}
+                      placeholder="Search leads by name or phone..." aria-expanded={leadListOpen} aria-invalid={!!newErrors.lead_id}
                       className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newErrors.lead_id ? 'border-red-500' : ''}`} />
+                    {leadListOpen && (
                     <div className="absolute z-10 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-48 overflow-y-auto">
                       {leadSearchLoading ? (
                         <p className="px-3 py-2 text-xs text-gray-400">Searching...</p>
@@ -523,13 +591,15 @@ const AppointmentsPage = () => {
                         <p className="px-3 py-2 text-xs text-gray-400">No leads found</p>
                       ) : leadOptions.map(l => (
                         <button key={l.id} type="button"
-                          onClick={() => { setNewForm(f => ({ ...f, lead_id: l.id, lead_name: l.name })); setLeadSearch(''); setNewErrors(er => ({ ...er, lead_id: undefined })); }}
+                          onMouseDown={e => e.preventDefault()}
+                          onClick={() => { setNewForm(f => ({ ...f, lead_id: l.id, lead_name: l.name })); setLeadSearch(''); setLeadListOpen(false); setNewErrors(er => ({ ...er, lead_id: undefined })); }}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center justify-between gap-2">
                           <span className="font-medium truncate">{l.name}</span>
                           <span className="text-xs text-gray-400 shrink-0">{l.phone}</span>
                         </button>
                       ))}
                     </div>
+                    )}
                   </div>
                 )}
                 {newErrors.lead_id && <p className="text-xs text-red-500 mt-1">{newErrors.lead_id}</p>}
@@ -537,9 +607,9 @@ const AppointmentsPage = () => {
 
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Date & Time <span className="text-red-500">*</span></label>
-                <input type="datetime-local" value={newForm.next_followup_at}
-                  onChange={e => { setNewForm(f => ({ ...f, next_followup_at: e.target.value })); if (newErrors.next_followup_at) setNewErrors(er => ({ ...er, next_followup_at: undefined })); }}
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newErrors.next_followup_at ? 'border-red-500' : ''}`} />
+                <DateTimePicker value={newForm.next_followup_at}
+                  onChange={v => { setNewForm(f => ({ ...f, next_followup_at: v })); if (newErrors.next_followup_at) setNewErrors(er => ({ ...er, next_followup_at: undefined })); }}
+                  className="w-full" />
                 {newErrors.next_followup_at && <p className="text-xs text-red-500 mt-1">{newErrors.next_followup_at}</p>}
               </div>
 
@@ -555,8 +625,17 @@ const AppointmentsPage = () => {
                 </div>
               </div>
 
+              {isBookingType(newForm.followup_type) && (
+                <label className="flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={newForm.notify_lead !== false}
+                    onChange={e => setNewForm(f => ({ ...f, notify_lead: e.target.checked }))}
+                    className="w-4 h-4 mt-0.5 rounded" />
+                  <span>Send WhatsApp confirmation &amp; reminders to the lead</span>
+                </label>
+              )}
+
               <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Reminder</label>
+                <label className="block text-xs font-medium text-gray-500 mb-1">Staff reminder</label>
                 <select value={newForm.reminder_minutes} onChange={e => setNewForm(f => ({ ...f, reminder_minutes: e.target.value }))}
                   className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
                   <option value="none">No reminder</option>

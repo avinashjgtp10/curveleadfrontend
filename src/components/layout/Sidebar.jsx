@@ -1,33 +1,55 @@
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { initials } from '../../utils/leadData.js';
+import { useEffect, useState } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { whatsappAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
-import { LayoutDashboard, Users, Megaphone, MessageCircle, UserCog, BarChart3, Settings, LogOut, X, BookOpen, CreditCard, Plug, CalendarCheck, Globe, Lightbulb, HelpCircle } from 'lucide-react';
+import { ChevronDown, LogOut, X } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
+import { SIDEBAR_NAV_ITEMS, SIDEBAR_GROUPS } from './sidebar.constants';
 
-const navItems = [
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['admin', 'staff'] },
-  { path: '/leads', label: 'Leads', icon: Users, roles: ['admin', 'staff'] },
-  { path: '/brochures', label: 'Brochures', icon: BookOpen, roles: ['admin', 'staff'] },
-  { path: '/campaigns', label: 'Campaigns', icon: Megaphone, roles: ['admin'] },
-  { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
-  { path: '/appointments', label: 'Appointments', icon: CalendarCheck, roles: ['admin', 'staff'] },
-  { path: '/staff', label: 'Team', icon: UserCog, roles: ['admin'] },
-  { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
-  { path: '/coaching', label: 'Sales Coaching', icon: Lightbulb, roles: ['admin'] },
-  { path: '/market-intelligence', label: 'Market AI', icon: Globe, roles: ['admin'] },
-  { path: '/integrations', label: 'Integrations', icon: Plug, roles: ['admin'] },
-  { path: '/billing', label: 'Billing', icon: CreditCard, roles: ['admin'] },
-  { path: '/settings', label: 'Settings', icon: Settings, roles: ['admin'] },
-  { path: '/help', label: 'User Guide', icon: HelpCircle, roles: ['admin', 'staff'] },
-];
+const COLLAPSED_KEY = 'curvelead.sidebar.collapsed';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const { user, tenant, logout } = useAuth();
   const navigate = useNavigate();
   const role = user?.role === 'super_admin' ? 'admin' : user?.role;
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  // Collapsed group labels, remembered per browser. Storage can be unavailable
+  // (private mode, blocked site data), so fall back to everything expanded.
+  const [collapsed, setCollapsed] = useState(() => {
+    try { const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY)); return Array.isArray(saved) ? saved : []; }
+    catch { return []; }
+  });
+  const toggleGroup = (label) => setCollapsed(prev => {
+    const next = prev.includes(label) ? prev.filter(l => l !== label) : [...prev, label];
+    try { localStorage.setItem(COLLAPSED_KEY, JSON.stringify(next)); } catch { /* not persisted */ }
+    return next;
+  });
 
   const handleLogout = () => { logout(); navigate('/login'); };
+
+  // Unread WhatsApp chats badge: refreshed on navigation, every 30s while the tab is
+  // visible, and when the inbox marks a chat read ('whatsapp-unread-changed').
+  const { pathname } = useLocation();
+  const [unreadChats, setUnreadChats] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    const load = () => {
+      if (document.visibilityState !== 'visible') return;
+      whatsappAPI.getUnreadCount().then(({ data }) => setUnreadChats(data.chats || 0)).catch(() => {});
+    };
+    load();
+    const interval = setInterval(load, 30000);
+    document.addEventListener('visibilitychange', load);
+    window.addEventListener('whatsapp-unread-changed', load);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', load);
+      window.removeEventListener('whatsapp-unread-changed', load);
+    };
+  }, [user, pathname]);
+  const badgeFor = (path) => (path === '/whatsapp' ? unreadChats : 0);
+  const badgeText = (n) => (n > 99 ? '99+' : n);
 
   return (
     <>
@@ -46,18 +68,39 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         <nav className="flex-1 px-2 py-3 overflow-y-auto">
-          {navItems.filter(item => item.roles.includes(role)).map(item => (
-            <NavLink key={item.path} to={item.path} onClick={onClose}
-              className={({ isActive }) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-50'}`}>
-              <item.icon size={18} /> {item.label}
-            </NavLink>
-          ))}
+          {SIDEBAR_GROUPS.map(group => {
+            const items = group.paths.map(path => SIDEBAR_NAV_ITEMS.find(item => item.path === path)).filter(item => item?.roles.includes(role));
+            if (!items.length) return null;
+            const isCollapsed = collapsed.includes(group.label);
+            return <div key={group.label} className="mb-3">
+              <button type="button" onClick={() => toggleGroup(group.label)} aria-expanded={!isCollapsed}
+                className="w-full flex items-center justify-between px-3 py-1 text-xs font-semibold uppercase tracking-wide text-gray-400 hover:text-gray-600">
+                <span className="flex items-center gap-1.5">
+                  {group.label}
+                  {isCollapsed && items.some(item => badgeFor(item.path) > 0) && <span className="w-1.5 h-1.5 rounded-full bg-green-500" title="Unread WhatsApp messages" />}
+                </span>
+                <ChevronDown size={14} className={`transition-transform ${isCollapsed ? '-rotate-90' : ''}`} />
+              </button>
+              {!isCollapsed && items.map(item => (
+                <NavLink key={item.path} to={item.path} onClick={onClose}
+                  className={({ isActive }) => `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors mb-0.5 ${isActive ? 'bg-brand-50 text-brand-700' : 'text-gray-600 hover:bg-gray-50'}`}>
+                  <item.icon size={18} /> {item.label}
+                  {badgeFor(item.path) > 0 && (
+                    <span className="ml-auto min-w-[20px] h-5 px-1.5 rounded-full bg-green-500 text-white text-[11px] font-semibold flex items-center justify-center"
+                      title={`${badgeFor(item.path)} chat${badgeFor(item.path) === 1 ? '' : 's'} with unread messages`}>
+                      {badgeText(badgeFor(item.path))}
+                    </span>
+                  )}
+                </NavLink>
+              ))}
+            </div>;
+          })}
         </nav>
 
         <div className="border-t p-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 bg-brand-100 rounded-full flex items-center justify-center">
-              <span className="text-brand-700 font-semibold text-xs">{user?.name?.charAt(0)?.toUpperCase() || 'U'}</span>
+              <span className="text-brand-700 font-semibold text-xs">{initials(user?.name, 1) || 'U'}</span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{user?.name}</p>

@@ -8,14 +8,14 @@ const Section = ({ id, title, children }) => (
 );
 
 const TermsOfServicePage = () => (
-  <PublicPageLayout>
+  <PublicPageLayout title="Terms of Service – CurveLead">
     <div className="mx-auto max-w-3xl px-4 sm:px-6 py-14">
       <div className="mb-10 border-b border-gray-200 pb-8">
         <p className="text-sm font-semibold uppercase tracking-wider text-brand-600 mb-2">Legal</p>
         <h1 className="text-4xl font-extrabold text-gray-950">Terms of Service</h1>
-        <p className="mt-3 text-gray-500 text-sm">Effective date: June 16, 2026 &nbsp;·&nbsp; Last updated: June 16, 2026</p>
+        <p className="mt-3 text-gray-500 text-sm">Effective date: June 16, 2026 &nbsp;·&nbsp; Last updated: September 30, 2026</p>
         <p className="mt-5 text-gray-600 leading-7">
-          These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the CurveLead platform and services operated by Curve Lead (&ldquo;CurveLead&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;) at <strong>curvelead.com</strong>. Please read these Terms carefully before using the service. By registering for or using CurveLead, you agree to be bound by these Terms.
+          These Terms of Service (&ldquo;Terms&rdquo;) govern your access to and use of the CurveLead platform and services operated by Curve Lead (&ldquo;CurveLead&rdquo;, &ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;) in Baramati, Maharashtra, India, at <strong>curvelead.com</strong>. Please read these Terms carefully before using the service. By registering for or using CurveLead, you agree to be bound by these Terms.
         </p>
       </div>
 
@@ -30,7 +30,7 @@ const TermsOfServicePage = () => (
 
       <Section id="description" title="2. Description of Service">
         <p>
-          CurveLead is a lead management platform that helps businesses collect, organize, assign, and follow up with leads generated from Meta (Facebook and Instagram) lead ads and other sources. The service includes a lead management dashboard, follow-up scheduling, team assignment, campaign reporting, and related tools.
+          CurveLead is a lead management platform that helps businesses collect, organize, assign, and follow up with leads generated from Meta (Facebook and Instagram) lead ads and other sources. The service includes a lead CRM, WhatsApp follow-ups, follow-up scheduling, team assignment, campaign reporting, and Google Business Profile management through secure Google sign-in. Connected users can update their own listings, read and reply to Google reviews, and view profile performance.
         </p>
         <p>
           We reserve the right to modify, expand, or discontinue any feature of the service at any time with reasonable notice where possible.
@@ -51,6 +51,7 @@ const TermsOfServicePage = () => (
 
       <Section id="permitted-use" title="4. Permitted Use of the Service">
         <p>CurveLead is provided solely for the purpose of lead management, sales follow-up, team coordination, and related business activities. You agree to use the service only for lawful purposes and in accordance with these Terms.</p>
+        <p>You must follow applicable WhatsApp, Meta, and Google policies, including messaging consent and opt-out requirements, and connect only business assets you are authorized to manage.</p>
         <p>You must not:</p>
         <ul className="list-disc list-inside space-y-2 mt-3">
           <li>Use CurveLead to engage in spam, unsolicited messaging, or any form of communication that violates applicable laws or platform policies.</li>
@@ -77,7 +78,8 @@ const TermsOfServicePage = () => (
         </p>
       </Section>
 
-      <Section id="meta-compliance" title="6. Meta Platform Policy Compliance">
+      <Section id="meta-compliance" title="6. Third-Party Services and Platform Policies">
+        <p>Google, Meta, and WhatsApp are third-party services governed by their own terms and privacy policies, including <a href="https://policies.google.com/terms" className="text-brand-600 underline">Google’s Terms of Service</a>, <a href="https://developers.facebook.com/terms/" className="text-brand-600 underline">Meta’s Platform Terms</a>, and <a href="https://www.whatsapp.com/legal/business-terms" className="text-brand-600 underline">WhatsApp’s Business Terms</a>. Their availability, API access, and policies may change independently of CurveLead.</p>
         <p>
           You agree to comply with Meta&rsquo;s Platform Terms and all related policies as a condition of using CurveLead&rsquo;s Meta integration. This includes, but is not limited to:
         </p>
@@ -109,7 +111,7 @@ const TermsOfServicePage = () => (
         </p>
       </Section>
 
-      <Section id="suspension" title="9. Misuse and Suspension">
+      <Section id="suspension" title="9. Termination, Misuse and Suspension">
         <p>
           We reserve the right to suspend or terminate your account, with or without notice, if we determine in our reasonable judgment that you have:
         </p>
@@ -120,20 +122,23 @@ const TermsOfServicePage = () => (
           <li>Failed to pay applicable subscription fees.</li>
         </ul>
         <p>
-          Upon termination, your right to access the service will immediately cease. We may retain or delete your data in accordance with our Privacy Policy and applicable law.
+          You may stop using CurveLead and request account termination by emailing support@curvelead.com. Upon termination, your right to access the service will immediately cease. We may retain or delete your data in accordance with our Privacy Policy and applicable law.
         </p>
       </Section>
 
-      <Section id="billing" title="10. Billing and Payments">
+      <Section id="billing" title="10. Subscription, Fees and Trial">
         <p>
           CurveLead offers a free plan and paid subscription plans. Subscription fees are charged in advance on a monthly or annual basis. All fees are non-refundable except as required by applicable law or as stated in a separate written agreement.
+        </p>
+        <p>
+          Any trial duration, included features, usage limits, applicable taxes, and subscription charges are shown at signup or checkout. Continued access to paid features after a trial requires the applicable subscription. You may request cancellation through support before your next renewal.
         </p>
         <p>
           We reserve the right to change our pricing with at least 30 days&rsquo; advance notice communicated via email or within the platform.
         </p>
       </Section>
 
-      <Section id="ip" title="11. Intellectual Property">
+      <Section id="ip" title="11. Customer Data Ownership and Intellectual Property">
         <p>
           CurveLead and all associated software, designs, trademarks, and content are the property of Curve Lead and are protected by applicable intellectual property laws. These Terms do not grant you any ownership rights in the platform.
         </p>
@@ -142,7 +147,8 @@ const TermsOfServicePage = () => (
         </p>
       </Section>
 
-      <Section id="liability" title="12. Limitation of Liability">
+      <Section id="liability" title="12. Disclaimers and Limitation of Liability">
+        <p>To the extent permitted by law, the service is provided “as is” and “as available,” without warranties of merchantability, fitness for a particular purpose, or uninterrupted or error-free operation. We do not guarantee sales results, lead conversions, or Google Business Profile rankings. Nothing in these Terms excludes rights or liabilities that cannot lawfully be excluded.</p>
         <p>
           To the fullest extent permitted by law, CurveLead shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising from your use of or inability to use the service, including loss of leads, revenue, data, or business opportunities.
         </p>
@@ -167,6 +173,7 @@ const TermsOfServicePage = () => (
         <p>If you have any questions about these Terms, please contact us:</p>
         <div className="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-5">
           <p className="font-semibold text-gray-950">Curve Lead</p>
+          <p>Baramati, Maharashtra, India</p>
           <p className="mt-1">Email: <a href="mailto:support@curvelead.com" className="text-brand-600 underline hover:text-brand-700">support@curvelead.com</a></p>
           <p className="mt-1">Website: <a href="https://curvelead.com" className="text-brand-600 underline hover:text-brand-700">curvelead.com</a></p>
         </div>

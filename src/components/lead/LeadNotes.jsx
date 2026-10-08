@@ -1,7 +1,9 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { notesAPI } from '../../services/api';
 import { Plus, Edit2, Trash2, X, MessageSquare, Phone, Calendar, FileText } from 'lucide-react';
 import { useConfirmDialog } from '../ui/ConfirmDialog';
+import { useToast } from '../ui/Toast';
 
 const noteTypeIcons = {
   meeting: <Calendar size={14} />,
@@ -19,6 +21,7 @@ const noteTypeColors = {
 
 const LeadNotes = ({ leadId, onActivityAdded }) => {
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -37,7 +40,7 @@ const LeadNotes = ({ leadId, onActivityAdded }) => {
   };
 
   const handleSave = async () => {
-    if (!form.note.trim()) return alert('Note content required');
+    if (!form.note.trim()) return toast.error('Note content required');
     try {
       if (editing) {
         await notesAPI.update(leadId, editing, { note: form.note });
@@ -49,7 +52,7 @@ const LeadNotes = ({ leadId, onActivityAdded }) => {
       setForm({ note: '', note_type: 'general' });
       load();
       if (!editing) onActivityAdded?.();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
   };
 
   const handleEdit = (note) => {
@@ -60,7 +63,7 @@ const LeadNotes = ({ leadId, onActivityAdded }) => {
 
   const handleDelete = async (id) => {
     if (!await confirm({ title: 'Delete this note?' })) return;
-    try { await notesAPI.delete(leadId, id); load(); } catch (e) { alert('Failed'); }
+    try { await notesAPI.delete(leadId, id); load(); } catch (e) { toast.error('Failed'); }
   };
 
   return (
@@ -116,7 +119,7 @@ const LeadNotes = ({ leadId, onActivityAdded }) => {
               </div>
               <p className="text-sm text-gray-700 whitespace-pre-wrap">{n.note}</p>
               <p className="text-[10px] text-gray-400 mt-2">
-                {n.created_by_name || 'Unknown'} • {new Date(n.created_at).toLocaleString('en-IN')}
+                {n.created_by_name || 'Unknown'} • {formatDateTime(n.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}
               </p>
             </div>
           ))}

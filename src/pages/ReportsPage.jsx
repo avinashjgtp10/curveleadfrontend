@@ -1,17 +1,39 @@
-import { useEffect, useState } from 'react';
-import { reportsAPI, leadAPI, stageAPI } from '../services/api';
+import { formatMoney, formatMoneyByCurrency } from '../utils/locale';
+import ChartLegend from '../components/ui/ChartLegend';
+import ErrorState, { errorMessage } from '../components/ui/ErrorState';
+import { sourceLabel } from '../utils/leadData.js';
+import { formatDateTime } from '../utils/dateTime.js';
+import { useEffect, useRef, useState } from 'react';
+import { reportsAPI, leadAPI, stageAPI, brochuresAPI } from '../services/api';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
   AreaChart, Area, LineChart, Line,
 } from 'recharts';
 import {
-  TrendingUp, Users, Target, Megaphone, Paperclip, ChevronLeft, ChevronRight, AlertTriangle,
+  TrendingUp, Users, Target, Megaphone, ChevronLeft, ChevronRight, AlertTriangle,
+  Search, SlidersHorizontal, ChevronDown, X, Download, FileText, Eye, Share2, Trash2, Square, CheckSquare, Calendar,
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
+import StageBars from '../components/ui/StageBars';
+import { workspaceCurrency } from '../utils/locale';
+
+// Revenue is in the workspace currency, spend in the ad account's — only divide like with like.
+const roas = (c) => {
+  const spend = Number(c.spend), revenue = Number(c.revenue);
+  if (!spend || !revenue || (c.currency && c.currency !== workspaceCurrency())) return '—';
+  return `${(revenue / spend).toFixed(1)}×`;
+};
 import EmptyState from '../components/ui/EmptyState';
+import { BROCHURE_PAGE_SIZE_OPTIONS, BROCHURE_REPORT_CATEGORIES } from './brochureFilter.constants';
+import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import {
+  REPORT_LEAD_COLUMNS,
+  REPORT_LEAD_DOWNLOAD_OPTIONS,
+  REPORT_LEAD_PAGE_SIZE_OPTIONS,
+  REPORT_LEAD_SCORE_OPTIONS,
+} from './reportsLeadDownload.constants';
 
 const COLORS = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4'];
-const GRID_PAGE_SIZE_OPTIONS = [5, 10, 15, 20];
 
 const TABS = [
   { id: 'overview', label: 'Overview' },
@@ -19,6 +41,16 @@ const TABS = [
   { id: 'team', label: 'Team' },
   { id: 'campaigns', label: 'Campaigns' },
   { id: 'leads', label: 'Lead Detail' },
+  { id: 'brochures', label: 'Brochure Detail' },
+  { id: 'messages', label: 'Messages' },
+];
+
+const PERIOD_OPTIONS = [
+  { value: 'today', label: 'Today' },
+  { value: 'this_week', label: 'This Week' },
+  { value: 'this_month', label: 'This Month' },
+  { value: 'last_month', label: 'Last Month' },
+  { value: 'this_year', label: 'This Year' },
 ];
 
 const fmtDuration = (seconds) => {
@@ -29,13 +61,135 @@ const fmtDuration = (seconds) => {
   return `${(seconds / 86400).toFixed(1)}d`;
 };
 
+const fmtSize = (bytes) => {
+  if (!bytes) return '—';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+};
+
 const Spinner = () => (
   <div className="flex items-center justify-center h-40">
     <div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" />
   </div>
 );
 
+const formatReportValue = (lead, key) => {
+  const value = lead[key];
+  if (key === 'created_at') return value ? formatDateTime(value, undefined, { dateStyle: undefined, timeStyle: undefined, }) : '';
+  return value ?? '';
+};
+
+const escapeCsvValue = (value) => `"${String(value).replace(/"/g, '""')}"`;
+const escapeHtml = (value) => String(value)
+  .replace(/&/g, '&amp;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;')
+  .replace(/'/g, '&#39;');
+
+const downloadBlob = (content, type, filename) => {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+const getReportFilename = (extension) => `lead_detail_report_${new Date().toISOString().slice(0, 10)}.${extension}`;
+
+// A button-triggered dropdown, anchored and positioned entirely with CSS,
+// so it always opens directly below its trigger instead of relying on the
+// browser's native <select> popup placement (which can render detached from
+// the field and overlap unrelated page content).
+const FilterDropdown = ({ label, value, options, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const current = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div className="space-y-1" ref={ref}>
+      <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">{label}</label>
+      <div className="relative">
+        <button type="button" onClick={() => setOpen(v => !v)}
+          className="h-10 w-full flex items-center justify-between gap-2 bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+          <span className="truncate">{current?.label}</span>
+          <ChevronDown size={14} className={`shrink-0 text-gray-400 transition-transform ${open ? 'rotate-180' : ''}`} />
+        </button>
+        {open && (
+          <div className="absolute left-0 right-0 top-full mt-1 z-30 bg-white border border-gray-200 rounded-lg shadow-lg max-h-56 overflow-y-auto py-1">
+            {options.map(o => (
+              <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-brand-50 ${o.value === value ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700'}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Compact pill dropdown instead of a native <select>, to match FilterDropdown's
+// look. Reused for both the top-of-page calendar-period selector and the
+// Trends section's day-range selector — pass in whichever `options` apply.
+const PillDropdown = ({ value, onChange, options }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const current = options.find(o => o.value === value) || options[0];
+
+  return (
+    <div className="relative" ref={ref}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className={`inline-flex items-center gap-2 h-10 pl-3.5 pr-3 rounded-full border text-sm font-semibold transition-colors ${
+          open ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-700 border-gray-200 hover:border-brand-400 hover:text-brand-600'
+        }`}>
+        <Calendar size={14} />
+        {current.label}
+        <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1.5 z-30 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-40">
+          {options.map(o => (
+            <button key={o.value} type="button" onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`w-full text-left px-3.5 py-2 text-sm ${o.value === value ? 'bg-brand-50 text-brand-700 font-semibold' : 'text-gray-700 hover:bg-gray-50'}`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const TREND_DAY_OPTIONS = [
+  { value: 7, label: 'Last 7 Days' },
+  { value: 30, label: 'Last 30 Days' },
+  { value: 90, label: 'Last 90 Days' },
+];
+
 const ReportsPage = () => {
+  const confirm = useConfirmDialog();
   const [activeTab, setActiveTab] = useState('overview');
   const [period, setPeriod] = useState('this_month');
 
@@ -44,7 +198,9 @@ const ReportsPage = () => {
   const [bySource, setBySource] = useState([]);
   const [byStaff, setByStaff] = useState([]);
   const [byCampaign, setByCampaign] = useState([]);
+  const [activeCampaigns, setActiveCampaigns] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null); // { message, retry }
 
   // Funnel tab
   const [funnel, setFunnel] = useState({ stages: [], leaks: [] });
@@ -60,81 +216,334 @@ const ReportsPage = () => {
 
   // Lead Detail tab
   const [stages, setStages] = useState([]);
+  const [gridSearchInput, setGridSearchInput] = useState('');
+  const [gridSearch, setGridSearch] = useState('');
+  const [showGridFilters, setShowGridFilters] = useState(false);
   const [gridStage, setGridStage] = useState('');
-  const [gridAttachment, setGridAttachment] = useState('');
+  const [gridScore, setGridScore] = useState('');
   const [gridStalled, setGridStalled] = useState(false);
   const [gridPage, setGridPage] = useState(1);
   const [gridPageSize, setGridPageSize] = useState(20);
   const [gridLeads, setGridLeads] = useState([]);
   const [gridPagination, setGridPagination] = useState({ total: 0, pages: 1 });
   const [gridLoading, setGridLoading] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exportingFormat, setExportingFormat] = useState('');
+  const exportMenuRef = useRef(null);
+  const [selectedGridIds, setSelectedGridIds] = useState(new Set());
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+
+  // Brochure Detail tab
+  const [brochureSearchInput, setBrochureSearchInput] = useState('');
+  const [brochureSearch, setBrochureSearch] = useState('');
+  const [showBrochureFilters, setShowBrochureFilters] = useState(false);
+  const [brochureCategory, setBrochureCategory] = useState('');
+  const [brochureSharedOnly, setBrochureSharedOnly] = useState(false);
+  const [brochureViewedOnly, setBrochureViewedOnly] = useState(false);
+  const [brochurePage, setBrochurePage] = useState(1);
+  const [brochurePageSize, setBrochurePageSize] = useState(20);
+  const [brochures, setBrochures] = useState([]);
+  const [brochuresLoading, setBrochuresLoading] = useState(false);
+  // Messages tab
+  const [msgSearchInput, setMsgSearchInput] = useState('');
+  const [msgSearch, setMsgSearch] = useState('');
+  const [showMsgFilters, setShowMsgFilters] = useState(false);
+  const [msgStatus, setMsgStatus] = useState('');
+  const [msgDirection, setMsgDirection] = useState('');
+  const [msgFrom, setMsgFrom] = useState('');
+  const [msgTo, setMsgTo] = useState('');
+  const [msgAutomated, setMsgAutomated] = useState('');
+  const [msgPage, setMsgPage] = useState(1);
+  const [msgPageSize, setMsgPageSize] = useState(20);
+  const [messages, setMessages] = useState([]);
+  const [msgPagination, setMsgPagination] = useState({ total: 0, pages: 1 });
+  const [msgLoading, setMsgLoading] = useState(false);
+
+  const overviewRequestRef = useRef(0);
+  const funnelRequestRef = useRef(0);
+  const trendsRequestRef = useRef(0);
+  const gridRequestRef = useRef(0);
+  const brochuresRequestRef = useRef(0);
+  const msgRequestRef = useRef(0);
 
   useEffect(() => {
     stageAPI.getAll().then(res => setStages(res.data.stages || [])).catch(() => {});
   }, []);
 
-  useEffect(() => { loadOverview(); }, [period]);
-  useEffect(() => { loadFunnel(); }, [period]);
-  useEffect(() => { loadTrends(); }, [trendDays]);
-  useEffect(() => { loadGrid(); }, [gridStage, gridAttachment, gridStalled, gridPage, gridPageSize]);
+  useEffect(() => {
+    if (['overview', 'team', 'campaigns'].includes(activeTab)) loadOverview();
+  }, [activeTab, period]);
+
+  useEffect(() => {
+    if (activeTab === 'funnel') loadFunnel();
+  }, [activeTab, period]);
+
+  useEffect(() => {
+    if (activeTab === 'team') loadTrends();
+  }, [activeTab, trendDays]);
+
+  useEffect(() => {
+    if (activeTab === 'leads') loadGrid();
+  }, [activeTab, gridSearch, gridStage, gridScore, gridStalled, gridPage, gridPageSize]);
+
+  useEffect(() => {
+    if (activeTab === 'brochures') loadBrochures();
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab === 'messages') loadMessages();
+  }, [activeTab, msgSearch, msgStatus, msgDirection, msgAutomated, msgFrom, msgTo, msgPage, msgPageSize]);
+
+  useEffect(() => {
+    const onDocClick = (e) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target)) setExportOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setGridPage(1); setGridSearch(gridSearchInput); }, 400);
+    return () => clearTimeout(t);
+  }, [gridSearchInput]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setMsgPage(1); setMsgSearch(msgSearchInput); }, 400);
+    return () => clearTimeout(t);
+  }, [msgSearchInput]);
+
+  useEffect(() => {
+    const t = setTimeout(() => { setBrochurePage(1); setBrochureSearch(brochureSearchInput); }, 400);
+    return () => clearTimeout(t);
+  }, [brochureSearchInput]);
+
+  // Each section falls back to empty data, but failures are collected and shown with
+  // the server's reason and a Retry button instead of silently looking like "no data".
+  const tracked = (failures, fallback) => (e) => { failures.push(errorMessage(e)); return { data: fallback }; };
+  const reportFailures = (failures, total, retry) => setLoadError(failures.length
+    ? { message: `${failures.length} of ${total} report sections didn't load: ${[...new Set(failures)].join(' ')}`, retry }
+    : null);
 
   const loadOverview = async () => {
+    const requestId = ++overviewRequestRef.current;
     setLoading(true);
     try {
+      const failures = [];
       const [convRes, srcRes, staffRes, campRes] = await Promise.all([
-        reportsAPI.conversion({ period }).catch(() => ({ data: {} })),
-        reportsAPI.bySource({ period }).catch(() => ({ data: { sources: [] } })),
-        reportsAPI.byStaff({ period }).catch(() => ({ data: { staff: [] } })),
-        reportsAPI.byCampaign({ period }).catch(() => ({ data: { campaigns: [] } })),
+        reportsAPI.conversion({ period }).catch(tracked(failures, {})),
+        reportsAPI.bySource({ period }).catch(tracked(failures, { sources: [] })),
+        reportsAPI.byStaff({ period }).catch(tracked(failures, { staff: [] })),
+        reportsAPI.byCampaign({ period }).catch(tracked(failures, { campaigns: [] })),
       ]);
+      if (requestId !== overviewRequestRef.current) return;
+      reportFailures(failures, 4, loadOverview);
       setConversion(convRes.data);
-      setBySource(srcRes.data.sources || []);
+      setBySource((srcRes.data.sources || []).map(s => ({ ...s, source: sourceLabel(s.source) })));
       setByStaff(staffRes.data.staff || []);
       setByCampaign(campRes.data.campaigns || []);
+      setActiveCampaigns(campRes.data.active_campaigns ?? (campRes.data.campaigns || []).filter(c => String(c.status).toLowerCase() === 'active').length);
     } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+    finally { if (requestId === overviewRequestRef.current) setLoading(false); }
   };
 
   const loadFunnel = async () => {
+    const requestId = ++funnelRequestRef.current;
     setFunnelLoading(true);
     try {
+      const failures = [];
       const [funnelRes, tisRes, stalledRes] = await Promise.all([
-        reportsAPI.funnel({ period }).catch(() => ({ data: { stages: [], leaks: [] } })),
-        reportsAPI.timeInStage({ period }).catch(() => ({ data: { stages: [] } })),
-        leadAPI.getAll({ stalled: true, limit: 1 }).catch(() => ({ data: { pagination: { total: 0 } } })),
+        reportsAPI.funnel({ period }).catch(tracked(failures, { stages: [], leaks: [] })),
+        reportsAPI.timeInStage({ period }).catch(tracked(failures, { stages: [] })),
+        leadAPI.getAll({ stalled: true, limit: 1 }).catch(tracked(failures, { pagination: { total: 0 } })),
       ]);
+      if (requestId !== funnelRequestRef.current) return;
+      reportFailures(failures, 3, loadFunnel);
       setFunnel(funnelRes.data);
       setTimeInStage(tisRes.data.stages || []);
       setStalledCount(stalledRes.data.pagination?.total || 0);
     } catch (e) { console.error(e); }
-    finally { setFunnelLoading(false); }
+    finally { if (requestId === funnelRequestRef.current) setFunnelLoading(false); }
   };
 
   const loadTrends = async () => {
+    const requestId = ++trendsRequestRef.current;
     setTrendLoading(true);
     try {
+      const failures = [];
       const [tlRes, ftRes] = await Promise.all([
-        reportsAPI.timeline({ period: 'daily', days: trendDays }).catch(() => ({ data: { timeline: [] } })),
-        reportsAPI.followupTrend({ period: 'daily', days: trendDays }).catch(() => ({ data: { trend: [] } })),
+        reportsAPI.timeline({ period: 'daily', days: trendDays }).catch(tracked(failures, { timeline: [] })),
+        reportsAPI.followupTrend({ period: 'daily', days: trendDays }).catch(tracked(failures, { trend: [] })),
       ]);
+      if (requestId !== trendsRequestRef.current) return;
+      reportFailures(failures, 2, loadTrends);
       setResponseTrend(tlRes.data.timeline || []);
       setFollowupTrend(ftRes.data.trend || []);
     } catch (e) { console.error(e); }
-    finally { setTrendLoading(false); }
+    finally { if (requestId === trendsRequestRef.current) setTrendLoading(false); }
   };
 
   const loadGrid = async () => {
+    const requestId = ++gridRequestRef.current;
     setGridLoading(true);
     try {
       const params = { page: gridPage, limit: gridPageSize };
+      if (gridSearch) params.search = gridSearch;
       if (gridStage) params.stage = gridStage;
-      if (gridAttachment) params.has_attachment = gridAttachment;
+      if (gridScore) params.score = gridScore;
       if (gridStalled) params.stalled = true;
       const res = await leadAPI.getAll(params);
+      if (requestId !== gridRequestRef.current) return;
       setGridLeads(res.data.leads || []);
+      setSelectedGridIds(new Set());
       setGridPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
     } catch (e) { console.error(e); }
-    finally { setGridLoading(false); }
+    finally { if (requestId === gridRequestRef.current) setGridLoading(false); }
+  };
+
+  const loadMessages = async () => {
+    const requestId = ++msgRequestRef.current;
+    setMsgLoading(true);
+    try {
+      const params = { page: msgPage, limit: msgPageSize };
+      if (msgSearch) params.search = msgSearch;
+      if (msgStatus) params.status = msgStatus;
+      if (msgDirection) params.direction = msgDirection;
+      if (msgAutomated) params.is_automated = msgAutomated;
+      if (msgFrom) params.date_from = msgFrom;
+      if (msgTo) params.date_to = msgTo;
+      const res = await reportsAPI.messages(params);
+      if (requestId !== msgRequestRef.current) return;
+      setMessages(res.data.messages || []);
+      setMsgPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
+    } catch (e) { console.error(e); }
+    finally { if (requestId === msgRequestRef.current) setMsgLoading(false); }
+  };
+
+  const loadBrochures = async () => {
+    const requestId = ++brochuresRequestRef.current;
+    setBrochuresLoading(true);
+    try {
+      const res = await brochuresAPI.getAll();
+      if (requestId !== brochuresRequestRef.current) return;
+      setBrochures(res.data.brochures || []);
+    } catch (e) { console.error(e); }
+    finally { if (requestId === brochuresRequestRef.current) setBrochuresLoading(false); }
+  };
+
+  const getGridExportParams = () => {
+    const params = { page: 1, limit: Math.max(gridPagination.total || gridPageSize, gridPageSize) };
+    if (gridSearch) params.search = gridSearch;
+    if (gridStage) params.stage = gridStage;
+    if (gridScore) params.score = gridScore;
+    if (gridStalled) params.stalled = true;
+    return params;
+  };
+
+  const getGridExportLeads = async () => {
+    if (!gridPagination.total || gridPagination.total === gridLeads.length) return gridLeads;
+    const res = await leadAPI.getAll(getGridExportParams());
+    return res.data.leads || [];
+  };
+
+  const handleReportDownload = async (format) => {
+    setExportOpen(false);
+    setExportingFormat(format);
+    try {
+      const leads = await getGridExportLeads();
+      const rows = leads.map(lead => REPORT_LEAD_COLUMNS.map(col => formatReportValue(lead, col.key)));
+
+      if (format === 'csv') {
+        const csv = [
+          REPORT_LEAD_COLUMNS.map(col => escapeCsvValue(col.label)).join(','),
+          ...rows.map(row => row.map(escapeCsvValue).join(',')),
+        ].join('\n');
+        downloadBlob(csv, 'text/csv;charset=utf-8;', getReportFilename('csv'));
+        return;
+      }
+
+      if (format === 'excel') {
+        const table = `
+          <table>
+            <thead><tr>${REPORT_LEAD_COLUMNS.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead>
+            <tbody>
+              ${rows.map(row => `<tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join('')}</tr>`).join('')}
+            </tbody>
+          </table>
+        `;
+        const workbook = `<!doctype html><html><head><meta charset="utf-8" /></head><body>${table}</body></html>`;
+        downloadBlob(workbook, 'application/vnd.ms-excel;charset=utf-8;', getReportFilename('xls'));
+        return;
+      }
+
+      if (format === 'pdf') {
+        const printedAt = formatDateTime(new Date());
+        const tableRows = rows.map(row => `
+          <tr>${row.map(value => `<td>${escapeHtml(value)}</td>`).join('')}</tr>
+        `).join('');
+        const html = `<!doctype html>
+          <html>
+            <head>
+              <meta charset="utf-8" />
+              <title>Lead Detail Report</title>
+              <style>
+                body { font-family: Arial, sans-serif; color: #111827; margin: 32px; }
+                h1 { font-size: 20px; margin: 0 0 4px; }
+                p { color: #6b7280; font-size: 12px; margin: 0 0 20px; }
+                table { width: 100%; border-collapse: collapse; font-size: 12px; }
+                th { text-align: left; text-transform: uppercase; color: #6b7280; font-size: 10px; border-bottom: 1px solid #d1d5db; padding: 8px; }
+                td { border-bottom: 1px solid #e5e7eb; padding: 8px; }
+                @media print { body { margin: 18mm; } }
+              </style>
+            </head>
+            <body>
+              <h1>Lead Detail Report</h1>
+              <p>Generated ${escapeHtml(printedAt)} - ${leads.length} leads</p>
+              <table>
+                <thead><tr>${REPORT_LEAD_COLUMNS.map(col => `<th>${escapeHtml(col.label)}</th>`).join('')}</tr></thead>
+                <tbody>${tableRows}</tbody>
+              </table>
+              <script>window.onload = () => { window.print(); };</script>
+            </body>
+          </html>`;
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) throw new Error('Popup blocked. Please allow popups to export PDF.');
+        printWindow.document.write(html);
+        printWindow.document.close();
+      }
+    } catch (e) {
+      console.error(e);
+      alert(e.message || 'Failed to download report.');
+    } finally {
+      setExportingFormat('');
+    }
+  };
+
+  const toggleGridSelect = (id) => setSelectedGridIds(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
+
+  const toggleGridSelectAll = () => {
+    if (selectedGridIds.size === gridLeads.length) setSelectedGridIds(new Set());
+    else setSelectedGridIds(new Set(gridLeads.map(l => l.id)));
+  };
+
+  const clearGridSelection = () => setSelectedGridIds(new Set());
+
+  const handleGridBulkDelete = async () => {
+    const ok = await confirm({ title: `Delete ${selectedGridIds.size} lead${selectedGridIds.size > 1 ? 's' : ''}?` });
+    if (!ok) return;
+    setBulkDeleteLoading(true);
+    try {
+      await leadAPI.bulkDelete([...selectedGridIds]);
+      clearGridSelection();
+      loadGrid();
+    } catch (e) {
+      alert(e.response?.data?.error || 'Failed to delete selected leads.');
+    } finally {
+      setBulkDeleteLoading(false);
+    }
   };
 
   const gridPageNumbers = () => {
@@ -145,26 +554,61 @@ const ReportsPage = () => {
     return [1, '…', gridPage - 1, gridPage, gridPage + 1, '…', t];
   };
 
-  const handleGridFilterChange = (setter) => (e) => { setGridPage(1); setter(e.target.value); };
+  const msgPageNumbers = () => {
+    const t = msgPagination.pages;
+    if (t <= 7) return Array.from({ length: t }, (_, i) => i + 1);
+    if (msgPage <= 4) return [1, 2, 3, 4, 5, '…', t];
+    if (msgPage >= t - 3) return [1, '…', t - 4, t - 3, t - 2, t - 1, t];
+    return [1, '…', msgPage - 1, msgPage, msgPage + 1, '…', t];
+  };
 
-  const conversionRate = conversion?.total_leads > 0
-    ? ((conversion.won / conversion.total_leads) * 100).toFixed(1)
-    : 0;
+  const filteredBrochures = brochures
+    .filter(b =>
+      (!brochureCategory || b.category === brochureCategory) &&
+      (!brochureSearch || b.name?.toLowerCase().includes(brochureSearch.toLowerCase())) &&
+      (!brochureSharedOnly || (b.times_shared || 0) > 0) &&
+      (!brochureViewedOnly || (b.views || 0) > 0)
+    )
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+  const brochureTotalPages = Math.max(1, Math.ceil(filteredBrochures.length / brochurePageSize));
+  const brochureRows = filteredBrochures.slice((brochurePage - 1) * brochurePageSize, brochurePage * brochurePageSize);
+  const brochureStats = {
+    total: brochures.length,
+    shared: brochures.filter(b => (b.times_shared || 0) > 0).length,
+    views: brochures.reduce((sum, b) => sum + (b.views || 0), 0),
+    size: brochures.reduce((sum, b) => sum + (b.file_size || 0), 0),
+  };
+
+  const brochurePageNumbers = () => {
+    const t = brochureTotalPages;
+    if (t <= 7) return Array.from({ length: t }, (_, i) => i + 1);
+    if (brochurePage <= 4) return [1, 2, 3, 4, 5, '…', t];
+    if (brochurePage >= t - 3) return [1, '…', t - 4, t - 3, t - 2, t - 1, t];
+    return [1, '…', brochurePage - 1, brochurePage, brochurePage + 1, '…', t];
+  };
+
+
+  // Same definition as the dashboard and coaching (services/metrics.js): of the leads created
+  // in the period, the share that became customers. "Won this period" is a separate count.
+  const conversionRate = conversion?.conversion_rate ?? 0;
 
   const stats = [
     { label: 'Total Leads', value: conversion?.total_leads || 0, icon: Users, color: 'bg-blue-100 text-blue-600' },
-    { label: 'Won', value: conversion?.won || 0, icon: Target, color: 'bg-green-100 text-green-600' },
-    { label: 'Conversion Rate', value: `${conversionRate}%`, icon: TrendingUp, color: 'bg-purple-100 text-purple-600' },
-    { label: 'Active Campaigns', value: byCampaign.length, icon: Megaphone, color: 'bg-amber-100 text-amber-600' },
+    { label: 'Won this period', value: conversion?.won || 0, icon: Target, color: 'bg-green-100 text-green-600',
+      sub: 'Reached a won stage in this period' },
+    { label: 'Conversion Rate', value: `${conversionRate}%`, icon: TrendingUp, color: 'bg-purple-100 text-purple-600',
+      sub: `${conversion?.converted ?? 0} of ${conversion?.total_leads ?? 0} leads became customers` },
+    { label: 'Active Campaigns', value: activeCampaigns, icon: Megaphone, color: 'bg-amber-100 text-amber-600' },
   ];
 
   const responseTrendChartData = responseTrend.map(t => ({
-    day: new Date(t.period).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    day: formatDateTime(t.period, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short' }),
     'Avg Response (min)': t.avg_response_seconds ? Math.round(t.avg_response_seconds / 60) : 0,
   }));
 
   const followupTrendChartData = followupTrend.map(t => ({
-    day: new Date(t.period).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    day: formatDateTime(t.period, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short' }),
     Scheduled: t.scheduled,
     Completed: t.completed,
   }));
@@ -173,21 +617,14 @@ const ReportsPage = () => {
     <div className="max-w-6xl mx-auto space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-sm text-gray-500">Track conversion, sources, and campaign performance</p>
-        {activeTab !== 'leads' && (
-          <select value={period} onChange={e => setPeriod(e.target.value)}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-            <option value="today">Today</option>
-            <option value="this_week">This Week</option>
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="this_year">This Year</option>
-          </select>
+        {!['leads', 'brochures', 'messages'].includes(activeTab) && (
+          <PillDropdown value={period} onChange={setPeriod} options={PERIOD_OPTIONS} />
         )}
       </div>
 
       <div className="flex gap-1 overflow-x-auto">
         {TABS.map(t => (
-          <button key={t.id} onClick={() => setActiveTab(t.id)}
+          <button key={t.id} onClick={() => { setActiveTab(t.id); setLoadError(null); }}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-colors ${
               activeTab === t.id ? 'bg-brand-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
             }`}>
@@ -195,6 +632,8 @@ const ReportsPage = () => {
           </button>
         ))}
       </div>
+
+      {loadError && <ErrorState message={loadError.message} onRetry={loadError.retry} />}
 
       {activeTab === 'overview' && (
         loading ? <Spinner /> : (
@@ -213,23 +652,19 @@ const ReportsPage = () => {
                         {bySource.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                       </Pie>
                       <Tooltip />
-                      <Legend />
+                      <Legend content={<ChartLegend/>}/>
                     </PieChart>
                   </ResponsiveContainer>
                 )}
               </div>
 
               <div className="bg-white rounded-2xl border p-5">
-                <h3 className="font-semibold mb-4">Conversion Funnel</h3>
+                <h3 className="font-semibold">Leads by current stage</h3>
+                <p className="text-xs text-gray-400 mb-4">Leads created in this period, by the stage they're in now. The full step-by-step funnel is on the Funnel tab.</p>
                 {conversion?.stages?.length > 0 ? (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={conversion.stages}>
-                      <XAxis dataKey="stage" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
-                      <Tooltip />
-                      <Bar dataKey="count" fill="#6366f1" radius={[8, 8, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <StageBars
+                    rows={conversion.stages.filter(s => !s.is_exit).map(s => ({ name: s.stage, count: s.count, note: `${s.percentage}%`, tone: s.is_won ? 'won' : 'brand' }))}
+                    exits={conversion.stages.filter(s => s.is_exit).map(s => ({ name: s.stage, count: s.count, note: `${s.percentage}%` }))} />
                 ) : <EmptyState />}
               </div>
             </div>
@@ -246,17 +681,13 @@ const ReportsPage = () => {
             </div>
 
             <div className="bg-white rounded-2xl border p-5">
-              <h3 className="font-semibold mb-4">Sales Funnel Drop-off</h3>
+              <h3 className="font-semibold mb-4">Sales Funnel · New → Won</h3>
               {funnel.stages.length === 0 ? <EmptyState /> : (
                 <>
-                  <ResponsiveContainer width="100%" height={Math.max(180, funnel.stages.length * 40)}>
-                    <BarChart data={funnel.stages} layout="vertical" margin={{ left: 24 }}>
-                      <XAxis type="number" tick={{ fontSize: 11 }} allowDecimals={false} />
-                      <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={120} />
-                      <Tooltip />
-                      <Bar dataKey="reached_count" name="Reached" fill="#6366f1" radius={[0, 8, 8, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+                  <StageBars
+                    rows={funnel.stages.map((st, i) => ({ name: st.name, count: st.reached_count, tone: st.is_won ? 'won' : 'brand',
+                      note: i > 0 && Number(st.drop_off_pct) > 0 ? `−${st.drop_off_pct}% from previous` : undefined }))}
+                    exits={(funnel.terminal_stages || []).map(st => ({ name: st.name, count: st.count }))} />
                   <div className="overflow-x-auto mt-4">
                     <table className="w-full text-sm">
                       <thead className="text-xs text-gray-500 uppercase">
@@ -298,7 +729,7 @@ const ReportsPage = () => {
                         <tr key={i} className="border-t">
                           <td className="py-2.5 font-medium capitalize">{l.from_stage || 'Unknown'}</td>
                           <td className="text-right text-red-500 font-semibold">{l.lost_count}</td>
-                          <td className="text-right">₹{l.lost_value.toLocaleString('en-IN')}</td>
+                          <td className="text-right">{formatMoney(l.lost_value)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -351,6 +782,7 @@ const ReportsPage = () => {
                         <th className="text-right py-2">Won</th>
                         <th className="text-right py-2">Lost</th>
                         <th className="text-right py-2">Conv. Rate</th>
+                        <th className="text-right py-2">Stalled</th>
                         <th className="text-right py-2">AI Replies</th>
                         <th className="text-right py-2">Manual Replies</th>
                       </tr>
@@ -363,6 +795,7 @@ const ReportsPage = () => {
                           <td className="text-right text-green-600 font-semibold">{s.won}</td>
                           <td className="text-right text-red-500">{s.lost}</td>
                           <td className="text-right font-semibold">{s.total_leads > 0 ? ((s.won / s.total_leads) * 100).toFixed(1) : 0}%</td>
+                          <td className={`text-right font-semibold ${s.stalled_leads > 0 ? 'text-amber-600' : 'text-gray-400'}`}>{s.stalled_leads}</td>
                           <td className="text-right text-brand-600">{s.ai_sent}</td>
                           <td className="text-right text-gray-500">{s.manual_sent}</td>
                         </tr>
@@ -376,20 +809,15 @@ const ReportsPage = () => {
 
           <div className="flex items-center justify-between flex-wrap gap-2">
             <h3 className="font-semibold text-gray-900">Trends</h3>
-            <select value={trendDays} onChange={e => setTrendDays(Number(e.target.value))}
-              className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-              <option value={7}>Last 7 Days</option>
-              <option value={30}>Last 30 Days</option>
-              <option value={90}>Last 90 Days</option>
-            </select>
+            <PillDropdown value={trendDays} onChange={setTrendDays} options={TREND_DAY_OPTIONS} />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="bg-white rounded-2xl border p-5">
-              <h3 className="font-semibold mb-4">Response Time Trend</h3>
+              <h3 className="font-semibold mb-4">Response Time Trend <span className="text-xs font-normal text-gray-400">· average minutes to first reply</span></h3>
               {trendLoading ? <Spinner /> : responseTrendChartData.length === 0 ? <EmptyState /> : (
                 <ResponsiveContainer width="100%" height={220}>
-                  <AreaChart data={responseTrendChartData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <AreaChart data={responseTrendChartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
                     <defs>
                       <linearGradient id="respGrad" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#6366f1" stopOpacity={0.18} />
@@ -397,7 +825,7 @@ const ReportsPage = () => {
                       </linearGradient>
                     </defs>
                     <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} unit=" min" width={64} />
                     <Tooltip
                       contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }}
                       cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 2' }}
@@ -417,7 +845,7 @@ const ReportsPage = () => {
                     <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
+                    <Legend content={<ChartLegend/>}/>
                     <Line type="monotone" dataKey="Scheduled" stroke="#f59e0b" strokeWidth={2} dot={false} />
                     <Line type="monotone" dataKey="Completed" stroke="#10b981" strokeWidth={2} dot={false} />
                   </LineChart>
@@ -439,23 +867,29 @@ const ReportsPage = () => {
                 <table className="w-full text-sm">
                   <thead className="text-xs text-gray-500 uppercase">
                     <tr>
-                      <th className="text-left py-2">Campaign</th>
-                      <th className="text-left py-2">Source</th>
-                      <th className="text-right py-2">Spent</th>
-                      <th className="text-right py-2">Leads</th>
-                      <th className="text-right py-2">CPL</th>
-                      <th className="text-right py-2">Won</th>
+                      <th className="text-left py-2 pr-4">Campaign</th>
+                      <th className="text-left py-2 pr-4">Source</th>
+                      <th className="text-right py-2 pl-4" title="Ad spend in this period (daily insights)">Spent</th>
+                      <th className="text-right py-2 pl-4" title="Leads in CurveLead created in this period">Leads</th>
+                      <th className="text-right py-2 pl-4" title="Spend in this period ÷ leads in this period">CPL</th>
+                      <th className="text-right py-2 pl-4" title="Of these leads, how many became customers">Converted</th>
+                      <th className="text-right py-2 pl-4 whitespace-nowrap" title="Leads that reached a won stage in this period">Won this period</th>
+                      <th className="text-right py-2 pl-4" title="Deal value of leads won in this period">Revenue</th>
+                      <th className="text-right py-2 pl-4" title="Revenue ÷ spend. Shown only when both are in the same currency.">ROAS</th>
                     </tr>
                   </thead>
                   <tbody>
                     {byCampaign.map((c, i) => (
                       <tr key={i} className="border-t">
-                        <td className="py-2.5 font-medium">{c.name}</td>
-                        <td className="capitalize text-gray-600">{c.source?.replace(/_/g, ' ')}</td>
-                        <td className="text-right">₹{parseFloat(c.actual_spend || 0).toLocaleString('en-IN')}</td>
-                        <td className="text-right">{c.total_leads}</td>
-                        <td className="text-right font-semibold text-brand-600">₹{c.cpl}</td>
-                        <td className="text-right text-green-600">{c.won || 0}</td>
+                        <td className="py-2.5 pr-4 font-medium">{c.name}</td>
+                        <td className="pr-4 capitalize text-gray-600">{sourceLabel(c.source)}</td>
+                        <td className="text-right pl-4" title={c.spend == null ? (c.spend_by_currency ? 'More than one currency — not added up' : `No daily spend — lifetime ${formatMoney(Math.round(Number(c.lifetime_spend || 0)), c.currency)}`) : ''}>{c.spend == null ? (c.spend_by_currency ? formatMoneyByCurrency(c.spend_by_currency) : '—') : formatMoney(Math.round(Number(c.spend)), c.currency)}</td>
+                        <td className="text-right pl-4">{c.crm_leads ?? c.total_leads}</td>
+                        <td className="text-right pl-4 font-semibold text-brand-600">{c.cpl == null ? '—' : formatMoney(Math.round(Number(c.cpl)), c.currency)}</td>
+                        <td className="text-right pl-4">{c.converted ?? 0}</td>
+                        <td className="text-right pl-4 text-green-600">{c.won || 0}</td>
+                        <td className="text-right pl-4">{Number(c.revenue) ? formatMoney(Math.round(Number(c.revenue))) : '—'}</td>
+                        <td className="text-right pl-4 font-semibold">{roas(c)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -468,63 +902,152 @@ const ReportsPage = () => {
 
       {activeTab === 'leads' && (
         <div className="bg-white rounded-2xl border p-5">
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-            <h3 className="font-semibold">Lead Detail Report</h3>
-            <div className="flex flex-wrap items-center gap-2">
-              <select value={gridStage} onChange={handleGridFilterChange(setGridStage)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-                <option value="">All Stages</option>
-                {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-              </select>
-              <select value={gridAttachment} onChange={handleGridFilterChange(setGridAttachment)}
-                className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white">
-                <option value="">Any Attachment Status</option>
-                <option value="yes">File Attached</option>
-                <option value="no">No File Attached</option>
-              </select>
-              <label className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer">
-                <input type="checkbox" checked={gridStalled}
-                  onChange={e => { setGridPage(1); setGridStalled(e.target.checked); }} />
-                Stalled only
-              </label>
-            </div>
-          </div>
+          {(() => {
+            const gridActiveFilterCount = [gridSearchInput, gridStage, gridScore, gridStalled].filter(Boolean).length;
+            const clearGridFilters = () => {
+              setGridPage(1);
+              setGridSearchInput(''); setGridSearch('');
+              setGridStage(''); setGridScore(''); setGridStalled(false);
+            };
+            return (
+              <>
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                  <h3 className="font-semibold">Lead Detail Report</h3>
+                  <div className="relative" ref={exportMenuRef}>
+                    <button
+                      type="button"
+                      onClick={() => setExportOpen(v => !v)}
+                      disabled={gridLoading || exportingFormat || gridPagination.total === 0}
+                      className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:border-brand-300 hover:text-brand-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Download size={15} />
+                      {exportingFormat ? 'Preparing...' : 'Download'}
+                      <ChevronDown size={14} className={`transition-transform ${exportOpen ? 'rotate-180' : ''}`} />
+                    </button>
+                    {exportOpen && (
+                      <div className="absolute right-0 top-full mt-1 z-30 w-44 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
+                        {REPORT_LEAD_DOWNLOAD_OPTIONS.map(option => (
+                          <button key={option.format} type="button" onClick={() => handleReportDownload(option.format)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
+                            <option.icon size={15} className={option.iconClassName} />
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap mb-4">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input type="text" placeholder="Search by name or phone..."
+                      value={gridSearchInput} onChange={e => setGridSearchInput(e.target.value)}
+                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
+                  </div>
+                  <button
+                    onClick={() => setShowGridFilters(v => !v)}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showGridFilters || gridActiveFilterCount > 0 ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
+                  >
+                    <SlidersHorizontal size={15} />
+                    Filters
+                    {gridActiveFilterCount > 0 && (
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showGridFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
+                        {gridActiveFilterCount}
+                      </span>
+                    )}
+                    <ChevronDown size={14} className={`transition-transform ${showGridFilters ? 'rotate-180' : ''}`} />
+                  </button>
+                  {gridActiveFilterCount > 0 && (
+                    <button onClick={clearGridFilters}
+                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
+                      <X size={13} /> Clear filters
+                    </button>
+                  )}
+                </div>
+
+                {showGridFilters && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                    <FilterDropdown
+                      label="Stage"
+                      value={gridStage}
+                      onChange={v => { setGridPage(1); setGridStage(v); }}
+                      options={[{ value: '', label: 'All Stages' }, ...stages.map(s => ({ value: s.name, label: s.name }))]}
+                    />
+                    <FilterDropdown
+                      label="Score"
+                      value={gridScore}
+                      onChange={v => { setGridPage(1); setGridScore(v); }}
+                      options={REPORT_LEAD_SCORE_OPTIONS}
+                    />
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Stalled</label>
+                      <label className="h-10 flex items-center gap-1.5 px-3 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer">
+                        <input type="checkbox" checked={gridStalled}
+                          onChange={e => { setGridPage(1); setGridStalled(e.target.checked); }} />
+                        Stalled only
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           {gridLoading ? (
             <div className="flex items-center justify-center py-10"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
           ) : gridLeads.length === 0 ? (
             <EmptyState message="No leads match these filters" className="py-6" />
           ) : (
             <div className="overflow-x-auto">
+              {selectedGridIds.size > 0 && (
+                <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-brand-50 border border-brand-200 rounded-xl flex-wrap">
+                  <span className="text-sm font-bold text-brand-700">{selectedGridIds.size} selected</span>
+                  <button
+                    onClick={handleGridBulkDelete}
+                    disabled={bulkDeleteLoading}
+                    className="flex items-center gap-1.5 h-8 px-3 bg-red-50 text-red-600 border border-red-200 rounded-lg text-xs font-semibold hover:bg-red-100 disabled:opacity-50">
+                    <Trash2 size={13} /> Delete
+                  </button>
+                  <button onClick={clearGridSelection} className="ml-auto text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+                    <X size={13} /> Clear
+                  </button>
+                </div>
+              )}
+
               <table className="w-full text-sm">
                 <thead className="text-xs text-gray-500 uppercase">
                   <tr>
+                    <th className="text-left py-2 w-8">
+                      <button onClick={toggleGridSelectAll} className="text-gray-400 hover:text-brand-600">
+                        {selectedGridIds.size === gridLeads.length && gridLeads.length > 0
+                          ? <CheckSquare size={16} className="text-brand-600" />
+                          : <Square size={16} />}
+                      </button>
+                    </th>
                     <th className="text-left py-2">Lead #</th>
                     <th className="text-left py-2">Name</th>
                     <th className="text-left py-2">Phone</th>
                     <th className="text-left py-2">Stage</th>
                     <th className="text-left py-2">Assigned To</th>
-                    <th className="text-center py-2">Attachment</th>
                     <th className="text-right py-2">Created</th>
                   </tr>
                 </thead>
                 <tbody>
                   {gridLeads.map(l => (
-                    <tr key={l.id} className="border-t">
+                    <tr key={l.id} className={`border-t hover:bg-gray-50 ${selectedGridIds.has(l.id) ? 'bg-brand-50/50' : ''}`}>
+                      <td className="py-2.5">
+                        <button onClick={() => toggleGridSelect(l.id)} className="text-gray-400 hover:text-brand-600">
+                          {selectedGridIds.has(l.id)
+                            ? <CheckSquare size={16} className="text-brand-600" />
+                            : <Square size={16} />}
+                        </button>
+                      </td>
                       <td className="py-2.5 text-gray-500">{l.lead_number}</td>
                       <td className="font-medium">{l.name}</td>
                       <td>{l.phone}</td>
                       <td className="capitalize">{l.stage}</td>
                       <td>{l.assigned_to_name || '—'}</td>
-                      <td className="text-center">
-                        {l.attachment_count > 0 ? (
-                          <span className="inline-flex items-center gap-1 text-green-600 font-medium">
-                            <Paperclip size={13} />{l.attachment_count}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">No file</span>
-                        )}
-                      </td>
-                      <td className="text-right text-gray-500">{new Date(l.created_at).toLocaleDateString('en-IN')}</td>
+                      <td className="text-right text-gray-500">{formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -539,7 +1062,7 @@ const ReportsPage = () => {
                 </p>
                 <select value={gridPageSize} onChange={e => { setGridPage(1); setGridPageSize(Number(e.target.value)); }}
                   className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white">
-                  {GRID_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n} / page</option>)}
+                  {REPORT_LEAD_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
                 </select>
               </div>
               {gridPagination.pages > 1 && (
@@ -559,6 +1082,341 @@ const ReportsPage = () => {
                     )
                   )}
                   <button onClick={() => setGridPage(p => Math.min(gridPagination.pages, p + 1))} disabled={gridPage === gridPagination.pages}
+                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'brochures' && (
+        <div className="bg-white rounded-2xl border p-5">
+          {(() => {
+            const activeFilterCount = [brochureSearchInput, brochureCategory, brochureSharedOnly, brochureViewedOnly].filter(Boolean).length;
+            const clearFilters = () => {
+              setBrochurePage(1);
+              setBrochureSearchInput(''); setBrochureSearch('');
+              setBrochureCategory(''); setBrochureSharedOnly(false); setBrochureViewedOnly(false);
+            };
+            return (
+              <>
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                  <h3 className="font-semibold">Brochure Detail Report</h3>
+                </div>
+
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+                  <StatCard label="Total Brochures" value={brochureStats.total} icon={FileText} color="bg-indigo-100 text-indigo-600" />
+                  <StatCard label="Shared Brochures" value={brochureStats.shared} icon={Share2} color="bg-emerald-100 text-emerald-600" />
+                  <StatCard label="Total Views" value={brochureStats.views} icon={Eye} color="bg-orange-100 text-orange-600" />
+                  <StatCard label="Total Size" value={fmtSize(brochureStats.size)} icon={FileText} color="bg-blue-100 text-blue-600" />
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap mb-4">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input type="text" placeholder="Search brochures..."
+                      value={brochureSearchInput} onChange={e => setBrochureSearchInput(e.target.value)}
+                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
+                  </div>
+                  <button
+                    onClick={() => setShowBrochureFilters(v => !v)}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showBrochureFilters || activeFilterCount > 0 ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
+                  >
+                    <SlidersHorizontal size={15} />
+                    Filters
+                    {activeFilterCount > 0 && (
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showBrochureFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
+                        {activeFilterCount}
+                      </span>
+                    )}
+                    <ChevronDown size={14} className={`transition-transform ${showBrochureFilters ? 'rotate-180' : ''}`} />
+                  </button>
+                  {activeFilterCount > 0 && (
+                    <button onClick={clearFilters}
+                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
+                      <X size={13} /> Clear filters
+                    </button>
+                  )}
+                </div>
+
+                {showBrochureFilters && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                    <FilterDropdown
+                      label="Category"
+                      value={brochureCategory}
+                      onChange={v => { setBrochurePage(1); setBrochureCategory(v); }}
+                      options={BROCHURE_REPORT_CATEGORIES}
+                    />
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Shared</label>
+                      <label className="h-10 flex items-center gap-1.5 px-3 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer">
+                        <input type="checkbox" checked={brochureSharedOnly}
+                          onChange={e => { setBrochurePage(1); setBrochureSharedOnly(e.target.checked); }} />
+                        Shared only
+                      </label>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Viewed</label>
+                      <label className="h-10 flex items-center gap-1.5 px-3 border border-gray-200 rounded-lg text-sm bg-white cursor-pointer">
+                        <input type="checkbox" checked={brochureViewedOnly}
+                          onChange={e => { setBrochurePage(1); setBrochureViewedOnly(e.target.checked); }} />
+                        Viewed only
+                      </label>
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+
+          {brochuresLoading ? (
+            <div className="flex items-center justify-center py-10"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+          ) : brochureRows.length === 0 ? (
+            <EmptyState message="No brochures match these filters" className="py-6" />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-xs text-gray-500 uppercase">
+                  <tr>
+                    <th className="text-left py-2">Brochure</th>
+                    <th className="text-left py-2">Category</th>
+                    <th className="text-right py-2">Views</th>
+                    <th className="text-right py-2">Shares</th>
+                    <th className="text-right py-2">Size</th>
+                    <th className="text-right py-2">Created</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {brochureRows.map(b => (
+                    <tr key={b.id} className="border-t">
+                      <td className="py-2.5 font-medium">
+                        {b.file_url ? (
+                          <a href={b.file_url} target="_blank" rel="noopener noreferrer" className="text-brand-600 hover:underline">{b.name}</a>
+                        ) : b.name}
+                      </td>
+                      <td className="capitalize text-gray-600">{b.category || 'general'}</td>
+                      <td className="text-right">{b.views || 0}</td>
+                      <td className="text-right">{b.times_shared || 0}</td>
+                      <td className="text-right text-gray-500">{fmtSize(b.file_size)}</td>
+                      <td className="text-right text-gray-500">{b.created_at ? formatDateTime(b.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, }) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {filteredBrochures.length > 0 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-gray-500">
+                  Showing {Math.min((brochurePage - 1) * brochurePageSize + 1, filteredBrochures.length)}-{Math.min(brochurePage * brochurePageSize, filteredBrochures.length)} of <span className="font-semibold text-gray-700">{filteredBrochures.length}</span> brochures
+                </p>
+                <select value={brochurePageSize} onChange={e => { setBrochurePage(1); setBrochurePageSize(Number(e.target.value)); }}
+                  className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white">
+                  {BROCHURE_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              {brochureTotalPages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setBrochurePage(p => Math.max(1, p - 1))} disabled={brochurePage === 1}
+                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronLeft size={16} />
+                  </button>
+                  {brochurePageNumbers().map((n, i) =>
+                    n === '…' ? (
+                      <span key={`brochure-ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+                    ) : (
+                      <button key={n} onClick={() => setBrochurePage(n)}
+                        className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${brochurePage === n ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                        {n}
+                      </button>
+                    )
+                  )}
+                  <button onClick={() => setBrochurePage(p => Math.min(brochureTotalPages, p + 1))} disabled={brochurePage === brochureTotalPages}
+                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'messages' && (
+        <div className="bg-white rounded-2xl border p-5">
+          {(() => {
+            const msgActiveFilterCount = [msgSearchInput, msgStatus, msgDirection, msgAutomated, msgFrom || msgTo].filter(Boolean).length;
+            const clearMsgFilters = () => {
+              setMsgPage(1);
+              setMsgSearchInput(''); setMsgSearch('');
+              setMsgStatus(''); setMsgDirection(''); setMsgAutomated(''); setMsgFrom(''); setMsgTo('');
+            };
+            return (
+              <>
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                  <h3 className="font-semibold">Messages Report</h3>
+                </div>
+
+                <div className="flex items-center gap-3 flex-wrap mb-4">
+                  <div className="relative flex-1 max-w-sm">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    <input type="text" placeholder="Search by name or phone..."
+                      value={msgSearchInput} onChange={e => setMsgSearchInput(e.target.value)}
+                      className="h-10 w-full bg-white border border-gray-200 rounded-lg pl-9 pr-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
+                  </div>
+                  <button
+                    onClick={() => setShowMsgFilters(v => !v)}
+                    className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showMsgFilters || msgActiveFilterCount > 0 ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
+                  >
+                    <SlidersHorizontal size={15} />
+                    Filters
+                    {msgActiveFilterCount > 0 && (
+                      <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showMsgFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
+                        {msgActiveFilterCount}
+                      </span>
+                    )}
+                    <ChevronDown size={14} className={`transition-transform ${showMsgFilters ? 'rotate-180' : ''}`} />
+                  </button>
+                  {msgActiveFilterCount > 0 && (
+                    <button onClick={clearMsgFilters}
+                      className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
+                      <X size={13} /> Clear filters
+                    </button>
+                  )}
+                </div>
+
+                {showMsgFilters && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 rounded-xl p-4 border border-gray-200 mb-4">
+                    <FilterDropdown
+                      label="Status"
+                      value={msgStatus}
+                      onChange={v => { setMsgPage(1); setMsgStatus(v); }}
+                      options={[
+                        { value: '', label: 'All Statuses' },
+                        { value: 'sent', label: 'Sent' },
+                        { value: 'delivered', label: 'Delivered' },
+                        { value: 'read', label: 'Read' },
+                        { value: 'failed', label: 'Failed' },
+                      ]}
+                    />
+                    <FilterDropdown
+                      label="Direction"
+                      value={msgDirection}
+                      onChange={v => { setMsgPage(1); setMsgDirection(v); }}
+                      options={[
+                        { value: '', label: 'Inbound + Outbound' },
+                        { value: 'outbound', label: 'Outbound only' },
+                        { value: 'inbound', label: 'Inbound only' },
+                      ]}
+                    />
+                    <FilterDropdown
+                      label="Source"
+                      value={msgAutomated}
+                      onChange={v => { setMsgPage(1); setMsgAutomated(v); }}
+                      options={[
+                        { value: '', label: 'All' },
+                        { value: 'true', label: 'Automated only' },
+                        { value: 'false', label: 'Manual only' },
+                      ]}
+                    />
+                    <label className="block">
+                      <span className="block text-xs font-medium text-gray-500 mb-1">From</span>
+                      <input type="date" value={msgFrom} max={msgTo || undefined} onChange={e => { setMsgPage(1); setMsgFrom(e.target.value); }}
+                        className="h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm" />
+                    </label>
+                    <label className="block">
+                      <span className="block text-xs font-medium text-gray-500 mb-1">To</span>
+                      <input type="date" value={msgTo} min={msgFrom || undefined} onChange={e => { setMsgPage(1); setMsgTo(e.target.value); }}
+                        className="h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm" />
+                    </label>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+          {msgLoading ? (
+            <div className="flex items-center justify-center py-10"><div className="w-6 h-6 border-2 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+          ) : messages.length === 0 ? (
+            <EmptyState message="No messages match these filters" className="py-6" />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-400 uppercase tracking-wide border-b">
+                    <th className="pb-2 pr-4 font-semibold">Lead</th>
+                    <th className="pb-2 pr-4 font-semibold">Direction</th>
+                    <th className="pb-2 pr-4 font-semibold">Type</th>
+                    <th className="pb-2 pr-4 font-semibold">Template</th>
+                    <th className="pb-2 pr-4 font-semibold">Source</th>
+                    <th className="pb-2 pr-4 font-semibold">Status</th>
+                    <th className="pb-2 pr-4 font-semibold">Reason</th>
+                    <th className="pb-2 font-semibold text-right whitespace-nowrap">Sent at</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {messages.map(m => (
+                    <tr key={m.id} className="hover:bg-gray-50">
+                      <td className="py-2.5 pr-4">
+                        <p className="font-medium text-gray-800">{m.lead_name}</p>
+                        <p className="text-xs text-gray-400">{m.lead_phone}</p>
+                      </td>
+                      <td className="pr-4 capitalize text-gray-600">{m.direction}</td>
+                      <td className="pr-4 capitalize text-gray-600">{m.message_type}</td>
+                      <td className="pr-4 text-gray-600">{m.template_name || '—'}</td>
+                      <td className="pr-4 text-gray-600">
+                        {m.is_automated ? (m.is_ai_generated ? 'AI Automated' : 'Automated') : 'Manual'}
+                      </td>
+                      <td className="pr-4">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${
+                          m.status === 'delivered' || m.status === 'read' ? 'bg-emerald-50 text-emerald-700'
+                          : m.status === 'sent' ? 'bg-blue-50 text-blue-700'
+                          : m.status === 'failed' ? 'bg-red-50 text-red-700'
+                          : 'bg-gray-100 text-gray-600'
+                        }`}>
+                          {m.status?.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="pr-4 text-xs text-red-600 max-w-[16rem]">{m.status === 'failed' ? (m.error_detail || 'No reason recorded') : ''}</td>
+                      <td className="text-right text-gray-500 whitespace-nowrap">{formatDateTime(m.sent_at, undefined, { dateStyle: undefined, timeStyle: undefined, })}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {msgPagination.total > 0 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-wrap gap-3">
+              <div className="flex items-center gap-3">
+                <p className="text-xs text-gray-500">
+                  Showing {Math.min((msgPage - 1) * msgPageSize + 1, msgPagination.total)}–{Math.min(msgPage * msgPageSize, msgPagination.total)} of <span className="font-semibold text-gray-700">{msgPagination.total}</span> messages
+                </p>
+                <select value={msgPageSize} onChange={e => { setMsgPage(1); setMsgPageSize(Number(e.target.value)); }}
+                  className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white">
+                  {REPORT_LEAD_PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              {msgPagination.pages > 1 && (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setMsgPage(p => Math.max(1, p - 1))} disabled={msgPage === 1}
+                    className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                    <ChevronLeft size={16} />
+                  </button>
+                  {msgPageNumbers().map((n, i) =>
+                    n === '…' ? (
+                      <span key={`msg-ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+                    ) : (
+                      <button key={n} onClick={() => setMsgPage(n)}
+                        className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${msgPage === n ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                        {n}
+                      </button>
+                    )
+                  )}
+                  <button onClick={() => setMsgPage(p => Math.min(msgPagination.pages, p + 1))} disabled={msgPage === msgPagination.pages}
                     className="p-1.5 rounded hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
                     <ChevronRight size={16} />
                   </button>

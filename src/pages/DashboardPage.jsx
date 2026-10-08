@@ -1,17 +1,47 @@
+import { stageBadgeClass } from '../utils/stageStyles';
+import { formatMoney, formatNumber } from '../utils/locale';
+import EmptyState from '../components/ui/EmptyState';
+import { metricLeadLink, activityLeadLink } from '../utils/dashboardLinks';
+import { OnboardingChecklist } from '../components/workspace/Overview';
+import OverdueReview from '../components/workspace/OverdueReview';
+import PageLoader from '../components/ui/PageLoader';
+import IntegrationHealthBanner from '../components/IntegrationHealthBanner';
+import { sourceLabel } from '../utils/leadData.js';
+import { initials } from '../utils/leadData.js';
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { reportsAPI } from '../services/api';
-import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, LineChart as RLineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import DatePicker from '../components/ui/DatePicker';
 import {
-  Users, IndianRupee, Target, TrendingUp,
+  Users, Banknote, Target, Coins,
   ArrowUpRight, ArrowDownRight, Minus,
-  Calendar, Video, AlertTriangle, ChevronRight, Flame, Clock,
-  Zap, Sparkles, CheckCircle2, Megaphone,
+  Calendar, Video, AlertTriangle, ChevronRight, ChevronDown, Flame, Clock,
+  Zap, Sparkles, CheckCircle2, Megaphone, Send, UserX,
+  GitBranch, UserCheck, PieChart, LineChart as LineChartIcon,
+  Infinity as InfinityIcon, PenLine, MessageCircle,
 } from 'lucide-react';
+
+const GoogleGIcon = ({ size = 15 }) => (
+  <svg width={size} height={size} viewBox="0 0 48 48">
+    <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.8 32.5 29.3 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.6 5.5 29.6 3.5 24 3.5 12.7 3.5 3.5 12.7 3.5 24S12.7 44.5 24 44.5 44.5 35.3 44.5 24c0-1.2-.1-2.4-.3-3.5z"/>
+    <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.5 15.9 18.9 13 24 13c3.1 0 5.8 1.1 8 3l6-6C34.6 6.5 29.6 4.5 24 4.5c-7.6 0-14.1 4.3-17.7 10.6z"/>
+    <path fill="#4CAF50" d="M24 44.5c5.5 0 10.4-1.9 14.2-5.1l-6.6-5.4C29.6 35.6 26.9 36.5 24 36.5c-5.3 0-9.7-3.4-11.3-8.2l-6.6 5.1C9.8 40.1 16.4 44.5 24 44.5z"/>
+    <path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.7 2.1-2.1 3.9-3.8 5.1l6.6 5.4C41.6 35.6 44.5 30.2 44.5 24c0-1.2-.1-2.4-.9-3.5z"/>
+  </svg>
+);
+
+const WhatsAppIcon = ({ size = 15 }) => (
+  <svg width={size} height={size} viewBox="0 0 32 32" fill="none">
+    <circle cx="16" cy="16" r="16" fill="#25D366" />
+    <path fill="#fff" d="M22.7 9.3a8.9 8.9 0 0 0-14.1 10.7L7.3 24l4.1-1.3a8.9 8.9 0 0 0 12.6-11.8 8.9 8.9 0 0 0-1.3-1.6zm-6.6 13.5a7.4 7.4 0 0 1-3.8-1l-.3-.2-2.8.9.9-2.7-.2-.3a7.4 7.4 0 1 1 6.2 3.3zm4.1-5.5c-.2-.1-1.3-.7-1.5-.7-.2-.1-.4-.1-.5.1s-.6.7-.7.9c-.1.1-.3.2-.5.1a6 6 0 0 1-1.8-1.1 6.7 6.7 0 0 1-1.2-1.5c-.1-.2 0-.3.1-.4l.4-.4.2-.3c.1-.1 0-.3 0-.4l-.6-1.5c-.2-.4-.4-.4-.5-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 1.9s.8 2.2.9 2.4c.1.1 1.6 2.5 3.9 3.5.5.2.9.4 1.3.5.5.2 1 .1 1.4.1.4-.1 1.3-.5 1.5-1 .2-.5.2-.9.1-1z"/>
+  </svg>
+);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+const fmt = (n) => formatNumber(n);
 
 const todayISO = () => {
   const d = new Date();
@@ -27,13 +57,8 @@ const fmtDuration = (seconds) => {
   return `${(s / 3600).toFixed(1)}h`;
 };
 
-const fmtMoney = (n) => {
-  const v = Number(n || 0);
-  if (v >= 10000000) return `₹${(v / 10000000).toFixed(1)}Cr`;
-  if (v >= 100000)   return `₹${(v / 100000).toFixed(1)}L`;
-  if (v >= 1000)     return `₹${(v / 1000).toFixed(1)}K`;
-  return `₹${fmt(v)}`;
-};
+// Workspace currency, compact: ₹1.5L / ₹2.5Cr in India, AED 150K elsewhere.
+const fmtMoney = (n) => formatMoney(Number(n || 0), undefined, { compact: Number(n || 0) >= 1000 });
 
 const STAGE_COLOR = {
   blue: '#3b82f6', green: '#22c55e', yellow: '#eab308', orange: '#f97316',
@@ -41,20 +66,27 @@ const STAGE_COLOR = {
   teal: '#14b8a6', violet: '#8b5cf6', emerald: '#10b981', gray: '#9ca3af',
 };
 
+const SOURCE_ICON = {
+  meta_ads: { icon: InfinityIcon, cls: 'text-blue-500' },
+  google_ads: { icon: GoogleGIcon, cls: '' },
+  manual: { icon: PenLine, cls: 'text-gray-500' },
+  whatsapp: { icon: WhatsAppIcon, cls: '' },
+};
+
 const Trend = ({ change }) => {
   if (change > 0) return (
     <span className="flex items-center gap-0.5 text-emerald-600 text-xs font-semibold">
-      <ArrowUpRight size={13} />{change}% vs previous period
+      <ArrowUpRight size={13} />{change}%
     </span>
   );
   if (change < 0) return (
     <span className="flex items-center gap-0.5 text-red-500 text-xs font-semibold">
-      <ArrowDownRight size={13} />{Math.abs(change)}% vs previous period
+      <ArrowDownRight size={13} />{Math.abs(change)}%
     </span>
   );
   return (
-    <span className="flex items-center gap-0.5 text-gray-400 text-xs">
-      <Minus size={13} />Same as previous period
+    <span className="flex items-center gap-0.5 text-gray-600 text-xs">
+      <Minus size={13} />0%
     </span>
   );
 };
@@ -65,245 +97,354 @@ const PERIOD_OPTIONS = [
   { id: 'custom', label: 'Custom' },
 ];
 
+// "this month" / "last month" / "1 Oct – 4 Oct" — every widget states the period it counts.
+const periodCaptionFor = (period, from, to) => period === 'this_month' ? 'this month'
+  : period === 'last_month' ? 'last month'
+  : from && to ? `${from} – ${to}` : 'in this period';
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 const DashboardPage = () => {
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [loadError,setLoadError]=useState('');
   const [loading, setLoading] = useState(true);
+  const [refresh,setRefresh]=useState(0);
   const [period, setPeriod] = useState('this_month');
   const [customFrom, setCustomFrom] = useState(todayISO());
   const [customTo, setCustomTo] = useState(todayISO());
 
   useEffect(() => {
     if (period === 'custom' && (!customFrom || !customTo)) return;
-    setLoading(true);
+    setLoading(true);setLoadError('');
     const params = period === 'custom' ? { period, date_from: customFrom, date_to: customTo } : { period };
     reportsAPI.dashboard(params)
       .then(({ data }) => setData(data))
-      .catch(console.error)
+      .catch(()=>setLoadError('Could not load dashboard.'))
       .finally(() => setLoading(false));
-  }, [period, customFrom, customTo]);
+  }, [period, customFrom, customTo, refresh]);
 
-  if (loading && !data) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="animate-spin w-8 h-8 border-4 border-brand-600 border-t-transparent rounded-full" />
-    </div>
-  );
+  if (loading && !data) return <PageLoader message="Loading dashboard"/>;
 
-  const periodLabel = period === 'this_month'
-    ? new Date().toLocaleString('en-IN', { month: 'long' })
-    : period === 'last_month'
-    ? new Date(new Date().getFullYear(), new Date().getMonth() - 1, 1).toLocaleString('en-IN', { month: 'long' })
-    : `${customFrom} to ${customTo}`;
   const today = todayISO();
   const pipelineTotal = (data?.pipeline || []).reduce((s, p) => s + p.count, 0) || 1;
 
   const trendData = (data?.trend || []).map(t => ({
-    day: new Date(t.day).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+    day: formatDateTime(t.day, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short' }),
     Leads: parseInt(t.count),
   }));
+  const sparkDataRaw = trendData.length ? trendData.slice(-10) : [{ Leads: 0 }, { Leads: 0 }];
+  const sparkData = sparkDataRaw.length >= 2 ? sparkDataRaw : [{ Leads: 0 }, ...sparkDataRaw];
+
+  const kpiCards = [
+    {
+      label: 'Total Leads',
+      value: fmt(data?.leads_in_period),
+      trend: data?.leads_change,
+      icon: Users,
+      iconBg: 'bg-blue-100 text-blue-500',
+      stroke: '#3b82f6',
+    },
+    {
+      label: 'Revenue',
+      value: fmtMoney(data?.revenue_in_period),
+      trend: data?.revenue_change,
+      icon: Banknote,
+      iconBg: 'bg-emerald-100 text-emerald-500',
+      stroke: '#10b981',
+    },
+    {
+      label: 'Conversion Rate',
+      value: `${data?.conversion_rate || '0.0'}%`,
+      sub: `${fmt(data?.converted_in_period ?? data?.won_in_period)} of ${fmt(data?.leads_in_period)} leads became customers`,
+      icon: Target,
+      iconBg: 'bg-violet-100 text-violet-500',
+      stroke: '#a855f7',
+    },
+    {
+      label: 'Avg Deal Value',
+      value: fmtMoney(data?.avg_deal_value),
+      sub: `${fmt(data?.won_in_period)} won this period`,
+      icon: Coins,
+      iconBg: 'bg-amber-100 text-amber-500',
+      stroke: '#f97316',
+    },
+  ];
+
+  const activityItems = [
+    { label: 'New Leads', value: data?.leads_today || 0, icon: Users, cls: 'text-blue-500 bg-blue-100', valueCls: 'text-gray-900', to: activityLeadLink('new_today') },
+    { label: 'Contacted Today', value: data?.leads_today_contacted || 0, icon: CheckCircle2, cls: 'text-emerald-500 bg-emerald-100', valueCls: 'text-emerald-600', to: activityLeadLink('contacted_today') },
+    { label: 'Not Contacted', value: Math.max((data?.leads_today || 0) - (data?.leads_today_contacted || 0), 0), icon: UserX, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: activityLeadLink('new_today')+'&sla_status=uncontacted' },
+    { label: 'Follow-ups', value: data?.followups_today || 0, icon: Calendar, cls: 'text-emerald-500 bg-emerald-100', valueCls: 'text-emerald-600', to: `/leads?view=followups&scope=today&date_from=${today}&date_to=${today}` },
+    { label: 'Demos', value: data?.demos_today || 0, icon: Video, cls: 'text-violet-500 bg-violet-100', valueCls: 'text-gray-900', to: `/leads?view=followups&scope=today&type=demo&date_from=${today}&date_to=${today}` },
+    { label: 'Overdue', value: data?.overdue_followups || 0, icon: AlertTriangle, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: '/leads?view=followups&scope=overdue', period: 'Current' },
+    { label: 'Hot Leads', value: data?.hot_leads || 0, icon: Flame, cls: 'text-orange-500 bg-orange-100', valueCls: 'text-orange-500', to: '/leads?score=hot&include_all_stages=1', period: 'Current' },
+    { label: 'Critical Follow-ups', value: data?.critical_followups || 0, icon: AlertTriangle, cls: 'text-red-500 bg-red-100', valueCls: 'text-red-500', to: '/leads?view=followups&scope=critical', period: 'Current' },
+  ];
+
+  const automationItems = [
+    { label: 'Active in Sequence', activity:'active_sequence', period:'Current', value: data?.active_enrollments || 0, icon: Zap, cls: 'text-emerald-500 bg-emerald-100' },
+    { label: 'Completed This Month', activity:'completed_sequence', period:'This month', value: data?.completed_this_month || 0, icon: CheckCircle2, cls: 'text-emerald-500 bg-emerald-100' },
+    { label: 'AI Replies · Leads', activity:'ai_replies', period:'Last 7 days', value: data?.ai_replies_this_week || 0, icon: Sparkles, cls: 'text-violet-500 bg-violet-100' },
+  ];
+
+  const automatedItems = [
+    { label: 'Meta Leads Today', activity:'meta_today', period:'Today', value: data?.meta_leads_today || 0, icon: Megaphone, cls: 'text-blue-500 bg-blue-100' },
+    { label: 'Automated Sends · Leads', activity:'automated_sends', period:'Last 7 days', value: data?.automated_sends_this_week || 0, icon: Send, cls: 'text-indigo-500 bg-indigo-100' },
+    { label: 'Opt-outs', activity:'opt_outs', period:'Last 7 days', value: data?.opt_outs_this_week || 0, icon: UserX, cls: 'text-red-500 bg-red-100' },
+    { label: 'Escalated Leads', activity:'escalations', period:'Last 7 days', value: data?.escalations_this_week || 0, icon: AlertTriangle, cls: 'text-amber-500 bg-amber-100' },
+  ];
+
+  const periodCaption = periodCaptionFor(period, customFrom, customTo);
 
   return (
-    <div className="space-y-5 max-w-7xl mx-auto">
+    <div className="space-y-5 max-w-[1536px] mx-auto pb-4">
+      {loadError&&<p role="alert" className="text-red-600">{loadError} <button className="underline" onClick={()=>setRefresh(n=>n+1)}>Retry</button></p>}
+      <IntegrationHealthBanner/>
+      <OnboardingChecklist/>
+      <OverdueReview onChanged={()=>setRefresh(n=>n+1)}/>
 
-      {/* ── Period Selector ── */}
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1">
-          {PERIOD_OPTIONS.map(opt => (
-            <button key={opt.id} onClick={() => setPeriod(opt.id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-colors ${
-                period === opt.id ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-              }`}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        {period === 'custom' && (
-          <div className="flex items-center gap-2">
-            <input type="date" value={customFrom} onChange={e => setCustomFrom(e.target.value)}
-              className="px-2.5 py-1.5 border rounded-lg text-xs" />
-            <span className="text-xs text-gray-400">to</span>
-            <input type="date" value={customTo} onChange={e => setCustomTo(e.target.value)}
-              className="px-2.5 py-1.5 border rounded-lg text-xs" />
+      {/* ── Page Header ── */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex items-start gap-2">
+          <div>
+            <p className="text-sm text-gray-500 mt-0.5">Track your leads, team activity and business performance.</p>
           </div>
-        )}
-        {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-brand-600 border-t-transparent rounded-full" />}
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center bg-white rounded-xl border border-gray-200 shadow-sm divide-x divide-gray-200 overflow-hidden">
+            {PERIOD_OPTIONS.map(opt => (
+              <button key={opt.id} onClick={() => setPeriod(opt.id)}
+                className={`flex items-center gap-1 px-3.5 py-2 text-sm font-medium transition-colors ${
+                  period === opt.id ? 'text-gray-900 font-semibold bg-gray-50' : 'text-gray-500 hover:bg-gray-50'
+                }`}>
+                {opt.label}
+                {opt.id === 'this_month' && <ChevronDown size={14} className="text-gray-600" />}
+                {opt.id === 'custom' && <ChevronRight size={14} className="text-gray-600" />}
+              </button>
+            ))}
+          </div>
+          {period === 'custom' && (
+            <div className="flex items-center gap-2">
+              <DatePicker value={customFrom} onChange={setCustomFrom} className="w-32" />
+              <span className="text-xs text-gray-600">to</span>
+              <DatePicker value={customTo} onChange={setCustomTo} className="w-32" />
+            </div>
+          )}
+          {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full" />}
+        </div>
       </div>
 
       {/* ── KPI Cards ── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: `Leads in ${periodLabel}`,
-            value: fmt(data?.leads_in_period),
-            sub: `${fmt(data?.total_leads)} total`,
-            trend: data?.leads_change,
-            icon: Users,
-            iconCls: 'bg-blue-100 text-blue-600',
-          },
-          {
-            label: `Revenue in ${periodLabel}`,
-            value: fmtMoney(data?.revenue_in_period),
-            sub: `${fmtMoney(data?.total_revenue)} total`,
-            trend: data?.revenue_change,
-            icon: IndianRupee,
-            iconCls: 'bg-emerald-100 text-emerald-600',
-          },
-          {
-            label: 'Conversion Rate',
-            value: `${data?.conversion_rate || '0.0'}%`,
-            sub: `${fmt(data?.won_in_period)} won in period`,
-            icon: Target,
-            iconCls: 'bg-violet-100 text-violet-600',
-          },
-          {
-            label: 'Avg Deal Value',
-            value: fmtMoney(data?.avg_deal_value),
-            sub: `${fmt(data?.won_in_period)} deals closed`,
-            icon: TrendingUp,
-            iconCls: 'bg-amber-100 text-amber-600',
-          },
-          {
-            label: 'Advance Collected',
-            value: fmtMoney(data?.advance_collected_in_period),
-            sub: 'From won deals in period',
-            icon: IndianRupee,
-            iconCls: 'bg-cyan-100 text-cyan-600',
-          },
-          {
-            label: 'Balance Due',
-            value: fmtMoney(data?.balance_due_in_period),
-            sub: 'Pending from won deals in period',
-            icon: AlertTriangle,
-            iconCls: 'bg-orange-100 text-orange-600',
-          },
-        ].map(s => (
-          <div key={s.label} className="bg-white rounded-2xl p-5 border">
-            <div className="flex items-start justify-between gap-2">
-              <div className={`w-10 h-10 ${s.iconCls} rounded-xl flex items-center justify-center shrink-0`}>
-                <s.icon size={18} />
+        {kpiCards.map(s => (
+          <button onClick={()=>navigate(metricLeadLink(data?.metrics,{metric:s.label==='Total Leads'?'created':'won'}))} key={s.label} className="text-left flex flex-col bg-white rounded-2xl p-5 border border-gray-200 shadow-sm relative overflow-hidden">
+            <div className="flex items-center justify-between">
+              <div className={`w-11 h-11 ${s.iconBg} rounded-full flex items-center justify-center shrink-0`}>
+                <s.icon size={20} strokeWidth={2} className="w-5 h-5 shrink-0" />
               </div>
-              {s.trend !== undefined && <Trend change={s.trend} />}
+              <div className="w-20 h-10 opacity-90">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={sparkData} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+                    <defs>
+                      <linearGradient id={`spark-${s.label.replace(/\s+/g, '-')}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={s.stroke} stopOpacity={0.35} />
+                        <stop offset="100%" stopColor={s.stroke} stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <Area type="natural" dataKey="Leads" stroke={s.stroke} strokeWidth={2.25}
+                      strokeLinecap="round" strokeLinejoin="round"
+                      fill={`url(#spark-${s.label.replace(/\s+/g, '-')})`} dot={false} isAnimationActive={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
             </div>
-            <p className="text-2xl font-bold mt-3 text-gray-900">{s.value}</p>
-            <p className="text-xs text-gray-500 mt-0.5">{s.label}</p>
-            <p className="text-[11px] text-gray-400 mt-1">{s.sub}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* ── Today's Action Strip ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          {
-            label: 'New Today',
-            value: data?.leads_today || 0,
-            icon: Users,
-            cls: 'text-blue-600 bg-blue-50 border-blue-100',
-            to: `/leads?date_field=created_at&date_from=${today}&date_to=${today}`,
-          },
-          {
-            label: 'Follow-ups Today',
-            value: data?.followups_today || 0,
-            icon: Calendar,
-            cls: 'text-amber-600 bg-amber-50 border-amber-100',
-            to: `/leads?view=followups&scope=today&category=followup&date_from=${today}&date_to=${today}`,
-          },
-          {
-            label: 'Demos Today',
-            value: data?.demos_today || 0,
-            icon: Video,
-            cls: 'text-violet-600 bg-violet-50 border-violet-100',
-            to: '/appointments?scope=today',
-          },
-          {
-            label: 'Overdue',
-            value: data?.overdue_followups || 0,
-            icon: AlertTriangle,
-            cls: data?.overdue_followups > 0
-              ? 'text-red-600 bg-red-50 border-red-200'
-              : 'text-gray-400 bg-gray-50 border-gray-100',
-            to: '/leads?view=followups&scope=overdue',
-          },
-          {
-            label: 'Hot Leads',
-            value: data?.hot_leads || 0,
-            icon: Flame,
-            cls: 'text-red-600 bg-red-50 border-red-100',
-            to: '/leads?score=hot',
-          },
-          {
-            label: 'Missed Follow-ups',
-            value: data?.missed_followups || 0,
-            icon: Clock,
-            cls: data?.missed_followups > 0
-              ? 'text-amber-700 bg-amber-50 border-amber-200'
-              : 'text-gray-400 bg-gray-50 border-gray-100',
-            to: '/leads?followup_health=missed',
-          },
-          {
-            label: 'Critical Follow-ups',
-            value: data?.critical_followups || 0,
-            icon: AlertTriangle,
-            cls: data?.critical_followups > 0
-              ? 'text-red-700 bg-red-100 border-red-300'
-              : 'text-gray-400 bg-gray-50 border-gray-100',
-            to: '/leads?followup_health=critical',
-          },
-        ].map(s => (
-          <button key={s.label} onClick={() => navigate(s.to)}
-            className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:opacity-80 transition-opacity text-left w-full`}>
-            <s.icon size={18} className="shrink-0" />
-            <div>
-              <p className="text-xl font-bold leading-none">{s.value}</p>
-              <p className="text-[11px] mt-0.5 opacity-70 font-medium">{s.label}</p>
+            <p className="text-sm text-gray-500 mt-3">{s.label}</p><p className="text-xs text-gray-600 min-h-8 sm:min-h-4">{period==='custom'?`${customFrom} – ${customTo}`:period.replace(/_/g,' ')}</p>
+            <div className="flex items-center gap-2 mt-0.5">
+              <p className="text-2xl font-bold text-gray-900 tracking-tight">{s.value}</p>
             </div>
+            {s.trend !== undefined ? (
+              <div className="mt-1 min-h-10">
+                <Trend change={s.trend} />
+                <span className="text-xs text-gray-600 ml-1">vs previous period</span>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-600 mt-1 min-h-10">{s.sub}</p>
+            )}
           </button>
         ))}
       </div>
 
-      {/* ── Automation & AI Activity ── */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-500 mb-2">Automation & AI</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            {
-              label: 'Active in Sequence',
-              value: data?.active_enrollments || 0,
-              icon: Zap,
-              cls: 'text-cyan-600 bg-cyan-50 border-cyan-100',
-              to: '/settings',
-            },
-            {
-              label: 'Completed This Month',
-              value: data?.completed_this_month || 0,
-              icon: CheckCircle2,
-              cls: 'text-emerald-600 bg-emerald-50 border-emerald-100',
-              to: '/settings',
-            },
-            {
-              label: 'AI Replies This Week',
-              value: data?.ai_replies_this_week || 0,
-              icon: Sparkles,
-              cls: 'text-violet-600 bg-violet-50 border-violet-100',
-              to: '/whatsapp',
-            },
-            {
-              label: 'Meta Leads Today',
-              value: data?.meta_leads_today || 0,
-              icon: Megaphone,
-              cls: 'text-blue-600 bg-blue-50 border-blue-100',
-              to: `/leads?source=meta_ads&date_field=created_at&date_from=${today}&date_to=${today}`,
-            },
-          ].map(s => (
-            <button key={s.label} onClick={() => navigate(s.to)}
-              className={`flex items-center gap-3 p-4 rounded-xl border ${s.cls} hover:opacity-80 transition-opacity text-left w-full`}>
-              <s.icon size={18} className="shrink-0" />
-              <div>
-                <p className="text-xl font-bold leading-none">{s.value}</p>
-                <p className="text-[11px] mt-0.5 opacity-70 font-medium">{s.label}</p>
+      {/* ── Pipeline + Recent Leads ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+        {/* Pipeline */}
+        <div className="lg:col-span-3 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <GitBranch size={16} className="text-gray-600" />
+              Lead Pipeline
+              <span className="text-xs font-normal text-gray-600">· leads created {periodCaption}</span>
+            </h3>
+            <button onClick={() => navigate('/leads?view=pipeline')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+              View all <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="grid gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))' }}>
+            {(data?.pipeline || []).map(stage => {
+              const pct = Math.round((stage.count / pipelineTotal) * 100);
+              const bar = STAGE_COLOR[stage.color] || STAGE_COLOR.gray;
+              return (
+                <button key={stage.name} onClick={() => navigate(metricLeadLink(data?.metrics,{stage:stage.name}))}
+                  className="text-left group bg-gray-50 rounded-xl p-2.5 hover:shadow-sm hover:border-gray-200 transition-all min-w-0">
+                  <p className="text-xs font-semibold leading-snug flex items-start gap-0.5" style={{ color: bar }}>
+                    <span className="break-words" title={stage.name}>{stage.name}</span>
+                    <ChevronRight size={11} className="text-gray-300 shrink-0 mt-0.5 group-hover:translate-x-0.5 transition-transform" />
+                  </p>
+                  <p className="text-lg font-bold text-gray-900 mt-1.5">{stage.count}</p>
+                  <p className="text-xs text-gray-600">{pct}%</p>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden mt-1.5">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: bar }} />
+                  </div>
+                </button>
+              );
+            })}
+            {!data?.pipeline?.length && (
+              <p className="text-sm text-gray-600 text-center py-6">No stages configured yet</p>
+            )}
+          </div>
+        </div>
+
+        {/* Recent leads */}
+        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-gray-900">Recent Leads</h3>
+            <button onClick={() => navigate('/leads')}
+              className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+              View all <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="overflow-hidden">
+            <table className="w-full text-sm table-fixed">
+              <thead>
+                <tr className="text-xs text-gray-600 uppercase tracking-wide border-b">
+                  <th className="text-left pb-2 font-semibold">Name</th>
+                  <th className="text-left pb-2 font-semibold whitespace-nowrap w-28">Stage</th>
+                  <th className="pb-2 w-6"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {(data?.recentLeads || []).map(l => {
+                  const stageKey = (l.stage || 'new').toLowerCase();
+                  return (
+                    <tr key={l.id} onClick={() => navigate('/leads', { state: { openLeadId: l.id } })}
+                      className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 cursor-pointer transition-colors">
+                      <td className="py-2.5 min-w-0">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <div className="w-7 h-7 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">
+                            {initials(l.name, 1)}
+                          </div>
+                          <span className="font-medium text-gray-800 break-words" title={l.name}>{l.name}</span>
+
+                        </div>
+                      </td>
+                      <td className="py-2.5 pl-2">
+                        <span className={`inline-block max-w-full truncate align-bottom text-xs font-semibold px-2 py-0.5 rounded-full capitalize ${stageBadgeClass(stageKey)}`} title={l.stage}>
+                          {l.stage}
+                        </span>
+                      </td>
+                      <td className="py-2.5 text-right"><ChevronRight size={14} className="text-gray-300" /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {!data?.recentLeads?.length && (
+              <p className="text-sm text-gray-600 text-center py-8">No leads yet</p>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Today's Activity + Automation & AI ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <span className="w-6 h-6 rounded-md bg-blue-100 text-blue-500 flex items-center justify-center">
+                <Calendar size={13} />
+              </span>
+              Today's Activity
+            </h3>
+            <button onClick={() => navigate('/leads')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+              View all <ChevronRight size={12} />
+            </button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {activityItems.map(item => (
+              <button key={item.label} onClick={() => navigate(item.to)}
+                className="text-left bg-gray-50 rounded-xl p-3 hover:shadow-sm hover:border-gray-200 transition-all">
+                <div className="flex items-center gap-2">
+                  <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
+                    <item.icon size={14} />
+                  </span>
+                  <span className="min-w-0 text-xs text-gray-500">{item.label}<span className="block text-xs text-gray-600">{item.period || 'Today'}</span></span>
+                </div>
+                <p className={`text-xl font-bold mt-1.5 ${item.value > 0 ? item.valueCls : 'text-gray-900'}`}>{item.value}</p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <Sparkles size={16} className="text-gray-600" />
+              Automation & AI
+            </h3>
+            <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+              View all <ChevronRight size={12} />
+            </button>
+          </div>
+          <div>
+            {automationItems.map((item, i) => (
+              <button key={item.label} onClick={() => navigate(activityLeadLink(item.activity))}
+                className={`w-full flex items-center gap-3 py-3 hover:bg-gray-50 px-1 -mx-1 transition-colors text-left ${i > 0 ? 'border-t border-gray-200' : ''}`}>
+                <span className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
+                  <item.icon size={16} />
+                </span>
+                <div>
+                  <p className="text-xs text-gray-500">{item.label}</p><p className="text-xs text-gray-600">{item.period || 'Today'}</p>
+                  <p className="text-lg font-bold text-gray-900 leading-tight">{item.value}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── Automation activity · unique leads ── */}
+      <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+            <Zap size={16} className="text-gray-600" />
+            Automation activity · unique leads
+          </h3>
+          <button onClick={() => navigate('/lead-automation')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+            View all <ChevronRight size={12} />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
+          {automatedItems.map(item => (
+            <button onClick={()=>navigate(activityLeadLink(item.activity))} key={item.label} className="text-left bg-gray-50 rounded-xl p-3">
+              <div className="flex items-center gap-2">
+                <span className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${item.cls}`}>
+                  <item.icon size={14} />
+                </span>
+                <span className="min-w-0 text-xs text-gray-500">{item.label}<span className="block text-xs text-gray-600">{item.period || 'Today'}</span></span>
               </div>
+              <p className="text-xl font-bold mt-1.5 text-gray-900">{item.value}</p>
             </button>
           ))}
         </div>
@@ -311,215 +452,163 @@ const DashboardPage = () => {
 
       {/* ── Unassigned Leads Alert ── */}
       {(data?.unassigned_leads || 0) > 0 && (
-        <button onClick={() => navigate('/leads?assigned_to=unassigned')}
-          className="w-full flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl hover:bg-amber-100 transition-colors text-left">
+        <button onClick={() => navigate(metricLeadLink(data?.metrics,{assigned_to:'unassigned'}))}
+          className="w-full flex items-center gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl hover:shadow-md transition-all duration-200 text-left">
           <AlertTriangle size={18} className="text-amber-500 shrink-0" />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-semibold text-amber-800">
               {data.unassigned_leads} unassigned lead{data.unassigned_leads !== 1 ? 's' : ''}
             </p>
-            <p className="text-xs text-amber-600">Assign these leads to your team to avoid missing opportunities.</p>
+            <p className="text-xs text-amber-600">Selected period · Assign these leads to your team.</p>
           </div>
           <ChevronRight size={16} className="text-amber-400 shrink-0" />
         </button>
       )}
 
-      {/* ── Critical Follow-ups Alert ── */}
-      {(data?.critical_followups || 0) > 0 && (
-        <button onClick={() => navigate('/leads?followup_health=critical')}
-          className="w-full flex items-center gap-3 p-4 bg-red-50 border border-red-200 rounded-xl hover:bg-red-100 transition-colors text-left">
-          <AlertTriangle size={18} className="text-red-500 shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-800">
-              {data.critical_followups} lead{data.critical_followups !== 1 ? 's have' : ' has'} critical missed follow-ups — review now
-            </p>
-            <p className="text-xs text-red-600">Overdue more than 5 days. These need manager attention.</p>
-          </div>
-          <ChevronRight size={16} className="text-red-400 shrink-0" />
-        </button>
-      )}
+      {/* ── Lead Sources + Team Performance ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-      {/* ── Pipeline + Recent Leads ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-        {/* Pipeline funnel */}
-        <div className="lg:col-span-3 bg-white rounded-2xl p-5 border">
-          <div className="flex items-center justify-between mb-5">
-            <h3 className="font-semibold text-gray-900">Pipeline</h3>
-            <span className="text-xs text-gray-400 bg-gray-50 px-2 py-1 rounded-lg">
-              {fmt(pipelineTotal)} total leads
-            </span>
-          </div>
-          <div className="space-y-4">
-            {(data?.pipeline || []).map(stage => {
-              const pct = Math.round((stage.count / pipelineTotal) * 100);
-              const bar = STAGE_COLOR[stage.color] || STAGE_COLOR.gray;
-              return (
-                <div key={stage.name}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: bar }} />
-                      {stage.name}
-                      {stage.is_won && (
-                        <span className="text-[9px] bg-emerald-100 text-emerald-600 px-1.5 py-0.5 rounded font-bold">WON</span>
-                      )}
-                      {stage.is_lost && (
-                        <span className="text-[9px] bg-red-100 text-red-500 px-1.5 py-0.5 rounded font-bold">LOST</span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-4 text-xs text-gray-500 shrink-0">
-                      {stage.pipeline_value > 0 && (
-                        <span className="text-gray-400">{fmtMoney(stage.pipeline_value)}</span>
-                      )}
-                      <span className="font-bold text-gray-800 w-5 text-right">{stage.count}</span>
-                      <span className="text-gray-400 w-7 text-right">{pct}%</span>
-                    </div>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full transition-all duration-700"
-                      style={{ width: `${pct}%`, background: bar }} />
-                  </div>
-                </div>
-              );
-            })}
-            {!data?.pipeline?.length && (
-              <p className="text-sm text-gray-400 text-center py-6">No stages configured yet</p>
-            )}
-          </div>
-        </div>
-
-        {/* Recent leads */}
-        <div className="lg:col-span-2 bg-white rounded-2xl p-5 border">
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-gray-900">Recent Leads</h3>
-            <button onClick={() => navigate('/leads')}
-              className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <PieChart size={16} className="text-gray-600" />
+              Lead Sources
+              <span className="text-xs font-normal text-gray-600">· {periodCaption}</span>
+            </h3>
+            <button onClick={() => navigate('/leads')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
               View all <ChevronRight size={12} />
             </button>
           </div>
-          <div className="space-y-1">
-            {(data?.recentLeads || []).map(l => (
-              <button key={l.id} onClick={() => navigate('/leads', { state: { openLeadId: l.id } })}
-                className="w-full flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 text-left group transition-colors">
-                <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0 group-hover:bg-brand-50 group-hover:text-brand-700 transition-colors">
-                  {l.name?.charAt(0)?.toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{l.name}</p>
-                  <p className="text-xs text-gray-400 truncate capitalize">{l.stage}</p>
-                </div>
-                <span className={`shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
-                  l.lead_score === 'hot'  ? 'bg-red-100 text-red-600' :
-                  l.lead_score === 'warm' ? 'bg-amber-100 text-amber-600' :
-                                            'bg-gray-100 text-gray-500'
-                }`}>{(l.lead_score || 'new').toUpperCase()}</span>
-              </button>
-            ))}
-            {!data?.recentLeads?.length && (
-              <p className="text-sm text-gray-400 text-center py-8">No leads yet</p>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Sources + Team ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-
-        {/* Lead sources */}
-        <div className="bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold text-gray-900 mb-4">Lead Sources</h3>
           {(data?.sources || []).length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
-                  <th className="text-left pb-2 font-semibold">Source</th>
-                  <th className="text-right pb-2 font-semibold">Leads</th>
-                  <th className="text-right pb-2 font-semibold">Won</th>
-                  <th className="text-right pb-2 font-semibold">Conv%</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.sources.map(s => (
-                  <tr key={s.source} className="border-b last:border-0">
-                    <td className="py-2.5 font-medium text-gray-700 capitalize">{s.source}</td>
-                    <td className="py-2.5 text-right text-gray-500">{s.total}</td>
-                    <td className="py-2.5 text-right font-semibold text-emerald-600">{s.won}</td>
-                    <td className="py-2.5 text-right">
-                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                        parseFloat(s.conversion_rate) >= 20 ? 'bg-emerald-100 text-emerald-700' :
-                        parseFloat(s.conversion_rate) >= 10 ? 'bg-amber-100 text-amber-700' :
-                                                              'bg-gray-100 text-gray-500'
-                      }`}>{s.conversion_rate}%</span>
-                    </td>
+            <div>
+              <table className="w-full text-sm table-fixed">
+                <colgroup>
+                  <col />
+                  <col style={{ width: '56px' }} />
+                  <col style={{ width: '56px' }} />
+                  <col style={{ width: '96px' }} />
+                </colgroup>
+                <thead>
+                  <tr className="text-xs text-gray-600 uppercase tracking-wide border-b">
+                    <th className="text-left pb-2 font-semibold whitespace-nowrap">Source</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Leads</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Won</th>
+                    <th className="text-right pb-2 font-semibold whitespace-nowrap">Conversion</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.sources.map(s => {
+                    const meta = SOURCE_ICON[s.source?.toLowerCase()] || { icon: Megaphone, cls: 'text-gray-600' };
+                    return (
+                      <tr key={sourceLabel(s.source)} className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 transition-colors">
+                        <td className="py-2.5 min-w-0">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <meta.icon size={15} className={`${meta.cls} shrink-0`} />
+                            <span className="font-medium text-gray-700 capitalize truncate" title={sourceLabel(s.source)}>{sourceLabel(s.source)}</span>
+                          </div>
+                        </td>
+                        <td className="py-2.5 text-right text-gray-500 whitespace-nowrap">{s.total}</td>
+                        <td className="py-2.5 text-right font-semibold text-emerald-600 whitespace-nowrap">{s.won}</td>
+                        <td className="py-2.5 whitespace-nowrap">
+                          <div className="flex items-center justify-end gap-2">
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                              parseFloat(s.conversion_rate) >= 20 ? 'bg-emerald-100 text-emerald-700' :
+                              parseFloat(s.conversion_rate) >= 10 ? 'bg-amber-100 text-amber-700' :
+                                                                    'bg-gray-100 text-gray-500'
+                            }`}>{s.conversion_rate}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-8">No source data yet</p>
+            <EmptyState message="No source data yet" actionLabel="Add leads"/>
           )}
         </div>
 
-        {/* Team performance */}
-        <div className="bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold text-gray-900 mb-4">Team Performance</h3>
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+              <UserCheck size={16} className="text-gray-600" />
+              Team Performance
+              <span className="text-xs font-normal text-gray-600">· {periodCaption}</span>
+            </h3>
+            <button onClick={() => navigate('/staff')} className="text-xs text-brand-600 flex items-center gap-0.5 hover:underline">
+              View all <ChevronRight size={12} />
+            </button>
+          </div>
           {(data?.team || []).length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[11px] text-gray-400 uppercase tracking-wide border-b">
-                  <th className="text-left pb-2 font-semibold">Member</th>
-                  <th className="text-right pb-2 font-semibold">Leads</th>
-                  <th className="text-right pb-2 font-semibold">Won</th>
-                  <th className="text-right pb-2 font-semibold">Revenue</th>
-                  <th className="text-right pb-2 font-semibold">Avg Response</th>
-                  <th className="text-right pb-2 font-semibold">Follow-ups Done</th>
-                </tr>
-              </thead>
-              <tbody>
-                {data.team.map((t, i) => (
-                  <tr key={t.name} className="border-b last:border-0">
-                    <td className="py-2.5">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm">{i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : ''}</span>
-                        <span className="font-medium text-gray-700">{t.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 text-right text-gray-500">{t.total_leads}</td>
-                    <td className="py-2.5 text-right font-semibold text-emerald-600">{t.won}</td>
-                    <td className="py-2.5 text-right font-semibold text-gray-700">{fmtMoney(t.revenue)}</td>
-                    <td className="py-2.5 text-right text-gray-500">{fmtDuration(t.avg_response_seconds)}</td>
-                    <td className="py-2.5 text-right text-gray-500">{t.completed_followups}</td>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[480px] text-sm table-fixed">
+                <thead>
+                  <tr className="text-xs text-gray-600 uppercase tracking-wide border-b">
+                    <th className="text-left pb-2 font-semibold w-40">Member</th>
+                    <th className="text-right pb-2 font-semibold w-12">Leads</th>
+                    <th className="text-right pb-2 font-semibold w-12">Won</th>
+                    <th className="text-right pb-2 font-semibold w-20">Revenue</th>
+                    <th className="text-right pb-2 font-semibold w-20" title="Average time to first response">Response</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {data.team.map((t) => (
+                    <tr key={t.name} className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 transition-colors">
+                      <td className="py-2.5 truncate">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="w-6 h-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">
+                            {initials(t.name, 1)}
+                          </div>
+                          <span className="font-medium text-gray-700 truncate" title={t.name}>{t.name}</span>
+                        </div>
+                      </td>
+                      <td className="py-2.5 text-right text-gray-500 truncate">{t.total_leads}</td>
+                      <td className="py-2.5 text-right font-semibold text-emerald-600 truncate">{t.won}</td>
+                      <td className="py-2.5 text-right font-semibold text-gray-700 truncate">{fmtMoney(t.revenue)}</td>
+                      <td className="py-2.5 text-right text-gray-500 truncate">{fmtDuration(t.avg_response_seconds)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-8">No team data yet</p>
+            <p className="text-sm text-gray-600 text-center py-8">No team data yet</p>
           )}
         </div>
       </div>
 
       {/* ── Lead Trend ── */}
       {trendData.length > 1 && (
-        <div className="bg-white rounded-2xl p-5 border">
-          <h3 className="font-semibold text-gray-900 mb-4">Lead Trend — {periodLabel}</h3>
-          <ResponsiveContainer width="100%" height={160}>
-            <AreaChart data={trendData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-              <defs>
-                <linearGradient id="leadGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%"  stopColor="#6366f1" stopOpacity={0.18} />
-                  <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
-                </linearGradient>
-              </defs>
+        <div className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
+            <div>
+              <h3 className="font-semibold text-gray-900 flex items-center gap-2">
+                <LineChartIcon size={16} className="text-gray-600" />
+                Lead Trend
+              </h3>
+              <p className="text-xs text-gray-600 mt-0.5">Lead activity over the selected period</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5 text-sm text-gray-600">
+                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                Total Leads <span className="font-bold text-gray-900">{fmt(data?.leads_in_period)}</span>
+              </span>
+              {data?.leads_change !== undefined && <Trend change={data.leads_change} />}
+            </div>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <RLineChart data={trendData} margin={{ top: 16, right: 8, bottom: 0, left: -20 }}>
               <XAxis dataKey="day" tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 11, fill: '#9ca3af' }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip
                 contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e5e7eb', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.05)' }}
                 cursor={{ stroke: '#6366f1', strokeWidth: 1, strokeDasharray: '4 2' }}
               />
-              <Area type="monotone" dataKey="Leads" stroke="#6366f1" strokeWidth={2}
-                fill="url(#leadGrad)" dot={false} activeDot={{ r: 4, fill: '#6366f1' }} />
-            </AreaChart>
+              <Line type="monotone" dataKey="Leads" stroke="#4f46e5" strokeWidth={2.5}
+                dot={{ r: 3, fill: '#4f46e5', stroke: '#fff', strokeWidth: 1 }}
+                activeDot={{ r: 5, fill: '#4f46e5', stroke: '#fff', strokeWidth: 2 }} />
+            </RLineChart>
           </ResponsiveContainer>
         </div>
       )}

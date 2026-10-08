@@ -10,6 +10,7 @@ export const TYPE_META = {
 };
 
 export const STATUS_META = {
+  dismissed: { label: 'Dismissed', cls: 'bg-gray-100 text-gray-500' },
   upcoming: { label: 'Upcoming',  cls: 'bg-green-50 text-green-700' },
   overdue:  { label: 'Overdue',   cls: 'bg-red-50 text-red-600' },
   completed:{ label: 'Completed', cls: 'bg-blue-50 text-blue-600' },
@@ -27,4 +28,4 @@ export const APPOINTMENTS_PAGE_LIMIT = 5;
 
 export const EMPTY_APPT_FILTERS = { type: '', assigned_to: '', date_from: '', date_to: '' };
 
-export const EMPTY_NEW_APPOINTMENT_FORM = { lead_id: '', lead_name: '', next_followup_at: '', followup_type: 'call', reminder_minutes: '15', notes: '' };
+export const EMPTY_NEW_APPOINTMENT_FORM = { lead_id: '', lead_name: '', next_followup_at: '', followup_type: 'call', reminder_minutes: '15', notes: '', notify_lead: true };

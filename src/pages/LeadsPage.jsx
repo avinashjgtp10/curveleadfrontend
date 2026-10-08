@@ -1,11 +1,27 @@
+import { stageBadgeClass } from '../utils/stageStyles';
+import PageLoader from '../components/ui/PageLoader';
+import {IMPORT_FIELDS,presetMapping} from '../utils/importPresets';
+import { useDebouncedValue } from '../hooks/useDebouncedValue';
+import { DEFAULT_HIDDEN_STAGES, normalizeHiddenStages, effectiveHiddenStages, createLatestRequest } from '../utils/leadSearch';
+import { isRequestCancelled } from '../services/queryCache';
+import SearchHighlight from '../components/ui/SearchHighlight';
+import { sourceLabel } from '../utils/leadData.js';
+import { parsePhoneNumberFromString, getCountryCallingCode } from 'libphonenumber-js';
+import { workspaceCountry } from '../utils/locale';
+import { formatDateTime, toDateTimeInput, parseTimestamp } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation } from 'react-router-dom';
-import { leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI } from '../services/api';
+import { createPortal } from 'react-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { automationAPI, leadAPI, aiAPI, stageAPI, staffAPI, leadImportAPI, statusAPI, followupAPI, integrationsAPI, campaignAPI, authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import LeadDetailPage from './LeadDetailPage';
-import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy } from 'lucide-react';
+import WhatsAppBroadcastModal from '../components/lead/WhatsAppBroadcastModal';
+import { Plus, Search, Phone, MessageCircle, Trash2, Edit2, Zap, X, ChevronLeft, ChevronRight, Clock, SlidersHorizontal, ChevronDown, ChevronUp, ChevronsUpDown, User, CheckSquare, Square, GitBranch, UserCheck, Upload, FileSpreadsheet, CheckCircle, AlertCircle, Download, Flame, Sun, Snowflake, Settings, Copy, MoreVertical, RotateCcw } from 'lucide-react';
 import { computeFollowupHealth, FOLLOWUP_HEALTH_STYLES } from '../utils/followupHealth';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
+import DatePicker from '../components/ui/DatePicker';
+import DateTimePicker from '../components/ui/DateTimePicker';
 
 const scoreColors = {
   hot: 'bg-red-100 text-red-700',
@@ -15,32 +31,110 @@ const scoreColors = {
 
 const scoreIcons = { hot: Flame, warm: Sun, cold: Snowflake };
 
-const EMPTY_FILTERS = { search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
-const LEADS_COLUMNS = [
-  { key: 'lead_id', label: 'Lead ID' },
-  { key: 'date', label: 'Date' },
-  { key: 'phone', label: 'Phone Number' },
-  { key: 'source', label: 'Source' },
-  { key: 'score', label: 'Score' },
-  { key: 'stage', label: 'Stage' },
-  { key: 'status', label: 'Status' },
-  { key: 'assigned_to', label: 'Assigned To' },
+const timeAgo = (date) => {
+  if (!date) return null;
+  const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (seconds < 60) return 'just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
+
+// Closes whatever the ref is attached to when a mousedown lands outside it.
+const useClickOutside = (ref, onOutside) => {
+  useEffect(() => {
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) onOutside();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [ref, onOutside]);
+};
+
+// Custom filter dropdown that always opens downward — a native <select> can
+// flip upward and overlap the tabs above when there isn't room below it.
+const FilterDropdown = ({ value, onChange, options, className }) => {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const selected = options.find(o => o.value === value);
+
+  useClickOutside(ref, () => setOpen(false));
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        className={`${className} flex items-center justify-between`}>
+        <span className="truncate">{selected?.label ?? value}</span>
+        <ChevronDown size={14} className="text-gray-600 shrink-0 ml-1" />
+      </button>
+      {open && (
+        <div className="absolute left-0 right-0 top-full mt-1 z-20 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+          {options.map(o => (
+            <div
+              key={o.value}
+              onClick={() => { onChange(o.value); setOpen(false); }}
+              className={`px-3 py-2 text-sm cursor-pointer hover:bg-gray-100 ${o.value === value ? 'bg-gray-100 font-semibold text-gray-900' : 'text-gray-700'}`}>
+              {o.label}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const EMPTY_FILTERS = { metric:'',from:'',to:'',activity:'',include_all_stages:'', search: '', stage: '', lead_status: '', source: '', score: '', followup_health: '', sla_status: '', assigned_to: '', date_field: '', date_from: '', date_to: '' };
+const FOLLOWUP_HEALTH_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'good', label: '🟢 Good' },
+  { value: 'delayed', label: '🟡 Delayed' },
+  { value: 'missed', label: '🔴 Missed' },
+  { value: 'critical', label: '🚨 Critical' },
 ];
-const LEADS_COLUMNS_STORAGE_KEY = 'leadsTableVisibleColumns';
+const SLA_STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'uncontacted', label: 'Uncontacted' },
+  { value: 'new', label: '🟢 New' },
+  { value: 'sla_risk', label: '🟡 SLA Risk' },
+  { value: 'sla_breached', label: '🔴 SLA Breached' },
+  { value: 'missed_lead', label: '🚨 Missed Lead' },
+  { value: 'responded_5min', label: '✅ Responded ≤5 min' },
+];
+// Six columns by default (name + phone, source, stage, follow-up health, owner,
+// created); the rest are one click away in the column picker.
+const LEADS_COLUMNS = [
+  { key: 'lead_id', label: 'Lead ID', defaultOn: false },
+  { key: 'date', label: 'Created', defaultOn: true },
+  { key: 'phone', label: 'Phone (own column)', defaultOn: false },
+  { key: 'source', label: 'Source', defaultOn: true },
+  { key: 'score', label: 'Score', defaultOn: false },
+  { key: 'stage', label: 'Stage', defaultOn: true },
+  { key: 'status', label: 'Status', defaultOn: false },
+  { key: 'followup_health', label: 'Follow-up health', defaultOn: true },
+  { key: 'assigned_to', label: 'Owner', defaultOn: true },
+];
+// Country picker for Add lead; the workspace's own country is listed first.
+const PHONE_COUNTRIES = ['IN', 'AE', 'SA', 'QA', 'OM', 'KW', 'BH', 'US', 'GB', 'CA', 'AU', 'SG', 'MY', 'NP', 'LK', 'BD'];
+const LEADS_COLUMNS_STORAGE_KEY = 'leadsTableVisibleColumns.v2';
 const loadVisibleColumns = () => {
+  const defaults = Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, c.defaultOn]));
   try {
     const saved = JSON.parse(localStorage.getItem(LEADS_COLUMNS_STORAGE_KEY));
-    if (saved && typeof saved === 'object') return { ...Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true])), ...saved };
+    if (saved && typeof saved === 'object') return { ...defaults, ...saved };
   } catch { /* ignore invalid/missing value */ }
-  return Object.fromEntries(LEADS_COLUMNS.map(c => [c.key, true]));
+  return defaults;
 };
 const LEADS_HIDDEN_STAGES_STORAGE_KEY = 'leadsHiddenStages';
-const loadHiddenStages = () => {
+const loadHiddenStages = (key) => {
   try {
-    const saved = JSON.parse(localStorage.getItem(LEADS_HIDDEN_STAGES_STORAGE_KEY));
-    if (Array.isArray(saved)) return saved;
+    const saved = JSON.parse(localStorage.getItem(key));
+    if (Array.isArray(saved)) return normalizeHiddenStages(saved);
   } catch { /* ignore invalid/missing value */ }
-  return [];
+  return [...DEFAULT_HIDDEN_STAGES];
 };
 const SLA_STATUS_LABELS = {
   uncontacted: 'Uncontacted',
@@ -49,6 +143,21 @@ const SLA_STATUS_LABELS = {
   sla_breached: 'SLA Breached',
   missed_lead: 'Missed Lead',
   responded_5min: 'Responded ≤5 min',
+};
+// One line: "Today 3:30 pm · 3h late", "Tomorrow 10:00 am", "8 Oct, 4:00 pm".
+const dueLabel = (iso) => {
+  if (!iso) return '—';
+  const due = new Date(iso), now = new Date();
+  const day = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const diffDays = Math.round((day(due) - day(now)) / 86400000);
+  const time = formatDateTime(iso, undefined, { dateStyle: undefined, timeStyle: undefined, hour: 'numeric', minute: '2-digit' });
+  const when = diffDays === 0 ? `Today ${time}` : diffDays === 1 ? `Tomorrow ${time}` : diffDays === -1 ? `Yesterday ${time}`
+    : formatDateTime(iso, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const lateMs = now - due;
+  if (lateMs <= 0) return when;
+  const mins = Math.round(lateMs / 60000);
+  const late = mins < 60 ? `${mins}m` : mins < 1440 ? `${Math.round(mins / 60)}h` : `${Math.round(mins / 1440)}d`;
+  return `${when} · ${late} late`;
 };
 const EMPTY_FU_FILTERS = { search: '', type: '', date_from: '', date_to: '', scope: '', category: '' };
 
@@ -76,19 +185,15 @@ const getQueryConfig = (search, state = {}) => {
   return { view, filters, fuFilters, sortState, openLeadId, leadSequence };
 };
 
-const isSameLocalDay = (value, day) => {
-  if (!value || !day) return true;
-  const d = new Date(value);
-  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
-  return local === day;
-};
+const isSameLocalDay = (value,day) => !!value && toDateTimeInput(value).slice(0,10)===day;
 
 const filterFollowupsForScope = (items, filters) => {
-  const today = filters.date_from || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const today = filters.date_from || toDateTimeInput(new Date()).slice(0,10);
 
   return items.filter(f => {
+    if (filters.scope === 'critical' && parseTimestamp(f.next_followup_at)?.getTime() >= Date.now()-120*3600000) return false;
     if (filters.scope === 'today' && !isSameLocalDay(f.next_followup_at, today)) return false;
-    if (filters.scope === 'overdue' && new Date(f.next_followup_at) >= new Date()) return false;
+    if (filters.scope === 'overdue' && parseTimestamp(f.next_followup_at) >= new Date()) return false;
     if (filters.category === 'followup' && f.followup_type === 'demo') return false;
     return true;
   });
@@ -100,37 +205,13 @@ const compactParams = (params) => Object.fromEntries(
   Object.entries(params).filter(([, value]) => value !== '' && value !== null && value !== undefined)
 );
 
-const withoutLeadDateFilters = ({ date_field, date_from, date_to, ...rest }) => rest;
-
-const getLeadDateValue = (lead, dateField) => {
-  if (dateField === 'created_at') return lead.created_at;
-  return lead.lead_date || lead.created_at;
-};
-
-const filterLeadsByDate = (items, activeFilters) => {
-  if (!activeFilters.date_from && !activeFilters.date_to) return items;
-
-  const from = activeFilters.date_from ? new Date(activeFilters.date_from) : null;
-  const to = activeFilters.date_to ? new Date(activeFilters.date_to) : null;
-  if (to) to.setDate(to.getDate() + 1);
-
-  return items.filter(lead => {
-    const value = getLeadDateValue(lead, activeFilters.date_field);
-    if (!value) return false;
-    const leadDate = new Date(value);
-    if (from && leadDate < from) return false;
-    if (to && leadDate >= to) return false;
-    return true;
-  });
-};
-
-const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
+const SortTh = ({ sortKey, label, sortState, onSort, align = 'left', sticky = false }) => {
   const active = sortState.sort === sortKey;
   const Icon = active ? (sortState.dir === 'asc' ? ChevronUp : ChevronDown) : ChevronsUpDown;
   return (
-    <th className={`px-3 py-3 text-${align}`}>
+    <th className={`px-3 py-3 text-${align} ${sticky ? 'sticky left-0 z-[1] bg-white' : ''}`}>
       <button onClick={() => onSort(sortKey)}
-        className={`inline-flex items-center gap-1 hover:text-gray-900 ${active ? 'text-gray-900 font-semibold' : ''}`}>
+        className={`inline-flex items-center gap-1 font-medium whitespace-nowrap hover:text-gray-900 ${active ? 'text-gray-900 font-semibold' : ''}`}>
         {label}
         <Icon size={12} className={active ? 'text-gray-700' : 'text-gray-300'} />
       </button>
@@ -140,9 +221,12 @@ const SortTh = ({ sortKey, label, sortState, onSort, align = 'left' }) => {
 
 const LeadsPage = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const queryConfig = getQueryConfig(location.search, location.state);
-  const { user } = useAuth();
+  const { user, tenant } = useAuth();
+  const preferenceKey = `${LEADS_HIDDEN_STAGES_STORAGE_KEY}:${tenant?.id || user?.tenant_id}:${user?.id}`;
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [leads, setLeads] = useState([]);
   const [stages, setStages] = useState([]);
@@ -153,7 +237,10 @@ const LeadsPage = () => {
   const [filters, setFilters] = useState(queryConfig.filters);
   const [showFilters, setShowFilters] = useState(Object.values(queryConfig.filters).some(Boolean));
   const [visibleColumns, setVisibleColumns] = useState(loadVisibleColumns);
-  const [hiddenStages, setHiddenStages] = useState(loadHiddenStages);
+  const [hiddenStages, setHiddenStages] = useState(() => loadHiddenStages(preferenceKey));
+  const [preferencesReady, setPreferencesReady] = useState(false);
+  const preferenceOwner = useRef(preferenceKey);
+  const [savingHiddenStages, setSavingHiddenStages] = useState(false);
   const [showColumnSettings, setShowColumnSettings] = useState(false);
   const columnSettingsRef = useRef(null);
   const [view, setView] = useState(queryConfig.view);
@@ -164,18 +251,62 @@ const LeadsPage = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [page, setPage] = useState(1);
   const [pagination, setPagination] = useState({ total: 0, pages: 1 });
+  const [searchMode, setSearchMode] = useState('none');
+  const [displayedSearch, setDisplayedSearch] = useState('');
+  const [loadError, setLoadError] = useState('');
+  const requestManager = useRef(null);
+  if (!requestManager.current) requestManager.current = createLatestRequest();
+  const rawSearch = view === 'followups' ? fuFilters.search : filters.search;
+  const debouncedSearch = useDebouncedValue(rawSearch);
+  const searchPending = rawSearch !== debouncedSearch;
+
   const [editingStageId, setEditingStageId] = useState(null);
   const [editingAssignId, setEditingAssignId] = useState(null);
+  const [openActionMenuId, setOpenActionMenuId] = useState(null);
+  const [actionMenuPos, setActionMenuPos] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    const handler = (e) => {
+      if (!e.target.closest('[data-actions-menu]')) setOpenActionMenuId(null);
+    };
+    const closeMenu = () => setOpenActionMenuId(null);
+    document.addEventListener('mousedown', handler);
+    window.addEventListener('scroll', closeMenu, true);
+    window.addEventListener('resize', closeMenu);
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      window.removeEventListener('scroll', closeMenu, true);
+      window.removeEventListener('resize', closeMenu);
+    };
+  }, []);
+
+  const toggleActionMenu = (id, e) => {
+    if (openActionMenuId === id) { setOpenActionMenuId(null); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const menuWidth = 176, menuHeight = 118;
+    const openUpward = rect.bottom + menuHeight > window.innerHeight;
+    setActionMenuPos({
+      top: openUpward ? rect.top - menuHeight - 4 : rect.bottom + 4,
+      left: Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8),
+    });
+    setOpenActionMenuId(id);
+  };
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkStage, setBulkStage] = useState('');
   const [bulkAssign, setBulkAssign] = useState('');
   const [bulkLoading, setBulkLoading] = useState(false);
-  const PAGE_SIZE = 25;
+  const [showBroadcastModal, setShowBroadcastModal] = useState(false);
+  const [sequences, setSequences] = useState([]);
+  const [bulkSequence, setBulkSequence] = useState('');
+  const [pageSize, setPageSize] = useState(100);
+  const PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
   const [newLeadErrors, setNewLeadErrors] = useState({});
   const newLeadNameRef = useRef(null);
   const newLeadPhoneRef = useRef(null);
+  const newLeadEmailRef = useRef(null);
+  const [newLeadCountry, setNewLeadCountry] = useState(() => (PHONE_COUNTRIES.includes(workspaceCountry()) ? workspaceCountry() : 'IN'));
   const [campaigns, setCampaigns] = useState([]);
 
   // Import state
@@ -185,6 +316,47 @@ const LeadsPage = () => {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
   const [importDragOver, setImportDragOver] = useState(false);
+
+  // Manual Facebook lead sync (mirrors Integrations > Sync Leads, same endpoint)
+  const [syncing, setSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState(null);
+  const [syncStatus, setSyncStatus] = useState('loading');
+  const [, setSyncClock] = useState(0);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => integrationsAPI.facebookSyncStatus().then(({ data }) => {
+      if (!active) return;
+      setLastSyncedAt(data.last_synced_at ? new Date(data.last_synced_at) : null);
+      setSyncStatus(data.configured ? 'connected' : 'disconnected');
+    }).catch(() => { if (active) setSyncStatus('unavailable'); });
+    refresh();
+    const timer = setInterval(() => { setSyncClock(v => v + 1); refresh(); }, 60_000);
+    return () => { active = false; clearInterval(timer); };
+  }, []);
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await integrationsAPI.facebookSyncLeads();
+      setLastSyncedAt(data.last_synced_at ? new Date(data.last_synced_at) : null);
+      setSyncStatus('connected');
+      toast.success(data.message || 'Leads synced.');
+      if (data.created) fetchLeads();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Sync failed.');
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // More Actions dropdown (Export / Import / Duplicates)
+  const [showMoreActions, setShowMoreActions] = useState(false);
+  const moreActionsRef = useRef(null);
+  useEffect(() => {
+    const onClick = (e) => { if (moreActionsRef.current && !moreActionsRef.current.contains(e.target)) setShowMoreActions(false); };
+    document.addEventListener('mousedown', onClick);
+    return () => document.removeEventListener('mousedown', onClick);
+  }, []);
 
   // Duplicate leads state
   const [showDuplicates, setShowDuplicates] = useState(false);
@@ -206,8 +378,29 @@ const LeadsPage = () => {
   const [renderedLeadId, setRenderedLeadId] = useState(null); // stays set during the exit fade
   const [modalEntered, setModalEntered] = useState(false);     // drives enter/exit transition classes
   const [externalSequence, setExternalSequence] = useState(queryConfig.leadSequence || null);
+  // True while the modal was opened via a deep link (e.g. from Appointments/Dashboard/
+  // Followups navigating here with state.openLeadId) rather than by clicking a row in
+  // this page's own table — closing it should then return to that originating page
+  // instead of stranding the user on the Leads list.
+  const [cameFromDeepLink, setCameFromDeepLink] = useState(!!location.state?.openLeadId);
   const closeTimerRef = useRef(null);
-  const closeLeadModal = () => { setOpenLeadId(null); setExternalSequence(null); fetchLeads(); };
+  const closeLeadModal = () => {
+    setOpenLeadId(null);
+    setExternalSequence(null);
+    fetchLeads();
+    if (cameFromDeepLink) {
+      setCameFromDeepLink(false);
+      navigate(-1);
+    }
+  };
+
+  // Keep the open lead in the address bar (?open=<id>) so it can be shared, bookmarked or
+  // reloaded. replaceState: no extra history entries and no router re-parse.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (openLeadId) url.searchParams.set('open', openLeadId); else url.searchParams.delete('open');
+    if (url.href !== window.location.href) window.history.replaceState(window.history.state, '', url);
+  }, [openLeadId]);
 
   useEffect(() => {
     if (openLeadId) {
@@ -239,29 +432,54 @@ const LeadsPage = () => {
   const goPrevLead = () => { if (prevLeadId) setOpenLeadId(prevLeadId); };
   const goNextLead = () => { if (nextLeadId) setOpenLeadId(nextLeadId); };
 
-  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field'].includes(k) && v).length;
-
+  const appliedHiddenStages = view === 'list' && filters.include_all_stages !== '1' ? effectiveHiddenStages(hiddenStages, filters.stage) : [];
+  // Hidden stages are a saved view preference with their own visible toggle, not a filter.
+  const activeFilterCount = Object.entries(filters).filter(([k, v]) => !['search', 'date_field', 'from', 'to', 'include_all_stages'].includes(k) && v).length;
+  const hidesClosed = DEFAULT_HIDDEN_STAGES.every(st => hiddenStages.includes(st));
+  const toggleHideClosed = () => saveHiddenStages(hidesClosed
+    ? hiddenStages.filter(st => !DEFAULT_HIDDEN_STAGES.includes(st))
+    : [...new Set([...hiddenStages, ...DEFAULT_HIDDEN_STAGES])]);
   const toggleColumn = (key) => setVisibleColumns(v => ({ ...v, [key]: !v[key] }));
-  const toggleHiddenStage = (stageName) => {
+  const saveHiddenStages = async (value) => {
+    if (!preferencesReady || savingHiddenStages) return;
+    const previous = hiddenStages;
+    const next = normalizeHiddenStages(value);
+    requestManager.current.cancel();
+    setPage(1); setHiddenStages(next); setSavingHiddenStages(true);
+    try { await authAPI.updatePreferences({ hidden_lead_stages: next }); }
+    catch { setHiddenStages(previous); toast.error('Could not save hidden stages.'); }
+    finally { setSavingHiddenStages(false); }
+  };
+  const toggleHiddenStage = stageName => {
     const key = stageName.toLowerCase();
-    setHiddenStages(prev => prev.includes(key) ? prev.filter(s => s !== key) : [...prev, key]);
+    return saveHiddenStages(hiddenStages.includes(key) ? hiddenStages.filter(s => s !== key) : [...hiddenStages, key]);
   };
 
   useEffect(() => {
     localStorage.setItem(LEADS_COLUMNS_STORAGE_KEY, JSON.stringify(visibleColumns));
   }, [visibleColumns]);
-
   useEffect(() => {
-    localStorage.setItem(LEADS_HIDDEN_STAGES_STORAGE_KEY, JSON.stringify(hiddenStages));
-  }, [hiddenStages]);
-
+    if (preferencesReady && preferenceOwner.current === preferenceKey) localStorage.setItem(preferenceKey, JSON.stringify(hiddenStages));
+  }, [hiddenStages, preferencesReady, preferenceKey]);
   useEffect(() => {
-    const handler = (e) => { if (columnSettingsRef.current && !columnSettingsRef.current.contains(e.target)) setShowColumnSettings(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
+    let active = true;
+    setPreferencesReady(false);
+    preferenceOwner.current = preferenceKey;
+    authAPI.getPreferences().then(({ data }) => {
+      if (active) setHiddenStages(normalizeHiddenStages(data?.preferences?.hidden_lead_stages));
+    }).catch(() => { if (active) setHiddenStages(loadHiddenStages(preferenceKey)); })
+      .finally(() => { if (active) setPreferencesReady(true); });
+    return () => { active = false; };
+  }, [preferenceKey]);
 
+  useClickOutside(columnSettingsRef, () => setShowColumnSettings(false));
+
+  const routeKey = JSON.stringify([location.search, location.state]);
+  const previousRoute = useRef(routeKey);
   useEffect(() => {
+    if (previousRoute.current === routeKey) return;
+    previousRoute.current = routeKey;
+    requestManager.current.cancel();
     const next = getQueryConfig(location.search, location.state);
     setView(next.view);
     setFilters(next.filters);
@@ -272,8 +490,9 @@ const LeadsPage = () => {
     if (next.openLeadId) {
       setOpenLeadId(next.openLeadId);
       setExternalSequence(next.leadSequence || null);
+      setCameFromDeepLink(!!location.state?.openLeadId);
     }
-  }, [location.search, location.state]);
+  }, [routeKey]);
 
   // Load stages, statuses & staff once on mount
   useEffect(() => {
@@ -297,76 +516,53 @@ const LeadsPage = () => {
     });
   }, []);
 
-  // Auto-pull Facebook leads whenever this page is opened, so leads show up without
-  // a manual trip to Integrations > Sync Leads. Throttled so switching tabs back and
-  // forth doesn't hammer the Graph API — at most once every 2 minutes.
+  const requestKey = JSON.stringify([preferenceKey, view, { ...filters, search: debouncedSearch }, { ...fuFilters, search: debouncedSearch }, page, pageSize, sortState, appliedHiddenStages]);
   useEffect(() => {
-    const META_SYNC_THROTTLE_MS = 2 * 60 * 1000;
-    const lastSync = Number(localStorage.getItem('meta_leads_last_sync') || 0);
-    if (Date.now() - lastSync < META_SYNC_THROTTLE_MS) return;
-    localStorage.setItem('meta_leads_last_sync', String(Date.now()));
-
-    integrationsAPI.facebookSyncLeads()
-      .then(({ data }) => { if (data?.created) fetchLeads(); })
-      .catch(() => {}); // silently ignore — e.g. no Facebook page connected for this tenant
-  }, []);
-
-  // Reload leads whenever filters, view, page, fuFilters, sortState, or hiddenStages change
-  useEffect(() => { fetchLeads(); }, [filters, view, page, fuFilters, sortState, hiddenStages]);
+    if (preferencesReady && !searchPending) fetchLeads();
+    return () => requestManager.current.cancel();
+  }, [requestKey, preferencesReady, searchPending]);
 
   const fetchLeads = async () => {
-    setSelectedIds(new Set());
-    setLoading(true);
+    if (!preferencesReady || searchPending) return;
+    const request = requestManager.current.begin();
+    setSelectedIds(new Set()); setLoading(true); setLoadError('');
     try {
       if (view === 'followups') {
-        const res = await leadAPI.getFollowupsToday(compactParams(getFollowupApiFilters(fuFilters)));
-        setFollowups(filterFollowupsForScope(res.data.followups || [], fuFilters));
+        const currentFilters = { ...fuFilters, search: debouncedSearch };
+        const res = await leadAPI.getFollowupsToday(compactParams(getFollowupApiFilters(currentFilters)), { signal: request.signal });
+        if (!request.isCurrent()) return;
+        setFollowups(filterFollowupsForScope(res.data.followups || [], currentFilters));
+        setSearchMode('none');
       } else {
-        const limit = view === 'pipeline' ? 500 : PAGE_SIZE;
-        const hideStagesParam = view === 'list' && hiddenStages.length ? hiddenStages.join(',') : undefined;
-        const params = compactParams({ ...filters, ...sortState, page, limit, hide_stages: hideStagesParam });
-        try {
-          const leadsRes = await leadAPI.getAll(params);
-          setLeads(leadsRes.data.leads || []);
-          setPagination({ total: leadsRes.data.pagination?.total || 0, pages: leadsRes.data.pagination?.pages || 1 });
-        } catch (dateError) {
-          if ((!filters.date_from && !filters.date_to) || dateError.response?.status !== 500) throw dateError;
-
-          const fallbackLimit = view === 'pipeline' ? 500 : 1000;
-          const fallbackParams = compactParams({ ...withoutLeadDateFilters(filters), page: 1, limit: fallbackLimit, hide_stages: hideStagesParam });
-          const fallbackRes = await leadAPI.getAll(fallbackParams);
-          const filteredLeads = filterLeadsByDate(fallbackRes.data.leads || [], filters);
-          const start = view === 'pipeline' ? 0 : (page - 1) * PAGE_SIZE;
-          const visibleLeads = view === 'pipeline' ? filteredLeads : filteredLeads.slice(start, start + PAGE_SIZE);
-
-          setLeads(visibleLeads);
-          setPagination({
-            total: filteredLeads.length,
-            page,
-            limit,
-            pages: Math.max(1, Math.ceil(filteredLeads.length / limit)),
-          });
-        }
+        const limit = view === 'pipeline' ? 500 : pageSize;
+        const params = compactParams({ ...filters, search: debouncedSearch, ...sortState, page, limit, hide_stages: appliedHiddenStages.join(',') });
+        const res = await leadAPI.getAll(params, { signal: request.signal });
+        if (!request.isCurrent()) return;
+        setLeads(res.data.leads || []);
+        setSearchMode(res.data.search_mode || 'none');
+        setPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
       }
-    } catch (e) { console.error(e); }
-    finally { setLoading(false); }
+      setDisplayedSearch(debouncedSearch);
+    } catch (error) {
+      if (request.isCurrent() && !isRequestCancelled(error)) setLoadError(error.response?.data?.error || 'Could not load leads. Please retry.');
+    } finally { if (request.isCurrent()) setLoading(false); }
   };
 
   const loadData = fetchLeads;
 
   const handleCompleteFollowup = async (id) => {
     try { await followupAPI.complete(id, { outcome: 'Completed' }); fetchLeads(); }
-    catch (e) { alert('Failed to mark follow-up as done'); }
+    catch (e) { toast.error('Failed to mark follow-up as done'); }
   };
 
-  const handleFilterChange = (updater) => { setPage(1); setFilters(updater); };
+  const handleFilterChange = (updater) => { requestManager.current.cancel(); setPage(1); setFilters(updater); };
   const handleSort = (key) => {
     setPage(1);
     setSortState(prev => prev.sort === key
       ? { sort: key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
       : { sort: key, dir: 'asc' });
   };
-  const clearFilters = () => handleFilterChange(f => ({ ...EMPTY_FILTERS, search: f.search }));
+  const clearFilters = () => { handleFilterChange({ ...EMPTY_FILTERS }); saveHiddenStages([]); };
 
   const pageNumbers = () => {
     const t = pagination.pages;
@@ -376,11 +572,13 @@ const LeadsPage = () => {
     return [1, '…', page - 1, page, page + 1, '…', t];
   };
 
-  const followupSummary = fuFilters.scope === 'today'
-    ? "pending follow-up due today"
-    : fuFilters.scope === 'overdue'
-      ? "overdue pending follow-up"
-      : "pending follow-up due today or overdue";
+  // "3 follow-ups due today or overdue" — pluralise the noun, not the end of the sentence.
+  const followupSummary = (n) => {
+    const noun = n === 1 ? 'follow-up' : 'follow-ups';
+    return fuFilters.scope === 'today' ? `${n} ${noun} due today`
+      : fuFilters.scope === 'overdue' ? `${n} overdue ${noun}`
+      : `${n} ${noun} due today or overdue`;
+  };
 
   const downloadTemplate = async () => {
     try {
@@ -390,36 +588,34 @@ const LeadsPage = () => {
       a.download = 'curvelead_import_template.xlsx';
       a.click();
     } catch {
-      alert('Failed to download template.');
+      toast.error('Failed to download template.');
     }
   };
 
+  const [previewing,setPreviewing]=useState(false);
+  const [importCheck,setImportCheck]=useState(null),[importMapping,setImportMapping]=useState({}),[importHeaders,setImportHeaders]=useState([]);
+  const importVersion=useRef(0);
+  const previewImport=async(file,mapping)=>{
+    const version=++importVersion.current;setImportCheck(null);setPreviewing(true);
+    try{const {data}=await leadImportAPI.import(file,{dryRun:true,mapping});if(version!==importVersion.current)return;setImportCheck(data);setImportHeaders(data.headers);setImportMapping(data.mapping);}
+    catch(e){if(version===importVersion.current)toast.error(e.response?.data?.error||'Preview failed.');}
+    finally{if(version===importVersion.current)setPreviewing(false);}
+  };
   const handleImportFile = (file) => {
     if (!file) return;
     const allowed = /\.(csv|xlsx|xls)$/i.test(file.name);
-    if (!allowed) return alert('Only CSV (.csv) and Excel (.xlsx, .xls) files allowed.');
+    if (!allowed) return toast.error('Only CSV (.csv) and Excel (.xlsx, .xls) files allowed.');
     setImportFile(file);
     setImportResult(null);
-    // Preview: CSV only
-    if (file.name.toLowerCase().endsWith('.csv')) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const lines = e.target.result.split('\n').filter(l => l.trim());
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
-        const rows = lines.slice(1, 4).map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
-        setImportPreview({ headers, rows });
-      };
-      reader.readAsText(file);
-    } else {
-      setImportPreview(null);
-    }
+    setImportPreview(null);setImportMapping({});setImportHeaders([]);
+    previewImport(file);
   };
 
   const handleImport = async () => {
     if (!importFile) return;
     setImporting(true);
     try {
-      const { data } = await leadImportAPI.import(importFile);
+      const { data } = await leadImportAPI.import(importFile,{mapping:importMapping});
       setImportResult(data);
       setImportFile(null);
       setImportPreview(null);
@@ -432,44 +628,61 @@ const LeadsPage = () => {
   };
 
   const closeImport = () => {
+    importVersion.current++;setPreviewing(false);setImportCheck(null);setImportMapping({});setImportHeaders([]);
     setShowImport(false);
     setImportFile(null);
     setImportPreview(null);
     setImportResult(null);
   };
 
+  // Leaving the form with something typed asks first, so a stray click doesn't lose it.
+  const closeAddModal = async () => {
+    const typed = ['name', 'phone', 'email', 'location', 'business_name', 'address', 'notes'].some(k => String(newLead[k] || '').trim());
+    if (typed && !await confirm({ title: 'Discard this lead?', message: "What you've typed will be lost.", confirmText: 'Discard' })) return;
+    setShowAddModal(false);
+    setNewLeadErrors({});
+  };
+
   const handleAdd = async () => {
+    // All errors at once, whitespace trimmed, focus on the first problem field.
     const errors = {};
-    if (!newLead.name) errors.name = 'Name is required';
-    if (!newLead.phone) errors.phone = 'Phone is required';
-    else if (newLead.phone.length < 3) errors.phone = 'Phone number must be at least 3 digits';
+    const lead = { ...newLead, name: newLead.name.trim(), email: newLead.email.trim() };
+    if (!lead.name) errors.name = 'Name is required';
+    if (!newLead.phone.trim()) errors.phone = 'Phone is required';
+    else if (/[a-z]/i.test(newLead.phone)) errors.phone = 'Use digits only (spaces and + are fine).';
+    else {
+      const parsed = parsePhoneNumberFromString(newLead.phone.trim(), { defaultCountry: newLeadCountry });
+      if (!parsed?.isValid()) errors.phone = `That isn't a valid ${newLeadCountry} number. Check the digits or the country code.`;
+      else lead.phone = parsed.number;
+    }
+    if (lead.email && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(lead.email)) errors.email = 'Enter a valid email address, like name@example.com';
     setNewLeadErrors(errors);
     if (Object.keys(errors).length > 0) {
-      const ref = errors.name ? newLeadNameRef : newLeadPhoneRef;
+      const ref = errors.name ? newLeadNameRef : errors.phone ? newLeadPhoneRef : newLeadEmailRef;
       ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       ref.current?.focus();
       return;
     }
     try {
-      await leadAPI.create(newLead);
+      await leadAPI.create(lead);
       setShowAddModal(false);
-      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
       setNewLeadErrors({});
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || e.message || 'Failed'); }
   };
 
   const handleDelete = async (id) => {
     const ok = await confirm({ title: 'Delete this lead?' });
     if (!ok) return;
-    try { await leadAPI.delete(id); loadData(); } catch (e) { alert('Failed'); }
+    try { await leadAPI.delete(id); loadData(); } catch (e) { toast.error('Failed'); }
   };
 
   const handleAIScore = async (id) => {
     try {
       await aiAPI.scoreLead(id);
       loadData();
-    } catch (e) { alert(e.response?.data?.error || 'AI scoring failed'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'AI scoring failed'); }
   };
 
   const handleStageChange = async (leadId, newStage) => {
@@ -482,7 +695,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.update(leadId, { stage: newStage, lead_status: '' });
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage, lead_status: '' } : l));
-    } catch (e) { alert('Failed to update stage'); }
+    } catch (e) { toast.error('Failed to update stage'); }
   };
 
   const confirmLostStage = async () => {
@@ -499,13 +712,13 @@ const LeadsPage = () => {
         : l
       ));
       closeLostModal();
-    } catch (e) { alert(e.response?.data?.error || 'Failed to update stage'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to update stage'); }
   };
 
   const handleExport = async () => {
     try {
       const params = Object.fromEntries(
-        Object.entries(filters).filter(([, v]) => v)
+        Object.entries({...filters,search:debouncedSearch,hide_stages:appliedHiddenStages.join(',')}).filter(([, v]) => v)
       );
       const response = await leadAPI.export(params);
       const blob = response.data instanceof Blob
@@ -524,10 +737,10 @@ const LeadsPage = () => {
       // If server returned an error as blob, read it as text to surface the real message
       if (err.response?.data instanceof Blob) {
         const text = await err.response.data.text().catch(() => '');
-        try { const parsed = JSON.parse(text); alert('Export failed: ' + (parsed.error || text)); return; } catch {}
-        alert('Export failed: ' + (text || err.message));
+        try { const parsed = JSON.parse(text); toast.error('Export failed: ' + (parsed.error || text)); return; } catch {}
+        toast.error('Export failed: ' + (text || err.message));
       } else {
-        alert('Export failed: ' + (err.response?.data?.error || err.message || 'Unknown error'));
+        toast.error('Export failed: ' + (err.response?.data?.error || err.message || 'Unknown error'));
       }
     }
   };
@@ -537,7 +750,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.update(leadId, { lead_status: newStatus });
       setLeads(prev => prev.map(l => l.id === leadId ? { ...l, lead_status: newStatus } : l));
-    } catch (e) { alert('Failed to update status'); }
+    } catch (e) { toast.error('Failed to update status'); }
   };
 
   const handleAssignChange = async (leadId, staffId) => {
@@ -549,7 +762,7 @@ const LeadsPage = () => {
         ? { ...l, assigned_to: staffId || null, assigned_to_name: member?.name || null }
         : l
       ));
-    } catch (e) { alert('Failed to update assignment'); }
+    } catch (e) { toast.error('Failed to update assignment'); }
   };
 
   const toggleSelect = (id) => setSelectedIds(prev => {
@@ -575,7 +788,7 @@ const LeadsPage = () => {
       await leadAPI.bulkUpdate({ ids: [...selectedIds], stage });
       clearSelection();
       loadData();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
     finally { setBulkLoading(false); }
   };
 
@@ -585,7 +798,29 @@ const LeadsPage = () => {
       await leadAPI.bulkUpdate({ ids: [...selectedIds], assigned_to: staffId || null });
       clearSelection();
       loadData();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
+    finally { setBulkLoading(false); }
+  };
+
+  useEffect(() => {
+    automationAPI.getSequences()
+      .then(({ data }) => setSequences((data.sequences || []).filter(sq => sq.is_active && sq.steps?.length)))
+      .catch(() => {});
+  }, []);
+
+  const handleBulkSequence = async (sequenceId) => {
+    if (!sequenceId || !selectedIds.size) return;
+    const name = sequences.find(sq => sq.id === sequenceId)?.name;
+    const ok = await confirm({ title: `Apply "${name}" to ${selectedIds.size} lead${selectedIds.size > 1 ? 's' : ''}?`, message: 'Leads already enrolled in this sequence, opted out, or marked unresponsive are skipped.', confirmText: 'Apply', destructive: false });
+    if (!ok) { setBulkSequence(''); return; }
+    setBulkLoading(true);
+    try {
+      const { data } = await automationAPI.enrollBulk([...selectedIds], sequenceId);
+      toast.success(`Enrolled ${data.enrolled} lead${data.enrolled === 1 ? '' : 's'}${data.skipped ? `, ${data.skipped} skipped` : ''}.`);
+      clearSelection();
+      setBulkSequence('');
+      loadData();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to apply sequence'); setBulkSequence(''); }
     finally { setBulkLoading(false); }
   };
 
@@ -597,7 +832,7 @@ const LeadsPage = () => {
       await leadAPI.bulkDelete([...selectedIds]);
       clearSelection();
       loadData();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
     finally { setBulkLoading(false); }
   };
 
@@ -607,16 +842,14 @@ const LeadsPage = () => {
     try {
       const { data } = await leadAPI.findDuplicates();
       setDuplicateGroups(data.groups || []);
-      // Default: keep whichever lead in the group is furthest along the pipeline (not "new"),
-      // falling back to the oldest lead — usually the one that already has history on it.
+      // The oldest lead is always retained, matching the merge API.
       const defaults = {};
       for (const g of data.groups || []) {
-        const advanced = g.leads.find(l => (l.stage || '').toLowerCase() !== 'new');
-        defaults[g.norm_phone] = (advanced || g.leads[0]).id;
+        defaults[g.norm_phone] = g.leads[0].id;
       }
       setDuplicateKeepChoice(defaults);
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to load duplicate leads.');
+      toast.error(e.response?.data?.error || 'Failed to load duplicate leads.');
     } finally {
       setDuplicatesLoading(false);
     }
@@ -639,42 +872,59 @@ const LeadsPage = () => {
       setDuplicateGroups(prev => prev.filter(g => g.norm_phone !== group.norm_phone));
       loadData();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to merge duplicates.');
+      toast.error(e.response?.data?.error || 'Failed to merge duplicates.');
     } finally {
       setMergingPhone(null);
     }
   };
 
-  const selectClass = "h-10 w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent";
-  const inputClass = "h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent";
+  const selectClass = "h-10 w-full appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent";
+  const inputClass = "h-10 w-full bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent";
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-xs font-bold uppercase text-cyan-600">Global lead workspace</p>
-          <h1 className="mt-1 text-3xl font-extrabold text-gray-900">Leads</h1>
+          <p className="text-xs font-bold uppercase text-brand-600">Global lead workspace</p>
+          <p className="mt-1 text-xs text-gray-600">
+            {syncStatus === 'loading' ? 'Checking Facebook sync status…' : syncStatus === 'unavailable' ? 'Facebook sync status unavailable' : syncStatus === 'disconnected' ? 'Facebook is not connected' : lastSyncedAt ? `Facebook leads last synced ${timeAgo(lastSyncedAt)}` : 'Facebook leads have not synced yet'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={handleExport}
-            className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-            <Download size={16} /> Export
+          <button onClick={handleManualSync} disabled={syncing} title="Pull latest leads from Facebook" aria-label="Sync leads from Facebook"
+            className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg disabled:opacity-50">
+            <RotateCcw size={15} className={syncing ? 'animate-spin' : ''} />
+            <span className="hidden sm:inline">{syncing ? 'Syncing…' : 'Sync leads'}</span>
           </button>
-          {isAdmin && (
-            <button onClick={() => setShowImport(true)}
+          <div className="relative" ref={moreActionsRef}>
+            <button onClick={() => setShowMoreActions(v => !v)}
               className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-              <Upload size={16} /> Import CSV
+              More <ChevronDown size={15} className={`transition-transform ${showMoreActions ? 'rotate-180' : ''}`} />
             </button>
-          )}
-          {isAdmin && (
-            <button onClick={openDuplicates}
-              className="inline-flex items-center gap-2 border border-gray-300 bg-white px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 rounded-lg">
-              <Copy size={16} /> Duplicates
-            </button>
-          )}
+            {showMoreActions && (
+              <div className="absolute right-0 z-30 mt-1.5 w-52 bg-white border border-gray-100 rounded-lg shadow-lg py-1">
+                <button onClick={() => { setShowMoreActions(false); handleExport(); }}
+                  className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                  <Download size={15} /> Export
+                </button>
+                {isAdmin && (
+                  <button onClick={() => { setShowMoreActions(false); setShowImport(true); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                    <Upload size={15} /> Import CSV
+                  </button>
+                )}
+                {isAdmin && (
+                  <button onClick={() => { setShowMoreActions(false); openDuplicates(); }}
+                    className="w-full flex items-center gap-2.5 px-3.5 py-2.5 text-sm text-gray-700 hover:bg-gray-50">
+                    <Copy size={15} /> Duplicates
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           <button onClick={() => { setShowAddModal(true); setNewLeadErrors({}); }}
-            className="inline-flex items-center justify-center gap-2 bg-cyan-600 px-5 py-3 text-sm font-extrabold uppercase text-white shadow-sm hover:bg-cyan-700">
-            <Plus size={18} /> Add New Lead
+            className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-brand-700">
+            <Plus size={18} /> Add lead
           </button>
         </div>
       </div>
@@ -690,7 +940,7 @@ const LeadsPage = () => {
             <button
               key={tab.id}
               onClick={() => { setView(tab.id); setPage(1); }}
-              className={`mr-7 border-b-2 py-4 text-sm font-extrabold ${view === tab.id ? 'border-gray-900 text-gray-950' : 'border-transparent text-gray-900 hover:text-cyan-700'}`}
+              className={`mr-7 border-b-2 py-4 text-sm font-extrabold ${view === tab.id ? 'border-gray-900 text-gray-950' : 'border-transparent text-gray-900 hover:text-brand-700'}`}
             >
               {tab.label}
             </button>
@@ -701,13 +951,13 @@ const LeadsPage = () => {
         {view === 'followups' && (
           <div className="flex flex-wrap items-center gap-3 p-4 border-b border-gray-100">
             <div className="relative min-w-[220px] flex-1">
-              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
               <input type="text" placeholder="Search by name or phone..."
-                value={fuFilters.search} onChange={e => setFuFilters(f => ({ ...f, search: e.target.value }))}
+                value={fuFilters.search} onChange={e => { requestManager.current.cancel(); setFuFilters(f => ({ ...f, search: e.target.value })); }}
                 className={`${inputClass} pl-9`} />
             </div>
             <select value={fuFilters.type} onChange={e => setFuFilters(f => ({ ...f, type: e.target.value }))}
-              className="h-10 appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-[150px]">
+              className="h-10 appearance-none bg-white border border-gray-200 rounded-lg px-3 text-sm font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500 min-w-[150px]">
               <option value="">All types</option>
               <option value="call">Call</option>
               <option value="whatsapp">WhatsApp</option>
@@ -715,16 +965,16 @@ const LeadsPage = () => {
               <option value="email">Email</option>
               <option value="demo">Demo</option>
             </select>
-            <input type="date" value={fuFilters.date_from}
-              onChange={e => setFuFilters(f => ({ ...f, date_from: e.target.value }))}
-              className="h-10 bg-white border border-gray-200 rounded-lg px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-            <span className="text-gray-400 text-sm">–</span>
-            <input type="date" value={fuFilters.date_to}
-              onChange={e => setFuFilters(f => ({ ...f, date_to: e.target.value }))}
-              className="h-10 bg-white border border-gray-200 rounded-lg px-3 text-sm text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500" />
+            <DatePicker value={fuFilters.date_from}
+              onChange={v => setFuFilters(f => ({ ...f, date_from: v }))}
+              className="w-36" />
+            <span className="text-gray-600 text-sm">–</span>
+            <DatePicker value={fuFilters.date_to}
+              onChange={v => setFuFilters(f => ({ ...f, date_to: v }))}
+              className="w-36" />
             {(fuFilters.search || fuFilters.type || fuFilters.date_from || fuFilters.date_to || fuFilters.scope || fuFilters.category) && (
               <button onClick={() => setFuFilters(EMPTY_FU_FILTERS)}
-                className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                 <X size={13} /> Clear
               </button>
             )}
@@ -735,21 +985,21 @@ const LeadsPage = () => {
         {view !== 'followups' && (
           <div className="border-b border-gray-100">
             {/* Search row */}
-            <div className="flex items-center gap-3 px-4 py-3">
-              <div className="relative flex-1 max-w-sm">
-                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-                <input type="text" placeholder="Search by name, phone or lead ID..."
+            <div className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <div className="relative w-full sm:flex-1 sm:max-w-sm">
+                <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-600" />
+                <input type="text" placeholder="Name, phone or lead ID"
                   value={filters.search} onChange={e => handleFilterChange(f => ({ ...f, search: e.target.value }))}
                   className={`${inputClass} pl-9`} />
               </div>
               <button
                 onClick={() => setShowFilters(v => !v)}
-                className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showFilters || activeFilterCount > 0 ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                className={`inline-flex items-center gap-2 h-10 px-4 rounded-lg border text-sm font-semibold transition-colors ${showFilters || activeFilterCount > 0 ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
               >
                 <SlidersHorizontal size={15} />
                 Filters
                 {activeFilterCount > 0 && (
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showFilters ? 'bg-white text-cyan-600' : 'bg-cyan-600 text-white'}`}>
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${showFilters ? 'bg-white text-brand-600' : 'bg-brand-600 text-white'}`}>
                     {activeFilterCount}
                   </span>
                 )}
@@ -757,7 +1007,7 @@ const LeadsPage = () => {
               </button>
               {activeFilterCount > 0 && (
                 <button onClick={clearFilters}
-                  className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-red-500 hover:bg-red-50 rounded-lg border border-red-200">
+                  className="h-10 px-3 flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 rounded-lg border border-gray-200">
                   <X size={13} /> Clear filters
                 </button>
               )}
@@ -766,7 +1016,7 @@ const LeadsPage = () => {
                 <button
                   onClick={() => setShowColumnSettings(v => !v)}
                   title="Leads settings"
-                  className={`inline-flex items-center gap-2 h-10 px-3 rounded-lg border text-sm font-semibold transition-colors ${showColumnSettings ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-600 border-gray-200 hover:border-cyan-400 hover:text-cyan-600'}`}
+                  className={`inline-flex items-center gap-2 h-10 px-3 rounded-lg border text-sm font-semibold transition-colors ${showColumnSettings ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-200 hover:border-brand-400 hover:text-brand-600'}`}
                 >
                   <Settings size={15} />
                 </button>
@@ -779,7 +1029,7 @@ const LeadsPage = () => {
                       {LEADS_COLUMNS.map(col => (
                         <label key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
                           <input type="checkbox" checked={visibleColumns[col.key]} onChange={() => toggleColumn(col.key)}
-                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
                           {col.label}
                         </label>
                       ))}
@@ -790,8 +1040,8 @@ const LeadsPage = () => {
                     <div className="p-2 max-h-60 overflow-y-auto">
                       {stages.map(s => (
                         <label key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-50 cursor-pointer text-sm text-gray-700">
-                          <input type="checkbox" checked={hiddenStages.includes(s.name.toLowerCase())} onChange={() => toggleHiddenStage(s.name)}
-                            className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500" />
+                          <input type="checkbox" disabled={!preferencesReady || savingHiddenStages} checked={hiddenStages.includes(s.name.toLowerCase())} onChange={() => toggleHiddenStage(s.name)}
+                            className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
                           {s.name}
                         </label>
                       ))}
@@ -809,189 +1059,189 @@ const LeadsPage = () => {
 
                   {/* Stage */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Stage</label>
-                    <select value={filters.stage} onChange={e => handleFilterChange(f => ({ ...f, stage: e.target.value, lead_status: '' }))} className={selectClass}>
-                      <option value="">All stages</option>
-                      {stages.map(s => <option key={s.id} value={s.name}>{s.name}</option>)}
-                    </select>
+                    <label className="text-xs font-bold uppercase text-gray-600 tracking-wide">Stage</label>
+                    <FilterDropdown
+                      value={filters.stage}
+                      onChange={v => handleFilterChange(f => ({ ...f, stage: v, lead_status: '' }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All stages' },
+                        ...stages.map(s => ({ value: s.name, label: s.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Status */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Status</label>
-                    <select value={filters.lead_status} onChange={e => handleFilterChange(f => ({ ...f, lead_status: e.target.value }))} className={selectClass}>
-                      <option value="">All statuses</option>
-                      {(filters.stage
-                        ? (stageStatuses[filters.stage?.toLowerCase()] || [])
-                        : allStatuses
-                      ).map(st => <option key={st.id} value={st.name}>{st.name}</option>)}
-                    </select>
+                    <label className="text-xs font-bold uppercase text-gray-600 tracking-wide">Status</label>
+                    <FilterDropdown
+                      value={filters.lead_status}
+                      onChange={v => handleFilterChange(f => ({ ...f, lead_status: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All statuses' },
+                        ...(filters.stage
+                          ? (stageStatuses[filters.stage?.toLowerCase()] || [])
+                          : allStatuses
+                        ).map(st => ({ value: st.name, label: st.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Score */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Score</label>
-                    <select value={filters.score} onChange={e => handleFilterChange(f => ({ ...f, score: e.target.value }))} className={selectClass}>
-                      <option value="">All scores</option>
-                      <option value="hot">🔥 Hot</option>
-                      <option value="warm">🌤 Warm</option>
-                      <option value="cold">❄️ Cold</option>
-                    </select>
+                    <label className="text-xs font-bold uppercase text-gray-600 tracking-wide">Score</label>
+                    <FilterDropdown
+                      value={filters.score}
+                      onChange={v => handleFilterChange(f => ({ ...f, score: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All scores' },
+                        { value: 'hot', label: '🔥 Hot' },
+                        { value: 'warm', label: '🌤 Warm' },
+                        { value: 'cold', label: '❄️ Cold' },
+                      ]}
+                    />
                   </div>
 
                   {/* Follow-up Health */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Follow-up Health</label>
-                    <select value={filters.followup_health} onChange={e => handleFilterChange(f => ({ ...f, followup_health: e.target.value }))} className={selectClass}>
-                      <option value="">All</option>
-                      <option value="good">🟢 Good</option>
-                      <option value="delayed">🟡 Delayed</option>
-                      <option value="missed">🔴 Missed</option>
-                      <option value="critical">🚨 Critical</option>
-                    </select>
+                    <label className="text-xs font-bold uppercase text-gray-600 tracking-wide">Follow-up Health</label>
+                    <FilterDropdown
+                      value={filters.followup_health}
+                      onChange={v => handleFilterChange(f => ({ ...f, followup_health: v }))}
+                      className={selectClass}
+                      options={FOLLOWUP_HEALTH_OPTIONS}
+                    />
                   </div>
 
                   {/* Response SLA */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Response SLA</label>
-                    <select value={filters.sla_status} onChange={e => handleFilterChange(f => ({ ...f, sla_status: e.target.value }))} className={selectClass}>
-                      <option value="">All</option>
-                      <option value="uncontacted">Uncontacted</option>
-                      <option value="new">🟢 New</option>
-                      <option value="sla_risk">🟡 SLA Risk</option>
-                      <option value="sla_breached">🔴 SLA Breached</option>
-                      <option value="missed_lead">🚨 Missed Lead</option>
-                      <option value="responded_5min">✅ Responded ≤5 min</option>
-                    </select>
+                    <label className="text-xs font-bold uppercase text-gray-600 tracking-wide">Response SLA</label>
+                    <FilterDropdown
+                      value={filters.sla_status}
+                      onChange={v => handleFilterChange(f => ({ ...f, sla_status: v }))}
+                      className={selectClass}
+                      options={SLA_STATUS_OPTIONS}
+                    />
                   </div>
 
                   {/* Source */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Source</label>
-                    <select value={filters.source} onChange={e => handleFilterChange(f => ({ ...f, source: e.target.value }))} className={selectClass}>
-                      <option value="">All sources</option>
-                      <option value="meta_ads">Meta Ads</option>
-                      <option value="google_ads">Google Ads</option>
-                      <option value="whatsapp">WhatsApp</option>
-                      <option value="referral">Referral</option>
-                      <option value="manual">Manual</option>
-                      <option value="website">Website</option>
-                      <option value="walkin">Walk-in</option>
-                    </select>
+                    <label className="text-xs font-bold uppercase text-gray-600 tracking-wide">Source</label>
+                    <FilterDropdown
+                      value={filters.source}
+                      onChange={v => handleFilterChange(f => ({ ...f, source: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All sources' },
+                        { value: 'meta_ads', label: 'Meta Ads' },
+                        { value: 'google_ads', label: 'Google Ads' },
+                        { value: 'whatsapp', label: 'WhatsApp' },
+                        { value: 'referral', label: 'Referral' },
+                        { value: 'manual', label: 'Manual' },
+                        { value: 'website', label: 'Website' },
+                        { value: 'walkin', label: 'Walk-in' },
+                      ]}
+                    />
                   </div>
 
                   {/* Assigned To */}
                   <div className="space-y-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Assigned To</label>
-                    <select value={filters.assigned_to} onChange={e => handleFilterChange(f => ({ ...f, assigned_to: e.target.value }))} className={selectClass}>
-                      <option value="">All staff</option>
-                      <option value="unassigned">Unassigned</option>
-                      {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                    </select>
+                    <label className="text-xs font-bold uppercase text-gray-600 tracking-wide">Assigned To</label>
+                    <FilterDropdown
+                      value={filters.assigned_to}
+                      onChange={v => handleFilterChange(f => ({ ...f, assigned_to: v }))}
+                      className={selectClass}
+                      options={[
+                        { value: '', label: 'All staff' },
+                        { value: 'unassigned', label: 'Unassigned' },
+                        ...staff.map(s => ({ value: s.id, label: s.name })),
+                      ]}
+                    />
                   </div>
 
                   {/* Lead Date Range */}
-                  <div className="space-y-1 col-span-2 md:col-span-1">
-                    <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wide">Date</label>
+                  <div className="space-y-1 col-span-2">
+                    <label className="text-xs font-bold uppercase text-gray-600 tracking-wide">Date</label>
                     <select value={filters.date_field || 'lead_date'} onChange={e => handleFilterChange(f => ({ ...f, date_field: e.target.value }))}
-                      className="mb-1 h-9 w-full appearance-none bg-white border border-gray-200 rounded-lg px-2 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-cyan-500">
+                      className="mb-1 h-9 w-full appearance-none bg-white border border-gray-200 rounded-lg px-2 text-xs font-medium text-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-500">
                       <option value="lead_date">Lead date</option>
                       <option value="created_at">Created date</option>
                     </select>
-                    <div className="flex items-center gap-1.5">
-                      <input type="date" value={filters.date_from}
-                        onChange={e => handleFilterChange(f => ({ ...f, date_from: e.target.value }))}
-                        className="h-10 flex-1 bg-white border border-gray-200 rounded-lg px-2 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-0" />
-                      <span className="text-gray-400 text-xs shrink-0">–</span>
-                      <input type="date" value={filters.date_to}
-                        onChange={e => handleFilterChange(f => ({ ...f, date_to: e.target.value }))}
-                        className="h-10 flex-1 bg-white border border-gray-200 rounded-lg px-2 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-cyan-500 min-w-0" />
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="min-w-[9rem]"><span className="block text-xs text-gray-600 mb-0.5">From</span>
+                        <DatePicker value={filters.date_from}
+                          onChange={v => handleFilterChange(f => ({ ...f, date_from: v }))}
+                          className="w-full" /></div>
+                      <div className="min-w-[9rem]"><span className="block text-xs text-gray-600 mb-0.5">To</span>
+                        <DatePicker value={filters.date_to}
+                          onChange={v => handleFilterChange(f => ({ ...f, date_to: v }))}
+                          className="w-full" /></div>
                     </div>
                   </div>
 
                 </div>
 
-                {/* Active filter chips */}
-                {activeFilterCount > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-3">
-                    {filters.stage && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Stage: {filters.stage}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, stage: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.score && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Score: {filters.score}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, score: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.followup_health && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Follow-up: {FOLLOWUP_HEALTH_STYLES[filters.followup_health]?.label || filters.followup_health}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, followup_health: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.sla_status && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Response SLA: {SLA_STATUS_LABELS[filters.sla_status] || filters.sla_status}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, sla_status: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.source && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Source: {filters.source.replace(/_/g, ' ')}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, source: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {filters.assigned_to && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        Assigned: {filters.assigned_to === 'unassigned' ? 'Unassigned' : (staff.find(s => s.id === filters.assigned_to)?.name || filters.assigned_to)}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, assigned_to: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                    {(filters.date_from || filters.date_to) && (
-                      <span className="inline-flex items-center gap-1 bg-cyan-50 text-cyan-700 border border-cyan-200 text-xs font-semibold px-2.5 py-1 rounded-full">
-                        {filters.date_field === 'created_at' ? 'Created' : 'Lead'} date: {filters.date_from || '…'} – {filters.date_to || '…'}
-                        <button onClick={() => handleFilterChange(f => ({ ...f, date_field: '', date_from: '', date_to: '' }))}><X size={11} /></button>
-                      </span>
-                    )}
-                  </div>
-                )}
+
               </div>
             )}
           </div>
         )}
 
+        {view === 'list' && filters.include_all_stages !== '1' && !filters.stage && (
+          <label className="flex items-center gap-2 px-4 pt-3 text-xs text-gray-600 cursor-pointer w-fit">
+            <input type="checkbox" checked={hidesClosed} onChange={toggleHideClosed} disabled={savingHiddenStages || !preferencesReady}
+              className="rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+            Hide unqualified and lost leads
+          </label>
+        )}
+        {view !== 'followups' && (activeFilterCount > 0 || filters.search || appliedHiddenStages.length > 0) && (
+          <div className="flex flex-wrap gap-2 px-4 py-3" aria-label="Active lead filters">
+            {Object.entries(filters).filter(([key, value]) => !['date_field','from','to','include_all_stages'].includes(key) && value).map(([key, value]) => (
+              <span key={key} className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 border border-brand-200 text-xs px-2.5 py-1 rounded-full">
+                {key === 'metric' ? `Period: ${value === 'won' ? 'Won' : 'Created'} · ${formatDateTime(filters.from)} – ${formatDateTime(filters.to)} (end exclusive)` : key === 'activity' ? `Activity: ${value.replace(/_/g,' ')}` : `${key.replace(/_/g, ' ')}: ${key === 'source' ? sourceLabel(value) : key === 'assigned_to' ? staff.find(s => s.id === value)?.name || value : value}`}
+                <button aria-label={`Remove ${key.replace(/_/g, ' ')} filter`} onClick={() => handleFilterChange(f => ({ ...f, [key]: '', ...(key==='metric'?{from:'',to:''}:{}) }))}><X size={11} /></button>
+              </span>
+            ))}
+            {appliedHiddenStages.map(stage => (
+              <span key={stage} className="inline-flex items-center gap-1 bg-gray-100 text-gray-700 border text-xs px-2.5 py-1 rounded-full">
+                Hidden stage: {stage}
+                <button disabled={savingHiddenStages || !preferencesReady} aria-label={`Show ${stage} leads`} onClick={() => toggleHiddenStage(stage)}><X size={11} /></button>
+              </span>
+            ))}
+          </div>
+        )}
+        {loadError && <div role="alert" className="mx-4 my-3 text-sm text-red-700">{loadError} <button onClick={fetchLeads} className="underline">Retry loading leads</button></div>}
+        {searchMode === 'fuzzy' && !searchPending && <p role="status" className="px-4 py-2 text-sm text-gray-500">No direct matches. Showing similar names.</p>}
+        {searchPending && <p role="status" className="px-4 py-2 text-sm text-gray-500">Waiting for search…</p>}
+
         {view === 'list' ? (
           <div className="overflow-hidden px-5 pb-5 relative">
             {loading && leads.length > 0 && (
               <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-start justify-center pt-10 transition-opacity">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
               </div>
             )}
             {loading && leads.length === 0 ? (
-              <div className="flex items-center justify-center h-48 gap-3 text-gray-400">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
-                <span className="text-sm font-medium">Loading leads…</span>
-              </div>
+              <PageLoader message="Loading leads"/>
             ) : leads.length === 0 ? (
-              <div className="border-t border-gray-200 p-12 text-center text-gray-400">
-                <p>No leads found. {activeFilterCount > 0 ? 'Try adjusting your filters.' : 'Add your first lead to get started!'}</p>
+              <div className="border-t border-gray-200 p-12 text-center text-gray-600">
+                <p>No leads found. Try adjusting your filters or add your first lead.</p><button onClick={clearFilters} className="btn-primary mt-3">Clear filters</button>
               </div>
             ) : (
               <div className="overflow-x-auto">
                 {/* Bulk action toolbar */}
                 {selectedIds.size > 0 && (
-                  <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-cyan-50 border border-cyan-200 rounded-xl flex-wrap">
-                    <span className="text-sm font-bold text-cyan-700">{selectedIds.size} selected</span>
+                  <div className="flex items-center gap-3 px-3 py-2.5 mb-2 bg-brand-50 border border-brand-200 rounded-xl flex-wrap">
+                    <span className="text-sm font-bold text-brand-700">{selectedIds.size} selected</span>
                     <div className="flex items-center gap-1.5">
                       <GitBranch size={14} className="text-gray-500" />
                       <select
                         value={bulkStage}
                         onChange={e => { setBulkStage(e.target.value); handleBulkStage(e.target.value); }}
                         disabled={bulkLoading}
-                        className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50">
+                        className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50">
                         <option value="">Change Stage…</option>
                         {stages.map(s => <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>)}
                       </select>
@@ -1000,14 +1250,33 @@ const LeadsPage = () => {
                       <UserCheck size={14} className="text-gray-500" />
                       <select
                         value={bulkAssign}
-                        onChange={e => { setBulkAssign(e.target.value); handleBulkAssign(e.target.value); }}
+                        onChange={e => { setBulkAssign(e.target.value); handleBulkAssign(e.target.value === 'unassigned' ? '' : e.target.value); }}
                         disabled={bulkLoading}
-                        className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-cyan-500 disabled:opacity-50">
+                        className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50">
                         <option value="">Assign To…</option>
-                        <option value="">Unassign</option>
+                        <option value="unassigned">Unassign</option>
                         {staff.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                       </select>
                     </div>
+                    {sequences.length > 0 && (
+                      <div className="flex items-center gap-1.5">
+                        <Zap size={14} className="text-gray-500" />
+                        <select
+                          value={bulkSequence}
+                          onChange={e => { setBulkSequence(e.target.value); handleBulkSequence(e.target.value); }}
+                          disabled={bulkLoading}
+                          className="h-8 border border-gray-200 rounded-lg px-2 text-xs font-medium bg-white focus:outline-none focus:ring-2 focus:ring-brand-500 disabled:opacity-50">
+                          <option value="">Apply Sequence…</option>
+                          {sequences.map(sq => <option key={sq.id} value={sq.id}>{sq.name}</option>)}
+                        </select>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setShowBroadcastModal(true)}
+                      disabled={bulkLoading}
+                      className="flex items-center gap-1.5 h-8 px-3 bg-green-50 text-green-700 border border-green-200 rounded-lg text-xs font-semibold hover:bg-green-100 disabled:opacity-50">
+                      <MessageCircle size={13} /> WhatsApp Broadcast
+                    </button>
                     <button
                       onClick={handleBulkDelete}
                       disabled={bulkLoading}
@@ -1020,62 +1289,85 @@ const LeadsPage = () => {
                   </div>
                 )}
 
-                <table className="w-full text-sm">
-                  <thead className="border-y border-gray-200 text-xs uppercase text-gray-500">
+                <div className="md:hidden space-y-3">{leads.map(lead=><article key={lead.id} className="border rounded-xl p-3">
+                  <button onClick={()=>setOpenLeadId(lead.id)} className="w-full text-left space-y-1"><p className="font-semibold break-words">{lead.name}</p><p className="text-sm text-gray-500">{lead.phone||'No phone'}</p><p className="text-xs"><span className={`inline-flex rounded-full px-2 py-0.5 font-semibold capitalize ${stageBadgeClass(lead.stage)}`}>{lead.stage || '—'}</span></p><p className="text-xs text-gray-500">Next follow-up: {lead.next_followup_at?formatDateTime(lead.next_followup_at):'Not scheduled'}</p></button>
+                  <div className="flex items-center justify-between mt-2">
+                    <label className="text-xs flex gap-2"><input type="checkbox" checked={selectedIds.has(lead.id)} onChange={()=>toggleSelect(lead.id)}/>Select lead</label>
+                    {lead.phone && (
+                      <div className="flex gap-2">
+                        <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} aria-label={`Call ${lead.name}`}
+                          className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center"><Phone size={16} /></a>
+                        <a href={`https://wa.me/${String(lead.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" aria-label={`WhatsApp ${lead.name}`}
+                          className="w-9 h-9 rounded-full bg-green-50 text-green-600 flex items-center justify-center"><MessageCircle size={16} /></a>
+                      </div>
+                    )}
+                  </div>
+                </article>)}</div>
+                <table className="hidden md:table w-full text-sm">
+                  <thead className="border-y border-gray-200 text-xs text-gray-500">
                     <tr>
                       <th className="px-3 py-3 w-8">
-                        <button onClick={toggleSelectAll} className="text-gray-400 hover:text-cyan-600">
+                        <button onClick={toggleSelectAll} className="text-gray-600 hover:text-brand-600">
                           {selectedIds.size === leads.length && leads.length > 0
-                            ? <CheckSquare size={16} className="text-cyan-600" />
+                            ? <CheckSquare size={16} className="text-brand-600" />
                             : <Square size={16} />}
                         </button>
                       </th>
                       {visibleColumns.lead_id && <SortTh sortKey="lead_id" label="Lead ID" sortState={sortState} onSort={handleSort} />}
-                      <SortTh sortKey="name" label="Name" sortState={sortState} onSort={handleSort} />
-                      {visibleColumns.date && <SortTh sortKey="date" label="Date" sortState={sortState} onSort={handleSort} />}
-                      {visibleColumns.phone && <SortTh sortKey="phone" label="Phone Number" sortState={sortState} onSort={handleSort} />}
+                      <SortTh sortKey="name" label="Name" sortState={sortState} onSort={handleSort} sticky />
+                      {visibleColumns.date && <SortTh sortKey="date" label="Created" sortState={sortState} onSort={handleSort} />}
+                      {visibleColumns.phone && <SortTh sortKey="phone" label="Phone" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.source && <SortTh sortKey="source" label="Source" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.score && <SortTh sortKey="score" label="Score" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.stage && <SortTh sortKey="stage" label="Stage" sortState={sortState} onSort={handleSort} />}
                       {visibleColumns.status && <SortTh sortKey="status" label="Status" sortState={sortState} onSort={handleSort} />}
-                      {visibleColumns.assigned_to && <SortTh sortKey="assigned_to" label="Assigned To" sortState={sortState} onSort={handleSort} />}
-                      <th className="text-right px-3 py-3">Actions</th>
+                      {visibleColumns.followup_health && <th className="px-3 py-3 text-left font-medium whitespace-nowrap">Follow-up health</th>}
+                      {visibleColumns.assigned_to && <SortTh sortKey="assigned_to" label="Owner" sortState={sortState} onSort={handleSort} />}
+                      <th className="text-right px-3 py-3 font-medium sticky right-0 bg-white">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {leads.map(l => (
-                      <tr key={l.id} className={`border-b border-gray-200 hover:bg-gray-50 ${selectedIds.has(l.id) ? 'bg-cyan-50/50' : ''}`}>
+                      <tr key={l.id} className={`border-b border-gray-200/70 hover:bg-gray-50 ${selectedIds.has(l.id) ? 'bg-brand-50/50' : ''}`}>
                         <td className="px-3 py-3" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => toggleSelect(l.id)} className="text-gray-400 hover:text-cyan-600">
+                          <button onClick={() => toggleSelect(l.id)} className="text-gray-600 hover:text-brand-600">
                             {selectedIds.has(l.id)
-                              ? <CheckSquare size={16} className="text-cyan-600" />
+                              ? <CheckSquare size={16} className="text-brand-600" />
                               : <Square size={16} />}
                           </button>
                         </td>
                         {visibleColumns.lead_id && (
                         <td className="px-3 py-3 text-xs font-mono text-gray-500 whitespace-nowrap cursor-pointer" onClick={() => setOpenLeadId(l.id)}>
-                          {l.lead_number || '—'}
+                          <SearchHighlight value={l.lead_number || '—'} search={displayedSearch} />
                         </td>
                         )}
-                        <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(l.id)}>{l.name}</td>
+                        <td className={`px-3 py-3 cursor-pointer sticky left-0 z-[1] ${selectedIds.has(l.id) ? 'bg-brand-50' : 'bg-white'}`} onClick={() => setOpenLeadId(l.id)}>
+                          <span className="block font-bold text-gray-900"><SearchHighlight value={l.name} search={displayedSearch} /></span>
+                          {!visibleColumns.phone && <span className="block text-xs text-gray-500"><SearchHighlight value={l.phone} search={displayedSearch} phone /></span>}
+                        </td>
                         {visibleColumns.date && (
                         <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">
-                          {l.created_at ? new Date(l.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: '2-digit' }) : '—'}
+                          {l.created_at ? (
+                            <>
+                              <span className="block">{formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', year: '2-digit' })}</span>
+                              <span className="block text-xs text-gray-600">{formatDateTime(l.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, hour: 'numeric', minute: '2-digit' })}</span>
+                            </>
+                          ) : '—'}
                         </td>
                         )}
-                        {visibleColumns.phone && <td className="px-3 py-3 text-gray-700">{l.phone}</td>}
-                        {visibleColumns.source && <td className="px-3 py-3 text-gray-600 capitalize">{l.source?.replace(/_/g, ' ')}</td>}
+                        {visibleColumns.phone && <td className="px-3 py-3 text-gray-700"><SearchHighlight value={l.phone} search={displayedSearch} phone /></td>}
+                        {visibleColumns.source && <td className="px-3 py-3 text-gray-600 capitalize">{sourceLabel(l.source)}</td>}
                         {visibleColumns.score && (
                         <td className="px-3 py-3">
                           {l.lead_score ? (
                             <span
                               title={l.score_reason || ''}
-                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[l.lead_score] || 'bg-gray-100 text-gray-600'}`}>
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${scoreColors[l.lead_score] || 'bg-gray-100 text-gray-600'}`}>
                               {(() => { const Icon = scoreIcons[l.lead_score]; return Icon ? <Icon size={10} /> : null; })()}
                               {l.lead_score.toUpperCase()}
                             </span>
                           ) : (
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600">N/A</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">N/A</span>
                           )}
                         </td>
                         )}
@@ -1087,7 +1379,7 @@ const LeadsPage = () => {
                               defaultValue={(l.stage || '').toLowerCase()}
                               onBlur={() => setEditingStageId(null)}
                               onChange={e => handleStageChange(l.id, e.target.value)}
-                              className="border border-cyan-400 rounded px-2 py-1 text-xs font-medium bg-white text-left focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                              className="border border-brand-400 rounded px-2 py-1 text-xs font-medium bg-white text-left focus:outline-none focus:ring-2 focus:ring-brand-500"
                             >
                               {stages.map(s => (
                                 <option key={s.id} value={s.name.toLowerCase()}>{s.name}</option>
@@ -1096,7 +1388,7 @@ const LeadsPage = () => {
                           ) : (
                             <button
                               onClick={() => setEditingStageId(l.id)}
-                              className="text-xs text-gray-600 capitalize hover:text-cyan-700 hover:underline cursor-pointer"
+                              className={`inline-flex rounded-full px-2 py-0.5 text-xs font-semibold capitalize hover:ring-2 hover:ring-brand-300 cursor-pointer ${stageBadgeClass(l.stage)}`}
                               title="Click to change stage"
                             >
                               {l.stage || '—'}
@@ -1130,6 +1422,19 @@ const LeadsPage = () => {
                           )}
                         </td>
                         )}
+                        {visibleColumns.followup_health && (
+                        <td className="px-3 py-3">
+                          {(() => {
+                            const health = computeFollowupHealth(l.next_followup_at);
+                            const style = FOLLOWUP_HEALTH_STYLES[health];
+                            return (
+                              <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${style.cls}`}>
+                                {style.label}
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        )}
                         {visibleColumns.assigned_to && (
                         <td className="px-3 py-3 text-xs">
                           {editingAssignId === l.id ? (
@@ -1138,7 +1443,7 @@ const LeadsPage = () => {
                               defaultValue={l.assigned_to || ''}
                               onBlur={() => setEditingAssignId(null)}
                               onChange={e => handleAssignChange(l.id, e.target.value)}
-                              className="border border-cyan-400 rounded px-2 py-1 text-xs bg-white text-left focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                              className="border border-brand-400 rounded px-2 py-1 text-xs bg-white text-left focus:outline-none focus:ring-2 focus:ring-brand-500"
                             >
                               <option value="">Unassigned</option>
                               {staff.map(s => (
@@ -1148,22 +1453,29 @@ const LeadsPage = () => {
                           ) : (
                             <button
                               onClick={() => setEditingAssignId(l.id)}
-                              className="inline-flex items-center gap-1 text-gray-500 hover:text-cyan-700 hover:underline cursor-pointer"
+                              className="inline-flex items-center gap-1 text-gray-500 hover:text-brand-700 hover:underline cursor-pointer"
                               title="Click to reassign"
                             >
-                              <User size={12} className="text-gray-400" />
+                              <User size={12} className="text-gray-600" />
                               {l.assigned_to_name || <span className="text-gray-300">—</span>}
                             </button>
                           )}
                         </td>
                         )}
-                        <td className="px-3 py-3 text-right">
-                          <div className="flex justify-end gap-1">
+                        <td className={`px-3 py-3 text-right sticky right-0 ${selectedIds.has(l.id) ? 'bg-brand-50' : 'bg-white'}`}>
+                          <div className="flex justify-end items-center gap-1" data-actions-menu>
                             <a href={`tel:${l.phone}`} onClick={() => leadAPI.logCall(l.id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
                             <a href={`https://wa.me/${l.phone}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
-                            <button onClick={() => handleAIScore(l.id)} className="p-1.5 hover:bg-purple-50 rounded text-purple-500" title="Recalculate Intent"><Zap size={14} /></button>
-                            <button onClick={() => setOpenLeadId(l.id)} className="p-1.5 hover:bg-gray-100 rounded" title="Edit"><Edit2 size={14} /></button>
-                            <button onClick={() => handleDelete(l.id)} className="p-1.5 hover:bg-red-50 rounded text-red-500" title="Delete"><Trash2 size={14} /></button>
+                            <button onClick={(e) => toggleActionMenu(l.id, e)} className="p-1.5 hover:bg-gray-100 rounded text-gray-500" title="More actions"><MoreVertical size={14} /></button>
+                            {openActionMenuId === l.id && createPortal(
+                              <div data-actions-menu style={{ position: 'fixed', top: actionMenuPos.top, left: actionMenuPos.left, width: 176 }}
+                                className="bg-white border rounded-lg shadow-lg z-50 py-1 text-left">
+                                <button onClick={() => { handleAIScore(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-purple-600"><Zap size={13} /> Recalculate Intent</button>
+                                <button onClick={() => { setOpenLeadId(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-gray-50 text-gray-700"><Edit2 size={13} /> Edit</button>
+                                <button onClick={() => { handleDelete(l.id); setOpenActionMenuId(null); }} className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-red-50 text-red-500"><Trash2 size={13} /> Delete</button>
+                              </div>,
+                              document.body
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -1176,9 +1488,18 @@ const LeadsPage = () => {
             {/* Pagination */}
             {pagination.total > 0 && (
               <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100 flex-wrap gap-3">
-                <p className="text-xs text-gray-500">
-                  Showing {Math.min((page - 1) * PAGE_SIZE + 1, pagination.total)}–{Math.min(page * PAGE_SIZE, pagination.total)} of <span className="font-semibold text-gray-700">{pagination.total}</span> leads
-                </p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <p className="text-xs text-gray-500">
+                    Showing {Math.min((page - 1) * pageSize + 1, pagination.total)}–{Math.min(page * pageSize, pagination.total)} of <span className="font-semibold text-gray-700">{pagination.total}</span> leads
+                  </p>
+                  <select
+                    value={pageSize}
+                    onChange={e => { setPage(1); setPageSize(Number(e.target.value)); }}
+                    className="px-2 py-1 border border-gray-200 rounded-lg text-xs bg-white"
+                  >
+                    {PAGE_SIZE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
                 {pagination.pages > 1 && (
                   <div className="flex items-center gap-1">
                     <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
@@ -1187,10 +1508,10 @@ const LeadsPage = () => {
                     </button>
                     {pageNumbers().map((n, i) =>
                       n === '…' ? (
-                        <span key={`ellipsis-${i}`} className="px-1 text-gray-400 text-sm select-none">…</span>
+                        <span key={`ellipsis-${i}`} className="px-1 text-gray-600 text-sm select-none">…</span>
                       ) : (
                         <button key={n} onClick={() => setPage(n)}
-                          className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${page === n ? 'bg-cyan-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
+                          className={`w-8 h-8 rounded text-xs font-semibold transition-colors ${page === n ? 'bg-brand-600 text-white' : 'hover:bg-gray-100 text-gray-700'}`}>
                           {n}
                         </button>
                       )
@@ -1208,25 +1529,25 @@ const LeadsPage = () => {
           <div className="overflow-hidden px-5 pb-5 relative">
             {loading && followups.length > 0 && (
               <div className="absolute inset-0 z-10 bg-white/60 backdrop-blur-[1px] flex items-start justify-center pt-10 transition-opacity">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
+                <div className="w-6 h-6 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
               </div>
             )}
             {loading && followups.length === 0 ? (
-              <div className="flex items-center justify-center h-48 gap-3 text-gray-400">
-                <div className="w-6 h-6 border-2 border-gray-200 border-t-cyan-500 rounded-full animate-spin" />
+              <div className="flex items-center justify-center h-48 gap-3 text-gray-600">
+                <div className="w-6 h-6 border-2 border-gray-200 border-t-brand-500 rounded-full animate-spin" />
                 <span className="text-sm font-medium">Loading follow-ups…</span>
               </div>
             ) : followups.length === 0 ? (
-              <div className="border-t border-gray-200 p-12 text-center text-gray-400">
+              <div className="border-t border-gray-200 p-12 text-center text-gray-600">
                 <Clock size={32} className="mx-auto mb-3 opacity-30" />
                 <p className="font-medium">No pending follow-ups</p>
                 <p className="text-sm mt-1">All caught up! Schedule follow-ups from lead detail pages.</p>
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <p className="text-xs text-gray-500 mb-3 pt-1">{followups.length} {followupSummary}{followups.length !== 1 ? 's' : ''}</p>
+                <p className="text-xs text-gray-500 mb-3 pt-1">{followupSummary(followups.length)}</p>
                 <table className="w-full text-sm">
-                  <thead className="border-y border-gray-200 text-xs uppercase text-gray-500">
+                  <thead className="border-y border-gray-200 text-xs text-gray-500">
                     <tr>
                       <th className="text-left px-3 py-3">Lead</th>
                       <th className="text-left px-3 py-3">Phone</th>
@@ -1243,23 +1564,16 @@ const LeadsPage = () => {
                       const healthStyle = FOLLOWUP_HEALTH_STYLES[health];
                       return (
                         <tr key={f.id} className="border-b border-gray-200 hover:bg-gray-50">
-                          <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(f.lead_id)}>{f.lead_name}</td>
+                          <td className="px-3 py-3 font-extrabold cursor-pointer" onClick={() => setOpenLeadId(f.lead_id)}><SearchHighlight value={f.lead_name} search={displayedSearch} /></td>
                           <td className="px-3 py-3 text-gray-700">{f.lead_phone}</td>
                           <td className="px-3 py-3 text-gray-600 capitalize">{f.lead_stage}</td>
                           <td className="px-3 py-3">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 capitalize">
+                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-700 capitalize">
                               {(f.followup_type || 'call').replace(/_/g, ' ')}
                             </span>
                           </td>
-                          <td className="px-3 py-3">
-                            <div className="flex items-center gap-1.5">
-                              <span className={`text-xs font-semibold ${health === 'good' ? 'text-amber-600' : 'text-red-600'}`}>
-                                {health !== 'good' ? '⚠ ' : ''}{new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                              <span className={`shrink-0 px-1.5 py-0.5 rounded-full text-[9px] font-bold ${healthStyle.cls}`}>
-                                {healthStyle.label}
-                              </span>
-                            </div>
+                          <td className="px-3 py-3 whitespace-nowrap" title={healthStyle.label}>
+                            <span className={`text-xs font-semibold ${health === 'good' ? 'text-gray-700' : 'text-red-600'}`}>{dueLabel(f.next_followup_at)}</span>
                           </td>
                           <td className="px-3 py-3 text-gray-500 text-xs max-w-[200px] truncate">{f.notes || '—'}</td>
                           <td className="px-3 py-3 text-right">
@@ -1293,12 +1607,12 @@ const LeadsPage = () => {
                       {stageLeads.map(lead => (
                         <button key={lead.id} onClick={() => setOpenLeadId(lead.id)}
                           className="w-full p-2.5 bg-white rounded-lg hover:shadow-md transition border text-left">
-                          <p className="text-sm font-medium truncate">{lead.name}</p>
-                          <p className="text-xs text-gray-400">{lead.phone}</p>
-                          <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ${scoreColors[lead.lead_score]}`}>{lead.lead_score?.toUpperCase()}</span>
+                          <p className="text-sm font-medium truncate"><SearchHighlight value={lead.name} search={displayedSearch} /></p>
+                          <p className="text-xs text-gray-600">{lead.phone}</p>
+                          <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${scoreColors[lead.lead_score]}`}>{lead.lead_score?.toUpperCase()}</span>
                         </button>
                       ))}
-                      {stageLeads.length === 0 && <p className="text-xs text-gray-400 text-center py-4">No leads</p>}
+                      {stageLeads.length === 0 && <p className="text-xs text-gray-600 text-center py-4">No leads</p>}
                     </div>
                   </div>
                 );
@@ -1311,18 +1625,18 @@ const LeadsPage = () => {
       {/* Add Lead Modal */}
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} />
+          <div className="fixed inset-0 bg-black/50" onClick={closeAddModal} />
           <div className="relative bg-white rounded-2xl w-full max-w-md max-h-[90vh] flex flex-col shadow-2xl">
             <div className="flex items-center justify-between p-5 border-b shrink-0">
               <h2 className="text-lg font-bold">Add New Lead</h2>
-              <button onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
+              <button onClick={closeAddModal} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-3 overflow-y-auto">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Lead Date & Time</label>
-                <input type="datetime-local" value={newLead.lead_date}
-                  onChange={e => setNewLead({ ...newLead, lead_date: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                <DateTimePicker value={newLead.lead_date}
+                  onChange={v => setNewLead({ ...newLead, lead_date: v })}
+                  className="w-full" />
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
@@ -1332,16 +1646,26 @@ const LeadsPage = () => {
                 {newLeadErrors.name && <p className="text-xs text-red-500 mt-1">{newLeadErrors.name}</p>}
               </div>
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
-                <input ref={newLeadPhoneRef} type="tel" placeholder="Phone" value={newLead.phone}
-                  onChange={e => { setNewLead({ ...newLead, phone: e.target.value.replace(/[^0-9]/g, '') }); setNewLeadErrors(er => ({ ...er, phone: undefined })); }}
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.phone ? 'border-red-400' : ''}`} />
-                {newLeadErrors.phone && <p className="text-xs text-red-500 mt-1">{newLeadErrors.phone}</p>}
+                <label htmlFor="new-lead-phone" className="block text-xs text-gray-500 mb-1">Phone <span className="text-red-500">*</span></label>
+                <div className="flex gap-2">
+                  <select aria-label="Country code" value={newLeadCountry} onChange={e => { setNewLeadCountry(e.target.value); setNewLeadErrors(er => ({ ...er, phone: undefined })); }}
+                    className="px-2 py-2.5 border rounded-lg text-sm bg-white w-28 shrink-0">
+                    {PHONE_COUNTRIES.map(c => <option key={c} value={c}>{c} +{getCountryCallingCode(c)}</option>)}
+                  </select>
+                  <input id="new-lead-phone" ref={newLeadPhoneRef} type="tel" inputMode="tel" placeholder="98765 43210" value={newLead.phone}
+                    onChange={e => { setNewLead({ ...newLead, phone: e.target.value }); setNewLeadErrors(er => ({ ...er, phone: undefined })); }}
+                    aria-invalid={!!newLeadErrors.phone}
+                    className={`flex-1 min-w-0 px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.phone ? 'border-red-400' : ''}`} />
+                </div>
+                {newLeadErrors.phone
+                  ? <p className="text-xs text-red-500 mt-1">{newLeadErrors.phone}</p>
+                  : <p className="text-xs text-gray-600 mt-1">Pick the country, then type the number. A number starting with + uses its own code.</p>}
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Email</label>
-                <input type="email" placeholder="Email" value={newLead.email} onChange={e => setNewLead({ ...newLead, email: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" />
+                <input ref={newLeadEmailRef} type="email" placeholder="Email" value={newLead.email} onChange={e => setNewLead({ ...newLead, email: e.target.value })}
+                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.email ? 'border-red-400' : ''}`} />
+                {newLeadErrors.email && <p className="text-xs text-red-500 mt-1">{newLeadErrors.email}</p>}
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Business Name</label>
@@ -1358,6 +1682,7 @@ const LeadsPage = () => {
                 <textarea placeholder="Address" value={newLead.address} onChange={e => setNewLead({ ...newLead, address: e.target.value })}
                   rows={2} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               </div>
+              <div><label className="block text-xs text-gray-600 mb-1">Product interest</label><input value={newLead.product || ''} onChange={e => setNewLead({ ...newLead, product: e.target.value })} className="w-full border rounded-lg px-3 py-2.5 text-sm" /></div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Source</label>
                 <select value={newLead.source} onChange={e => setNewLead({ ...newLead, source: e.target.value })}
@@ -1387,7 +1712,7 @@ const LeadsPage = () => {
                   rows={3} className="w-full px-3 py-2.5 border rounded-lg text-sm" />
               </div>
               <div className="flex gap-2 pt-2">
-                <button onClick={() => { setShowAddModal(false); setNewLeadErrors({}); }} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
+                <button onClick={closeAddModal} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
                 <button onClick={handleAdd} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Add Lead</button>
               </div>
             </div>
@@ -1447,20 +1772,18 @@ const LeadsPage = () => {
             onClick={closeLeadModal}
           />
           <div
-            className={`relative bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto shadow-2xl transition-all duration-200 ${
+            className={`relative w-full max-w-6xl max-h-[90vh] transition-all duration-200 ${
               modalEntered ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
             }`}
           >
-            <div className="sticky top-0 z-[60] h-0">
-              <button
-                onClick={closeLeadModal}
-                className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-white hover:bg-gray-100 rounded-full shadow border"
-                title="Close"
-              >
-                <X size={18} />
-              </button>
-            </div>
-            <div className="p-4 sm:p-6">
+            <button
+              onClick={closeLeadModal}
+              className="absolute top-3 right-3 sm:top-4 sm:right-4 z-[60] p-2 bg-white hover:bg-gray-100 rounded-full shadow border"
+              title="Close"
+            >
+              <X size={18} />
+            </button>
+            <div className="bg-white rounded-2xl max-h-[90vh] overflow-y-auto shadow-2xl p-4 sm:p-6">
               <LeadDetailPage
                 leadId={renderedLeadId}
                 onClose={closeLeadModal}
@@ -1476,16 +1799,16 @@ const LeadsPage = () => {
 
       {showImport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={closeImport}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
             {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b">
+            <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
                 <FileSpreadsheet size={18} className="text-emerald-600" /> Import Leads
               </h2>
               <button onClick={closeImport} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-6 space-y-4 overflow-y-auto">
               {/* Result state */}
               {importResult ? (
                 <div className="space-y-4">
@@ -1562,15 +1885,16 @@ const LeadsPage = () => {
                       <>
                         <Upload size={28} className="mx-auto text-gray-300 mb-2" />
                         <p className="text-sm font-medium text-gray-500">Drop your CSV or Excel file here</p>
-                        <p className="text-xs text-gray-400 mt-1">or click to browse · Max 5 MB · 2000 rows</p>
+                        <p className="text-xs text-gray-600 mt-1">or click to browse · Max 5 MB · 2000 rows</p>
                       </>
                     )}
                   </div>
 
                   {/* CSV Preview */}
+                  {importFile && importHeaders.length>0 && <div className="space-y-3"><label className="text-sm font-medium">Column mapping preset<select className="border rounded-lg p-2 ml-2" defaultValue="auto" onChange={e=>{setImportMapping(presetMapping(importHeaders,e.target.value));setImportCheck(null);}}>{['auto','privyr','aisensy','interakt'].map(x=><option key={x} value={x}>{x==='auto'?'Auto-detect':`Import from ${x==='privyr'?'Privyr':x==='aisensy'?'AiSensy':'Interakt'}`}</option>)}</select></label>{importHeaders.map(h=><label key={h} className="flex items-center gap-3 text-sm">{h}<select className="border rounded-lg p-2 ml-auto" value={importMapping[h]||''} onChange={e=>{const m={...importMapping};if(e.target.value)m[h]=e.target.value;else delete m[h];setImportMapping(m);setImportCheck(null);}}><option value="">Ignore</option>{IMPORT_FIELDS.map(f=><option key={f} value={f}>{f.replaceAll('_',' ')}</option>)}</select></label>)}<button disabled={previewing || importing} className="text-brand-600 text-sm" onClick={()=>previewImport(importFile,importMapping)}>Validate mapping & preview duplicates</button>{importCheck&&<><p className="text-sm">{importCheck.total} rows · {importCheck.duplicates} duplicates to merge · {importCheck.invalid} invalid</p><div className="max-h-48 overflow-auto">{importCheck.preview.slice(0,100).map(r=><p className="text-xs py-1" key={r.row}>Row {r.row}: {r.name} · {r.phone} · {r.error||r.action}</p>)}</div></>}</div>}
                   {importPreview && (
                     <div className="rounded-xl border overflow-hidden">
-                      <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b">
                         Preview (first 3 rows)
                       </p>
                       <div className="overflow-x-auto">
@@ -1596,15 +1920,15 @@ const LeadsPage = () => {
                     </div>
                   )}
 
-                  <p className="text-[11px] text-gray-400">
+                  <p className="text-xs text-gray-600">
                     Columns detected automatically. Required: <strong>Name</strong>. Also supports: Phone, Email, Source, Stage, Notes, Quoted Price, City.
                   </p>
 
                   <div className="flex gap-2">
                     <button onClick={closeImport} className="flex-1 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-                    <button onClick={handleImport} disabled={!importFile || importing}
+                    <button onClick={handleImport} disabled={!importFile || importing || previewing || !importCheck || importCheck.total - importCheck.invalid <= 0}
                       className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
-                      {importing
+                      {previewing ? 'Validating…' : importing
                         ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Importing...</>
                         : <><Upload size={15} /> Import Leads</>}
                     </button>
@@ -1621,7 +1945,7 @@ const LeadsPage = () => {
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b shrink-0">
               <h2 className="font-bold text-gray-900 flex items-center gap-2">
-                <Copy size={18} className="text-cyan-600" /> Duplicate Leads
+                <Copy size={18} className="text-brand-600" /> Duplicate Leads
               </h2>
               <button onClick={() => setShowDuplicates(false)} className="p-1.5 hover:bg-gray-100 rounded-lg"><X size={16} /></button>
             </div>
@@ -1634,7 +1958,7 @@ const LeadsPage = () => {
 
               {duplicatesLoading ? (
                 <div className="py-10 flex justify-center">
-                  <span className="w-6 h-6 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                  <span className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
                 </div>
               ) : duplicateGroups.length === 0 ? (
                 <div className="py-10 text-center text-sm text-gray-500">
@@ -1644,24 +1968,24 @@ const LeadsPage = () => {
               ) : (
                 duplicateGroups.map(group => (
                   <div key={group.norm_phone} className="border border-gray-200 rounded-xl p-4 space-y-3">
-                    <p className="text-xs font-semibold text-gray-500">Phone match: {group.norm_phone}</p>
+                    <p className="text-xs font-semibold text-gray-500">Duplicate group · oldest lead will be kept</p>
                     <div className="space-y-2">
                       {group.leads.map(lead => (
                         <label key={lead.id}
-                          className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${duplicateKeepChoice[group.norm_phone] === lead.id ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200'}`}>
+                          className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer ${duplicateKeepChoice[group.norm_phone] === lead.id ? 'border-brand-500 bg-brand-50' : 'border-gray-200'}`}>
                           <input type="radio" name={`keep-${group.norm_phone}`}
                             checked={duplicateKeepChoice[group.norm_phone] === lead.id}
-                            onChange={() => setDuplicateKeepChoice(prev => ({ ...prev, [group.norm_phone]: lead.id }))}
-                            className="accent-cyan-600" />
+                            disabled aria-label="Oldest lead is kept"
+                            className="accent-brand-600" />
                           <div className="flex-1 min-w-0">
-                            <p className="text-sm font-semibold text-gray-900 truncate">{lead.name} <span className="font-normal text-gray-400">#{lead.lead_number}</span></p>
-                            <p className="text-xs text-gray-500">{lead.phone} · {lead.source} · {lead.stage} · {new Date(lead.created_at).toLocaleDateString()}</p>
+                            <p className="text-sm font-semibold text-gray-900 truncate">{lead.name} <span className="font-normal text-gray-600">#{lead.lead_number}</span></p>
+                            <p className="text-xs text-gray-500">{lead.phone} · {sourceLabel(lead.source)} · {lead.stage} · {formatDateTime(lead.created_at, undefined, { dateStyle: undefined, timeStyle: undefined, day: 'numeric', month: 'short', year: 'numeric' })}</p>
                           </div>
                         </label>
                       ))}
                     </div>
                     <button onClick={() => handleMergeGroup(group)} disabled={mergingPhone === group.norm_phone}
-                      className="w-full py-2 bg-cyan-600 hover:bg-cyan-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+                      className="w-full py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                       {mergingPhone === group.norm_phone
                         ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Merging...</>
                         : `Keep selected, remove ${group.leads.length - 1} duplicate${group.leads.length - 1 > 1 ? 's' : ''}`}
@@ -1672,6 +1996,14 @@ const LeadsPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {showBroadcastModal && (
+        <WhatsAppBroadcastModal
+          leads={leads.filter(l => selectedIds.has(l.id))}
+          onClose={() => setShowBroadcastModal(false)}
+          onSent={() => { setShowBroadcastModal(false); clearSelection(); loadData(); }}
+        />
       )}
     </div>
   );

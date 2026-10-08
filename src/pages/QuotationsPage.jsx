@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { quotationsAPI } from '../services/api';
 import { Plus, FileText, Send, Eye, Trash2, MessageCircle } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
+import { useToast } from '../components/ui/Toast';
+import { formatMoney, workspaceCountry } from '../utils/locale';
 
 const statusColors = {
   draft: 'bg-gray-100 text-gray-700',
@@ -15,6 +17,7 @@ const statusColors = {
 const QuotationsPage = () => {
   const navigate = useNavigate();
   const confirm = useConfirmDialog();
+  const toast = useToast();
   const [quotations, setQuotations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -35,23 +38,23 @@ const QuotationsPage = () => {
       const { data } = await quotationsAPI.send(id);
       window.open(data.whatsapp_url, '_blank');
       load();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
   };
 
   const handleShareWA = (q) => {
     const phone = (q.lead_phone || '').replace(/\D/g, '');
-    const amount = parseFloat(q.total).toLocaleString('en-IN');
+    const amount = formatMoney(parseFloat(q.total), q.currency);
     const viewUrl = `${window.location.origin}/q/${q.id}`;
-    const text = `Hi ${q.lead_name}! 👋\n\nPlease find your quotation details below:\n*Quote No:* ${q.quote_number}\n*Title:* ${q.title || 'Quotation'}\n*Total Amount:* ₹${amount}\n\n📄 *View your quotation:*\n${viewUrl}\n\nKindly review and let us know if you'd like to proceed.`;
+    const text = `Hi ${q.lead_name}! 👋\n\nPlease find your quotation details below:\n*Quote No:* ${q.quote_number}\n*Title:* ${q.title || 'Quotation'}\n*Total Amount:* ${amount}\n\n📄 *View your quotation:*\n${viewUrl}\n\nKindly review and let us know if you'd like to proceed.`;
     const url = phone
-      ? `https://wa.me/${phone.length === 10 ? '91' + phone : phone}?text=${encodeURIComponent(text)}`
+      ? `https://wa.me/${phone.length === 10 && workspaceCountry() === 'IN' ? '91' + phone : phone}?text=${encodeURIComponent(text)}`
       : `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
   };
 
   const handleDelete = async (id) => {
     if (!await confirm({ title: 'Delete this draft quotation?' })) return;
-    try { await quotationsAPI.delete(id); load(); } catch (e) { alert(e.response?.data?.error || 'Failed'); }
+    try { await quotationsAPI.delete(id); load(); } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
   };
 
   return (
@@ -100,7 +103,7 @@ const QuotationsPage = () => {
                     <td className="px-4 py-3 font-mono text-xs">{q.quote_number}</td>
                     <td className="px-4 py-3 font-medium">{q.lead_name}</td>
                     <td className="px-4 py-3 text-gray-600">{q.title || '-'}</td>
-                    <td className="px-4 py-3 text-right font-semibold">₹{parseFloat(q.total).toLocaleString('en-IN')}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{formatMoney(parseFloat(q.total), q.currency)}</td>
                     <td className="px-4 py-3">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusColors[q.status]}`}>
                         {q.status?.toUpperCase()}

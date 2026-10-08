@@ -1,7 +1,9 @@
+import { formatDateTime } from '../utils/dateTime.js';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { followupAPI } from '../services/api';
 import { Clock, CheckCircle, Calendar, Phone, MessageCircle, Navigation, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useToast } from '../components/ui/Toast';
 
 const typeIcon = { call: Phone, whatsapp: MessageCircle, visit: Navigation };
 const typeColor = {
@@ -13,6 +15,7 @@ const typeColor = {
 const LIMIT = 15;
 
 const FollowupsPage = () => {
+  const toast = useToast();
   const navigate = useNavigate();
   const [followups, setFollowups] = useState([]);
   const [tab, setTab] = useState('pending');
@@ -37,7 +40,7 @@ const FollowupsPage = () => {
     try {
       await followupAPI.complete(id, { outcome: 'Completed' });
       loadData();
-    } catch (e) { alert('Failed'); }
+    } catch (e) { toast.error('Failed'); }
   };
 
   const isOverdue = (date) => new Date(date) < new Date();
@@ -90,7 +93,7 @@ const FollowupsPage = () => {
                     {f.notes && <p className="text-sm mt-1 text-gray-700">{f.notes}</p>}
                     <p className="text-xs text-gray-400 mt-1 flex items-center gap-1">
                       <Calendar size={12} />
-                      {new Date(f.next_followup_at).toLocaleString('en-IN', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {formatDateTime(f.next_followup_at, undefined, { dateStyle: undefined, timeStyle: undefined,  day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                   {!f.is_completed && (
@@ -107,7 +110,7 @@ const FollowupsPage = () => {
           {pagination.pages > 1 && (
             <div className="flex items-center justify-between px-1">
               <p className="text-xs text-gray-500">
-                {(page - 1) * LIMIT + 1}–{Math.min(page * LIMIT, pagination.total)} of {pagination.total}
+                {pagination.total ? (page - 1) * LIMIT + 1 : 0}–{Math.min(page * LIMIT, pagination.total)} of {pagination.total}
               </p>
               <div className="flex items-center gap-1">
                 <button onClick={() => setPage(p => p - 1)} disabled={page === 1}

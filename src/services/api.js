@@ -1,9 +1,22 @@
+import { createApiCache, invalidatedPaths } from './queryCache.js';
+import { normalizePhone } from '../utils/leadData.js';
 import axios from 'axios';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   headers: { 'Content-Type': 'application/json' },
 });
+
+const readCache = createApiCache({
+  getSession: () => localStorage.getItem('token'),
+  fetcher: async (url, params, signal) => {
+    const response = await api.get(url, { params, signal });
+    return { data: response.data };
+  },
+});
+export const clearApiCache = () => readCache.clear();
+export const invalidateApiCache = paths => readCache.invalidate(paths);
+const cachedGet = (url, params, options) => readCache.read(url, params, options);
 
 // Auto-attach JWT
 api.interceptors.request.use((config) => {
@@ -14,9 +27,13 @@ api.interceptors.request.use((config) => {
 
 // Handle 401 (auto logout) and 402 (trial expired)
 api.interceptors.response.use(
-  (res) => res,
+  async (res) => {
+    if (res.config?.method && res.config.method !== 'get') await readCache.invalidate(invalidatedPaths(res.config.url));
+    return res;
+  },
   (err) => {
     if (err.response?.status === 401 && !window.location.pathname.includes('/login')) {
+      clearApiCache();
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
@@ -46,34 +63,38 @@ export const authAPI = {
   login: (data) => api.post('/auth/login', data),
   requestOtp: (email) => api.post('/auth/request-otp', { email }),
   verifyOtp: (data) => api.post('/auth/verify-otp', data),
-  me: () => api.get('/auth/me'),
+  me: (options) => cachedGet('/auth/me', {}, options),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (data) => api.post('/auth/reset-password', data),
   changePassword: (data) => api.post('/auth/change-password', data),
   getInviteInfo: (token) => api.get(`/auth/invite/${token}`),
   acceptInvite: (data) => api.post('/auth/accept-invite', data),
+  getPreferences: (options) => cachedGet('/auth/preferences', {}, options),
+  updatePreferences: (patch) => api.put('/auth/preferences', patch),
 };
 
 // ============================================
-// Support (public — Contact Us page)
+// Support — public Contact Us form + signed-in Help & Support tickets
 // ============================================
 export const supportAPI = {
   submitTicket: (data) => api.post('/support/tickets', data),
+  getMyTickets: () => api.get('/support/tickets'),
+  createTicket: (data) => api.post('/support/tickets', data),
 };
 
 // ============================================
 // Leads
 // ============================================
 export const leadAPI = {
-  getAll: (params) => api.get('/leads', { params }),
+  getAll: (params, options) => cachedGet('/leads', params, options),
   getOne: (id) => api.get(`/leads/${id}`),
-  create: (data) => api.post('/leads', data),
-  update: (id, data) => api.put(`/leads/${id}`, data),
+  create: async (data) => api.post('/leads', { ...data, phone: normalizePhone(data.phone) }),
+  update: async (id, data) => api.put(`/leads/${id}`, data.phone === undefined ? data : { ...data, phone: normalizePhone(data.phone) }),
   delete: (id) => api.delete(`/leads/${id}`),
   score: (id) => api.post(`/leads/${id}/score`),
-  getStages: () => api.get('/leads/stages/all'),
+  getStages: (options) => cachedGet('/leads/stages/all', {}, options),
   addFollowup: (id, data) => api.post(`/leads/${id}/followups`, data),
-  getFollowupsToday: (params) => api.get('/leads/followups/today', { params }),
+  getFollowupsToday: (params, options) => cachedGet('/leads/followups/today', params, options),
   bulkUpdate: (data) => api.put('/leads/bulk', data),
   bulkDelete: (ids) => api.delete('/leads/bulk', { data: { ids } }),
   findDuplicates: () => api.get('/leads/duplicates'),
@@ -96,12 +117,122 @@ export const campaignAPI = {
 };
 
 // ============================================
+// Ads (Meta ad accounts, drill-down, CPL dashboard)
+// ============================================
+export const adsAPI = {
+  getAccounts: (params) => api.get('/ads/accounts', { params }),   // params.provider: 'meta' (default) | 'google'
+  connect: (user_token) => api.post('/ads/accounts/connect', { user_token }),
+  setPrimary: (id) => api.post(`/ads/accounts/${id}/primary`),
+  sync: (id) => api.post(`/ads/accounts/${id}/sync`),
+  getCampaigns: (params) => api.get('/ads/campaigns', { params }),
+  getAdsets: (campaignId, params) => api.get(`/ads/campaigns/${campaignId}/adsets`, { params }),
+  getAds: (adsetId, params) => api.get(`/ads/adsets/${adsetId}/ads`, { params }),
+  getDaily: (params) => api.get('/ads/insights/daily', { params }),
+  getDashboard: (params) => api.get('/ads/dashboard', { params }),
+  getLeadForms: () => api.get('/ads/forms'),
+  backfillLeadForm: (id, since) => api.post(`/ads/forms/${id}/backfill`, since ? { since } : {}),
+  updateLeadSettings: (data) => api.put('/ads/lead-settings', data),
+  setStatus: (level, id, action) => api.post(`/ads/${level}/${id}/${action}`),          // level: campaigns | adsets; action: pause | resume
+  setBudget: (level, id, dailyBudgetPaise) => api.patch(`/ads/${level}/${id}/budget`, { daily_budget_paise: dailyBudgetPaise }),
+  getAudit: (params) => api.get('/ads/audit', { params }),
+  getSettings: () => api.get('/ads/settings'),
+  updateSettings: (data) => api.put('/ads/settings', data),
+  getCapiEvents: () => api.get('/ads/capi/events'),
+  aiListDrafts: () => api.get('/ads/ai/drafts'),
+  aiCreateDraft: (brief) => api.post('/ads/ai/drafts', { brief }, { timeout: 60000 }),
+  aiGetDraft: (id) => api.get(`/ads/ai/drafts/${id}`),
+  aiUpdateDraft: (id, draft) => api.put(`/ads/ai/drafts/${id}`, { draft }),
+  aiUploadImage: (id, file) => { const fd = new FormData(); fd.append('file', file); return api.post(`/ads/ai/drafts/${id}/image`, fd, { headers: { 'Content-Type': 'multipart/form-data' } }); },
+  aiCreateOnMeta: (id) => api.post(`/ads/ai/drafts/${id}/create`, {}, { timeout: 120000 }),
+  aiActivate: (id, confirm) => api.post(`/ads/ai/drafts/${id}/activate`, { confirm }),
+  googleStatus: () => api.get('/ads/google/status'),
+  googleConnectUrl: () => api.get('/ads/google/connect'),
+  googleRefresh: () => api.post('/ads/google/refresh', {}, { timeout: 120000 }),
+  googleAiListDrafts: () => api.get('/ads/google/ai/drafts'),
+  googleAiCreateDraft: (brief) => api.post('/ads/google/ai/drafts', { brief }, { timeout: 60000 }),
+  googleAiGetDraft: (id) => api.get(`/ads/google/ai/drafts/${id}`),
+  googleAiUpdateDraft: (id, draft) => api.put(`/ads/google/ai/drafts/${id}`, { draft }),
+  googleAiCreate: (id) => api.post(`/ads/google/ai/drafts/${id}/create`, {}, { timeout: 120000 }),
+  googleAiActivate: (id, confirm) => api.post(`/ads/google/ai/drafts/${id}/activate`, { confirm }),
+};
+
+// ============================================
+// Social posting (Facebook, Instagram, Google Business Profile)
+// ============================================
+export const socialAPI = {
+  getAccounts: () => api.get('/social/accounts'),
+  connectMeta: (user_token) => api.post('/social/accounts/connect', { user_token }),
+  refreshMeta: () => api.post('/social/accounts/refresh'),
+  loadGoogle: () => api.post('/social/accounts/gbp'),
+  setAccountActive: (id, is_active) => api.patch(`/social/accounts/${id}`, { is_active }),
+  uploadMedia: (file, onUploadProgress) => { const fd = new FormData(); fd.append('file', file); return api.post('/social/media', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000, onUploadProgress }); },
+  captions: (data) => api.post('/social/captions', data, { timeout: 60000 }),
+  getPosts: (params) => api.get('/social/posts', { params }),
+  getPost: (id) => api.get(`/social/posts/${id}`),
+  createPost: (data) => api.post('/social/posts', data),
+  updatePost: (id, data) => api.put(`/social/posts/${id}`, data),
+  deletePost: (id) => api.delete(`/social/posts/${id}`),
+  publishNow: (id) => api.post(`/social/posts/${id}/publish-now`),
+  retry: (id) => api.post(`/social/posts/${id}/retry`),
+  getCalendar: (from, to) => api.get('/social/calendar', { params: { from, to } }),
+};
+
+// ============================================
 // WhatsApp
 // ============================================
 export const whatsappAPI = {
   getInbox: () => api.get('/whatsapp/inbox'),
+  getUnreadCount: () => api.get('/whatsapp/unread-count'),
   getConversation: (leadId) => api.get(`/whatsapp/conversation/${leadId}`),
   send: (leadId, message) => api.post('/whatsapp/send', { lead_id: leadId, message }),
+  sendTemplate: (leadId, payload) => api.post('/whatsapp/send', { lead_id: leadId, ...payload }),
+  getSendableTemplates: () => api.get('/whatsapp/templates/sendable'),
+  setConversationAi: (leadId, paused) => api.put(`/whatsapp/conversation/${leadId}/ai`, { paused }),
+  startChat: (phone, name) => api.post('/whatsapp/start-chat', { phone, name }),
+  sendAttachment: (leadId, attachmentId) => api.post('/whatsapp/send-attachment', { lead_id: leadId, attachment_id: attachmentId }),
+  updateLabels: (leadId, add = [], remove = []) => api.post('/whatsapp/labels', { lead_id: leadId, add, remove }),
+  deleteConversations: (leadIds) => api.delete('/whatsapp/conversations', { data: { lead_ids: leadIds } }),
+  markConversationsRead: (leadIds) => api.put('/whatsapp/conversations/read', { lead_ids: leadIds }),
+  getBroadcastTemplates: () => api.get('/whatsapp/broadcast/templates'),
+  createBroadcastTemplate: (data) => api.post('/whatsapp/broadcast/templates', data),
+  aiDraftTemplate: (data) => api.post('/whatsapp/broadcast/templates/ai-draft', data),
+  imagePrompt: (data) => api.post('/whatsapp/broadcast/templates/image-prompt', data),
+  aiImage: (data) => api.post('/whatsapp/broadcast/templates/ai-image', data),
+  hubAnalytics: (days) => api.get('/whatsapp/hub/analytics', { params: { days } }),
+  hubBroadcasts: (days) => api.get('/whatsapp/hub/broadcasts', { params: { days } }),
+  hubScheduled: () => api.get('/whatsapp/hub/scheduled'),
+  hubCancelScheduled: (id) => api.delete(`/whatsapp/hub/scheduled/${id}`),
+  hubOptIns: () => api.get('/whatsapp/hub/optins'),
+  hubUpdateOptIns: (data) => api.post('/whatsapp/hub/optins', data),
+  hubOptInSettings: (data) => api.put('/whatsapp/hub/optin-settings', data),
+  hubNumbers: () => api.get('/whatsapp/hub/numbers'),
+  hubCtwa: (days) => api.get('/whatsapp/hub/ctwa', { params: { days } }),
+  hubGetAutoMessages: () => api.get('/whatsapp/hub/auto-messages'),
+  hubSaveAutoMessages: (data) => api.put('/whatsapp/hub/auto-messages', data),
+  hubGetBookingMessages: () => api.get('/whatsapp/hub/booking-messages'),
+  hubSaveBookingMessages: (data) => api.put('/whatsapp/hub/booking-messages', data),
+  hubGetAiKnowledge: () => api.get('/whatsapp/hub/ai-knowledge'),
+  hubSaveAiKnowledge: (data) => api.put('/whatsapp/hub/ai-knowledge', data),
+  hubDraftAiAgent: (data) => api.post('/whatsapp/hub/ai-agent/draft', data),
+  hubUploadAiShareFile: (action, file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('action', action);
+    return api.post('/whatsapp/hub/ai-agent/share-file', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
+  hubRemoveAiShareFile: (action) => api.delete(`/whatsapp/hub/ai-agent/share-file/${action}`),
+  hubAiReplies: () => api.get('/whatsapp/hub/ai-replies'),
+  uploadBroadcastMedia: (file, mediaType, addLogo = false) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('media_type', mediaType);
+    if (addLogo) fd.append('add_logo', 'true');
+    return api.post('/whatsapp/broadcast/templates/media', fd, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  },
+  sendBroadcast: (data) => api.post('/whatsapp/broadcast/send', data),
+  getBroadcastProgress: (id) => api.get(`/whatsapp/broadcast/progress/${id}`),
 };
 
 // ============================================
@@ -111,9 +242,11 @@ export const whatsappAPI = {
 // Lead Import
 // ============================================
 export const leadImportAPI = {
-  import: (file) => {
+  import: (file, options = {}) => {
     const fd = new FormData();
     fd.append('file', file);
+    if(options.mapping) fd.append('column_mapping',JSON.stringify(options.mapping));
+    if(options.dryRun) fd.append('dry_run','true');
     return api.post('/leads/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
   downloadTemplate: () => api.get('/leads/import/template', { responseType: 'blob' }),
@@ -130,6 +263,7 @@ export const aiAPI = {
 // Followups
 // ============================================
 export const followupAPI = {
+  summary:()=>api.get("/followups/summary"), review:(id,data)=>api.put(`/followups/${id}/review`,data),
   getAll: (params) => api.get('/followups', { params }),
   update: (id, data) => api.put(`/followups/${id}`, data),
   complete: (id, data) => api.put(`/followups/${id}/complete`, data),
@@ -140,7 +274,7 @@ export const followupAPI = {
 // Staff
 // ============================================
 export const staffAPI = {
-  getAll: () => api.get('/staff'),
+  getAll: (options) => cachedGet('/staff', {}, options),
   create: (data) => api.post('/staff', data),
   invite: (data) => api.post('/staff/invite', data),
   getInvitations: () => api.get('/staff/invitations'),
@@ -150,6 +284,7 @@ export const staffAPI = {
   delete: (id) => api.delete(`/staff/${id}`),
   getPermissions: (id) => api.get(`/staff/${id}/permissions`),
   updatePermissions: (id, permissions) => api.put(`/staff/${id}/permissions`, { permissions }),
+  setPassword: (id, password) => api.put(`/staff/${id}/password`, { password }),
   getMyWhatsAppNumber: () => api.get('/staff/me/whatsapp-number'),
   updateMyWhatsAppNumber: (data) => api.put('/staff/me/whatsapp-number', data),
   getWhatsAppNumber: (id) => api.get(`/staff/${id}/whatsapp-number`),
@@ -159,6 +294,17 @@ export const staffAPI = {
 // ============================================
 // Teams
 // ============================================
+// ============================================
+// Google Business Profile (GMB)
+// ============================================
+export const gmbAPI = {
+  getSettings: (options) => cachedGet('/gmb/settings', {}, options),
+  updateSettings: (data) => api.put('/gmb/settings', data),
+  draftMessage: () => api.post('/gmb/draft-message'),
+  connect: () => api.get('/gmb/oauth/connect'),
+  disconnect: () => api.post('/gmb/oauth/disconnect'),
+};
+
 export const teamAPI = {
   getAll: () => api.get('/teams'),
   create: (data) => api.post('/teams', data),
@@ -179,6 +325,7 @@ export const reportsAPI = {
   funnel: (params) => api.get('/reports/funnel', { params }),
   timeInStage: (params) => api.get('/reports/time-in-stage', { params }),
   followupTrend: (params) => api.get('/reports/followup-trend', { params }),
+  messages: (params) => api.get('/reports/messages', { params }),
 };
 
 // ============================================
@@ -187,13 +334,18 @@ export const reportsAPI = {
 export const settingsAPI = {
   get: () => api.get('/settings'),
   update: (data) => api.put('/settings', data),
+  uploadLogo: (file) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api.post('/settings/logo', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+  },
 };
 
 // ============================================
 // Lead Stages
 // ============================================
 export const stageAPI = {
-  getAll: () => api.get('/lead-stages'),
+  getAll: (options) => cachedGet('/lead-stages', {}, options),
   create: (data) => api.post('/lead-stages', data),
   update: (id, data) => api.put(`/lead-stages/${id}`, data),
   delete: (id) => api.delete(`/lead-stages/${id}`),
@@ -205,7 +357,7 @@ export const stageAPI = {
 // ============================================
 export const statusAPI = {
   getAll: (params) => api.get('/lead-statuses', { params }),
-  byStage: () => api.get('/lead-statuses/by-stage'),
+  byStage: (options) => cachedGet('/lead-statuses/by-stage', {}, options),
   history: (leadId) => api.get(`/lead-statuses/history/${leadId}`),
   create: (data) => api.post('/lead-statuses', data),
   update: (id, data) => api.put(`/lead-statuses/${id}`, data),
@@ -236,6 +388,10 @@ export const automationAPI = {
   createRule: (data) => api.post('/automations/rules', data),
   updateRule: (id, data) => api.put(`/automations/rules/${id}`, data),
   deleteRule: (id) => api.delete(`/automations/rules/${id}`),
+  enrollBulk: (leadIds, sequenceId) => api.post('/automations/enroll-bulk', { lead_ids: leadIds, sequence_id: sequenceId }),
+  getEnrollments: (leadIds) => api.get('/automations/enrollments', { params: { lead_ids: leadIds.join(',') } }),
+  recoverEnrollment: (id, data) => api.post(`/automations/enrollments/${id}/recover`, data),
+  getLeads: (params, signal) => api.get('/automations/leads', { params, signal }),
 };
 
 // ============================================
@@ -254,8 +410,8 @@ export const assignmentRuleAPI = {
 // ============================================
 export const paymentAPI = {
   getPlans: () => api.get('/payments/plans'),
-  createOrder: (planName, billingPeriod) => api.post('/payments/create-order', { planName, billingPeriod }),
-  verify: (data) => api.post('/payments/verify', data),
+  createSubscription: (planName, billingPeriod) => api.post('/payments/create-subscription', { planName, billingPeriod }),
+  verifySubscription: (data) => api.post('/payments/verify-subscription', data),
 };
 
 // ============================================
@@ -369,7 +525,10 @@ export const integrationsAPI = {
   revokeApiKey: () => api.delete('/integrations/api-key'),
   getEmbedScript: () => api.get('/integrations/embed-script'),
   facebookAuth: (user_token) => api.post('/integrations/facebook/auth', { user_token }),
+  whatsappEmbeddedSignup: (data) => api.post('/integrations/whatsapp/embedded-signup', data),
+  whatsappReconnect: () => api.post('/integrations/whatsapp/reconnect'),
   facebookConnectPage: (data) => api.post('/integrations/facebook/connect-page', data),
+  facebookSyncStatus: (options) => cachedGet('/integrations/facebook/sync-status', {}, options),
   facebookSyncLeads: () => api.post('/integrations/facebook/sync-leads'),
   getCapiStats: () => api.get('/integrations/meta/capi-stats'),
   getAdAccounts: () => api.get('/integrations/facebook/ad-accounts'),
@@ -428,17 +587,29 @@ export const aiCallingAPI = {
 export const playbookAPI = {
   get: () => api.get('/playbook'),
   regenerate: () => api.post('/playbook/generate'),
-  getCoaching: () => api.get('/playbook/coaching'),
+  getCoaching: (params) => api.get('/playbook/coaching', { params }),
 };
 
 // ============================================
 // Notifications
 // ============================================
 export const notificationsAPI = {
+ markVisible:ids=>api.put("/notifications/read-visible",{ids}),
   getAll: () => api.get('/notifications'),
   getCount: () => api.get('/notifications/count'),
   markRead: (id) => api.put(`/notifications/${id}/read`),
   markAllRead: () => api.put('/notifications/read-all'),
+  getGroups: () => api.get('/notifications/groups'),
 };
 
 export default api;
+
+export const featureAPI = {
+ overview:()=>api.get("/features/overview"), onboarding:data=>api.put("/features/onboarding",data),
+ config:()=>api.get('/features/config'), saveConfig:data=>api.put('/features/config',data),
+ health:()=>api.get('/features/health'), cannedReplies:()=>api.get('/features/canned-replies'),
+ capiEvents:()=>api.get('/features/capi-events'), webhooks:()=>api.get('/features/webhooks'),
+ createWebhook:data=>api.post('/features/webhooks',data), disableWebhook:id=>api.delete(`/features/webhooks/${id}`),
+ deliveries:()=>api.get('/features/deliveries'), broadcasts:()=>api.get('/features/broadcasts'),
+ attributes:(id,data)=>api.put(`/whatsapp/conversation/${id}/attributes`,data),
+};

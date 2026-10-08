@@ -1,8 +1,10 @@
+import { formatDateTime } from '../../utils/dateTime.js';
 import { useState, useEffect, useRef } from 'react';
 import { Phone, PhoneCall, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp, PhoneMissed, AlertCircle } from 'lucide-react';
 import { aiCallingAPI } from '../../services/api';
+import { useToast } from '../ui/Toast';
 
-const fmtDate = (d) => new Date(d).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' });
+const fmtDate = (d) => formatDateTime(d, undefined, { dateStyle: 'medium', timeStyle: 'short' });
 
 const fmtDuration = (s) => {
   if (!s) return '';
@@ -143,6 +145,7 @@ const CallCard = ({ call }) => {
 };
 
 export default function LeadAiCalls({ leadId }) {
+  const toast = useToast();
   const [calls, setCalls] = useState([]);
   const [agents, setAgents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -178,7 +181,7 @@ export default function LeadAiCalls({ leadId }) {
       setSelectedAgent(data.agents?.find(a => a.is_default)?.id || data.agents?.[0]?.id || '');
       setShowPicker(true);
     } catch {
-      alert('Could not load AI agent personas. Configure AI Calling under Integrations first.');
+      toast.error('Could not load AI agent personas. Configure AI Calling under Integrations first.');
     }
   };
 
@@ -190,7 +193,7 @@ export default function LeadAiCalls({ leadId }) {
       setShowPicker(false);
       await load();
     } catch (e) {
-      alert(e.response?.data?.error || 'Failed to start call.');
+      toast.error(e.response?.data?.error || 'Failed to start call.');
     } finally { setCalling(false); }
   };
 

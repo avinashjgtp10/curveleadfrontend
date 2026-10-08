@@ -1,10 +1,15 @@
+import PageLoader from '../ui/PageLoader';
+import { groupNotifications } from '../../utils/notifications';
+import { parseTimestamp, formatDateTime } from '../../utils/dateTime';
 import { useState, useEffect, useRef } from 'react';
-import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog, UserPlus } from 'lucide-react';
-import { notificationsAPI } from '../../services/api';
+import { Bell, CheckCheck, Calendar, Zap, Info, Video, AlertTriangle, UserCog, UserPlus, Settings, MessageCircle } from 'lucide-react';
+import { notificationsAPI, authAPI } from '../../services/api';
+import NotificationSettingsModal from './NotificationSettingsModal';
 import { useNavigate } from 'react-router-dom';
 
 const typeIcon = (type) => {
   if (type === 'new_lead')    return <UserPlus size={14} className="text-green-500" />;
+  if (type === 'whatsapp')    return <MessageCircle size={14} className="text-emerald-500" />;
   if (type === 'demo_due')    return <Video    size={14} className="text-violet-500" />;
   if (type === 'followup_due') return <Calendar size={14} className="text-amber-500" />;
   if (type === 'ai_score')    return <Zap      size={14} className="text-purple-500" />;
@@ -17,14 +22,16 @@ const typeIcon = (type) => {
 
 // Fires a real OS-level desktop notification (separate from the in-app bell dropdown).
 // No-ops silently if the browser doesn't support it or the user hasn't granted permission.
-const showBrowserNotification = (n, onClick) => {
-  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+const showBrowserNotification = (n, onClick, desktopEnabled) => {
+  if (!desktopEnabled || !('Notification' in window) || Notification.permission !== 'granted') return;
   const popup = new Notification(n.title, { body: n.message || '', tag: n.id });
   popup.onclick = () => { window.focus(); onClick(n); popup.close(); };
 };
 
 const timeAgo = (date) => {
-  const diff = Math.floor((Date.now() - new Date(date)) / 1000);
+  const timestamp = parseTimestamp(date);
+  if (!timestamp) return formatDateTime(date);
+  const diff = Math.floor((Date.now() - timestamp.getTime()) / 1000);
   if (diff < 60) return 'just now';
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -39,14 +46,20 @@ const NotificationBell = () => {
   const ref = useRef();
   const navigate = useNavigate();
   const seenIdsRef = useRef(null); // null until the first poll completes
+  const [showSettings, setShowSettings] = useState(false);
+  const [desktopEnabled, setDesktopEnabled] = useState(true);
 
+  const current = useRef({open,desktopEnabled}); current.current={open,desktopEnabled};
+  const [error,setError]=useState('');
   const fetchAll = async () => {
     setLoading(true);
     try {
       const { data } = await notificationsAPI.getAll();
       setNotifications(data.notifications || []);
-      setUnread(data.unreadCount || 0);
-    } catch { }
+      await notificationsAPI.markVisible((data.notifications||[]).filter(n=>!n.is_read).map(n=>n.id));
+      setNotifications((data.notifications||[]).map(n=>({...n,is_read:true})));
+      setUnread((await notificationsAPI.getCount()).data.count||0);setError('');
+    } catch { setError('Could not update notifications. Please retry.'); }
     finally { setLoading(false); }
   };
 
@@ -62,17 +75,17 @@ const NotificationBell = () => {
       if (seenIdsRef.current) {
         list
           .filter(n => !n.is_read && !seenIdsRef.current.has(n.id))
-          .forEach(n => showBrowserNotification(n, handleMarkRead));
+          .forEach(n => showBrowserNotification(n, handleMarkRead, current.current.desktopEnabled));
       }
       seenIdsRef.current = new Set(list.map(n => n.id));
-      if (open) setNotifications(list);
+      if (current.current.open) fetchAll();
     } catch { }
   };
 
   useEffect(() => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
+    authAPI.getPreferences().then(({ data }) => {
+      setDesktopEnabled(data.preferences?.desktop_notifications !== false);
+    }).catch(() => {});
     pollNotifications();
     const interval = setInterval(pollNotifications, 30000);
     return () => clearInterval(interval);
@@ -92,9 +105,8 @@ const NotificationBell = () => {
 
   const handleMarkRead = async (n) => {
     if (!n.is_read) {
-      await notificationsAPI.markRead(n.id).catch(() => {});
-      setNotifications(prev => prev.map(x => x.id === n.id ? { ...x, is_read: true } : x));
-      setUnread(c => Math.max(0, c - 1));
+      try { await notificationsAPI.markRead(n.id); await fetchAll(); }
+      catch {setError('Could not mark notification read.');return;}
     }
     if (n.reference_type === 'lead' && n.reference_id) {
       setOpen(false);
@@ -103,14 +115,13 @@ const NotificationBell = () => {
   };
 
   const handleMarkAll = async () => {
-    await notificationsAPI.markAllRead().catch(() => {});
-    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
-    setUnread(0);
+    try {await notificationsAPI.markAllRead();await fetchAll();}
+    catch {setError('Could not mark all read. Please retry.');}
   };
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={handleOpen} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+      <button aria-label={`Notifications, ${unread} unread`} aria-expanded={open} onClick={handleOpen} className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
         <Bell size={20} className="text-gray-600" />
         {unread > 0 && (
           <span className="absolute top-1 right-1 min-w-[16px] h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
@@ -120,37 +131,51 @@ const NotificationBell = () => {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-12 w-80 bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
+        <div className="absolute right-0 top-12 w-80 max-w-[calc(100vw-32px)] bg-white rounded-xl shadow-xl border z-50 overflow-hidden">
           <div className="flex items-center justify-between px-4 py-3 border-b">
             <h3 className="font-semibold text-sm">Notifications</h3>
-            {unread > 0 && (
-              <button onClick={handleMarkAll} className="text-xs text-brand-600 hover:underline flex items-center gap-1">
-                <CheckCheck size={12} /> Mark all read
+            <div className="flex items-center gap-3">
+              {unread > 0 && (
+                <button onClick={handleMarkAll} className="text-xs text-brand-600 hover:underline flex items-center gap-1">
+                  <CheckCheck size={12} /> Mark all read
+                </button>
+              )}
+              <button onClick={() => { setOpen(false); setShowSettings(true); }}
+                title="Notification settings" className="p-1 text-gray-400 hover:text-gray-700 rounded">
+                <Settings size={14} />
               </button>
-            )}
+            </div>
           </div>
 
           <div className="max-h-96 overflow-y-auto">
+            {error&&<button role="alert" onClick={fetchAll} className="p-3 text-sm text-red-600">{error}</button>}
             {loading ? (
-              <p className="text-center text-sm text-gray-400 py-8">Loading...</p>
+              <PageLoader message="Loading notifications"/>
             ) : notifications.length === 0 ? (
               <p className="text-center text-sm text-gray-400 py-8">No notifications yet</p>
             ) : (
-              notifications.map(n => (
+              groupNotifications(notifications).map(([type,items])=><details key={type} open={groupNotifications(notifications).length === 1}><summary className="px-4 py-2 text-xs font-semibold bg-gray-50 capitalize cursor-pointer">{type.replace(/_/g,' ')} <span className="text-gray-600">({items.length})</span></summary>{items.map(n => (
                 <button key={n.id} onClick={() => handleMarkRead(n)}
                   className={`w-full text-left px-4 py-3 flex gap-3 hover:bg-gray-50 transition-colors border-b last:border-0 ${!n.is_read ? 'bg-blue-50/50' : ''}`}>
                   <div className="mt-0.5 shrink-0">{typeIcon(n.type)}</div>
                   <div className="flex-1 min-w-0">
                     <p className={`text-sm ${!n.is_read ? 'font-semibold text-gray-800' : 'text-gray-700'}`}>{n.title}</p>
                     {n.message && <p className="text-xs text-gray-500 truncate">{n.message}</p>}
-                    <p className="text-[10px] text-gray-400 mt-0.5">{timeAgo(n.created_at)}</p>
+                    <p className="text-xs text-gray-600 mt-0.5">{timeAgo(n.created_at)}</p>
                   </div>
                   {!n.is_read && <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />}
                 </button>
-              ))
+              ))}</details>)
             )}
           </div>
         </div>
+      )}
+
+      {showSettings && (
+        <NotificationSettingsModal
+          onClose={() => setShowSettings(false)}
+          onSaved={(prefs) => setDesktopEnabled(prefs.desktop_notifications !== false)}
+        />
       )}
     </div>
   );
