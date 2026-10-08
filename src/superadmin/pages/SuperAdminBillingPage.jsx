@@ -50,12 +50,12 @@ const SuperAdminBillingPage = () => {
       </div>
 
       <div className="bg-white rounded-2xl border">
-        <div className="px-4 py-3 border-b"><h3 className="font-semibold text-gray-900">Workspace-wise Revenue</h3></div>
+        <div className="px-4 py-3 border-b"><h3 className="font-semibold text-gray-900">Organization-wise Revenue</h3></div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="text-[11px] text-gray-400 uppercase border-b">
-                <th className="text-left px-4 py-3 font-semibold">Workspace</th>
+                <th className="text-left px-4 py-3 font-semibold">Organization</th>
                 <th className="text-right px-4 py-3 font-semibold">Revenue</th>
               </tr>
             </thead>
@@ -79,7 +79,7 @@ const SuperAdminBillingPage = () => {
             <thead>
               <tr className="text-[11px] text-gray-400 uppercase border-b">
                 <th className="text-left px-4 py-3 font-semibold">Invoice</th>
-                <th className="text-left px-4 py-3 font-semibold">Workspace</th>
+                <th className="text-left px-4 py-3 font-semibold">Organization</th>
                 <th className="text-left px-4 py-3 font-semibold">Amount</th>
                 <th className="text-left px-4 py-3 font-semibold">Status</th>
                 <th className="text-left px-4 py-3 font-semibold">Date</th>

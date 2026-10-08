@@ -75,8 +75,8 @@ const SignupPage = () => {
 
           {step === 1 && (
             <>
-              <h2 className="text-2xl font-bold">Welcome! Let's get started.</h2>
-              <p className="text-gray-500 text-sm mt-1">What type of business are you running?</p>
+              <h2 className="text-2xl font-bold">Welcome to CurveLead</h2>
+              <p className="text-gray-500 text-sm mt-1">Let's set up your business</p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-6">
                 {businessTypes.map(b => (
@@ -105,9 +105,9 @@ const SignupPage = () => {
             <form onSubmit={handleSubmit} noValidate>
               <div className="flex items-center gap-2 mb-2">
                 <button type="button" onClick={() => setStep(1)} className="p-1.5 hover:bg-gray-100 rounded-lg"><ArrowLeft size={18} /></button>
-                <h2 className="text-2xl font-bold">Create your account</h2>
+                <h2 className="text-2xl font-bold">Create your business account</h2>
               </div>
-              <p className="text-gray-500 text-sm">14-day free trial. No credit card.</p>
+              <p className="text-gray-500 text-sm">14-day free trial. No credit card required.</p>
 
               <div className="mt-6 space-y-4">
                 <div>
@@ -154,7 +154,7 @@ const SignupPage = () => {
 
               <button type="submit" disabled={loading}
                 className="mt-6 w-full py-3 bg-brand-600 text-white rounded-xl font-semibold hover:bg-brand-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                {loading ? 'Creating...' : 'Create Account'} {!loading && <ArrowRight size={18} />}
+                {loading ? 'Creating...' : 'Create Business Account'} {!loading && <ArrowRight size={18} />}
               </button>
             </form>
           )}

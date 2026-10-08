@@ -20,6 +20,15 @@ api.interceptors.response.use(
       localStorage.removeItem('token');
       window.location.href = '/login';
     }
+    // Surface Super Admin API failures (network down, server error, not a super admin) so pages
+    // that only log to the console are not left looking empty with no explanation.
+    const url = err.config?.url || '';
+    const status = err.response?.status;
+    if (url.startsWith('/super-admin') && (!err.response || status >= 500 || status === 403)) {
+      window.dispatchEvent(new CustomEvent('superadmin-api-error', {
+        detail: { message: !err.response ? 'Cannot reach the server. Check your connection and try again.' : (err.response.data?.error || 'The server could not complete that request.') },
+      }));
+    }
     if (err.response?.status === 402) {
       window.dispatchEvent(new CustomEvent('trial-expired', {
         detail: { message: err.response.data?.error },
@@ -255,7 +264,9 @@ export const paymentAPI = {
 export const superAdminAPI = {
   getStats: () => api.get('/super-admin/stats'),
   getTenants: () => api.get('/super-admin/tenants'),
+  createTenant: (data) => api.post('/super-admin/tenants', data),
   updateTenant: (id, data) => api.put(`/super-admin/tenants/${id}`, data),
+  deleteTenant: (id) => api.delete(`/super-admin/tenants/${id}`),
   extendTrial: (id, days) => api.post(`/super-admin/tenants/${id}/extend-trial`, { days }),
   getPlans: () => api.get('/super-admin/plans'),
   createPlan: (data) => api.post('/super-admin/plans', data),
@@ -264,6 +275,8 @@ export const superAdminAPI = {
   updateUser: (id, data) => api.put(`/super-admin/users/${id}`, data),
   deleteUser: (id) => api.delete(`/super-admin/users/${id}`),
   getLeads: (params) => api.get('/super-admin/leads', { params }),
+  getLeadsSummary: () => api.get('/super-admin/leads/summary'),
+  getLeadActivity: (id) => api.get(`/super-admin/leads/${id}/activity`),
   getBillingSummary: () => api.get('/super-admin/billing/summary'),
   getWorkspaceRevenue: () => api.get('/super-admin/billing/workspace-revenue'),
   getPaymentHistory: () => api.get('/super-admin/billing/payments'),
@@ -273,12 +286,27 @@ export const superAdminAPI = {
   getRevenueTrend: () => api.get('/super-admin/trends/revenue'),
   getAutomations: () => api.get('/super-admin/automations'),
   getCampaigns: (params) => api.get('/super-admin/campaigns', { params }),
+  getCampaignSummary: () => api.get('/super-admin/campaigns/summary'),
+  createCampaign: (data) => api.post('/super-admin/campaigns', data),
+  setCampaignStatus: (id, status) => api.put(`/super-admin/campaigns/${id}/status`, { status }),
+  getTemplates: (params) => api.get('/super-admin/templates', { params }),
+  updateTemplate: (id, data) => api.put(`/super-admin/templates/${id}`, data),
+  deleteTemplate: (id) => api.delete(`/super-admin/templates/${id}`),
   getBookings: (params) => api.get('/super-admin/bookings', { params }),
   getWhatsAppConversations: (params) => api.get('/super-admin/whatsapp/conversations', { params }),
   getWhatsAppMessages: (id) => api.get(`/super-admin/whatsapp/conversations/${id}/messages`),
   sendWhatsAppMessage: (id, text) => api.post(`/super-admin/whatsapp/conversations/${id}/send`, { text }),
   getSettings: () => api.get('/super-admin/settings'),
   updateSettings: (data) => api.put('/super-admin/settings', data),
+  getDeletionHistory: (params) => api.get('/super-admin/history/deletions', { params }),
+  getCleanupHistory: (params) => api.get('/super-admin/history/cleanups', { params }),
+  getAiOverview: () => api.get('/super-admin/ai/overview'),
+  getAiIntegrations: () => api.get('/super-admin/ai/integrations'),
+  createAiIntegration: (data) => api.post('/super-admin/ai/integrations', data),
+  updateAiIntegration: (id, data) => api.put(`/super-admin/ai/integrations/${id}`, data),
+  testAiIntegration: (id) => api.post(`/super-admin/ai/integrations/${id}/test`),
+  deleteAiIntegration: (id) => api.delete(`/super-admin/ai/integrations/${id}`),
+  getIntegrationsOverview: () => api.get('/super-admin/integrations/overview'),
   getSupportTickets: (params) => api.get('/super-admin/support/tickets', { params }),
   updateSupportTicket: (id, data) => api.put(`/super-admin/support/tickets/${id}`, data),
 };

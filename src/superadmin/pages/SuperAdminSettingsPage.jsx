@@ -72,13 +72,13 @@ const SuperAdminSettingsPage = () => {
           <input type="number" min="0" value={form.default_trial_days ?? 0}
             onChange={e => setForm({ ...form, default_trial_days: Number(e.target.value) || 0 })}
             className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-          <p className="text-xs text-gray-400 mt-1">Used for new workspace signups.</p>
+          <p className="text-xs text-gray-400 mt-1">Used for new organization signups.</p>
         </div>
 
         <div className="flex items-center justify-between py-2 border-t pt-4">
           <div>
             <p className="text-sm font-medium text-gray-800">Allow New Signups</p>
-            <p className="text-xs text-gray-400">When off, the public signup page stops accepting new workspaces.</p>
+            <p className="text-xs text-gray-400">When off, the public signup page stops accepting new organizations.</p>
           </div>
           <button type="button" onClick={() => setForm({ ...form, signup_enabled: !form.signup_enabled })}
             className={`w-11 h-6 shrink-0 rounded-full relative transition-colors duration-200 ${form.signup_enabled ? 'bg-indigo-600' : 'bg-gray-300'}`}>

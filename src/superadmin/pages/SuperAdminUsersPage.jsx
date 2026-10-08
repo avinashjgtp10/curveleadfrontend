@@ -58,7 +58,7 @@ const SuperAdminUsersPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
-      <PageHeader title="Users" subtitle="Every account across every workspace and role." />
+      <PageHeader title="Users" subtitle="Every account across every organization and role." />
 
       <div className="bg-white rounded-2xl border">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b">
@@ -73,7 +73,7 @@ const SuperAdminUsersPage = () => {
               <tr className="text-[11px] text-gray-400 uppercase border-b">
                 <th className="text-left px-4 py-3 font-semibold">User</th>
                 <th className="text-left px-4 py-3 font-semibold">Email</th>
-                <th className="text-left px-4 py-3 font-semibold">Workspace</th>
+                <th className="text-left px-4 py-3 font-semibold">Organization</th>
                 <th className="text-left px-4 py-3 font-semibold">Role</th>
                 <th className="text-left px-4 py-3 font-semibold">Status</th>
                 <th className="text-left px-4 py-3 font-semibold">Last Login</th>
@@ -99,7 +99,7 @@ const SuperAdminUsersPage = () => {
                       u.is_active
                         ? { label: 'Deactivate', icon: Ban, onClick: () => toggleActive(u) }
                         : { label: 'Activate', icon: CheckCircle2, onClick: () => toggleActive(u) },
-                      ...(u.tenant_id ? [{ label: 'View Workspace', icon: Store, onClick: () => navigate(`/super-admin/workspaces/${u.tenant_id}`) }] : []),
+                      ...(u.tenant_id ? [{ label: 'View Organization', icon: Store, onClick: () => navigate(`/super-admin/workspaces/${u.tenant_id}`) }] : []),
                       { label: 'Remove User', icon: Trash2, danger: true, onClick: () => handleDelete(u) },
                     ]} />
                   </td>

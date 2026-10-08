@@ -48,9 +48,13 @@ import SuperAdminWorkspaceDetailPage from './superadmin/pages/SuperAdminWorkspac
 import SuperAdminUsersPage from './superadmin/pages/SuperAdminUsersPage';
 import SuperAdminLeadsPage from './superadmin/pages/SuperAdminLeadsPage';
 import SuperAdminCampaignsPage from './superadmin/pages/SuperAdminCampaignsPage';
+import SuperAdminTemplatesPage from './superadmin/pages/SuperAdminTemplatesPage';
+import SuperAdminHistoryPage from './superadmin/pages/SuperAdminHistoryPage';
 import SuperAdminAutomationsPage from './superadmin/pages/SuperAdminAutomationsPage';
 import SuperAdminBookingsPage from './superadmin/pages/SuperAdminBookingsPage';
 import SuperAdminWhatsAppPage from './superadmin/pages/SuperAdminWhatsAppPage';
+import SuperAdminAiAgentPage from './superadmin/pages/SuperAdminAiAgentPage';
+import SuperAdminIntegrationsPage from './superadmin/pages/SuperAdminIntegrationsPage';
 import SuperAdminCustomersPage from './superadmin/pages/SuperAdminCustomersPage';
 import SuperAdminSalonsPage from './superadmin/pages/SuperAdminSalonsPage';
 import SuperAdminSubscriptionsPage from './superadmin/pages/SuperAdminSubscriptionsPage';
@@ -59,14 +63,11 @@ import SuperAdminPlansPage from './superadmin/pages/SuperAdminPlansPage';
 import SuperAdminActivityLogsPage from './superadmin/pages/SuperAdminActivityLogsPage';
 import SuperAdminSupportPage from './superadmin/pages/SuperAdminSupportPage';
 import SuperAdminSettingsPage from './superadmin/pages/SuperAdminSettingsPage';
-import { MOCK_SESSION_KEY } from './superadmin/mockData';
 
 const SuperAdminProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
-  const isMockSuperAdmin = localStorage.getItem(MOCK_SESSION_KEY) === 'true';
   if (loading) return <PageLoader message="Checking your session..." minHeight="h-screen" />;
-  const isRealSuperAdmin = user?.role === 'super_admin';
-  return (isRealSuperAdmin || isMockSuperAdmin) ? children : <Navigate to="/login" replace />;
+  return user?.role === 'super_admin' ? children : <Navigate to="/login" replace />;
 };
 
 const ProtectedRoute = ({ children }) => {
@@ -128,16 +129,23 @@ const App = () => (
           <Route path="users" element={<SuperAdminUsersPage />} />
           <Route path="leads" element={<SuperAdminLeadsPage />} />
           <Route path="campaigns" element={<SuperAdminCampaignsPage />} />
-          <Route path="bookings" element={<SuperAdminBookingsPage />} />
+          <Route path="templates" element={<SuperAdminTemplatesPage />} />
+          <Route path="appointments" element={<SuperAdminBookingsPage />} />
           <Route path="whatsapp" element={<SuperAdminWhatsAppPage />} />
+          <Route path="ai-agent" element={<SuperAdminAiAgentPage />} />
+          <Route path="integrations" element={<SuperAdminIntegrationsPage />} />
           <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />
           <Route path="billing" element={<SuperAdminBillingPage />} />
           <Route path="plans" element={<SuperAdminPlansPage />} />
           <Route path="automations" element={<SuperAdminAutomationsPage />} />
-          <Route path="activity-logs" element={<SuperAdminActivityLogsPage />} />
+          <Route path="activity" element={<SuperAdminActivityLogsPage />} />
+          <Route path="audit-logs" element={<SuperAdminActivityLogsPage />} />
           <Route path="support" element={<SuperAdminSupportPage />} />
+          <Route path="history" element={<SuperAdminHistoryPage />} />
           <Route path="settings" element={<SuperAdminSettingsPage />} />
           {/* Legacy paths kept working, redirected to their new equivalents */}
+          <Route path="bookings" element={<Navigate to="appointments" replace />} />
+          <Route path="activity-logs" element={<Navigate to="audit-logs" replace />} />
           <Route path="customers" element={<SuperAdminCustomersPage />} />
           <Route path="salons" element={<SuperAdminSalonsPage />} />
         </Route>

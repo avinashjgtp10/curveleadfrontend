@@ -90,7 +90,7 @@ const SuperAdminWhatsAppPage = () => {
   if (unavailable) {
     return (
       <div className="max-w-7xl mx-auto space-y-4">
-        <PageHeader title="WhatsApp" subtitle="Conversations across every workspace." />
+        <PageHeader title="WhatsApp" subtitle="Conversations across every organization." />
         <div className="bg-white rounded-2xl border p-10">
           <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto mb-3">
             <MessageCircle size={26} />
@@ -103,20 +103,20 @@ const SuperAdminWhatsAppPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
-      <PageHeader title="WhatsApp" subtitle="Conversations across every workspace (read-only)." />
+      <PageHeader title="WhatsApp" subtitle="Conversations across every organization (read-only)." />
 
       <div className="bg-white rounded-2xl border grid grid-cols-1 md:grid-cols-[220px_300px_1fr] h-[calc(100vh-220px)] min-h-[420px] overflow-hidden">
         <div className="border-r flex flex-col min-h-0">
           <div className="p-3 border-b">
             <p className="text-xs font-semibold text-gray-500 mb-2 flex items-center justify-between">
-              Workspaces <span className="text-indigo-600 bg-indigo-50 rounded-full px-1.5 py-0.5">{tenants.length}</span>
+              Organizations <span className="text-indigo-600 bg-indigo-50 rounded-full px-1.5 py-0.5">{tenants.length}</span>
             </p>
-            <SearchInput value={wsSearch} onChange={setWsSearch} placeholder="Search workspace..." />
+            <SearchInput value={wsSearch} onChange={setWsSearch} placeholder="Search organization..." />
           </div>
           <div className="flex-1 overflow-y-auto p-1.5">
             <button onClick={() => selectWorkspace('all')}
               className={`w-full text-left px-2.5 py-2 rounded-lg text-xs mb-1 flex items-center justify-between ${selectedTenantId === 'all' ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'hover:bg-gray-50 text-gray-700'}`}>
-              <span>All Workspaces</span>
+              <span>All Organizations</span>
               <span className="text-[10px] text-gray-400">{conversations.length}</span>
             </button>
             {visibleTenants.map(t => (
@@ -136,7 +136,7 @@ const SuperAdminWhatsAppPage = () => {
 
         <div className="border-r flex flex-col min-h-0">
           <div className="p-3 border-b">
-            <SearchInput value={search} onChange={setSearch} placeholder="Search lead, phone, or workspace..." />
+            <SearchInput value={search} onChange={setSearch} placeholder="Search lead, phone, or organization..." />
           </div>
           <div className="flex-1 overflow-y-auto divide-y">
             {loading ? (

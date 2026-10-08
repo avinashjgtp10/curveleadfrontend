@@ -45,16 +45,16 @@ const SuperAdminWorkspaceDetailPage = () => {
   if (!workspace) return (
     <div className="max-w-4xl mx-auto">
       <button onClick={() => navigate('/super-admin/workspaces')} className="flex items-center gap-1 text-sm text-indigo-600 hover:underline mb-4">
-        <ArrowLeft size={14} /> Back to Workspaces
+        <ArrowLeft size={14} /> Back to Organizations
       </button>
-      <EmptyState message="Workspace not found." />
+      <EmptyState message="Organization not found." />
     </div>
   );
 
   return (
     <div className="max-w-6xl mx-auto space-y-4">
       <button onClick={() => navigate('/super-admin/workspaces')} className="flex items-center gap-1 text-sm text-indigo-600 hover:underline">
-        <ArrowLeft size={14} /> Back to Workspaces
+        <ArrowLeft size={14} /> Back to Organizations
       </button>
 
       <div className="bg-white rounded-2xl p-5 border flex items-start justify-between flex-wrap gap-4">
@@ -63,7 +63,7 @@ const SuperAdminWorkspaceDetailPage = () => {
             <Building2 size={26} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900">{workspace.name}</h1>
+            <h1 className="text-2xl font-bold text-[#141a3d] tracking-tight">{workspace.name}</h1>
             <div className="flex items-center gap-3 text-sm text-gray-500 mt-1 flex-wrap">
               <span className="flex items-center gap-1"><Mail size={13} /> {workspace.owner_email || '—'}</span>
               <span className="flex items-center gap-1"><Phone size={13} /> {workspace.owner_phone || '—'}</span>
@@ -90,7 +90,7 @@ const SuperAdminWorkspaceDetailPage = () => {
       {tab === 'Overview' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="bg-white rounded-2xl p-5 border">
-            <h3 className="font-semibold text-gray-900 mb-3">Salon Information</h3>
+            <h3 className="font-semibold text-gray-900 mb-3">Business Information</h3>
             <dl className="space-y-2 text-sm">
               <div className="flex justify-between"><dt className="text-gray-500">Name</dt><dd className="font-medium text-gray-800">{workspace.name}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-500">Created</dt><dd className="font-medium text-gray-800">{new Date(workspace.created_at).toLocaleDateString('en-IN')}</dd></div>

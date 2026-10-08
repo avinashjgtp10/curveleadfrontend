@@ -19,7 +19,7 @@ const SuperAdminBookingsPage = () => {
   const [loading, setLoading] = useState(true);
   const [unavailable, setUnavailable] = useState(false);
   const [search, setSearch] = useState('');
-  const [tenantFilter, setTenantFilter] = useState('All Workspaces');
+  const [tenantFilter, setTenantFilter] = useState('All Organizations');
   const [typeFilter, setTypeFilter] = useState('All Types');
   const [statusFilter, setStatusFilter] = useState('All Status');
   const [page, setPage] = useState(1);
@@ -30,7 +30,7 @@ const SuperAdminBookingsPage = () => {
 
   useEffect(() => {
     setLoading(true);
-    const tenant = tenants.find(t => t.name === tenantFilter);
+    const tenant = tenants.find(t => t.id === tenantFilter);
     const params = {
       page, limit: PAGE_SIZE,
       ...(search.trim() ? { search: search.trim() } : {}),
@@ -45,14 +45,14 @@ const SuperAdminBookingsPage = () => {
   }, [page, search, tenantFilter, typeFilter, statusFilter, tenants]);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const workspaceNames = useMemo(() => tenants.map(t => t.name), [tenants]);
+  const workspaceNames = useMemo(() => tenants.map(t => ({ value: t.id, label: t.name })), [tenants]);
 
   const resetPage = (setter) => (v) => { setter(v); setPage(1); };
 
   if (unavailable) {
     return (
       <div className="max-w-7xl mx-auto space-y-4">
-        <PageHeader title="Bookings" subtitle="Appointments booked across every workspace." />
+        <PageHeader title="Bookings" subtitle="Appointments booked across every organization." />
         <div className="bg-white rounded-2xl border p-10">
           <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto mb-3">
             <CalendarCheck size={26} />
@@ -65,12 +65,12 @@ const SuperAdminBookingsPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
-      <PageHeader title="Bookings" subtitle="Appointments booked across every workspace." />
+      <PageHeader title="Bookings" subtitle="Appointments booked across every organization." />
 
       <div className="bg-white rounded-2xl border">
         <div className="flex flex-wrap items-center gap-2.5 p-4 border-b">
           <SearchInput value={search} onChange={resetPage(setSearch)} placeholder="Search by lead name or phone..." className="flex-1 min-w-[220px]" />
-          <SelectFilter value={tenantFilter} onChange={resetPage(setTenantFilter)} allLabel="All Workspaces" options={workspaceNames} />
+          <SelectFilter value={tenantFilter} onChange={resetPage(setTenantFilter)} allLabel="All Organizations" options={workspaceNames} />
           <SelectFilter value={typeFilter} onChange={resetPage(setTypeFilter)} allLabel="All Types" options={TYPE_OPTIONS} />
           <SelectFilter value={statusFilter} onChange={resetPage(setStatusFilter)} allLabel="All Status" options={STATUS_OPTIONS} />
         </div>
@@ -85,7 +85,7 @@ const SuperAdminBookingsPage = () => {
                 <th className="text-left px-4 py-3 font-semibold">Scheduled For</th>
                 <th className="text-left px-4 py-3 font-semibold">Status</th>
                 <th className="text-left px-4 py-3 font-semibold">Assigned To</th>
-                <th className="text-left px-4 py-3 font-semibold">Workspace</th>
+                <th className="text-left px-4 py-3 font-semibold">Organization</th>
               </tr>
             </thead>
             <tbody>

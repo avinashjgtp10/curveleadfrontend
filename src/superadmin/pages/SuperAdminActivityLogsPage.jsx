@@ -58,7 +58,7 @@ const SuperAdminActivityLogsPage = () => {
 
       <div className="bg-white rounded-2xl border">
         <div className="flex flex-wrap items-center gap-3 p-4 border-b">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search by user, workspace, or action..." className="flex-1 min-w-[220px]" />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search by user, organization, or action..." className="flex-1 min-w-[220px]" />
           <SelectFilter value={moduleFilter} onChange={setModuleFilter} allLabel="All Modules" options={MODULE_OPTIONS} />
           <SelectFilter value={statusFilter} onChange={setStatusFilter} allLabel="All Status" options={STATUS_OPTIONS} />
         </div>
@@ -69,7 +69,7 @@ const SuperAdminActivityLogsPage = () => {
               <tr className="text-[11px] text-gray-400 uppercase border-b">
                 <th className="text-left px-4 py-3 font-semibold">Date &amp; Time</th>
                 <th className="text-left px-4 py-3 font-semibold">User</th>
-                <th className="text-left px-4 py-3 font-semibold">Workspace</th>
+                <th className="text-left px-4 py-3 font-semibold">Organization</th>
                 <th className="text-left px-4 py-3 font-semibold">Action</th>
                 <th className="text-left px-4 py-3 font-semibold">Module</th>
                 <th className="text-left px-4 py-3 font-semibold">Status</th>

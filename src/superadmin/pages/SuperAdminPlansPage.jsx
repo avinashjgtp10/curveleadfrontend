@@ -1,19 +1,38 @@
 import { useEffect, useState } from 'react';
-import { Edit2, Ban, CheckCircle2, Check, X as XIcon } from 'lucide-react';
-import PageHeader from '../components/ui/PageHeader';
+import { Ban, CheckCircle2, Check, X as XIcon, Star, Plus, ChevronRight } from 'lucide-react';
 import Modal from '../components/ui/Modal';
 import { superAdminAPI } from '../../services/api';
 
-const Feature = ({ label, value }) => (
-  <div className="flex items-center justify-between py-1.5 border-b last:border-0">
-    <span className="text-xs text-gray-500">{label}</span>
-    {typeof value === 'boolean' ? (
-      value ? <Check size={14} className="text-emerald-500" /> : <XIcon size={14} className="text-gray-300" />
-    ) : (
-      <span className="text-xs font-semibold text-gray-800">{value}</span>
-    )}
-  </div>
-);
+const ICON_TILES = ['bg-slate-500', 'bg-indigo-500', 'bg-purple-500', 'bg-emerald-500', 'bg-pink-500'];
+const fmtLimit = (n) => (n < 0 ? 'Unlimited' : Number(n).toLocaleString('en-IN'));
+
+// Feature rows derived from the plan's real fields: [label, value]. A string is shown as text,
+// a boolean means included / not included, null means the plan has no value for it.
+const planFeatures = (p) => [
+  ['Team Members', `${fmtLimit(p.max_users)} team members`],
+  ['Leads', `${fmtLimit(p.max_leads)} leads`],
+  ['WhatsApp Limit', p.features?.whatsappLimit ? `WhatsApp ${p.features.whatsappLimit}` : null],
+  ['Automation Access', !!p.features?.automationAccess],
+  ['AI Features', !!p.features?.aiFeatures],
+  ['Reports Access', p.features?.reportsAccess ? `${p.features.reportsAccess} reports` : null],
+  ['Booking Access', p.features?.bookingAccess ?? true],
+];
+
+const COMPARISON_ROWS = [
+  ['Monthly Price', p => (Number(p.price) === 0 ? 'Free' : `₹${Number(p.price).toLocaleString('en-IN')}`)],
+  ['Yearly Price', p => (p.features?.yearlyPrice > 0 ? `₹${Number(p.features.yearlyPrice).toLocaleString('en-IN')}` : '—')],
+  ['Team Members', p => fmtLimit(p.max_users)],
+  ['Leads', p => fmtLimit(p.max_leads)],
+  ['WhatsApp Limit', p => p.features?.whatsappLimit || '—'],
+  ['Automation Access', p => !!p.features?.automationAccess],
+  ['AI Features', p => !!p.features?.aiFeatures],
+  ['Reports Access', p => p.features?.reportsAccess || '—'],
+  ['Booking Access', p => p.features?.bookingAccess ?? true],
+];
+
+const CellValue = ({ value }) => (typeof value === 'boolean'
+  ? (value ? <Check size={15} className="text-emerald-500 mx-auto" /> : <XIcon size={15} className="text-gray-300 mx-auto" />)
+  : <span className="text-gray-700">{value}</span>);
 
 const emptyForm = {
   price: 0, yearlyPrice: 0, max_users: 1, max_leads: 0,
@@ -25,6 +44,10 @@ const SuperAdminPlansPage = () => {
   const [loading, setLoading] = useState(true);
   const [editModal, setEditModal] = useState(null);
   const [form, setForm] = useState(emptyForm);
+  const [showComparison, setShowComparison] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [saveError, setSaveError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -35,7 +58,15 @@ const SuperAdminPlansPage = () => {
 
   const toggleStatus = async (p) => { await superAdminAPI.updatePlan(p.id, { is_active: !p.is_active }); load(); };
 
+  const openCreate = () => {
+    setEditModal({ isNew: true, name: '' });
+    setNewName('');
+    setSaveError('');
+    setForm({ ...emptyForm });
+  };
+
   const openEdit = (p) => {
+    setSaveError('');
     setEditModal(p);
     setForm({
       price: Number(p.price) || 0, max_users: Number(p.max_users) || 0, max_leads: Number(p.max_leads) || 0,
@@ -49,16 +80,25 @@ const SuperAdminPlansPage = () => {
   };
 
   const saveEdit = async () => {
-    await superAdminAPI.updatePlan(editModal.id, {
-      price: form.price, max_users: form.max_users, max_leads: form.max_leads,
-      features: {
-        yearlyPrice: form.yearlyPrice, whatsappLimit: form.whatsappLimit,
-        automationAccess: form.automationAccess, aiFeatures: form.aiFeatures,
-        reportsAccess: form.reportsAccess, bookingAccess: form.bookingAccess,
-      },
-    });
-    setEditModal(null);
-    load();
+    const features = {
+      yearlyPrice: form.yearlyPrice, whatsappLimit: form.whatsappLimit,
+      automationAccess: form.automationAccess, aiFeatures: form.aiFeatures,
+      reportsAccess: form.reportsAccess, bookingAccess: form.bookingAccess,
+    };
+    if (editModal.isNew && !newName.trim()) return setSaveError('Plan name is required.');
+    setSaving(true);
+    setSaveError('');
+    try {
+      if (editModal.isNew) {
+        await superAdminAPI.createPlan({ name: newName.trim(), price: form.price, max_users: form.max_users, max_leads: form.max_leads, features });
+      } else {
+        await superAdminAPI.updatePlan(editModal.id, { price: form.price, max_users: form.max_users, max_leads: form.max_leads, features });
+      }
+      setEditModal(null);
+      load();
+    } catch (err) {
+      setSaveError(err.response?.data?.error || 'Could not save the plan.');
+    } finally { setSaving(false); }
   };
 
   if (loading) return (
@@ -68,57 +108,117 @@ const SuperAdminPlansPage = () => {
   );
 
   return (
-    <div className="max-w-7xl mx-auto space-y-4">
-      <PageHeader title="Plans" subtitle="Manage the pricing plans available to workspaces." />
+    <div className="max-w-7xl mx-auto space-y-5">
+      <div className="flex items-center gap-3">
+        <span className="w-11 h-11 rounded-xl bg-indigo-500 text-white flex items-center justify-center shrink-0"><Star size={20} /></span>
+        <div>
+          <h1 className="text-2xl font-bold text-[#141a3d] tracking-tight">Plans &amp; Subscriptions</h1>
+          <p className="text-sm text-gray-500">Manage the pricing plans available to organizations.</p>
+        </div>
+        <button onClick={openCreate}
+          className="ml-auto flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">
+          <Plus size={16} /> Add Plan
+        </button>
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {plans.map(p => (
-          <div key={p.id} className={`bg-white rounded-2xl border p-5 flex flex-col ${!p.is_active ? 'opacity-60' : ''}`}>
-            <div className="flex items-start justify-between mb-1">
-              <h3 className="text-lg font-bold text-gray-900">{p.name}</h3>
+      <div className="border-b">
+        <span className="inline-block px-1 pb-2 text-sm font-semibold text-indigo-600 border-b-2 border-indigo-600 -mb-px">Pricing Plans</span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-5xl mx-auto">
+        {plans.map((p, i) => (
+          <div key={p.id} className={`bg-white rounded-2xl border p-6 flex flex-col shadow-[0_2px_12px_rgba(99,102,241,0.06)] ${!p.is_active ? 'opacity-60' : ''}`}>
+            <div className="flex items-start justify-between">
+              <span className={`w-11 h-11 rounded-xl ${ICON_TILES[i % ICON_TILES.length]} text-white flex items-center justify-center`}><Star size={18} /></span>
               <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${p.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-100 text-gray-500'}`}>
                 {p.is_active ? 'Active' : 'Inactive'}
               </span>
             </div>
-            <p className="text-2xl font-extrabold text-gray-900">
-              {Number(p.price) === 0 ? 'Free' : `₹${Number(p.price).toLocaleString('en-IN')}`}
+            <button onClick={() => openEdit(p)} className="text-left mt-4">
+              <h3 className="text-lg font-bold text-[#141a3d] hover:text-indigo-600">{p.name}</h3>
+            </button>
+            {p.description && <p className="text-xs text-gray-400 mt-1">{p.description}</p>}
+            <button onClick={() => openEdit(p)} className="text-left mt-4">
+              <span className="text-3xl font-extrabold text-[#141a3d]">{Number(p.price) === 0 ? 'Free' : `₹${Number(p.price).toLocaleString('en-IN')}`}</span>
               {Number(p.price) > 0 && <span className="text-sm font-medium text-gray-400">/mo</span>}
-            </p>
+            </button>
             {Number(p.price) > 0 && p.features?.yearlyPrice > 0 && (
-              <p className="text-xs text-gray-400 mb-2">or ₹{Number(p.features.yearlyPrice).toLocaleString('en-IN')}/yr</p>
+              <p className="text-xs text-gray-400">or ₹{Number(p.features.yearlyPrice).toLocaleString('en-IN')}/yr</p>
             )}
 
-            <div className="mt-3 flex-1">
-              <Feature label="Max Team Members" value={p.max_users < 0 ? 'Unlimited' : p.max_users} />
-              <Feature label="Max Leads" value={p.max_leads < 0 ? 'Unlimited' : p.max_leads} />
-              <Feature label="WhatsApp Limit" value={p.features?.whatsappLimit || '—'} />
-              <Feature label="Automation Access" value={!!p.features?.automationAccess} />
-              <Feature label="AI Features" value={!!p.features?.aiFeatures} />
-              <Feature label="Reports Access" value={p.features?.reportsAccess || '—'} />
-              <Feature label="Booking Access" value={p.features?.bookingAccess ?? true} />
-            </div>
+            <ul className="mt-5 space-y-2.5 flex-1">
+              {planFeatures(p).map(([label, value]) => {
+                if (value === null) return null;
+                const included = value !== false;
+                return (
+                  <li key={label} className={`flex items-center gap-2.5 text-xs ${included ? 'text-gray-600' : 'text-gray-300 line-through'}`}>
+                    <span className={`w-4 h-4 rounded-full flex items-center justify-center shrink-0 ${included ? 'bg-emerald-50 text-emerald-500' : 'bg-gray-100 text-gray-300'}`}>
+                      {included ? <Check size={10} /> : <XIcon size={10} />}
+                    </span>
+                    {typeof value === 'string' ? value : label}
+                  </li>
+                );
+              })}
+            </ul>
 
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => openEdit(p)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50">
-                <Edit2 size={14} /> Edit
-              </button>
-              <button onClick={() => toggleStatus(p)}
-                className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border text-sm font-medium text-gray-600 hover:bg-gray-50">
-                {p.is_active ? <><Ban size={14} /> Deactivate</> : <><CheckCircle2 size={14} /> Activate</>}
-              </button>
-            </div>
+            <button onClick={() => openEdit(p)}
+              className="mt-6 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-indigo-300 text-xs font-semibold text-indigo-600 hover:bg-indigo-50">
+              <Plus size={12} /> Edit Features
+            </button>
+            <button onClick={() => toggleStatus(p)}
+              className="mt-2 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border text-xs font-medium text-gray-600 hover:bg-gray-50">
+              {p.is_active ? <><Ban size={13} /> Deactivate</> : <><CheckCircle2 size={13} /> Activate</>}
+            </button>
+            <p className="text-[11px] text-gray-400 text-center mt-2">Click the name or price to edit</p>
           </div>
         ))}
       </div>
 
+      {plans.length > 0 && (
+        <div className="max-w-5xl mx-auto bg-white rounded-xl border">
+          <button onClick={() => setShowComparison(o => !o)} className="w-full flex items-center justify-between px-5 py-3.5 text-left">
+            <span className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+              <ChevronRight size={14} className={`text-indigo-500 transition-transform ${showComparison ? 'rotate-90' : ''}`} /> Full Feature Comparison
+            </span>
+            <span className="text-[11px] text-gray-400">{COMPARISON_ROWS.length} features across {plans.length} plans</span>
+          </button>
+          {showComparison && (
+            <div className="overflow-x-auto border-t">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-xs text-gray-500 bg-slate-50/60">
+                    <th className="text-left px-5 py-3 font-semibold">Feature</th>
+                    {plans.map(p => <th key={p.id} className="px-4 py-3 font-semibold text-center">{p.name}</th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMPARISON_ROWS.map(([label, get]) => (
+                    <tr key={label} className="border-t">
+                      <td className="px-5 py-2.5 text-gray-600">{label}</td>
+                      {plans.map(p => <td key={p.id} className="px-4 py-2.5 text-center"><CellValue value={get(p)} /></td>)}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {editModal && (
-        <Modal title={`Edit ${editModal.name} plan`} onClose={() => setEditModal(null)} maxWidth="max-w-lg"
+        <Modal title={editModal.isNew ? 'Add Plan' : `Edit ${editModal.name} plan`} onClose={() => !saving && setEditModal(null)} maxWidth="max-w-lg"
           footer={<>
             <button onClick={() => setEditModal(null)} className="flex-1 py-2.5 rounded-xl border text-sm font-medium text-gray-600 hover:bg-gray-50">Cancel</button>
-            <button onClick={saveEdit} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700">Save</button>
+            <button onClick={saveEdit} disabled={saving} className="flex-1 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-50">{saving ? 'Saving…' : editModal.isNew ? 'Create Plan' : 'Save'}</button>
           </>}>
+          {saveError && <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{saveError}</div>}
           <div className="grid grid-cols-2 gap-3">
+            {editModal.isNew && (
+              <div className="col-span-2">
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Plan Name <span className="text-red-500">*</span></label>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="e.g. Growth" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Monthly Price</label>
               <input type="number" value={form.price} onChange={e => { e.target.value = e.target.value.replace(/^0+(?=\d)/, ''); setForm({ ...form, price: Number(e.target.value) }); }}

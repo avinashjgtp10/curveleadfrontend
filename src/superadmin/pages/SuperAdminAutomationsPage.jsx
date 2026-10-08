@@ -20,7 +20,7 @@ const SuperAdminAutomationsPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto space-y-4">
-      <PageHeader title="Automations" subtitle="Follow-up sequences configured across every workspace." />
+      <PageHeader title="Automations" subtitle="Follow-up sequences configured across every organization." />
 
       <div className="bg-white rounded-2xl border">
         <div className="overflow-x-auto">
@@ -28,7 +28,7 @@ const SuperAdminAutomationsPage = () => {
             <thead>
               <tr className="text-[11px] text-gray-400 uppercase border-b">
                 <th className="text-left px-4 py-3 font-semibold">Sequence</th>
-                <th className="text-left px-4 py-3 font-semibold">Workspace</th>
+                <th className="text-left px-4 py-3 font-semibold">Organization</th>
                 <th className="text-left px-4 py-3 font-semibold">Steps</th>
                 <th className="text-left px-4 py-3 font-semibold">Status</th>
                 <th className="text-left px-4 py-3 font-semibold">Created</th>
@@ -49,14 +49,14 @@ const SuperAdminAutomationsPage = () => {
                     {a.tenant_id && (
                       <button onClick={() => navigate(`/super-admin/workspaces/${a.tenant_id}`)}
                         className="flex items-center gap-1 text-xs text-indigo-600 hover:underline">
-                        <Store size={12} /> View Workspace
+                        <Store size={12} /> View Organization
                       </button>
                     )}
                   </td>
                 </tr>
               ))}
               {!loading && !automations.length && (
-                <tr><td colSpan={6}><EmptyState message="No automation sequences have been created by any workspace yet." /></td></tr>
+                <tr><td colSpan={6}><EmptyState message="No automation sequences have been created by any organization yet." /></td></tr>
               )}
             </tbody>
           </table>
