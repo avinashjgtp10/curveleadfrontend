@@ -38,6 +38,7 @@ const SettingsPage = () => {
     automation_business_hours_end: '20:00',
     automation_daily_cap_enabled: false,
     automation_daily_cap: 1,
+    whatsapp_auto_opt_in: false,
   });
   const [businessOriginal, setBusinessOriginal] = useState(null);
   const [editingBusiness, setEditingBusiness] = useState(false);
@@ -99,6 +100,7 @@ const SettingsPage = () => {
         automation_business_hours_end: s.automation_business_hours_end || '20:00',
         automation_daily_cap_enabled: !!s.automation_daily_cap_enabled,
         automation_daily_cap: s.automation_daily_cap || 1,
+        whatsapp_auto_opt_in: !!s.whatsapp_auto_opt_in,
       };
       setBusiness(loadedBusiness);
       setBusinessOriginal(loadedBusiness);
@@ -639,6 +641,21 @@ const SettingsPage = () => {
                             onChange={e => setBusiness({ ...business, automation_daily_cap: parseInt(e.target.value, 10) || 1 })}
                             className={`w-24 px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
                         </div>
+                      )}
+                    </div>
+                    <div className="mb-5">
+                      <label className={`flex items-center gap-2 text-sm ${editingBusiness ? 'cursor-pointer' : 'cursor-not-allowed'}`}>
+                        <input type="checkbox" disabled={!editingBusiness} checked={business.whatsapp_auto_opt_in}
+                          onChange={e => {
+                            if (e.target.checked && !window.confirm('Treat every new enquiry as consent to receive WhatsApp marketing messages?\n\nMeta requires people to agree to marketing messages. If leads block or report you, your WhatsApp quality rating and sending limits can drop, and the number can be restricted. You are responsible for having a clear basis for contacting these people.\n\nTurn this on?')) return;
+                            setBusiness({ ...business, whatsapp_auto_opt_in: e.target.checked });
+                          }}
+                          className="w-4 h-4 rounded" />
+                        <span className="font-medium">Treat new enquiries as WhatsApp opt-in</span>
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1 ml-6">When on, every new lead from any source can receive WhatsApp marketing templates straight away. People who opted out are never re-added, and leads already in the system are not changed.</p>
+                      {business.whatsapp_auto_opt_in && (
+                        <p className="text-xs text-amber-600 mt-1 ml-6">Risk: Meta may lower your quality rating or restrict your number if recipients block or report your messages.</p>
                       )}
                     </div>
                   </>
