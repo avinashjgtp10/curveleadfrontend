@@ -303,6 +303,7 @@ const LeadsPage = () => {
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
   const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
   const [newLeadErrors, setNewLeadErrors] = useState({});
+  const [addingLead, setAddingLead] = useState(false);
   const newLeadNameRef = useRef(null);
   const newLeadPhoneRef = useRef(null);
   const newLeadEmailRef = useRef(null);
@@ -643,6 +644,22 @@ const LeadsPage = () => {
     setNewLeadErrors({});
   };
 
+  // Show the "this mobile number already exists" validation inline under the phone field.
+  const showDuplicatePhone = () => setNewLeadErrors(er => ({ ...er, phone: 'This mobile number already exists.' }));
+
+  // Runs when the user leaves the phone field, so a duplicate is flagged before they fill in the rest.
+  // The server re-checks on save, so a failure here is harmless.
+  const checkPhoneDuplicate = async () => {
+    const raw = newLead.phone.trim();
+    if (!raw) return;
+    const parsed = parsePhoneNumberFromString(raw, { defaultCountry: newLeadCountry });
+    if (!parsed?.isValid()) return; // the normal phone validation reports this on save
+    try {
+      const { data } = await leadAPI.checkDuplicate(parsed.number);
+      if (data.duplicate) showDuplicatePhone();
+    } catch { /* ignore */ }
+  };
+
   const handleAdd = async () => {
     // All errors at once, whitespace trimmed, focus on the first problem field.
     const errors = {};
@@ -663,13 +680,24 @@ const LeadsPage = () => {
       ref.current?.focus();
       return;
     }
+    if (addingLead) return; // a double click must not send two requests
+    setAddingLead(true);
     try {
       await leadAPI.create(lead);
       setShowAddModal(false);
       setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
       setNewLeadErrors({});
       loadData();
-    } catch (e) { toast.error(e.response?.data?.error || e.message || 'Failed'); }
+    } catch (e) {
+      if (e.response?.status === 409 && e.response.data?.code === 'DUPLICATE_LEAD') {
+        // Same mobile number already exists: nothing is saved; explain it inline on the phone field.
+        showDuplicatePhone();
+        newLeadPhoneRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        newLeadPhoneRef.current?.focus();
+      } else {
+        toast.error(e.response?.data?.error || e.message || 'Failed');
+      }
+    } finally { setAddingLead(false); }
   };
 
   const handleDelete = async (id) => {
@@ -1654,11 +1682,16 @@ const LeadsPage = () => {
                   </select>
                   <input id="new-lead-phone" ref={newLeadPhoneRef} type="tel" inputMode="tel" placeholder="98765 43210" value={newLead.phone}
                     onChange={e => { setNewLead({ ...newLead, phone: e.target.value }); setNewLeadErrors(er => ({ ...er, phone: undefined })); }}
+                    onBlur={checkPhoneDuplicate}
                     aria-invalid={!!newLeadErrors.phone}
                     className={`flex-1 min-w-0 px-3 py-2.5 border rounded-lg text-sm ${newLeadErrors.phone ? 'border-red-400' : ''}`} />
                 </div>
                 {newLeadErrors.phone
-                  ? <p className="text-xs text-red-500 mt-1">{newLeadErrors.phone}</p>
+                  ? (
+                    <p className="text-xs text-red-500 mt-1" role="alert">
+                      {newLeadErrors.phone}
+                    </p>
+                  )
                   : <p className="text-xs text-gray-600 mt-1">Pick the country, then type the number. A number starting with + uses its own code.</p>}
               </div>
               <div>
@@ -1713,7 +1746,7 @@ const LeadsPage = () => {
               </div>
               <div className="flex gap-2 pt-2">
                 <button onClick={closeAddModal} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
-                <button onClick={handleAdd} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700">Add Lead</button>
+                <button onClick={handleAdd} disabled={addingLead} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold hover:bg-brand-700 disabled:opacity-60 disabled:cursor-not-allowed">{addingLead ? 'Adding…' : 'Add Lead'}</button>
               </div>
             </div>
           </div>
