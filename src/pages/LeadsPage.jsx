@@ -316,6 +316,7 @@ const LeadsPage = () => {
   const [importPreview, setImportPreview] = useState(null); // { headers, rows }
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState(null);
+  const [skipInvalidRows, setSkipInvalidRows] = useState(true);
   const [importDragOver, setImportDragOver] = useState(false);
 
   // Manual Facebook lead sync (mirrors Integrations > Sync Leads, same endpoint)
@@ -612,17 +613,20 @@ const LeadsPage = () => {
     previewImport(file);
   };
 
-  const handleImport = async () => {
+  const handleImport = async (forceSkip = false) => {
     if (!importFile) return;
     setImporting(true);
     try {
-      const { data } = await leadImportAPI.import(importFile,{mapping:importMapping});
+      // Rows with a bad phone number are skipped (and listed afterwards) unless the person
+      // unticked "skip invalid rows", in which case the file is refused whole.
+      const { data } = await leadImportAPI.import(importFile,{mapping:importMapping,skipInvalid:forceSkip === true || skipInvalidRows});
       setImportResult(data);
       setImportFile(null);
       setImportPreview(null);
       fetchLeads();
     } catch (e) {
-      setImportResult({ error: e.response?.data?.error || 'Import failed. Please check your file.' });
+      const d = e.response?.data;
+      setImportResult({ error: d?.error || 'Import failed. Please check your file.', rows: d?.errors || [], canSkip: !!d?.can_skip, invalidCount: d?.invalid_count || 0 });
     } finally {
       setImporting(false);
     }
@@ -1851,10 +1855,33 @@ const LeadsPage = () => {
               {importResult ? (
                 <div className="space-y-4">
                   {importResult.error ? (
-                    <div className="flex gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
-                      <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-red-700">{importResult.error}</p>
-                    </div>
+                    <>
+                      <div className="flex gap-3 p-4 bg-red-50 border border-red-200 rounded-xl">
+                        <AlertCircle size={18} className="text-red-500 shrink-0 mt-0.5" />
+                        <p className="text-sm text-red-700">{importResult.error}</p>
+                      </div>
+                      {importResult.rows?.length > 0 && (
+                        <div className="border rounded-xl overflow-hidden">
+                          <p className="px-4 py-2 text-xs font-semibold text-gray-700 bg-gray-50 border-b">
+                            Rows to fix{importResult.invalidCount > importResult.rows.length ? ` (first ${importResult.rows.length} of ${importResult.invalidCount})` : ''}. Row numbers match your spreadsheet, where row 1 is the header.
+                          </p>
+                          <div className="max-h-56 overflow-y-auto divide-y">
+                            {importResult.rows.map((r, i) => (
+                              <div key={i} className="px-4 py-2 text-xs">
+                                <p className="font-medium text-gray-800">Row {r.row}{r.name ? ` · ${r.name}` : ''}{r.phone ? ` · "${r.phone}"` : ''}</p>
+                                <p className="text-gray-500">{r.error}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {importResult.canSkip && (
+                        <button onClick={() => handleImport(true)} disabled={importing || !importFile}
+                          className="w-full py-2.5 border border-emerald-300 text-emerald-700 rounded-xl text-sm font-semibold hover:bg-emerald-50 disabled:opacity-50">
+                          {importing ? 'Importing…' : `Skip these ${importResult.invalidCount} and import the rest`}
+                        </button>
+                      )}
+                    </>
                   ) : (
                     <>
                       <div className="flex gap-3 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
@@ -1890,8 +1917,8 @@ const LeadsPage = () => {
                     </>
                   )}
                   <div className="flex gap-2">
-                    <button onClick={() => { setImportResult(null); setImportFile(null); setImportPreview(null); }}
-                      className="flex-1 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Import Another</button>
+                    <button onClick={() => { setImportResult(null); setImportFile(null); setImportPreview(null); setImportCheck(null); }}
+                      className="flex-1 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">{importResult.error ? 'Choose another file' : 'Import Another'}</button>
                     <button onClick={closeImport}
                       className="flex-1 py-2.5 bg-brand-600 text-white rounded-xl text-sm font-semibold hover:bg-brand-700">Done</button>
                   </div>
@@ -1929,7 +1956,7 @@ const LeadsPage = () => {
                   </div>
 
                   {/* CSV Preview */}
-                  {importFile && importHeaders.length>0 && <div className="space-y-3"><label className="text-sm font-medium">Column mapping preset<select className="border rounded-lg p-2 ml-2" defaultValue="auto" onChange={e=>{setImportMapping(presetMapping(importHeaders,e.target.value));setImportCheck(null);}}>{['auto','privyr','aisensy','interakt'].map(x=><option key={x} value={x}>{x==='auto'?'Auto-detect':`Import from ${x==='privyr'?'Privyr':x==='aisensy'?'AiSensy':'Interakt'}`}</option>)}</select></label>{importHeaders.map(h=><label key={h} className="flex items-center gap-3 text-sm">{h}<select className="border rounded-lg p-2 ml-auto" value={importMapping[h]||''} onChange={e=>{const m={...importMapping};if(e.target.value)m[h]=e.target.value;else delete m[h];setImportMapping(m);setImportCheck(null);}}><option value="">Ignore</option>{IMPORT_FIELDS.map(f=><option key={f} value={f}>{f.replaceAll('_',' ')}</option>)}</select></label>)}<button disabled={previewing || importing} className="text-brand-600 text-sm" onClick={()=>previewImport(importFile,importMapping)}>Validate mapping & preview duplicates</button>{importCheck&&<><p className="text-sm">{importCheck.total} rows · {importCheck.duplicates} duplicates to merge · {importCheck.invalid} invalid</p><div className="max-h-48 overflow-auto">{importCheck.preview.slice(0,100).map(r=><p className="text-xs py-1" key={r.row}>Row {r.row}: {r.name} · {r.phone} · {r.error||r.action}</p>)}</div></>}</div>}
+                  {importFile && importHeaders.length>0 && <div className="space-y-3"><label className="text-sm font-medium">Column mapping preset<select className="border rounded-lg p-2 ml-2" defaultValue="auto" onChange={e=>{setImportMapping(presetMapping(importHeaders,e.target.value));setImportCheck(null);}}>{['auto','privyr','aisensy','interakt'].map(x=><option key={x} value={x}>{x==='auto'?'Auto-detect':`Import from ${x==='privyr'?'Privyr':x==='aisensy'?'AiSensy':'Interakt'}`}</option>)}</select></label>{importHeaders.map(h=><label key={h} className="flex items-center gap-3 text-sm">{h}<select className="border rounded-lg p-2 ml-auto" value={importMapping[h]||''} onChange={e=>{const m={...importMapping};if(e.target.value)m[h]=e.target.value;else delete m[h];setImportMapping(m);setImportCheck(null);}}><option value="">Ignore</option>{IMPORT_FIELDS.map(f=><option key={f} value={f}>{f.replaceAll('_',' ')}</option>)}</select></label>)}<button disabled={previewing || importing} className="text-brand-600 text-sm" onClick={()=>previewImport(importFile,importMapping)}>Validate mapping & preview duplicates</button>{importCheck&&<><p className="text-sm">{importCheck.total} rows · {importCheck.duplicates} duplicates to merge · <span className={importCheck.invalid>0?'font-semibold text-red-600':''}>{importCheck.invalid} invalid</span></p>{importCheck.invalid>0&&<label className="flex items-start gap-2 text-xs text-gray-700 bg-amber-50 border border-amber-200 rounded-lg p-2.5 cursor-pointer"><input type="checkbox" className="mt-0.5" checked={skipInvalidRows} onChange={e=>setSkipInvalidRows(e.target.checked)}/><span><b>Skip the {importCheck.invalid} invalid row{importCheck.invalid===1?'':'s'} and import the rest.</b> Untick to import nothing until every row is fixed. Skipped rows are listed afterwards so you can correct them.</span></label>}<div className="max-h-48 overflow-auto">{[...importCheck.preview].sort((a,b)=>(b.error?1:0)-(a.error?1:0)).slice(0,100).map(r=><p className={`text-xs py-1 ${r.error?'text-red-600':''}`} key={r.row}>Row {r.row}: {r.name} · {r.phone} · {r.error||r.action}</p>)}</div></>}</div>}
                   {importPreview && (
                     <div className="rounded-xl border overflow-hidden">
                       <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide px-3 py-2 bg-gray-50 border-b">
@@ -1964,7 +1991,7 @@ const LeadsPage = () => {
 
                   <div className="flex gap-2">
                     <button onClick={closeImport} className="flex-1 py-2.5 border rounded-xl text-sm font-medium hover:bg-gray-50">Cancel</button>
-                    <button onClick={handleImport} disabled={!importFile || importing || previewing || !importCheck || importCheck.total - importCheck.invalid <= 0}
+                    <button onClick={() => handleImport()} disabled={!importFile || importing || previewing || !importCheck || importCheck.total - importCheck.invalid <= 0 || (importCheck.invalid > 0 && !skipInvalidRows)}
                       className="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
                       {previewing ? 'Validating…' : importing
                         ? <><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Importing...</>
