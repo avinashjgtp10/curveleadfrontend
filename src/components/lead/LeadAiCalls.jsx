@@ -1,6 +1,6 @@
 import { formatDateTime } from '../../utils/dateTime.js';
 import { useState, useEffect, useRef } from 'react';
-import { Phone, PhoneCall, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp, PhoneMissed, AlertCircle } from 'lucide-react';
+import { Phone, PhoneCall, Loader2, CheckCircle, XCircle, ChevronDown, ChevronUp, PhoneMissed, AlertCircle, Download, FileText } from 'lucide-react';
 import { aiCallingAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 
@@ -39,7 +39,7 @@ const ScoreBar = ({ score }) => {
   );
 };
 
-const AnalysisPanel = ({ analysis }) => {
+const AnalysisPanel = ({ analysis, hideSummary }) => {
   if (!analysis || analysis.error) {
     return <p className="text-xs text-red-400 mt-2">{analysis?.error || 'Analysis not available'}</p>;
   }
@@ -52,7 +52,7 @@ const AnalysisPanel = ({ analysis }) => {
           <ScoreBar score={analysis.overall_score} />
         </div>
       )}
-      <p className="text-xs text-gray-600 leading-relaxed">{analysis.summary}</p>
+      {!hideSummary && <p className="text-xs text-gray-600 leading-relaxed">{analysis.summary}</p>}
       <div className="grid grid-cols-2 gap-2">
         {analysis.pitch_covered?.length > 0 && (
           <div>
@@ -97,7 +97,10 @@ const AnalysisPanel = ({ analysis }) => {
 
 const CallCard = ({ call }) => {
   const [expanded, setExpanded] = useState(false);
+  const [showTranscript, setShowTranscript] = useState(false);
   const hasAnalysis = call.status === 'completed' && call.analysis;
+  const summary = call.status === 'completed' ? call.analysis?.summary : null;
+  const audioSrc = call.recording_play_url || call.recording_url;
   const isLive = ['queued', 'ringing', 'in_progress'].includes(call.status);
   const isUnsuccessful = ['failed', 'no_answer'].includes(call.status);
 
@@ -122,15 +125,42 @@ const CallCard = ({ call }) => {
         {isLive && <Loader2 size={14} className="text-blue-400 animate-spin ml-1" />}
       </div>
 
-      {call.recording_url && (
-        <div className="px-3 py-2 border-t bg-white">
-          <audio src={call.recording_url} controls className="w-full h-8" />
+      {summary && (
+        <div className="px-3 py-2.5 border-t bg-white">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 mb-0.5">Summary</p>
+          <p className="text-xs text-gray-700 leading-relaxed">{summary}</p>
+          {call.analysis?.next_action && <p className="mt-1 text-[11px] text-brand-600"><span className="text-gray-400">Next step:</span> {call.analysis.next_action}</p>}
         </div>
+      )}
+
+      {audioSrc && (
+        <div className="px-3 py-2 border-t bg-white">
+          <audio src={audioSrc} controls preload="none" className="w-full h-8" />
+          <div className="mt-1 flex items-center gap-3 text-[11px] text-gray-400">
+            <a href={audioSrc} download target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-brand-600"><Download size={11} /> Download recording</a>
+            <span>{call.recording_archived ? 'Saved in CurveLead' : 'Provider link (may expire)'}</span>
+            {call.transcript && (
+              <button onClick={() => setShowTranscript(v => !v)} className="ml-auto inline-flex items-center gap-1 hover:text-brand-600">
+                <FileText size={11} /> {showTranscript ? 'Hide transcript' : 'Transcript'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      {!audioSrc && call.transcript && call.status === 'completed' && (
+        <div className="px-3 py-1.5 border-t bg-white text-right">
+          <button onClick={() => setShowTranscript(v => !v)} className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-brand-600">
+            <FileText size={11} /> {showTranscript ? 'Hide transcript' : 'Transcript'}
+          </button>
+        </div>
+      )}
+      {showTranscript && call.transcript && (
+        <pre className="px-3 py-2 border-t bg-gray-50 text-[11px] leading-relaxed text-gray-600 whitespace-pre-wrap max-h-56 overflow-y-auto font-sans">{call.transcript}</pre>
       )}
 
       {expanded && hasAnalysis && (
         <div className="px-3 pb-3 border-t bg-white">
-          <AnalysisPanel analysis={call.analysis} />
+          <AnalysisPanel analysis={call.analysis} hideSummary={!!summary} />
         </div>
       )}
 

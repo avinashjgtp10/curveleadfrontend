@@ -1288,7 +1288,11 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
   const [form, setForm] = useState({
     voice_ai_api_key: settings.voice_ai_configured ? '••••••••' : '',
     voice_ai_phone_number_id: settings.voice_ai_phone_number_id || '',
+    voice_ai_provider: 'vapi',
   });
+  // Provider list, chosen provider and webhook address come from the calling settings, so a newly
+  // added provider appears here without any change to this screen.
+  const [cfg, setCfg] = useState({ providers: [{ id: 'vapi', label: 'Vapi', credentials: [] }], voice_ai_provider: 'vapi', voice_ai_webhook_url: settings.voice_ai_webhook_url });
   const [saving, setSaving] = useState(false);
   const [agents, setAgents] = useState([]);
   const [voices, setVoices] = useState([]);
@@ -1297,15 +1301,23 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
   const [agentForm, setAgentForm] = useState(emptyAgentForm());
 
   useEffect(() => {
+    aiCallingAPI.getSettings().then(({ data }) => { setCfg(data); setForm(f => ({ ...f, voice_ai_provider: data.voice_ai_provider })); }).catch(() => {});
     aiCallingAPI.getAgents().then(({ data }) => setAgents(data.agents || [])).catch(() => {});
     aiCallingAPI.getVoices().then(({ data }) => setVoices(data.voices || [])).catch(() => {});
   }, []);
+  const provider = cfg.providers.find(p => p.id === form.voice_ai_provider) || cfg.providers[0];
+  const credLabel = (key, fallback) => provider.credentials?.find(c => c.key === key)?.label || fallback;
 
   const reloadAgents = () => aiCallingAPI.getAgents().then(({ data }) => setAgents(data.agents || [])).catch(() => {});
 
   const handleSave = async () => {
     setSaving(true);
-    try { await aiCallingAPI.updateSettings(form); await onRefresh(); toast.success('AI Calling settings saved.'); }
+    try {
+      await aiCallingAPI.updateSettings(form); await onRefresh();
+      aiCallingAPI.getSettings().then(({ data }) => setCfg(data)).catch(() => {});
+      aiCallingAPI.getVoices().then(({ data }) => setVoices(data.voices || [])).catch(() => {});
+      toast.success('AI Calling settings saved.');
+    }
     catch { toast.error('Failed to save.'); }
     finally { setSaving(false); }
   };
@@ -1341,28 +1353,37 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
     <div className="space-y-5">
       <div className={`flex items-center gap-2 px-4 py-3 rounded-xl text-sm ${settings.voice_ai_configured ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>
         {settings.voice_ai_configured ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
-        {settings.voice_ai_configured ? 'AI Calling is active.' : 'Not configured — add your Vapi API key and phone number below.'}
+        {settings.voice_ai_configured ? 'AI Calling is active.' : `Not configured — add your ${provider.label} API key and phone number below.`}
       </div>
 
       <div className="bg-white rounded-2xl border p-5 space-y-4">
         <div>
-          <h2 className="font-semibold mb-1">Connect Vapi</h2>
+          <h2 className="font-semibold mb-1">Connect {provider.label}</h2>
           <p className="text-xs text-gray-500">
-            Get an API key and a phone number from your{' '}
-            <a href="https://vapi.ai" target="_blank" rel="noopener noreferrer" className="text-brand-600 underline">Vapi dashboard</a>, then paste them here.
+            Get an API key and a phone number from your {provider.label} account, then paste them here. Recordings and call summaries are saved in CurveLead after each call.
           </p>
         </div>
+        {cfg.providers.length > 1 && (
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1" htmlFor="voice-provider">Calling provider</label>
+            <select id="voice-provider" value={form.voice_ai_provider} onChange={e => setForm({ ...form, voice_ai_provider: e.target.value })}
+              className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+              {cfg.providers.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            </select>
+            <p className="text-[11px] text-gray-400 mt-1">Changing provider applies to new calls. Add that provider's key and phone number below, and its webhook address in its dashboard.</p>
+          </div>
+        )}
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">API Key</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{credLabel('api_key', 'API Key')}</label>
           <input value={form.voice_ai_api_key} onChange={e => setForm({ ...form, voice_ai_api_key: e.target.value })}
             onFocus={e => { if (e.target.value.startsWith('•')) setForm(f => ({ ...f, voice_ai_api_key: '' })); }}
             type="password" placeholder="vapi_..."
             className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
         </div>
         <div>
-          <label className="block text-xs font-medium text-gray-600 mb-1">Phone Number ID</label>
+          <label className="block text-xs font-medium text-gray-600 mb-1">{credLabel('phone_number_id', 'Phone Number ID')}</label>
           <input value={form.voice_ai_phone_number_id} onChange={e => setForm({ ...form, voice_ai_phone_number_id: e.target.value })}
-            placeholder="The phone number resource ID from Vapi"
+            placeholder={`The phone number ID from ${provider.label}`}
             className="w-full px-3 py-2 border rounded-lg text-sm focus:ring-2 focus:ring-brand-500 focus:outline-none" />
         </div>
         <button onClick={handleSave} disabled={saving}
@@ -1373,8 +1394,8 @@ const AiCallingConfig = ({ settings, onRefresh }) => {
 
       <div className="bg-white rounded-2xl border p-5 space-y-3">
         <h2 className="font-semibold">Call Status Webhook</h2>
-        <p className="text-xs text-gray-500">Add this as a Server URL in your Vapi assistant/account settings so call status, transcripts and recordings flow back into CurveLead:</p>
-        <UrlRow label="Webhook URL" url={settings.voice_ai_webhook_url} />
+        <p className="text-xs text-gray-500">Add this as the server/webhook URL in your {provider.label} account settings so call status, transcripts and recordings flow back into CurveLead:</p>
+        <UrlRow label="Webhook URL" url={cfg.voice_ai_webhook_url || settings.voice_ai_webhook_url} />
       </div>
 
       <div className="bg-white rounded-2xl border p-5 space-y-3">
