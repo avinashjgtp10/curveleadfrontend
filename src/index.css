@@ -115,3 +115,31 @@ input[type='number'] {
 .field-fade-in {
   animation: fieldFadeIn 0.18s ease-out;
 }
+
+/* Landing page workflow cards as a carousel. The cards sit on one track inside a clipped window and the
+   track glides slowly to the far end, then back (left-to-right, then right-to-left), easing at both ends
+   so there is never a jump. `min(0px, ...)` makes the travel equal to how far the track overflows the
+   window, and zero when everything already fits. Pauses while hovered or focused. */
+.card-carousel {
+  overflow: hidden;
+  container-type: inline-size;
+}
+.card-carousel-track {
+  width: max-content;
+  animation: carouselPan 26s ease-in-out infinite alternate;
+  will-change: transform;
+}
+.card-carousel:hover .card-carousel-track,
+.card-carousel:focus-within .card-carousel-track {
+  animation-play-state: paused;
+}
+@keyframes carouselPan {
+  from { transform: translateX(0); }
+  to { transform: translateX(min(0px, calc(100cqw - 100%))); }
+}
+
+/* Respect the operating-system "reduce motion" setting: no animation, the cards scroll by hand instead. */
+@media (prefers-reduced-motion: reduce) {
+  .card-carousel { overflow-x: auto; }
+  .card-carousel-track { animation: none; will-change: auto; }
+}

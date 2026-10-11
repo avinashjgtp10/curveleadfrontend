@@ -417,12 +417,13 @@ const LandingPage = () => {
             </h2>
             <div className="mx-auto mt-5 h-1 w-16 rounded-full bg-gradient-to-r from-violet-500 to-brand-400" />
 
-            <div className="mt-14 grid grid-cols-1 items-stretch gap-5 text-left sm:grid-cols-2 lg:flex lg:flex-row lg:items-stretch">
+            <div className="card-carousel mt-10 -mb-4 py-4">
+              <div className="card-carousel-track flex items-stretch gap-5 text-left">
               {workflow.map((step, i) => {
                 const accent = workflowAccents[step.label];
                 return (
                   <Fragment key={step.title}>
-                    <div className="group relative flex flex-col rounded-[22px] border border-gray-100 bg-white p-6 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_14px_32px_-10px_rgba(0,0,0,0.14)] lg:flex-1">
+                    <div className="group relative flex flex-col rounded-[22px] border border-gray-100 bg-white p-6 shadow-[0_2px_20px_-4px_rgba(0,0,0,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_14px_32px_-10px_rgba(0,0,0,0.14)] w-[300px] shrink-0 sm:w-[320px]">
                       <span className={`absolute right-4 top-4 flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ${accent.badge}`}>
                         0{i + 1}
                       </span>
@@ -435,15 +436,16 @@ const LandingPage = () => {
                       <div className={`mt-5 h-1 w-10 rounded-full ${accent.bar}`} />
                     </div>
                     {i < workflow.length - 1 && (
-                      <div className="flex shrink-0 items-center justify-center sm:hidden lg:flex">
+                      <div className="flex shrink-0 items-center justify-center">
                         <div className="flex h-9 w-9 items-center justify-center rounded-full border border-gray-200 bg-white text-gray-400 shadow-sm">
-                          <ArrowRight size={15} className="rotate-90 lg:rotate-0" />
+                          <ArrowRight size={15} />
                         </div>
                       </div>
                     )}
                   </Fragment>
                 );
               })}
+              </div>
             </div>
           </Reveal>
         </section>
