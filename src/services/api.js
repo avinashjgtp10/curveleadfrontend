@@ -382,6 +382,8 @@ export const templateAPI = {
 export const automationAPI = {
   getSequences: () => api.get('/automations/sequences'),
   createSequence: (data) => api.post('/automations/sequences', data),
+  // Photo, document or video for a step to send. Returns { url, name, type, size, mime, preview_url }.
+  uploadStepMedia: (file, onUploadProgress) => { const fd = new FormData(); fd.append('file', file); return api.post('/automations/media', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000, onUploadProgress }); },
   updateSequence: (id, data) => api.put(`/automations/sequences/${id}`, data),
   deleteSequence: (id) => api.delete(`/automations/sequences/${id}`),
   getRules: () => api.get('/automations/rules'),

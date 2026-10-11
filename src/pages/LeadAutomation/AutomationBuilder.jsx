@@ -5,9 +5,10 @@ import { useAuth } from '../../context/AuthContext';
 import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 import AssignmentRulesSection from './AssignmentRulesSection';
+import StepAttachment from './StepAttachment';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
-const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'minutes', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '' });
+const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'minutes', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
 
 const DELAY_UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440 };
 const delayValueForStep = (step) => {
@@ -174,14 +175,14 @@ const AutomationBuilder = () => {
     if (!seqForm.name.trim()) errors.name = 'Sequence name is required';
     // The server drops steps without a message, so flag each one rather than
     // letting a save silently lose them.
-    const emptySteps = seqForm.steps.map((s, i) => (s.always_template || s.ai_generated || s.message?.trim() ? null : i + 1)).filter(Boolean);
-    if (emptySteps.length) errors.steps = `Add a message to step ${emptySteps.join(', ')} (or use AI), or remove ${emptySteps.length > 1 ? 'them' : 'it'}. The message is sent inside the 24h window; the approved template is only used outside it.`;
+    const emptySteps = seqForm.steps.map((s, i) => (s.always_template || s.ai_generated || s.message?.trim() || s.media?.length ? null : i + 1)).filter(Boolean);
+    if (emptySteps.length) errors.steps = `Add a message or a file to step ${emptySteps.join(', ')} (or use AI), or remove ${emptySteps.length > 1 ? 'them' : 'it'}. The message is sent inside the 24h window; the approved template is only used outside it.`;
     if (seqForm.steps.some(s => s.always_template && (!s.approved_template_name || !s.template_language))) errors.steps = 'Always-template steps require a template and its exact language.';
     if (seqForm.steps.filter(s => s.reply_routes?.length).length > 1) errors.steps = 'Configure one reply question per sequence.';
     if (seqForm.steps.some(s => (s.reply_routes || []).some(r => !r.answer?.trim() || !r.classification?.trim() || !r.sequence_id))) errors.steps = 'Complete each reply route answer, classification and target sequence.';
     setSeqErrors(errors);
     if (Object.keys(errors).length) return;
-    const payload = { ...seqForm, steps: seqForm.steps.map(step => ({ ...step, reply_routes: (step.reply_routes || []).map(route => ({ ...route, aliases: (route.aliases || []).map(a => a.trim()).filter(Boolean) })) })) };
+    const payload = { ...seqForm, steps: seqForm.steps.map(step => ({ ...step, media: (step.media || []).map(({ preview_url, ...m }) => m), reply_routes: (step.reply_routes || []).map(route => ({ ...route, aliases: (route.aliases || []).map(a => a.trim()).filter(Boolean) })) })) };
     try {
       let sequenceId = editingSeq?.id;
       if (editingSeq) {
@@ -444,7 +445,7 @@ const AutomationBuilder = () => {
                       <div className="grid grid-cols-2 gap-2 mb-2">
                         <div>
                           <label className="block text-[10px] font-medium text-gray-400 mb-1">Channel</label>
-                          <select value={step.channel} onChange={e => updateStep(idx, { channel: e.target.value })}
+                          <select value={step.channel} onChange={e => updateStep(idx, { channel: e.target.value, ...(e.target.value === 'email' ? { media: [] } : {}) })}
                             className="w-full px-2.5 py-2 border rounded-lg text-xs bg-white">
                             <option value="whatsapp">WhatsApp</option>
                             <option value="email">Email</option>
@@ -513,9 +514,12 @@ const AutomationBuilder = () => {
                             placeholder={'Hi {{name}}, ...'} />
                         </>
                       )}
+                      {step.channel === 'whatsapp' && !step.always_template && (
+                        <StepAttachment stepNumber={idx + 1} media={step.media} onChange={media => updateStep(idx, { media })} />
+                      )}
                       {step.channel === 'whatsapp' && (
                         <div className="mt-2 space-y-2">
-                          <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!step.always_template} onChange={e => updateStep(idx, { always_template: e.target.checked })} />Always send approved template</label>
+                          <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!step.always_template} onChange={e => updateStep(idx, { always_template: e.target.checked, ...(e.target.checked ? { media: [] } : {}) })} />Always send approved template</label>
                           <label className="block text-xs">Template language<input aria-label={`Step ${idx + 1} template language`} value={step.template_language || ''} onChange={e => updateStep(idx, { template_language: e.target.value })} className="w-full px-2 py-1 border rounded" placeholder="e.g. en_US" /></label>
                           {(step.template_parameters || []).map((mapping,mi) => <div key={mi} className="flex gap-2 items-center text-xs">
                             <span>{`{{${mi+1}}}`}</span><select aria-label={`Step ${idx+1} parameter ${mi+1}`} className="border rounded p-1" value={mapping.field} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { field: e.target.value, value: '' } : m) })}>{['name','phone','email','location','source','product','literal'].map(field => <option key={field} value={field}>{field === 'literal' ? 'Fixed text' : field}</option>)}</select>
