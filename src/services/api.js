@@ -249,6 +249,7 @@ export const leadImportAPI = {
     fd.append('file', file);
     if(options.mapping) fd.append('column_mapping',JSON.stringify(options.mapping));
     if(options.dryRun) fd.append('dry_run','true');
+    if(options.skipInvalid) fd.append('skip_invalid','true');
     return api.post('/leads/import', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
   },
   downloadTemplate: () => api.get('/leads/import/template', { responseType: 'blob' }),
