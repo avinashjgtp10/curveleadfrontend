@@ -88,6 +88,8 @@ export const supportAPI = {
 export const leadAPI = {
   getAll: (params, options) => cachedGet('/leads', params, options),
   getOne: (id) => api.get(`/leads/${id}`),
+  // Does a lead with this (E.164) mobile number already exist in the workspace? Read-only.
+  checkDuplicate: (phone) => api.get('/leads/check-duplicate', { params: { phone } }),
   create: async (data) => api.post('/leads', { ...data, phone: normalizePhone(data.phone) }),
   update: async (id, data) => api.put(`/leads/${id}`, data.phone === undefined ? data : { ...data, phone: normalizePhone(data.phone) }),
   delete: (id) => api.delete(`/leads/${id}`),
