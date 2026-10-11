@@ -301,7 +301,7 @@ const LeadsPage = () => {
   const [pageSize, setPageSize] = useState(100);
   const PAGE_SIZE_OPTIONS = [100, 200, 300, 400, 500];
   const getDefaultDate = () => { const d = new Date(); d.setSeconds(0, 0); return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); };
-  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+  const [newLead, setNewLead] = useState({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate(), whatsapp_opt_in: false });
   const [newLeadErrors, setNewLeadErrors] = useState({});
   const newLeadNameRef = useRef(null);
   const newLeadPhoneRef = useRef(null);
@@ -666,7 +666,7 @@ const LeadsPage = () => {
     try {
       await leadAPI.create(lead);
       setShowAddModal(false);
-      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate() });
+      setNewLead({ name: '', phone: '', email: '', location: '', business_name: '', address: '', product: '', source: 'manual', campaign_id: '', notes: '', lead_date: getDefaultDate(), whatsapp_opt_in: false });
       setNewLeadErrors({});
       loadData();
     } catch (e) { toast.error(e.response?.data?.error || e.message || 'Failed'); }
@@ -1660,6 +1660,11 @@ const LeadsPage = () => {
                 {newLeadErrors.phone
                   ? <p className="text-xs text-red-500 mt-1">{newLeadErrors.phone}</p>
                   : <p className="text-xs text-gray-600 mt-1">Pick the country, then type the number. A number starting with + uses its own code.</p>}
+                <label className="mt-2 flex items-start gap-2 text-xs text-gray-600 cursor-pointer">
+                  <input type="checkbox" checked={!!newLead.whatsapp_opt_in} onChange={e => setNewLead({ ...newLead, whatsapp_opt_in: e.target.checked })}
+                    className="mt-0.5 rounded border-gray-300 text-brand-600 focus:ring-brand-500" />
+                  <span><b>Customer agreed to receive WhatsApp messages</b> (they asked you to message them, or agreed in person, by phone or on a form). Needed for marketing templates; leave unticked if unsure.</span>
+                </label>
               </div>
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Email</label>
