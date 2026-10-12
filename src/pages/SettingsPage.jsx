@@ -272,7 +272,9 @@ const SettingsPage = () => {
     }
     try {
       if (editingStage) {
-        await stageAPI.update(editingStage.id, stageForm);
+        const { data } = await stageAPI.update(editingStage.id, stageForm);
+        // The server warns when a flag change recalculates existing leads' conversions.
+        (data?.warnings || []).forEach((w) => toast.info(w));
       } else {
         await stageAPI.create(stageForm);
       }
@@ -284,7 +286,7 @@ const SettingsPage = () => {
 
   const handleDeleteStage = async (stage) => {
     if (stage.is_default) return toast.error('Default stages cannot be deleted');
-    if (!await confirm({ title: `Delete stage "${stage.name}"?`, message: 'Leads in this stage will keep the stage label.' })) return;
+    if (!await confirm({ title: `Delete stage "${stage.name}"?`, message: 'A stage that leads or history still refer to cannot be deleted; mark it inactive instead so reports stay accurate.' })) return;
     try {
       await stageAPI.delete(stage.id);
       loadStages();
