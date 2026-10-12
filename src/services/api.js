@@ -347,6 +347,23 @@ export const settingsAPI = {
 };
 
 // ============================================
+// Finance (payment ledger). Answers 404 feature_off until the workspace turns it on. Every change carries an
+// Idempotency-Key so a double-click or a retry can never record the same money twice.
+// ============================================
+const withKey = (key) => ({ headers: { 'Idempotency-Key': key } });
+export const financeAPI = {
+  getLead: (leadId) => api.get(`/finance/leads/${leadId}`),
+  record: (leadId, data, key) => api.post(`/finance/leads/${leadId}/payments`, data, withKey(key)),
+  refund: (id, data, key) => api.post(`/finance/payments/${id}/refund`, data, withKey(key)),
+  reverse: (id, data, key) => api.post(`/finance/payments/${id}/reverse`, data, withKey(key)),
+  correct: (id, data, key) => api.post(`/finance/payments/${id}/correct`, data, withKey(key)),
+  complete: (id, data) => api.post(`/finance/payments/${id}/complete`, data),
+  cancel: (id, data) => api.post(`/finance/payments/${id}/cancel`, data),
+  amend: (id, data) => api.patch(`/finance/payments/${id}/details`, data),
+  audit: (leadId) => api.get('/finance/audit', { params: { lead_id: leadId } }),
+};
+
+// ============================================
 // Lead Stages
 // ============================================
 export const stageAPI = {
