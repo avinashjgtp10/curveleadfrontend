@@ -12,6 +12,7 @@ export const PAGE_TITLES = {
   "/automations": "Automations",
   "/staff": "Team",
   "/reports": "Reports",
+  "/revenue": "Revenue & ROI",
   "/billing": "Billing",
   "/settings": "Settings",
   "/help": "Help & Support",

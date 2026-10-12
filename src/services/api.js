@@ -351,6 +351,13 @@ export const settingsAPI = {
 // Idempotency-Key so a double-click or a retry can never record the same money twice.
 // ============================================
 const withKey = (key) => ({ headers: { 'Idempotency-Key': key } });
+// Revenue & ROI reporting (cohort metrics + timeline). 404 feature_off until the workspace turns it on; shadow mode is admin-only.
+export const cohortAPI = {
+  metrics: (params) => api.get('/cohort/metrics', { params }),
+  timeline: (params) => api.get('/cohort/timeline', { params }),
+  recommendations: (params) => api.get('/cohort/recommendations', { params }),   // budget suggestions: read-only
+  health: () => api.get('/cohort/health'),   // cheap; 404 feature_off when the workspace has it off
+};
 export const financeAPI = {
   getLead: (leadId) => api.get(`/finance/leads/${leadId}`),
   record: (leadId, data, key) => api.post(`/finance/leads/${leadId}/payments`, data, withKey(key)),

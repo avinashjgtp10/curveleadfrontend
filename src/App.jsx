@@ -35,6 +35,7 @@ import AppointmentsPage from './pages/AppointmentsPage';
 import LeadAutomationPage from './pages/LeadAutomation/LeadAutomationPage';
 import StaffPage from './pages/StaffPage';
 import ReportsPage from './pages/ReportsPage';
+import RevenuePage from './pages/RevenuePage';
 import CoachingPage from './pages/CoachingPage';
 import SettingsPage from './pages/SettingsPage';
 import BillingPage from './pages/BillingPage';
@@ -134,6 +135,7 @@ const App = () => (
           <Route path="quotations/:id" element={<QuotationViewPage />} />
           <Route path="staff" element={<StaffPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="revenue" element={<RevenuePage />} />
           <Route path="coaching" element={<CoachingPage />} />
           <Route path="billing" element={<BillingPage />} />
           <Route path="settings" element={<SettingsPage />} />
