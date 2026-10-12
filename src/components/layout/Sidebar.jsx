@@ -1,7 +1,7 @@
 import { initials } from '../../utils/leadData.js';
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { whatsappAPI } from '../../services/api';
+import { whatsappAPI, cohortAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { ChevronDown, LogOut, X } from 'lucide-react';
 import BrandLogo from '../ui/BrandLogo';
@@ -14,6 +14,14 @@ const Sidebar = ({ isOpen, onClose }) => {
   const navigate = useNavigate();
   const role = user?.role === 'super_admin' ? 'admin' : user?.role;
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  // Revenue & ROI is shown only once the workspace has it turned on (the API answers 404 feature_off otherwise).
+  const [revenueOn, setRevenueOn] = useState(false);
+  useEffect(() => {
+    if (role !== 'admin') return undefined;
+    let live = true;
+    cohortAPI.health().then(() => { if (live) setRevenueOn(true); }).catch(() => { if (live) setRevenueOn(false); });
+    return () => { live = false; };
+  }, [role, tenant?.id]);
   // Collapsed group labels, remembered per browser. Storage can be unavailable
   // (private mode, blocked site data), so fall back to everything expanded.
   const [collapsed, setCollapsed] = useState(() => {
@@ -69,7 +77,7 @@ const Sidebar = ({ isOpen, onClose }) => {
 
         <nav className="flex-1 px-2 py-3 overflow-y-auto">
           {SIDEBAR_GROUPS.map(group => {
-            const items = group.paths.map(path => SIDEBAR_NAV_ITEMS.find(item => item.path === path)).filter(item => item?.roles.includes(role));
+            const items = group.paths.map(path => SIDEBAR_NAV_ITEMS.find(item => item.path === path)).filter(item => item?.roles.includes(role) && (item.path !== '/revenue' || revenueOn));
             if (!items.length) return null;
             const isCollapsed = collapsed.includes(group.label);
             return <div key={group.label} className="mb-3">
