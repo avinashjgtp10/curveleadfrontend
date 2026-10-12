@@ -19,6 +19,18 @@ const ConnectionBar = ({ gmb, reload }) => {
   const confirm = useConfirmDialog();
   const [connecting, setConnecting] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [checking, setChecking] = useState(false);
+
+  // Connections made before Google opened API access never found their locations; this retries.
+  const checkAgain = async () => {
+    setChecking(true);
+    try {
+      const { data } = await gmbAPI.refresh();
+      if (data.ok) { toast.success(data.message); reload(); } else toast.error(data.message);
+    } catch (e) {
+      toast.error(e.response?.data?.message || e.response?.data?.error || "Couldn't check Google just now. Please try again.");
+    } finally { setChecking(false); }
+  };
 
   const connect = async () => {
     setConnecting(true);
@@ -47,14 +59,22 @@ const ConnectionBar = ({ gmb, reload }) => {
             <CheckCircle size={16} className="text-green-600 shrink-0" />
             <span>
               Connected{gmb.gmb_account_name ? ` — ${gmb.gmb_account_name}` : ''}.
-              {!gmb.gmb_locations_loaded && ' Waiting on Google to approve API access before reviews/posts/insights can load.'}
+              {gmb.gmb_locations_loaded
+                ? ` ${gmb.gmb_location_count ? `${gmb.gmb_location_count} business location${gmb.gmb_location_count === 1 ? '' : 's'} found.` : 'Google access is ready.'}`
+                : " One more step: click “Check again” to finish setting up your business locations."}
             </span>
-            {!gmb.gmb_locations_loaded && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Beta · pending Google approval</span>}
+            {!gmb.gmb_locations_loaded && <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800">Setup not finished</span>}
           </div>
-          <button onClick={disconnect} disabled={disconnecting}
-            className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50">
-            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button onClick={checkAgain} disabled={checking}
+              className="text-xs font-semibold text-brand-600 hover:underline disabled:opacity-50">
+              {checking ? 'Checking…' : gmb.gmb_locations_loaded ? 'Refresh locations' : 'Check again'}
+            </button>
+            <button onClick={disconnect} disabled={disconnecting}
+              className="text-xs font-semibold text-red-500 hover:underline disabled:opacity-50">
+              {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+            </button>
+          </div>
         </div>
       </Card>
     );
@@ -73,14 +93,16 @@ const ConnectionBar = ({ gmb, reload }) => {
   );
 };
 
-const ComingSoon = ({ title, description, connected }) => (
+const ComingSoon = ({ title, description, connected, ready }) => (
   <Card>
     <div className="text-center py-10">
       <Lock size={32} className="mx-auto text-gray-300 mb-3" />
       <h3 className="font-semibold text-gray-800 mb-1">{title}</h3>
       <p className="text-sm text-gray-500 max-w-md mx-auto">{description}</p>
       <p className="text-xs text-gray-400 mt-3">
-        {connected ? "Connected — waiting for Google to approve Business Profile API access." : 'Connect your Google Business Profile above to unlock this.'}
+        {!connected ? 'Connect your Google Business Profile above to unlock this.'
+          : ready ? 'Google access is ready. This feature is coming soon.'
+          : 'Connected. Click “Check again” above to finish setup. This feature is coming soon.'}
       </p>
     </div>
   </Card>
@@ -225,7 +247,7 @@ const GmbPage = () => {
 
       {tab.id === 'requests'
         ? <ReviewRequestsTab />
-        : <ComingSoon title={tab.title} description={tab.description} connected={gmb.gmb_connected} />}
+        : <ComingSoon title={tab.title} description={tab.description} connected={gmb.gmb_connected} ready={gmb.gmb_locations_loaded} />}
     </div>
   );
 };
