@@ -306,6 +306,8 @@ export const gmbAPI = {
   draftMessage: () => api.post('/gmb/draft-message'),
   connect: () => api.get('/gmb/oauth/connect'),
   disconnect: () => api.post('/gmb/oauth/disconnect'),
+  // "Check again": re-reads Google accounts/locations for a connection made before access was approved.
+  refresh: () => api.post('/gmb/refresh'),
 };
 
 export const teamAPI = {

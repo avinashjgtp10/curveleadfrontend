@@ -495,7 +495,7 @@ const HelpPage = () => {
         </Section>
 
         <Section id="gmb" icon={Star} title="Google Business Profile">
-          <p>Ask won customers for a Google review on WhatsApp automatically. Add your review link, then pick an approved template for customers outside the 24-hour window. Review replies, posts and profile insights are in beta and appear once Google approves API access.</p>
+          <p>Ask won customers for a Google review on WhatsApp automatically. Add your review link, then pick an approved template for customers outside the 24-hour window. Google has approved CurveLead's access to the Business Profile API. Review monitoring and replies and profile insights are coming next; for now, use Review Requests here, and publish Google posts from the Social page.</p>
           <Tip>Only the stage where a lead really becomes a customer should be tagged Won (Settings → Pipeline), or review requests go to the wrong people.</Tip>
         </Section>
 
