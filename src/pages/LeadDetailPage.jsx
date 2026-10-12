@@ -11,6 +11,8 @@ import InboxComposer, { lastInboundAt } from '../components/whatsapp/InboxCompos
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI, notesAPI, automationAPI } from '../services/api';
 import LeadNotes from '../components/lead/LeadNotes';
+import FinancePanel from '../components/lead/FinancePanel';
+import { financeAPI } from '../services/api';
 import LeadAttachments from '../components/lead/LeadAttachments';
 import LeadRecordings from '../components/lead/LeadRecordings';
 import LeadAiCalls from '../components/lead/LeadAiCalls';
@@ -194,6 +196,14 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   const [showShareBrochure, setShowShareBrochure] = useState(false);
   const [sharingBrochureId, setSharingBrochureId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
+  // The payment ledger is switched on per workspace: the Finance tab exists only when the server says it does.
+  const [financeOn, setFinanceOn] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    if (!id) return undefined;
+    financeAPI.getLead(id).then(() => alive && setFinanceOn(true)).catch(() => alive && setFinanceOn(false));
+    return () => { alive = false; };
+  }, [id]);
   const [enrollment, setEnrollment] = useState(null);
 
   // Team Communication
@@ -639,6 +649,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     { id: 'overview', label: 'Overview' },
     { id: 'chat', label: 'Chat' },
     { id: 'notes', label: 'Notes & Files' },
+    ...(financeOn ? [{ id: 'finance', label: 'Finance' }] : []),
     { id: 'automation', label: 'Automation' },
     { id: 'activity', label: 'Activity' },
   ];
@@ -843,7 +854,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       placeholder="0"
                       className="w-full mt-0.5 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
                   </div>
-                  {isWon && (
+                  {isWon && !financeOn && (
                     <div>
                       <label className="text-xs text-gray-500">Advance Received ({currencySymbol()})</label>
                       <input type="number" min="0" value={form.advance_received || ''} onChange={e => setForm({ ...form, advance_received: e.target.value })}
@@ -945,7 +956,13 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                           <p className="text-sm font-bold">{formatMoney(Number(lead.deal_value))}</p>
                         </div>
                       )}
-                      {isWon && (
+                      {isWon && financeOn && (
+                        <button type="button" onClick={() => setActiveTab('finance')} className="flex-1 min-w-[100px] bg-green-50 rounded-lg px-3 py-2 text-left">
+                          <p className="text-[10px] text-gray-500">Payments</p>
+                          <p className="text-sm font-bold text-green-700">See the Finance tab</p>
+                        </button>
+                      )}
+                      {isWon && !financeOn && (
                         <>
                           <div className="flex-1 min-w-[100px] bg-green-50 rounded-lg px-3 py-2">
                             <p className="text-[10px] text-gray-500">Advance Received</p>
@@ -1360,6 +1377,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           {/* AI Voice Calls */}
           <LeadAiCalls leadId={id} />
       </div>
+      )}
+
+      {activeTab === 'finance' && financeOn && (
+        <div className="bg-white rounded-xl border p-4">
+          <FinancePanel leadId={id} onChanged={loadData} />
+        </div>
       )}
 
       {activeTab === 'automation' && (
