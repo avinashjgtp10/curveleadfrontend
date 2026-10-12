@@ -360,6 +360,7 @@ export const financeAPI = {
   complete: (id, data) => api.post(`/finance/payments/${id}/complete`, data),
   cancel: (id, data) => api.post(`/finance/payments/${id}/cancel`, data),
   amend: (id, data) => api.patch(`/finance/payments/${id}/details`, data),
+  adjustBooked: (leadId, data) => api.post(`/finance/leads/${leadId}/booked-value/adjust`, data),
   audit: (leadId) => api.get('/finance/audit', { params: { lead_id: leadId } }),
 };
 

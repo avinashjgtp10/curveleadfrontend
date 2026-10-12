@@ -4,7 +4,7 @@ import { financeAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { useConfirmDialog } from '../ui/ConfirmDialog';
 import { workspaceCurrency as getWorkspaceCurrency, intlLocale } from '../../utils/locale';
-import { KIND_LABEL, STATUS_LABEL, money, signedAmount, dateLabel, outstanding, OUTSTANDING_NOTE, rowActions, newIdempotencyKey, apiMessage } from '../../utils/financeFormat';
+import { KIND_LABEL, STATUS_LABEL, money, signedAmount, dateLabel, outstanding, OUTSTANDING_NOTE, rowActions, newIdempotencyKey, apiMessage, bookedBasisLabel } from '../../utils/financeFormat';
 
 // What the customer actually paid, as a ledger: payments, refunds, reversals. Money is never edited or deleted here;
 // a mistake is fixed by a reversal or a correction, and both stay visible. The server enforces every rule.
@@ -16,6 +16,7 @@ const ACTIONS = {
   correct: { title: 'Correct the amount', cta: 'Correct amount', reason: true, amount: true, note: 'The original is reversed and a new payment is recorded. Both stay visible.' },
   edit: { title: 'Edit payment details', cta: 'Save details', reason: true, details: true },
   complete: { title: 'Mark as received', cta: 'Mark received', date: true },
+  booked: { title: 'Adjust the booked value', cta: 'Save adjustment', reason: true, amount: true, note: 'The booked value was frozen when the lead was marked Won, so later quote edits never change it. Use this only for an agreed change; the old value, the new value and your reason are kept.' },
 };
 
 const inputCls = 'w-full border rounded-lg px-3 py-2 text-sm';
@@ -41,7 +42,7 @@ export default function FinancePanel({ leadId, onChanged }) {
 
   const open = (type, payment = null) => {
     keyRef.current = newIdempotencyKey(); // one key per opened form: a retry or double-click replays instead of duplicating
-    setForm({ amount: '', currency: payment?.currency || workspaceCurrency, paid_on: today(), method: payment?.method || '', reference: '', notes: payment?.notes || '', reason: '' });
+    setForm({ amount: type === 'booked' && data?.booked?.value != null ? String(data.booked.value) : '', currency: payment?.currency || workspaceCurrency, paid_on: today(), method: payment?.method || '', reference: '', notes: payment?.notes || '', reason: '' });
     setModal({ type, payment });
   };
   const close = () => { setModal(null); setBusy(false); };
@@ -55,6 +56,7 @@ export default function FinancePanel({ leadId, onChanged }) {
       else if (type === 'correct') await financeAPI.correct(payment.id, { amount: f.amount, reason: f.reason, paid_on: f.paid_on }, keyRef.current);
       else if (type === 'edit') await financeAPI.amend(payment.id, { reason: f.reason, paid_on: f.paid_on, paid_on_basis: f.paid_on ? 'confirmed' : undefined, method: f.method, reference: f.reference, notes: f.notes });
       else if (type === 'complete') await financeAPI.complete(payment.id, { paid_on: f.paid_on });
+      else if (type === 'booked') await financeAPI.adjustBooked(leadId, { value: f.amount, reason: f.reason });
       toast.success('Saved.'); close(); await load(); onChanged && onChanged();
     } catch (e) {
       const d = e.response && e.response.data;
@@ -82,6 +84,16 @@ export default function FinancePanel({ leadId, onChanged }) {
         <div className="flex-1 min-w-[140px] bg-gray-50 rounded-lg px-3 py-2">
           <p className="text-[10px] text-gray-500">Quoted price (not collected money)</p>
           <p className="text-sm font-bold">{data.deal_value ? fmt(data.deal_value, workspaceCurrency) : '—'}</p>
+        </div>
+        <div className="flex-1 min-w-[160px] bg-blue-50 rounded-lg px-3 py-2">
+          <p className="text-[10px] text-gray-500">Booked value (what was agreed)</p>
+          {data.booked && data.booked.value != null ? (
+            <>
+              <p className="text-sm font-bold text-blue-700">{fmt(data.booked.value, data.booked.currency || workspaceCurrency)}</p>
+              <p className="text-[10px] text-gray-500">{bookedBasisLabel(data.booked)}</p>
+              {data.can_manage && <button type="button" onClick={() => open('booked')} className="text-[10px] text-brand-600 hover:underline">Adjust</button>}
+            </>
+          ) : <p className="text-xs text-gray-500">Not booked yet. It is frozen when the lead is marked Won with a price.</p>}
         </div>
         {data.totals.length === 0 && <div className="flex-1 min-w-[140px] bg-green-50 rounded-lg px-3 py-2"><p className="text-[10px] text-gray-500">Collected</p><p className="text-sm font-bold text-green-700">{fmt(0, workspaceCurrency)}</p></div>}
         {data.totals.map((t) => (
