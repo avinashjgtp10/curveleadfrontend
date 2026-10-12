@@ -65,3 +65,12 @@ export const rowActions = (e, canManage) => {
   if (e.kind === 'payment' && e.status === 'pending') return ['complete', 'cancel'];
   return [];
 };
+
+// How the booked value came about, for the label under it.
+export const BOOKED_BASIS_LABEL = {
+  live_snapshot: 'Frozen when the lead was marked Won',
+  live_snapshot_late: 'Frozen when the price was first entered after Won',
+  inferred_from_deal_value: 'Estimated from the quoted price (lead was Won before booking was recorded)',
+  inherited_from_merge: 'Inherited from a merged duplicate lead',
+};
+export const bookedBasisLabel = (booked) => (booked && booked.adjusted ? 'Adjusted with a recorded reason' : (booked && BOOKED_BASIS_LABEL[booked.basis]) || '');

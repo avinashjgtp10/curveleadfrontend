@@ -56,3 +56,11 @@ test('idempotency keys are unique and long enough for the server; errors show th
   assert.equal(apiMessage({ response: { data: { error: 'Already recorded.' } } }), 'Already recorded.');
   assert.match(apiMessage(new Error('x')), /try again/);
 });
+
+import { bookedBasisLabel } from '../src/utils/financeFormat.js';
+test('the booked value is labelled by how it came about, and an adjusted one says so', () => {
+  assert.match(bookedBasisLabel({ basis: 'live_snapshot', adjusted: false }), /Frozen when the lead was marked Won/);
+  assert.match(bookedBasisLabel({ basis: 'inferred_from_deal_value', adjusted: false }), /Estimated/);
+  assert.match(bookedBasisLabel({ basis: 'live_snapshot', adjusted: true }), /Adjusted with a recorded reason/);
+  assert.equal(bookedBasisLabel(null), '');
+});
