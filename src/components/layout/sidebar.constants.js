@@ -5,6 +5,7 @@ import {
   CalendarCheck,
   CreditCard,
   HelpCircle,
+  Wallet,
   LayoutDashboard,
   Lightbulb,
   TrendingUp,
@@ -31,6 +32,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { path: '/automations', label: 'Automations', icon: Workflow, roles: ['admin', 'staff'] },
   { path: '/staff', label: 'Team', icon: UserCog, roles: ['admin'] },
   { path: '/reports', label: 'Reports', icon: BarChart3, roles: ['admin'] },
+  { path: '/revenue', label: 'Revenue & ROI', icon: Wallet, roles: ['admin'] },
   { path: '/coaching', label: 'Sales Coaching', icon: Lightbulb, roles: ['admin'] },
   { path: '/integrations', label: 'Integrations', icon: Plug, roles: ['admin'] },
   { path: '/billing', label: 'Billing', icon: CreditCard, roles: ['admin'] },
@@ -41,6 +43,6 @@ export const SIDEBAR_NAV_ITEMS = [
 export const SIDEBAR_GROUPS = [
  { label:'Sell', paths:['/dashboard','/leads','/appointments','/staff'] },
  { label:'Engage', paths:['/whatsapp','/brochures','/ai-agent'] },
- { label:'Grow', paths:['/ads','/social','/gmb','/coaching','/reports'] },
+ { label:'Grow', paths:['/ads','/social','/gmb','/coaching','/reports','/revenue'] },
  { label:'Setup', paths:['/automations','/integrations','/billing','/settings','/help'] },
 ];
