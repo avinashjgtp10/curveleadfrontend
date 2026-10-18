@@ -1,10 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Star, MessageSquareText, Megaphone, BarChart3, Sparkles, Lock, CheckCircle, LinkIcon } from 'lucide-react';
+import { Star, MessageSquareText, Megaphone, BarChart3, Building2, Sparkles, Lock, CheckCircle, LinkIcon } from 'lucide-react';
 import { gmbAPI, whatsappAPI } from '../services/api';
 import { useToast } from '../components/ui/Toast';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Card, Toggle, Loading, LoadError, useLoad } from '../components/whatsapp/hubUi';
+import GmbProfileTab from '../components/gmb/GmbProfileTab';
+import GmbInsightsTab from '../components/gmb/GmbInsightsTab';
+import { googleReviewLink, googleProblem } from '../utils/gmbProfile';
 
 const CONNECT_MESSAGES = {
   success: { type: 'success', text: 'Google Business Profile connected.' },
@@ -118,6 +121,7 @@ const ReviewRequestsTab = () => {
   const [templates, setTemplates] = useState(null);
   const [saving, setSaving] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [fetchingLink, setFetchingLink] = useState(false);
 
   useEffect(() => {
     if (data) { setEnabled(data.enabled); setReviewLink(data.review_link); setMessage(data.message); setTemplateName(data.template_name || ''); }
@@ -128,6 +132,18 @@ const ReviewRequestsTab = () => {
 
   if (loading && !data) return <Loading />;
   if (error) return <LoadError error={error} onRetry={reload} />;
+
+  // Fills the field only when asked; the person still reviews it and presses Save.
+  const fillFromGoogle = async () => {
+    setFetchingLink(true);
+    try {
+      const { data: r } = await gmbAPI.profiles();
+      const link = r.ok === false ? null : googleReviewLink(r.locations);
+      if (link) { setReviewLink(link); toast.success('Link filled in — press Save to keep it.'); }
+      else toast.error(r.ok === false ? googleProblem(r).message : 'Google did not give a review link for this listing.');
+    } catch (e) { toast.error(googleProblem(null, e).message); }
+    finally { setFetchingLink(false); }
+  };
 
   const save = async () => {
     setSaving(true);
@@ -162,6 +178,9 @@ const ReviewRequestsTab = () => {
         </p>
         <input value={reviewLink} onChange={e => setReviewLink(e.target.value)} placeholder="https://g.page/r/.../review"
           className="w-full px-3 py-2 border rounded-lg text-sm" />
+        <button type="button" onClick={fillFromGoogle} disabled={fetchingLink} className="mt-2 text-xs text-brand-700 font-semibold disabled:opacity-50">
+          {fetchingLink ? 'Asking Google…' : 'Use the link from my Google listing'}
+        </button>
       </Card>
 
       <Card title="Approved template (outside the 24-hour window)">
@@ -198,6 +217,7 @@ const ReviewRequestsTab = () => {
 
 const TABS = [
   { id: 'requests', label: 'Review Requests', icon: Star, showConnection: false },
+  { id: 'profile', label: 'Profile', icon: Building2, showConnection: true },
   { id: 'reviews', label: 'Reviews', icon: MessageSquareText, showConnection: true,
     title: 'Review monitoring & AI replies',
     description: 'See new Google reviews as they come in, get notified immediately for anything 3 stars or below, and have AI draft a reply in your own tone for approval.' },
@@ -245,8 +265,9 @@ const GmbPage = () => {
 
       {tab.showConnection && <ConnectionBar gmb={gmb} reload={reload} />}
 
-      {tab.id === 'requests'
-        ? <ReviewRequestsTab />
+      {tab.id === 'requests' ? <ReviewRequestsTab />
+        : tab.id === 'profile' ? (gmb.gmb_connected ? <GmbProfileTab /> : <ComingSoon title="Your Google profile" description="Connect Google to see how complete your listing is." connected={false} ready={false} />)
+        : tab.id === 'insights' ? (gmb.gmb_connected ? <GmbInsightsTab /> : <ComingSoon title={tab.title} description={tab.description} connected={false} ready={false} />)
         : <ComingSoon title={tab.title} description={tab.description} connected={gmb.gmb_connected} ready={gmb.gmb_locations_loaded} />}
     </div>
   );

@@ -308,6 +308,9 @@ export const gmbAPI = {
   disconnect: () => api.post('/gmb/oauth/disconnect'),
   // "Check again": re-reads Google accounts/locations for a connection made before access was approved.
   refresh: () => api.post('/gmb/refresh'),
+  // Read-only: each location's profile details + completeness checklist, and its search/maps views and customer actions.
+  profiles: () => api.get('/gmb/profiles'),
+  insights: (params) => api.get('/gmb/insights', { params }),
 };
 
 export const teamAPI = {
