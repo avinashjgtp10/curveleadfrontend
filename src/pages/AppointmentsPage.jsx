@@ -72,6 +72,22 @@ const AppointmentsPage = () => {
 
   useEffect(() => { load(); }, []);
 
+  // Follow ?scope= when it changes while this page is already open (e.g. a Dashboard link).
+  useEffect(() => {
+    const scope = new URLSearchParams(location.search).get('scope');
+    const next = APPOINTMENT_TABS.some(t => t.id === scope) ? scope : 'all';
+    setTab(next);
+    setPage(1);
+  }, [location.search]);
+
+  // Escape closes whichever modal is open.
+  useEffect(() => {
+    if (!newModal && !rescheduleId) return;
+    const onKey = (e) => { if (e.key === 'Escape') { setNewModal(false); setRescheduleId(null); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [newModal, rescheduleId]);
+
   useEffect(() => {
     staffAPI.getAll().then(({ data }) => setFilterStaff(data.staff || [])).catch(() => {});
   }, []);
@@ -126,6 +142,7 @@ const AppointmentsPage = () => {
     const errors = {};
     if (!newForm.lead_id) errors.lead_id = 'Select a lead';
     if (!newForm.next_followup_at) errors.next_followup_at = 'Pick a date and time';
+    else if (new Date(dateTimeInputToUTC(newForm.next_followup_at)) < new Date()) errors.next_followup_at = 'Pick a date and time in the future';
     setNewErrors(errors);
     if (Object.keys(errors).length) return;
     setSaving(true);
@@ -152,10 +169,10 @@ const AppointmentsPage = () => {
   };
 
   const handleCancel = async (id) => {
-    if (!await confirm({ title: 'Cancel this appointment?', confirmText: 'Cancel Appointment' })) return;
+    if (!await confirm({ title: 'Delete this appointment?', message: 'It will be removed from the list permanently.', confirmText: 'Delete Appointment' })) return;
     setBusyId(id);
     try { await followupAPI.delete(id); load(); }
-    catch (e) { toast.error('Failed to cancel'); }
+    catch (e) { toast.error('Failed to delete appointment'); }
     finally { setBusyId(null); setOpenMenuId(null); }
   };
 
@@ -166,13 +183,14 @@ const AppointmentsPage = () => {
   };
 
   const handleReschedule = async () => {
-    if (!rescheduleAt) return;
+    if (!rescheduleAt) { toast.error('Pick a new date and time.'); return; }
+    if (new Date(dateTimeInputToUTC(rescheduleAt)) < new Date()) { toast.error('Pick a date and time in the future.'); return; }
     setSaving(true);
     try {
       await followupAPI.update(rescheduleId, { next_followup_at: dateTimeInputToUTC(rescheduleAt) });
       setRescheduleId(null);
       load();
-    } catch (e) { toast.error('Failed to reschedule'); }
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to reschedule'); }
     finally { setSaving(false); }
   };
 
@@ -215,16 +233,22 @@ const AppointmentsPage = () => {
     .filter(a => searchLower || a.next_followup_at || !a.dismissed_at)
     .filter(a => (apptFilters.type ? a.followup_type === apptFilters.type : true))
     .filter(a => (apptFilters.assigned_to ? a.assigned_to === apptFilters.assigned_to : true))
-    .filter(a => (apptFilters.date_from ? localDay(a.next_followup_at) >= apptFilters.date_from : true))
-    .filter(a => (apptFilters.date_to ? localDay(a.next_followup_at) <= apptFilters.date_to : true))
+    // Unscheduled rows have no day, so they can never fall inside a date range.
+    .filter(a => (apptFilters.date_from ? !!a.next_followup_at && localDay(a.next_followup_at) >= apptFilters.date_from : true))
+    .filter(a => (apptFilters.date_to ? !!a.next_followup_at && localDay(a.next_followup_at) <= apptFilters.date_to : true))
     .filter(a => {
       if (!searchLower) return true;
-      const hay = `${a.lead_name || ''} ${TYPE_META[a.followup_type]?.label || ''} ${a.assigned_to_name || ''}`.toLowerCase();
+      const hay = `${a.lead_name || ''} ${a.lead_phone || ''} ${TYPE_META[a.followup_type]?.label || ''} ${a.assigned_to_name || ''}`.toLowerCase();
       return hay.includes(searchLower);
     })
-    .sort((a, b) => new Date(a.next_followup_at) - new Date(b.next_followup_at));
+    // Unscheduled rows go last instead of sorting as 1970.
+    .sort((a, b) => {
+      if (!a.next_followup_at || !b.next_followup_at) return (a.next_followup_at ? 0 : 1) - (b.next_followup_at ? 0 : 1);
+      return new Date(a.next_followup_at) - new Date(b.next_followup_at);
+    });
 
   const activeFilterCount = Object.values(apptFilters).filter(Boolean).length;
+  const dateRangeInvalid = !!(apptFilters.date_from && apptFilters.date_to && apptFilters.date_from > apptFilters.date_to);
 
   const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const currentPage = Math.min(page, pages);
@@ -244,7 +268,11 @@ const AppointmentsPage = () => {
   return (
     <div className="max-w-7xl mx-auto">
       <OverdueReview onChanged={load} onSelect={(row) => navigate('/leads', { state: { openLeadId: row.lead_id } })}/>
-      {loadError&&<button role="alert" onClick={load} className="text-red-600 text-sm">{loadError}</button>}
+      {loadError && (
+        <div role="alert" className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
+          {loadError} <button onClick={load} className="underline font-medium">Retry</button>
+        </div>
+      )}
       <div className="flex items-center justify-between flex-wrap gap-3 mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Appointments</h1>
@@ -265,11 +293,11 @@ const AppointmentsPage = () => {
             </button>
             {showAllMenuOpen && (
               <div className="absolute right-0 top-full mt-1 w-44 bg-white border rounded-lg shadow-lg z-30 py-1 text-left">
-                <button onClick={() => { setHideCompleted(false); selectTab('all'); setSearch(''); setShowAllMenuOpen(false); }}
+                <button onClick={() => { setHideCompleted(false); setPage(1); setShowAllMenuOpen(false); }}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${!hideCompleted ? 'text-brand-600 font-medium' : 'text-gray-700'}`}>
                   Show All
                 </button>
-                <button onClick={() => { setHideCompleted(true); setPage(1); setShowAllMenuOpen(false); }}
+                <button onClick={() => { setHideCompleted(true); if (tab === 'completed') selectTab('all'); else setPage(1); setShowAllMenuOpen(false); }}
                   className={`w-full text-left px-3 py-2 text-sm hover:bg-gray-50 ${hideCompleted ? 'text-brand-600 font-medium' : 'text-gray-700'}`}>
                   Hide Completed
                 </button>
@@ -328,8 +356,8 @@ const AppointmentsPage = () => {
             <div className="relative">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input value={search} onChange={e => { setSearch(e.target.value); setPage(1); }}
-                placeholder="Search by lead, type or sales person..."
-                className="pl-8 pr-3 py-2 border rounded-lg text-sm w-64 focus:outline-none focus:ring-2 focus:ring-brand-300" />
+                placeholder="Search by lead, phone, type or sales person..."
+                className="pl-8 pr-3 py-2 border rounded-lg text-sm w-full sm:w-72 focus:outline-none focus:ring-2 focus:ring-brand-300" />
             </div>
             <button onClick={() => setShowFilters(v => !v)}
               className={`px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1.5 transition-colors ${
@@ -387,6 +415,7 @@ const AppointmentsPage = () => {
           </div>
         )}
 
+        {dateRangeInvalid && <p role="alert" className="px-4 pb-2 text-xs text-red-500">"From Date" must be on or before "To Date".</p>}
         <div className="border-b mt-3" />
 
         {loading ? (
@@ -394,7 +423,12 @@ const AppointmentsPage = () => {
         ) : pageRows.length === 0 ? (
           <div className="text-center py-16">
             <Calendar size={32} className="mx-auto text-gray-300 mb-3" />
-            <p className="text-gray-500 font-medium">No appointments found</p><button className="btn-primary mt-3" onClick={openNewModal}>Schedule appointment</button>
+            <p className="text-gray-500 font-medium">No appointments found</p>
+            {(activeFilterCount > 0 || searchLower) ? (
+              <button className="btn-primary mt-3" onClick={() => { setApptFilters(EMPTY_APPT_FILTERS); setSearch(''); setPage(1); }}>Clear filters</button>
+            ) : (
+              <button className="btn-primary mt-3" onClick={openNewModal}>Schedule appointment</button>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -491,7 +525,7 @@ const AppointmentsPage = () => {
                             {!a.is_completed && (
                               <button onClick={() => handleCancel(a.id)}
                                 className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-red-50 text-red-500">
-                                <XCircle size={13} /> Cancel Appointment
+                                <XCircle size={13} /> Delete Appointment
                               </button>
                             )}
                           </div>,
@@ -562,7 +596,11 @@ const AppointmentsPage = () => {
 
       {newModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setNewModal(false)} />
+          <div className="fixed inset-0 bg-black/50" onClick={async () => {
+            const typed = newForm.lead_id || newForm.notes.trim() || newForm.next_followup_at;
+            if (typed && !await confirm({ title: 'Discard this appointment?', message: "What you've entered will be lost.", confirmText: 'Discard' })) return;
+            setNewModal(false);
+          }} />
           <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl p-5 max-h-[85vh] overflow-y-auto">
             <h3 className="font-bold text-base mb-4">New Appointment</h3>
 
