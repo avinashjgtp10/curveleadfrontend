@@ -518,6 +518,9 @@ const LeadsPage = () => {
     });
   }, []);
 
+  const activeDates = view === 'followups' ? fuFilters : filters;
+  const dateRangeInvalid = !!(activeDates.date_from && activeDates.date_to && activeDates.date_from > activeDates.date_to);
+
   const requestKey = JSON.stringify([preferenceKey, view, { ...filters, search: debouncedSearch }, { ...fuFilters, search: debouncedSearch }, page, pageSize, sortState, appliedHiddenStages]);
   useEffect(() => {
     if (preferencesReady && !searchPending) fetchLeads();
@@ -526,6 +529,7 @@ const LeadsPage = () => {
 
   const fetchLeads = async () => {
     if (!preferencesReady || searchPending) return;
+    if (dateRangeInvalid) { setLoading(false); return; }
     const request = requestManager.current.begin();
     setSelectedIds(new Set()); setLoading(true); setLoadError('');
     try {
@@ -542,7 +546,9 @@ const LeadsPage = () => {
         if (!request.isCurrent()) return;
         setLeads(res.data.leads || []);
         setSearchMode(res.data.search_mode || 'none');
-        setPagination({ total: res.data.pagination?.total || 0, pages: res.data.pagination?.pages || 1 });
+        const pages = res.data.pagination?.pages || 1;
+        setPagination({ total: res.data.pagination?.total || 0, pages });
+        if (page > pages) setPage(pages); // e.g. the last lead on the last page was deleted
       }
       setDisplayedSearch(debouncedSearch);
     } catch (error) {
@@ -564,7 +570,8 @@ const LeadsPage = () => {
       ? { sort: key, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
       : { sort: key, dir: 'asc' });
   };
-  const clearFilters = () => { handleFilterChange({ ...EMPTY_FILTERS }); saveHiddenStages([]); };
+  // Hidden stages are a saved preference with their own toggle, so clearing filters leaves them alone.
+  const clearFilters = () => handleFilterChange({ ...EMPTY_FILTERS });
 
   const pageNumbers = () => {
     const t = pagination.pages;
@@ -815,12 +822,17 @@ const LeadsPage = () => {
 
   const handleBulkStage = async (stage) => {
     if (!stage || !selectedIds.size) return;
+    if (stages.find(s => s.name.toLowerCase() === stage)?.is_lost) {
+      setBulkStage('');
+      toast.error('Move leads to a lost stage one at a time so a lost reason can be recorded.');
+      return;
+    }
     setBulkLoading(true);
     try {
       await leadAPI.bulkUpdate({ ids: [...selectedIds], stage });
       clearSelection();
       loadData();
-    } catch (e) { toast.error('Failed'); }
+    } catch (e) { setBulkStage(''); toast.error(e.response?.data?.error || 'Failed to change stage'); }
     finally { setBulkLoading(false); }
   };
 
@@ -830,7 +842,7 @@ const LeadsPage = () => {
       await leadAPI.bulkUpdate({ ids: [...selectedIds], assigned_to: staffId || null });
       clearSelection();
       loadData();
-    } catch (e) { toast.error('Failed'); }
+    } catch (e) { setBulkAssign(''); toast.error(e.response?.data?.error || 'Failed to assign leads'); }
     finally { setBulkLoading(false); }
   };
 
@@ -1232,7 +1244,7 @@ const LeadsPage = () => {
           <div className="flex flex-wrap gap-2 px-4 py-3" aria-label="Active lead filters">
             {Object.entries(filters).filter(([key, value]) => !['date_field','from','to','include_all_stages'].includes(key) && value).map(([key, value]) => (
               <span key={key} className="inline-flex items-center gap-1 bg-brand-50 text-brand-700 border border-brand-200 text-xs px-2.5 py-1 rounded-full">
-                {key === 'metric' ? `Period: ${value === 'won' ? 'Won' : 'Created'} · ${formatDateTime(filters.from)} – ${formatDateTime(filters.to)} (end exclusive)` : key === 'activity' ? `Activity: ${value.replace(/_/g,' ')}` : `${key.replace(/_/g, ' ')}: ${key === 'source' ? sourceLabel(value) : key === 'assigned_to' ? staff.find(s => s.id === value)?.name || value : value}`}
+                {key === 'metric' ? `Period: ${value === 'won' ? 'Won' : 'Created'} · ${formatDateTime(filters.from)} – ${formatDateTime(filters.to)} (end exclusive)` : key === 'activity' ? `Activity: ${value.replace(/_/g,' ')}` : `${key === 'date_from' ? 'From' : key === 'date_to' ? 'To' : key.replace(/_/g, ' ')}: ${key === 'source' ? sourceLabel(value) : key === 'assigned_to' ? staff.find(s => s.id === value)?.name || value : value}`}
                 <button aria-label={`Remove ${key.replace(/_/g, ' ')} filter`} onClick={() => handleFilterChange(f => ({ ...f, [key]: '', ...(key==='metric'?{from:'',to:''}:{}) }))}><X size={11} /></button>
               </span>
             ))}
@@ -1244,6 +1256,7 @@ const LeadsPage = () => {
             ))}
           </div>
         )}
+        {dateRangeInvalid && <p role="alert" className="px-4 py-2 text-sm text-red-600">"From" date must be on or before "To" date.</p>}
         {loadError && <div role="alert" className="mx-4 my-3 text-sm text-red-700">{loadError} <button onClick={fetchLeads} className="underline">Retry loading leads</button></div>}
         {searchMode === 'fuzzy' && !searchPending && <p role="status" className="px-4 py-2 text-sm text-gray-500">No direct matches. Showing similar names.</p>}
         {searchPending && <p role="status" className="px-4 py-2 text-sm text-gray-500">Waiting for search…</p>}
@@ -1496,8 +1509,8 @@ const LeadsPage = () => {
                         )}
                         <td className={`px-3 py-3 text-right sticky right-0 ${selectedIds.has(l.id) ? 'bg-brand-50' : 'bg-white'}`}>
                           <div className="flex justify-end items-center gap-1" data-actions-menu>
-                            <a href={`tel:${l.phone}`} onClick={() => leadAPI.logCall(l.id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>
-                            <a href={`https://wa.me/${l.phone}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>
+                            {l.phone && <a href={`tel:${l.phone}`} onClick={() => leadAPI.logCall(l.id).catch(() => {})} className="p-1.5 hover:bg-blue-50 rounded text-blue-500" title="Call"><Phone size={14} /></a>}
+                            {l.phone && <a href={`https://wa.me/${String(l.phone).replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-green-50 rounded text-green-500" title="WhatsApp"><MessageCircle size={14} /></a>}
                             <button onClick={(e) => toggleActionMenu(l.id, e)} className="p-1.5 hover:bg-gray-100 rounded text-gray-500" title="More actions"><MoreVertical size={14} /></button>
                             {openActionMenuId === l.id && createPortal(
                               <div data-actions-menu style={{ position: 'fixed', top: actionMenuPos.top, left: actionMenuPos.left, width: 176 }}
@@ -1641,7 +1654,7 @@ const LeadsPage = () => {
                           className="w-full p-2.5 bg-white rounded-lg hover:shadow-md transition border text-left">
                           <p className="text-sm font-medium truncate"><SearchHighlight value={lead.name} search={displayedSearch} /></p>
                           <p className="text-xs text-gray-600">{lead.phone}</p>
-                          <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${scoreColors[lead.lead_score]}`}>{lead.lead_score?.toUpperCase()}</span>
+                          {lead.lead_score && <span className={`mt-1 inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${scoreColors[lead.lead_score] || 'bg-gray-100 text-gray-600'}`}>{lead.lead_score.toUpperCase()}</span>}
                         </button>
                       ))}
                       {stageLeads.length === 0 && <p className="text-xs text-gray-600 text-center py-4">No leads</p>}
