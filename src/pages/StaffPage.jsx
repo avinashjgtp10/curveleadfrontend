@@ -24,6 +24,7 @@ const StaffPage = () => {
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
   const [inviteErrors, setInviteErrors] = useState({});
+  const [inviting, setInviting] = useState(false);
 
   const [teams, setTeams] = useState([]);
   const [teamModal, setTeamModal] = useState(false);
@@ -187,13 +188,19 @@ const StaffPage = () => {
     else if (form.phone.replace(/\D/g, '').length < 10) newErrors.phone = 'Enter a valid phone number';
     setInviteErrors(newErrors);
     if (Object.keys(newErrors).length) return;
+    if (inviting) return; // a double click must not send two invites
+    setInviting(true);
     try {
       await staffAPI.invite({ ...form, team_id: form.team_id || undefined });
       setShowModal(false);
       setForm({ name: '', email: '', phone: '', role: 'staff', team_id: '' });
       setInviteErrors({});
       loadInvitations();
-    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    } catch (e) {
+      // Show the server's reason inside the form (e.g. the plan's team-size limit), where the user is looking.
+      const message = e.response?.data?.error || 'Could not send the invite. Please try again.';
+      setInviteErrors({ form: message, upgrade: e.response?.status === 403 && /limit/i.test(message) });
+    } finally { setInviting(false); }
   };
 
   const handleResendInvite = async (id) => {
@@ -354,7 +361,7 @@ const StaffPage = () => {
       <div className="bg-white rounded-2xl border p-5 space-y-3">
         <h2 className="font-semibold flex items-center gap-2"><UserCog size={16} className="text-brand-600" /> Active Members</h2>
         {loading ? (
-          <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-3 border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
+          <div className="flex items-center justify-center h-40"><div className="w-7 h-7 border-[3px] border-brand-200 border-t-brand-600 rounded-full animate-spin" /></div>
         ) : staff.length === 0 ? (
           <div className="text-center py-12 border border-dashed rounded-xl">
             <UserCog size={40} className="mx-auto text-gray-300 mb-3" />
@@ -565,6 +572,12 @@ const StaffPage = () => {
             </div>
             <div className="p-5 space-y-3">
               <p className="text-xs text-gray-500 -mt-1">They'll get an email with a link to set their own password.</p>
+              {inviteErrors.form && (
+                <div role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-700">
+                  {inviteErrors.form}
+                  {inviteErrors.upgrade && <Link to="/billing" className="ml-1 font-semibold underline hover:text-red-800">Upgrade plan</Link>}
+                </div>
+              )}
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
                 <input type="text" value={form.name}
@@ -604,7 +617,7 @@ const StaffPage = () => {
               </div>
               <div className="flex gap-2 pt-2">
                 <button onClick={() => setShowModal(false)} className="flex-1 px-4 py-2.5 border rounded-lg text-sm font-medium">Cancel</button>
-                <button onClick={handleInvite} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold">Send Invite</button>
+                <button onClick={handleInvite} disabled={inviting} className="flex-1 px-4 py-2.5 bg-brand-600 text-white rounded-lg text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed">{inviting ? 'Sending…' : 'Send Invite'}</button>
               </div>
             </div>
           </div>
