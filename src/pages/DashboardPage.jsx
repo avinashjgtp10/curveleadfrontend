@@ -115,7 +115,7 @@ const DashboardPage = () => {
   const [customTo, setCustomTo] = useState(todayISO());
 
   useEffect(() => {
-    if (period === 'custom' && (!customFrom || !customTo)) return;
+    if (period === 'custom' && (!customFrom || !customTo || customFrom > customTo)) return;
     setLoading(true);setLoadError('');
     const params = period === 'custom' ? { period, date_from: customFrom, date_to: customTo } : { period };
     reportsAPI.dashboard(params)
@@ -196,6 +196,7 @@ const DashboardPage = () => {
   ];
 
   const periodCaption = periodCaptionFor(period, customFrom, customTo);
+  const customRangeInvalid = period === 'custom' && customFrom && customTo && customFrom > customTo;
 
   return (
     <div className="space-y-5 max-w-[1536px] mx-auto pb-4">
@@ -229,6 +230,7 @@ const DashboardPage = () => {
               <DatePicker value={customFrom} onChange={setCustomFrom} className="w-32" />
               <span className="text-xs text-gray-600">to</span>
               <DatePicker value={customTo} onChange={setCustomTo} className="w-32" />
+              {customRangeInvalid && <span role="alert" className="text-xs text-red-500">"From" must be on or before "To".</span>}
             </div>
           )}
           {loading && <div className="animate-spin w-3.5 h-3.5 border-2 border-brand-500 border-t-transparent rounded-full" />}
@@ -497,10 +499,10 @@ const DashboardPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.sources.map(s => {
+                  {data.sources.map((s, i) => {
                     const meta = SOURCE_ICON[s.source?.toLowerCase()] || { icon: Megaphone, cls: 'text-gray-600' };
                     return (
-                      <tr key={sourceLabel(s.source)} className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 transition-colors">
+                      <tr key={`${s.source}-${i}`} className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 transition-colors">
                         <td className="py-2.5 min-w-0">
                           <div className="flex items-center gap-2 min-w-0">
                             <meta.icon size={15} className={`${meta.cls} shrink-0`} />
@@ -553,8 +555,8 @@ const DashboardPage = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {data.team.map((t) => (
-                    <tr key={t.name} className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 transition-colors">
+                  {data.team.map((t, i) => (
+                    <tr key={`${t.name}-${i}`} className="border-b border-gray-200/70 last:border-0 hover:bg-gray-50/70 transition-colors">
                       <td className="py-2.5 truncate">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <div className="w-6 h-6 bg-gradient-to-br from-gray-100 to-gray-200 rounded-full flex items-center justify-center text-xs font-bold text-gray-600 shrink-0">
