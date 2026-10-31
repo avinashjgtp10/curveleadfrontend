@@ -66,7 +66,9 @@ const NotificationBell = () => {
   // Poll every 30 seconds; fire a real desktop notification for anything new
   // since the last poll (skipped on the very first poll, so existing unread
   // items don't all pop up at once on page load).
+  // Hidden tabs skip the poll so background tabs don't spend the user's rate limit.
   const pollNotifications = async () => {
+    if (document.visibilityState !== 'visible') return;
     try {
       const { data } = await notificationsAPI.getAll();
       const list = data.notifications || [];
