@@ -120,7 +120,9 @@ const DashboardPage = () => {
     const params = period === 'custom' ? { period, date_from: customFrom, date_to: customTo } : { period };
     reportsAPI.dashboard(params)
       .then(({ data }) => setData(data))
-      .catch(()=>setLoadError('Could not load dashboard.'))
+      .catch((e) => setLoadError(e.response?.status === 429
+        ? 'Too many requests right now. Please wait a minute, then retry.'
+        : 'Could not load dashboard.'))
       .finally(() => setLoading(false));
   }, [period, customFrom, customTo, refresh]);
 
