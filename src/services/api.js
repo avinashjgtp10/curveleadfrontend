@@ -637,6 +637,39 @@ export const notificationsAPI = {
   getGroups: () => api.get('/notifications/groups'),
 };
 
+// ============================================
+// CurveLead Voice (human-agent calling)
+// ============================================
+export const voiceAPI = {
+  status: () => api.get('/voice/status'),
+  token: () => api.post('/voice/token'),
+  authorize: (leadId) => api.post('/voice/calls/authorize', { leadId }),
+  createCall: (authorizationId) => api.post('/voice/calls', { authorizationId, mode: 'client' }),
+  hangup: (id) => api.post(`/voice/calls/${id}/hangup`),
+  outcome: (id, data) => api.post(`/voice/calls/${id}/outcome`, data),
+  getCall: (id) => api.get(`/voice/calls/${id}`),
+  listCalls: (params) => api.get('/voice/calls', { params }),
+  agentReport: (params) => api.get('/voice/reports/agents', { params }),
+  rates: () => api.get('/voice/rates'),
+  numbers: () => api.get('/voice/numbers'),
+  wallet: () => api.get('/voice/wallet'),
+  walletTransactions: (params) => api.get('/voice/wallet/transactions', { params }),
+  registerDevice: (data) => api.post('/voice/devices', data),
+  topup: (amountMinor) => api.post('/voice/wallet/topup', { amountMinor }),
+  topupVerify: (data) => api.post('/voice/wallet/topup/verify', data),
+};
+
+// Platform super-admin setup of calling (per organization), plus global country routes.
+export const voiceAdminAPI = {
+  routes: () => api.get('/voice/admin/routes'),
+  setRoute: (data) => api.put('/voice/admin/routes', data),
+  overview: (tenantId) => api.get(`/voice/admin/tenants/${tenantId}`),
+  saveAccount: (tenantId, data) => api.put(`/voice/admin/tenants/${tenantId}/account`, data),
+  addNumber: (tenantId, data) => api.post(`/voice/admin/tenants/${tenantId}/numbers`, data),
+  updateNumber: (id, data) => api.put(`/voice/admin/numbers/${id}`, data),
+  addRate: (data) => api.post('/voice/admin/rates', data),
+};
+
 export default api;
 
 export const featureAPI = {
