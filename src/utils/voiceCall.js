@@ -69,3 +69,13 @@ export const toMinor = (major) => decimalToUnits(major, 2);                // wa
 export const toMicro = (major) => decimalToUnits(major, 6);                // per-minute rates (millionths)
 export const percentToBps = (pct) => decimalToUnits(pct, 2);               // 15 -> "1500"
 export const microToDisplay = (micro) => (micro == null ? '—' : (Number(micro) / 1e6).toFixed(4));
+
+export const CAPACITY_MESSAGE = 'All call lines are busy right now. Please try again in a moment.';
+// Why did the provider end a call that never connected? Telnyx documents a SIP 403 "User channel limit exceeded"
+// when the account's concurrent-call limit is reached. Returns 'capacity' or null; fields are the SDK call's
+// sipCode / sipReason / cause. Anything else is treated as a normal end of call.
+export const hangupReason = (call) => {
+  if (!call) return null;
+  const text = `${call.sipReason || ''} ${call.cause || ''}`;
+  return Number(call.sipCode) === 403 && /channel limit|limit exceeded/i.test(text) ? 'capacity' : null;
+};
