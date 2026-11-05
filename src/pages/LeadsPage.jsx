@@ -326,14 +326,15 @@ const LeadsPage = () => {
   const [, setSyncClock] = useState(0);
   useEffect(() => {
     let active = true;
-    const refresh = () => integrationsAPI.facebookSyncStatus().then(({ data }) => {
+    const refresh = () => document.visibilityState !== 'visible' ? Promise.resolve() : integrationsAPI.facebookSyncStatus().then(({ data }) => { // hidden tabs skip the poll
       if (!active) return;
       setLastSyncedAt(data.last_synced_at ? new Date(data.last_synced_at) : null);
       setSyncStatus(data.configured ? 'connected' : 'disconnected');
     }).catch(() => { if (active) setSyncStatus('unavailable'); });
     refresh();
     const timer = setInterval(() => { setSyncClock(v => v + 1); refresh(); }, 60_000);
-    return () => { active = false; clearInterval(timer); };
+    document.addEventListener('visibilitychange', refresh);
+    return () => { active = false; clearInterval(timer); document.removeEventListener('visibilitychange', refresh); };
   }, []);
 
   const handleManualSync = async () => {
