@@ -2,6 +2,7 @@ import {
   BarChart3,
   BookOpen,
   Bot,
+  PhoneCall,
   CalendarCheck,
   CreditCard,
   HelpCircle,
@@ -27,6 +28,7 @@ export const SIDEBAR_NAV_ITEMS = [
   { path: '/social', label: 'Social', icon: Share2, roles: ['admin'] },
   { path: '/ai-agent', label: 'AI Agent', icon: Bot, roles: ['admin'] },
   { path: '/whatsapp', label: 'WhatsApp', icon: MessageCircle, roles: ['admin', 'staff'] },
+  { path: '/calling', label: 'Calling', icon: PhoneCall, roles: ['admin', 'staff'] },
   { path: '/gmb', label: 'GMB', icon: Star, roles: ['admin'] },
   { path: '/appointments', label: 'Appointments', icon: CalendarCheck, roles: ['admin', 'staff'] },
   { path: '/automations', label: 'Automations', icon: Workflow, roles: ['admin', 'staff'] },
@@ -42,7 +44,7 @@ export const SIDEBAR_NAV_ITEMS = [
 
 export const SIDEBAR_GROUPS = [
  { label:'Sell', paths:['/dashboard','/leads','/appointments','/staff'] },
- { label:'Engage', paths:['/whatsapp','/brochures','/ai-agent'] },
+ { label:'Engage', paths:['/whatsapp','/calling','/brochures','/ai-agent'] },
  { label:'Grow', paths:['/ads','/social','/gmb','/coaching','/reports','/revenue'] },
  { label:'Setup', paths:['/automations','/integrations','/billing','/settings','/help'] },
 ];

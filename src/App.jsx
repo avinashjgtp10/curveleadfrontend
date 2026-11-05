@@ -38,6 +38,7 @@ import ReportsPage from './pages/ReportsPage';
 import RevenuePage from './pages/RevenuePage';
 import CoachingPage from './pages/CoachingPage';
 import SettingsPage from './pages/SettingsPage';
+import CallingPage from './pages/CallingPage';
 import BillingPage from './pages/BillingPage';
 import HelpPage from './pages/HelpPage';
 
@@ -72,6 +73,7 @@ import SuperAdminPlansPage from './superadmin/pages/SuperAdminPlansPage';
 import SuperAdminActivityLogsPage from './superadmin/pages/SuperAdminActivityLogsPage';
 import SuperAdminSupportPage from './superadmin/pages/SuperAdminSupportPage';
 import SuperAdminSettingsPage from './superadmin/pages/SuperAdminSettingsPage';
+import SuperAdminCallingPage from './superadmin/pages/SuperAdminCallingPage';
 
 const SuperAdminProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
@@ -124,6 +126,7 @@ const App = () => (
           <Route path="whatsapp" element={<WhatsAppHubPage />} />
           <Route path="gmb" element={<GmbPage />} />
           <Route path="templates" element={<Navigate to="/whatsapp?tab=templates" replace />} />
+          <Route path="calling" element={<CallingPage />} />
           <Route path="followups" element={<FollowupsPage />} />
           <Route path="appointments" element={<AppointmentsPage />} />
           <Route path="automations" element={<AutomationsPage />} />
@@ -158,6 +161,7 @@ const App = () => (
           <Route path="integrations" element={<SuperAdminIntegrationsPage />} />
           <Route path="subscriptions" element={<SuperAdminSubscriptionsPage />} />
           <Route path="billing" element={<SuperAdminBillingPage />} />
+          <Route path="calling" element={<SuperAdminCallingPage />} />
           <Route path="plans" element={<SuperAdminPlansPage />} />
           <Route path="automations" element={<SuperAdminAutomationsPage />} />
           <Route path="activity" element={<SuperAdminActivityLogsPage />} />

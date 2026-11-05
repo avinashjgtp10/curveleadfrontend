@@ -6,6 +6,7 @@ export const PAGE_TITLES = {
   "/social": "Social",
   "/ai-agent": "AI Agent",
   "/whatsapp": "WhatsApp",
+  "/calling": "Calling",
   "/followups": "Follow-ups",
   "/appointments": "Appointments",
   "/lead-automation": "Lead Automation",
