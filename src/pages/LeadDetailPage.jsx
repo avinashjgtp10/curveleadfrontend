@@ -22,6 +22,7 @@ import { useToast } from '../components/ui/Toast';
 import DateTimePicker from '../components/ui/DateTimePicker';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2, Users, Workflow, PlayCircle, Ban, AlertTriangle } from 'lucide-react';
 import { formatMoney, currencySymbol } from '../utils/locale';
+import LeadCallButton from '../components/voice/LeadCallButton';
 
 // Mirrors WhatsApp's own delivery ticks for an outbound message.
 const MessageStatus = ({ status }) => {
@@ -721,6 +722,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
             {lead.stage}
           </span>
+          <LeadCallButton lead={lead} variant="icon" onLogged={() => loadData()} />
           <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="shrink-0 p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
           <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="shrink-0 p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
         </div>

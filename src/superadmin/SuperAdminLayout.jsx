@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   Bot, LayoutDashboard, Users, Zap, CalendarCheck, Store, Settings, Bell, ChevronDown, Search, LogOut, Crown, Briefcase, FileText,
-  UserCog, CreditCard, Receipt, Layers, ScrollText, LifeBuoy, MessageCircle, Megaphone, Plug, Menu, X, CornerDownLeft, History,
+  UserCog, CreditCard, Receipt, Layers, ScrollText, LifeBuoy, MessageCircle, Megaphone, Plug, Menu, X, CornerDownLeft, History, Phone,
 } from 'lucide-react';
 import BrandLogo from '../components/ui/BrandLogo';
 import { useAuth } from '../context/AuthContext';
@@ -40,6 +40,7 @@ const NAV_GROUPS = [
   {
     title: 'Billing',
     items: [
+      { path: '/super-admin/calling', label: 'Calling', icon: Phone },
       { path: '/super-admin/plans', label: 'Plans', icon: Layers },
       { path: '/super-admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
       { path: '/super-admin/billing', label: 'Billing & Invoices', icon: Receipt },
