@@ -6,18 +6,22 @@ export default function IntegrationHealthBanner() {
   const [dismissed, setDismissed] = useState(null);
   useEffect(() => {
     let active = true;
-    const load = () =>
-      featureAPI
+    const load = () => {
+      if (document.visibilityState !== 'visible') return Promise.resolve(); // hidden tabs don't spend the rate limit
+      return featureAPI
         .health()
         .then(({ data }) => {
           if (active) setItems(data.integrations || []);
         })
         .catch(() => {});
+    };
     load();
     const timer = setInterval(load, 60000);
+    document.addEventListener('visibilitychange', load);
     return () => {
       active = false;
       clearInterval(timer);
+      document.removeEventListener('visibilitychange', load);
     };
   }, []);
   const issues = items.filter((i) => ["disconnected", "stale"].includes(i.state));

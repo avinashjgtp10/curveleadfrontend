@@ -1,6 +1,7 @@
 import { createApiCache, invalidatedPaths } from './queryCache.js';
 import { normalizePhone } from '../utils/leadData.js';
 import axios from 'axios';
+import { retryDelayMs } from '../utils/rateLimitRetry.js';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
@@ -31,7 +32,14 @@ api.interceptors.response.use(
     if (res.config?.method && res.config.method !== 'get') await readCache.invalidate(invalidatedPaths(res.config.url));
     return res;
   },
-  (err) => {
+  async (err) => {
+    // Short 429 on a read: wait Retry-After and try again (bounded) before the page ever shows an error.
+    const retryIn = retryDelayMs(err);
+    if (retryIn !== null) {
+      err.config.__rateLimitRetries = (err.config.__rateLimitRetries || 0) + 1;
+      await new Promise((resolve) => setTimeout(resolve, retryIn));
+      if (!err.config.signal?.aborted) return api.request(err.config);
+    }
     if (err.response?.status === 401 && !window.location.pathname.includes('/login')) {
       clearApiCache();
       localStorage.removeItem('token');
