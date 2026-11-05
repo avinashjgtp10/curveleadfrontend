@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { voiceAPI } from '../services/api';
-import { mapSdkState, denialMessage } from '../utils/voiceCall';
+import { mapSdkState, denialMessage, hangupReason, CAPACITY_MESSAGE } from '../utils/voiceCall';
 
 // Drives one outbound browser call. Phases:
 //   idle -> authorizing -> confirm -> connecting -> ringing -> active|held -> ended   (error from anywhere)
@@ -87,7 +87,11 @@ export default function useVoiceCall() {
         if (n.type === 'userMediaError') { setMicState('denied'); return fail('Microphone is blocked. Allow microphone access and retry.'); }
         if (n.type !== 'callUpdate' || !n.call) return;
         const next = mapSdkState(n.call.state);
-        if (next === 'ended') { setPhaseBoth('ended'); return; }
+        if (next === 'ended') {
+          // Provider rejected the call because every line is in use: say so instead of showing an outcome sheet for a call that never happened.
+          if (!activeSince.current && hangupReason(n.call) === 'capacity') { teardown(); fail(CAPACITY_MESSAGE); return; }
+          setPhaseBoth('ended'); return;
+        }
         if (next === 'active' && !activeSince.current) activeSince.current = Date.now();
         setPhaseBoth(next);
       });

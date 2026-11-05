@@ -44,3 +44,14 @@ test('money input is converted with integer math only, and malformed input is re
   for (const bad of ['', '-5', '1e3', '1,000', 'abc', '1.234', '.5', ' ', '99999999999999']) assert.equal(toMinor(bad), null, bad);
   assert.equal(decimalToUnits('0', 2), '0');
 });
+
+import { hangupReason, CAPACITY_MESSAGE } from '../src/utils/voiceCall.js';
+test('a SIP 403 channel-limit hangup is recognised as "all lines busy"; other endings are not', () => {
+  assert.equal(hangupReason({ sipCode: 403, sipReason: 'User channel limit exceeded D1' }), 'capacity');
+  assert.equal(hangupReason({ sipCode: '403', cause: 'Channel limit exceeded' }), 'capacity');
+  assert.equal(hangupReason({ sipCode: 403, sipReason: 'Forbidden' }), null);            // some other 403
+  assert.equal(hangupReason({ sipCode: 486, sipReason: 'User channel limit exceeded' }), null); // busy is not capacity
+  assert.equal(hangupReason({ sipCode: 200, sipReason: 'OK', cause: 'NORMAL_CLEARING' }), null);
+  assert.equal(hangupReason(null), null);
+  assert.match(CAPACITY_MESSAGE, /lines are busy/);
+});
