@@ -6,7 +6,7 @@ import { initials } from '../utils/leadData.js';
 import { formatDateTime, toDateTimeInput, dateTimeInputToUTC } from '../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useParams, useNavigate, useLocation } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import InboxComposer, { lastInboundAt } from '../components/whatsapp/InboxComposer';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { leadAPI, aiAPI, whatsappAPI, quotationsAPI, templateAPI, stageAPI, statusAPI, brochuresAPI, staffAPI, followupAPI, notesAPI, automationAPI } from '../services/api';
@@ -25,6 +25,7 @@ import { formatMoney, currencySymbol } from '../utils/locale';
 import LeadCallButton from '../components/voice/LeadCallButton';
 import LastCallLine from '../components/voice/LastCallLine';
 import LeadCallsCard from '../components/voice/LeadCallsCard';
+import { parseQueue } from '../utils/voiceCall';
 
 // Mirrors WhatsApp's own delivery ticks for an outbound message.
 const MessageStatus = ({ status }) => {
@@ -236,7 +237,10 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     notify_lead: true,
   });
   const [savingFollowup, setSavingFollowup] = useState(false);
-  const [dateShortcutOpen, setDateShortcutOpen] = useState(false);
+  const [callStartSignal, setCallStartSignal] = useState(0); // bumping it starts a call from the Call button
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [retryQueue, setRetryQueue] = useState(() => { try { return parseQueue(sessionStorage.getItem('voiceRetryQueue')); } catch { return []; } });
+  const autoCalled = useRef(false);
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsRef = useRef(null);
   const [callRefresh, setCallRefresh] = useState(0);
@@ -250,12 +254,48 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
   }, [actionsOpen]);
 
-  // "Save & schedule follow-up" in the call panel: open the Schedule Follow-up card with the call notes filled in.
-  const handleRequestFollowup = ({ notes } = {}) => {
+  const saveQueue = (q) => { setRetryQueue(q); try { sessionStorage.setItem('voiceRetryQueue', JSON.stringify(q)); } catch { /* storage unavailable */ } };
+
+  // Open the Schedule Follow-up card with some fields filled in. The agent still presses Schedule: nothing is saved here.
+  const prefillFollowup = (patch) => {
     setActiveTab('overview');
-    setFollowupForm(f => ({ ...f, followup_type: 'call', notes: (notes || '').trim() || f.notes, next_followup_at: f.next_followup_at || getDateShortcut(1, 11) }));
+    setFollowupForm(f => ({ ...f, ...patch }));
     setTimeout(() => followupCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
   };
+
+  // "Save & schedule follow-up" in the call panel: open the card with the call notes filled in.
+  const handleRequestFollowup = ({ notes } = {}) =>
+    prefillFollowup({ followup_type: 'call', notes: (notes || '').trim() || followupForm.notes, next_followup_at: followupForm.next_followup_at || getDateShortcut(1, 11) });
+
+  // Suggestions after a call. Each only opens something for the agent to confirm; nothing changes a stage or status by itself.
+  const handleNextStep = (key) => {
+    if (key === 'retry') prefillFollowup({ followup_type: 'call', next_followup_at: toDateTimeInput(new Date(Date.now() + 2 * 3600 * 1000)), notes: followupForm.notes || 'Retry after no answer' });
+    else if (key === 'demo') prefillFollowup({ followup_type: 'demo', next_followup_at: getDateShortcut(1, 11) });
+    else if (key === 'whatsapp') window.open(`https://wa.me/${String(lead?.phone || '').replace(/\D/g, '')}`, '_blank', 'noopener,noreferrer');
+    else if (key === 'brochure') setShowShareBrochure(true);
+    else if (key === 'lost') {
+      const lostStage = stages.find(st => st.is_lost);
+      if (lostStage) handleStageChange(lostStage.name); // opens the usual "why was this lead lost?" confirmation
+      else toast.error('No "lost" stage is set up in your pipeline.');
+    }
+  };
+
+  const nowHour = parseInt(toDateTimeInput(new Date()).slice(11, 13), 10);
+  const quickSlots = [
+    { label: 'Today 4 pm', value: getDateShortcut(0, 16), disabled: nowHour >= 16 },
+    { label: 'Tomorrow 11 am', value: getDateShortcut(1, 11) },
+    { label: 'In 2 days', value: getDateShortcut(2, 10) },
+    { label: 'Next week', value: getDateShortcut(7, 10) },
+  ];
+
+  // Deep link from the Calling page ("Retry"): /leads/:id?autocall=1 starts the call once, and drops this lead from the retry queue.
+  useEffect(() => {
+    if (!lead?.id || autoCalled.current || searchParams.get('autocall') !== '1') return;
+    autoCalled.current = true;
+    setCallStartSignal(n => n + 1);
+    saveQueue(retryQueue.filter(q => q !== lead.id));
+    const next = new URLSearchParams(searchParams); next.delete('autocall'); setSearchParams(next, { replace: true });
+  }, [lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Follow-up history with pagination
   const [followupHistory, setFollowupHistory] = useState([]);
@@ -748,10 +788,19 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
             {lead.stage}
           </span>
-          <LeadCallButton lead={lead} onLogged={() => { loadData(); setCallRefresh(k => k + 1); }} onRequestFollowup={handleRequestFollowup} />
+          <LeadCallButton lead={lead} startSignal={callStartSignal} onLogged={() => { loadData(); setCallRefresh(k => k + 1); }} onRequestFollowup={handleRequestFollowup} onNextStep={handleNextStep} />
           <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" aria-label="WhatsApp" className="shrink-0 p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
         </div>
         <LastCallLine leadId={lead.id} refreshKey={callRefresh} />
+        {retryQueue.length > 0 && (
+          <div role="status" className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-900">
+            <span>Retry queue: {retryQueue.length} more lead{retryQueue.length === 1 ? '' : 's'} to call.</span>
+            <span className="flex gap-3 font-semibold">
+              <button type="button" onClick={() => { const [next, ...rest] = retryQueue; saveQueue(rest); navigate(`/leads/${next}?autocall=1`); }} className="underline">Next lead</button>
+              <button type="button" onClick={() => saveQueue([])} className="underline">Stop</button>
+            </span>
+          </div>
+        )}
 
         <div className="flex flex-wrap gap-1">
           {tabs.map(t => (
@@ -1065,13 +1114,13 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
 
        <div className="space-y-4">
           {/* Schedule Follow-up */}
-          <div ref={followupCardRef} className="bg-white rounded-2xl border p-5">
-            <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
+          <div ref={followupCardRef} className="bg-white rounded-2xl border p-4">
+            <h3 className="font-semibold mb-2 flex items-center gap-2 text-sm">
               <Calendar size={16} /> Schedule Follow-up
             </h3>
 
             {nextFollowup && (
-              <div className={`mb-3 px-3 py-2 rounded-lg border ${nextFollowup.followup_type === 'demo' ? 'bg-violet-50 border-violet-200' : 'bg-amber-50 border-amber-200'}`}>
+              <div className={`mb-2 px-3 py-2 rounded-lg border ${nextFollowup.followup_type === 'demo' ? 'bg-violet-50 border-violet-200' : 'bg-amber-50 border-amber-200'}`}>
                 <p className={`text-xs font-medium ${nextFollowup.followup_type === 'demo' ? 'text-violet-700' : 'text-amber-700'}`}>
                   {nextFollowup.followup_type === 'demo' ? '🎥 Demo scheduled:' : 'Next scheduled:'}
                 </p>
@@ -1079,30 +1128,26 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                   {formatDateTime(nextFollowup.next_followup_at, undefined, { dateStyle: 'medium', timeStyle: 'short' })}
                   {' '}· <span className="capitalize">{nextFollowup.followup_type}</span>
                 </p>
+                {nextFollowup.followup_type === 'call' && lead?.phone && (
+                  <button type="button" onClick={() => setCallStartSignal(n => n + 1)}
+                    className="mt-1.5 px-2.5 py-1 bg-emerald-600 text-white rounded-md text-xs font-semibold flex items-center gap-1 hover:bg-emerald-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500">
+                    <Phone size={11} /> Call now
+                  </button>
+                )}
               </div>
             )}
 
             <div className="space-y-2">
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs text-gray-500">Date & Time <span className="text-red-500">*</span></label>
-                  <div className="relative">
-                    <button type="button" onClick={() => setDateShortcutOpen(v => !v)}
-                      className="flex items-center gap-1 px-2 py-0.5 text-[11px] font-medium rounded-md border bg-gray-50 hover:bg-brand-50 hover:text-brand-600 hover:border-brand-300 text-gray-500 transition-colors">
-                      <List size={11} /> Filter <ChevronDown size={11} className={`transition-transform ${dateShortcutOpen ? 'rotate-180' : ''}`} />
+                <label className="block text-xs text-gray-500 mb-1">Date & Time <span className="text-red-500">*</span></label>
+                <div className="flex flex-wrap gap-1.5 mb-2" role="group" aria-label="Quick times">
+                  {quickSlots.map(q => (
+                    <button key={q.label} type="button" disabled={q.disabled} title={q.disabled ? 'That time has passed' : undefined}
+                      onClick={() => setFollowupForm({ ...followupForm, next_followup_at: q.value })} aria-pressed={followupForm.next_followup_at === q.value}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${followupForm.next_followup_at === q.value ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-gray-600 border-gray-300 hover:border-brand-400 hover:text-brand-700'}`}>
+                      {q.label}
                     </button>
-                    {dateShortcutOpen && (
-                      <div className="absolute right-0 top-full mt-1 w-32 bg-white border rounded-lg shadow-lg z-20 py-1">
-                        {[['Today', 0], ['Tomorrow', 1], ['In 2 days', 2]].map(([label, days]) => (
-                          <button key={label} type="button"
-                            onClick={() => { setFollowupForm({ ...followupForm, next_followup_at: getDateShortcut(days) }); setDateShortcutOpen(false); }}
-                            className="w-full text-left px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-brand-50 hover:text-brand-600">
-                            {label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
+                  ))}
                 </div>
                 <DateTimePicker
                   value={followupForm.next_followup_at}
@@ -1154,12 +1199,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               )}
 
               <div>
-                <label className="block text-xs text-gray-500 mb-1">Notes (optional)</label>
                 <input
                   type="text"
+                  aria-label="Notes (optional)"
                   value={followupForm.notes}
                   onChange={e => setFollowupForm({ ...followupForm, notes: e.target.value })}
-                  placeholder="e.g. Discuss pricing"
+                  placeholder="Notes (optional) — e.g. discuss pricing"
                   className="w-full px-3 py-2 border rounded-lg text-sm" />
               </div>
 
