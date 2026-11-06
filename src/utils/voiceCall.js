@@ -79,3 +79,9 @@ export const hangupReason = (call) => {
   const text = `${call.sipReason || ''} ${call.cause || ''}`;
   return Number(call.sipCode) === 403 && /channel limit|limit exceeded/i.test(text) ? 'capacity' : null;
 };
+
+// "First call" = no earlier call to this lead that actually reached the phone network. The authorization created for the
+// current attempt is excluded. If the history cannot be read, the caller should treat it as a first call (show the reminder).
+const REACHED_NETWORK = ['ringing', 'answered', 'completed', 'no_answer', 'busy'];
+export const isFirstCall = (calls, currentAuthorizationId) =>
+  !(Array.isArray(calls) && calls.some((c) => c.id !== currentAuthorizationId && REACHED_NETWORK.includes(c.status)));
