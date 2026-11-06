@@ -156,7 +156,7 @@ export default function CallDrawer({ lead, v, pitch, agentName, onClose, onRetry
               {onNextStep && nextSteps(saved.outcome, saved.connected).length > 0 && (
                 <div className="flex flex-wrap gap-2" aria-label="Suggested next steps">
                   {nextSteps(saved.outcome, saved.connected).map((s) => (
-                    <button key={s.key} onClick={() => onNextStep(s.key)} className="px-3 py-1.5 rounded-full text-xs font-semibold border border-green-300 bg-white text-green-800 hover:bg-green-100">{s.label}</button>
+                    <button key={s.key} onClick={() => { onNextStep(s.key); onClose(true); }} className="px-3 py-1.5 rounded-full text-xs font-semibold border border-green-300 bg-white text-green-800 hover:bg-green-100">{s.label}</button>
                   ))}
                 </div>
               )}

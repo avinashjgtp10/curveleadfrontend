@@ -202,3 +202,53 @@ export const nextSteps = (outcome, connected) => {
   if (outcome === 'connected' || outcome === 'interested') return [{ key: 'demo', label: 'Book demo' }, { key: 'brochure', label: 'Send brochure' }];
   return [];
 };
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Call history: filters and the retry queue
+// ---------------------------------------------------------------------------------------------------------------------
+
+// One key per status for filtering: connected | no_answer | busy | failed | canceled | timed_out | in_progress.
+export const statusKey = (call, nowMs = Date.now()) => {
+  const r = callResult(call, nowMs);
+  if (r.connected && r.label === 'Connected') return 'connected';
+  if (r.label === 'Timed out') return 'timed_out';
+  if (r.tone === 'live' || r.label === 'Not started') return 'in_progress';
+  return ['no_answer', 'busy', 'failed', 'canceled'].includes(call?.status) ? call.status : 'failed';
+};
+export const STATUS_FILTERS = [
+  { value: 'connected', label: 'Connected' }, { value: 'no_answer', label: 'No answer' }, { value: 'busy', label: 'Busy' },
+  { value: 'failed', label: 'Failed' }, { value: 'timed_out', label: 'Timed out' }, { value: 'canceled', label: 'Cancelled' }, { value: 'in_progress', label: 'In progress' },
+];
+
+// filters: { agent, outcome, status, from, to } (each optional; from/to are YYYY-MM-DD). `dayOf` turns a timestamp into that
+// date in the workspace time zone. Outcome 'none' = calls with no (consistent) outcome.
+export const filterCalls = (calls, filters = {}, { nowMs = Date.now(), dayOf = (v) => String(v || '').slice(0, 10) } = {}) =>
+  (Array.isArray(calls) ? calls : []).filter((c) => {
+    if (filters.agent && c.agent_id !== filters.agent) return false;
+    if (filters.status && statusKey(c, nowMs) !== filters.status) return false;
+    if (filters.outcome) {
+      const o = callResult(c, nowMs).outcome;
+      if (filters.outcome === 'none' ? !!o : o !== filters.outcome) return false;
+    }
+    if (filters.from || filters.to) {
+      const day = c.started_at ? dayOf(c.started_at) : '';
+      if (!day || (filters.from && day < filters.from) || (filters.to && day > filters.to)) return false;
+    }
+    return true;
+  });
+
+// The newest call per lead (the API returns calls newest first). Used so a lead who was reached afterwards isn't offered a retry.
+export const latestCallByLead = (calls) => {
+  const m = new Map();
+  for (const c of Array.isArray(calls) ? calls : []) if (c.lead_id && !m.has(c.lead_id) && c.status !== 'authorized') m.set(c.lead_id, c);
+  return m;
+};
+
+// Leads whose LATEST call never connected (failed, unanswered, busy, timed out). One entry per lead, newest-first order.
+export const retryableLeadIds = (calls, nowMs = Date.now()) =>
+  [...latestCallByLead(calls)].filter(([, c]) => callResult(c, nowMs).retryable).map(([id]) => id);
+
+// The retry queue lives in sessionStorage as a JSON array of lead ids; anything else reads as an empty queue.
+export const parseQueue = (raw) => {
+  try { const a = JSON.parse(raw); return Array.isArray(a) ? a.filter((x) => typeof x === 'string' && x) : []; } catch { return []; }
+};

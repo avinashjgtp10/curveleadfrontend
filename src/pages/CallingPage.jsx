@@ -1,12 +1,13 @@
-import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { RotateCcw } from 'lucide-react';
 import { voiceAPI } from '../services/api';
 import { loadRazorpay } from '../utils/razorpay';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../context/AuthContext';
-import { formatDateTime } from '../utils/dateTime.js';
-import { formatMinor, toMinor, callResult, durationText, chargeText, outcomeLabel } from '../utils/voiceCall';
+import { formatDateTime, toDateTimeInput } from '../utils/dateTime.js';
+import useStaffNames from '../hooks/useStaffNames';
+import { formatMinor, toMinor, callResult, durationText, chargeText, outcomeLabel, filterCalls, latestCallByLead, retryableLeadIds, OUTCOME_OPTIONS, STATUS_FILTERS } from '../utils/voiceCall';
 
 const TONE_CLS = { ok: 'bg-green-50 text-green-700', bad: 'bg-red-50 text-red-700', warn: 'bg-amber-50 text-amber-800', live: 'bg-blue-50 text-blue-700', muted: 'bg-gray-100 text-gray-600' };
 const fmt = (d) => (d ? formatDateTime(d, undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—');
@@ -25,8 +26,8 @@ export function useLoad(fn, deps = []) {
   return state;
 }
 const Async = ({ s, empty, children }) => {
-  if (s.loading) return <div className="flex justify-center py-10 text-gray-400"><Loader2 className="animate-spin" size={18} /></div>;
-  if (s.error) return <p className="py-8 text-center text-sm text-red-600">{s.error}</p>;
+  if (s.loading) return <div className="space-y-2 py-2" aria-busy="true" aria-label="Loading">{[0, 1, 2, 3, 4].map(i => <div key={i} className="h-10 rounded-lg bg-gray-100 animate-pulse" />)}</div>;
+  if (s.error) return <p role="alert" className="py-8 text-center text-sm text-red-600">{s.error}</p>;
   if (!s.data || (Array.isArray(s.data) && !s.data.length)) return <p className="py-8 text-center text-sm text-gray-500">{empty}</p>;
   return children(s.data);
 };
@@ -36,27 +37,84 @@ const Table = ({ head, children }) => (
     <tbody className="divide-y">{children}</tbody></table></div>
 );
 
-const History = () => {
-  const s = useLoad(() => voiceAPI.listCalls({ limit: 100 }));
-  return <Async s={s} empty="No calls yet. Open a lead and tap Call.">{(rows) => (
-    <Table head={['When', 'Lead', 'Number', 'Status', 'Duration', 'Charge', 'Outcome']}>
-      {rows.map(c => {
-        const r = callResult(c);
-        return (
-          <tr key={c.id}>
-            <td className="px-3 py-2 whitespace-nowrap">{fmt(c.started_at)}</td>
-            <td className="px-3 py-2">{c.lead_id ? <Link className="text-brand-600 hover:underline" to={`/leads/${c.lead_id}`}>Open lead</Link> : '\u2014'}</td>
-            <td className="px-3 py-2 whitespace-nowrap">{c.to_number}</td>
-            <td className="px-3 py-2">
-              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${TONE_CLS[r.tone]}`}>{r.label}</span>
-              {r.reason && <span className="block text-[11px] text-gray-500 mt-0.5">{r.reason}</span>}
-            </td>
-            <td className="px-3 py-2">{durationText(c)}</td>
-            <td className="px-3 py-2">{chargeText(c)}</td>
-            <td className="px-3 py-2">{r.outcome ? outcomeLabel(r.outcome) : '\u2014'}</td>
-          </tr>);
-      })}
-    </Table>)}</Async>;
+const SELECT = 'px-2.5 py-1.5 border rounded-lg text-sm bg-white';
+const EMPTY_FILTERS = { agent: '', status: '', outcome: '', from: '', to: '' };
+
+const History = ({ isAdmin }) => {
+  const navigate = useNavigate();
+  const names = useStaffNames();
+  // The API returns the latest 200 calls; filters apply to those.
+  const s = useLoad(() => voiceAPI.listCalls({ limit: 200 }));
+  const [f, setF] = useState(EMPTY_FILTERS);
+  const [picked, setPicked] = useState(() => new Set());
+
+  const all = useMemo(() => (s.data || []).filter(c => c.status !== 'authorized'), [s.data]); // an unused authorization is not a call
+  const rows = useMemo(() => filterCalls(all, f, { dayOf: (v) => toDateTimeInput(v).slice(0, 10) }), [all, f]);
+  const latest = useMemo(() => latestCallByLead(all), [all]);
+  const retryIds = useMemo(() => new Set(retryableLeadIds(all)), [all]);
+  const canRetry = (c) => c.lead_id && latest.get(c.lead_id) === c && retryIds.has(c.lead_id);
+  const retryable = rows.filter(canRetry);
+  const agents = [...new Set(all.map(c => c.agent_id).filter(Boolean))];
+  const set = (k) => (e) => { setF({ ...f, [k]: e.target.value }); setPicked(new Set()); };
+
+  // Calls go out one at a time: open the first lead and queue the rest (the lead page shows "Next lead").
+  const retryMany = () => {
+    const ids = [...new Set((picked.size ? retryable.filter(c => picked.has(c.id)) : retryable).map(c => c.lead_id))];
+    if (!ids.length) return;
+    try { sessionStorage.setItem('voiceRetryQueue', JSON.stringify(ids.slice(1))); } catch { /* storage unavailable: only the first lead is called */ }
+    navigate(`/leads/${ids[0]}?autocall=1`);
+  };
+  const toggle = (id) => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const filtered = JSON.stringify(f) !== JSON.stringify(EMPTY_FILTERS);
+
+  return <Async s={{ ...s, data: s.data && all.length ? all : (s.data ? [] : null) }} empty="No calls yet. Open a lead and tap Call.">{() => (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-end gap-2" role="group" aria-label="Filter calls">
+        {isAdmin && agents.length > 0 && (
+          <label className="text-xs text-gray-500">Agent<select value={f.agent} onChange={set('agent')} className={`${SELECT} block`}>
+            <option value="">All agents</option>{agents.map(id => <option key={id} value={id}>{names[id] || 'Agent'}</option>)}</select></label>)}
+        <label className="text-xs text-gray-500">Status<select value={f.status} onChange={set('status')} className={`${SELECT} block`}>
+          <option value="">Any status</option>{STATUS_FILTERS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select></label>
+        <label className="text-xs text-gray-500">Outcome<select value={f.outcome} onChange={set('outcome')} className={`${SELECT} block`}>
+          <option value="">Any outcome</option>{OUTCOME_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          <option value="interested">Interested</option><option value="none">No outcome</option></select></label>
+        <label className="text-xs text-gray-500">From<input type="date" value={f.from} max={f.to || undefined} onChange={set('from')} className={`${SELECT} block`} /></label>
+        <label className="text-xs text-gray-500">To<input type="date" value={f.to} min={f.from || undefined} onChange={set('to')} className={`${SELECT} block`} /></label>
+        {filtered && <button type="button" onClick={() => { setF(EMPTY_FILTERS); setPicked(new Set()); }} className="text-xs text-brand-600 underline pb-2">Clear filters</button>}
+        <div className="ml-auto">
+          <button type="button" onClick={retryMany} disabled={!retryable.length}
+            title="Opens the first lead and queues the rest. Calls go out one at a time. Includes calls that failed, timed out, got no answer or a busy tone."
+            className="px-3 py-1.5 rounded-lg bg-brand-600 text-white text-sm font-semibold flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed">
+            <RotateCcw size={14} /> Retry failed ({picked.size || retryable.length})</button>
+        </div>
+      </div>
+      {rows.length === 0 ? (
+        <p className="py-8 text-center text-sm text-gray-500">No calls match these filters. <button type="button" onClick={() => setF(EMPTY_FILTERS)} className="underline">Clear filters</button></p>
+      ) : (
+        <Table head={['', 'When', 'Lead', 'Agent', 'Number', 'Status', 'Duration', 'Charge', 'Outcome', '']}>
+          {rows.map(c => {
+            const r = callResult(c);
+            return (
+              <tr key={c.id}>
+                <td className="px-3 py-2 w-8">{canRetry(c) && <input type="checkbox" aria-label="Select for retry" checked={picked.has(c.id)} onChange={() => toggle(c.id)} />}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{fmt(c.started_at)}</td>
+                <td className="px-3 py-2">{c.lead_id ? <Link className="text-brand-600 hover:underline" to={`/leads/${c.lead_id}`}>Open lead</Link> : '\u2014'}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{names[c.agent_id] || (c.agent_id ? 'Agent' : '\u2014')}</td>
+                <td className="px-3 py-2 whitespace-nowrap">{c.to_number}</td>
+                <td className="px-3 py-2">
+                  <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${TONE_CLS[r.tone]}`}>{r.label}</span>
+                  {r.reason && <span className="block text-[11px] text-gray-500 mt-0.5">{r.reason}</span>}
+                </td>
+                <td className="px-3 py-2">{durationText(c)}</td>
+                <td className="px-3 py-2">{chargeText(c)}</td>
+                <td className="px-3 py-2">{r.outcome ? outcomeLabel(r.outcome) : '\u2014'}</td>
+                <td className="px-3 py-2 text-right">{canRetry(c) && <Link to={`/leads/${c.lead_id}?autocall=1`} className="text-brand-600 hover:underline text-xs font-semibold whitespace-nowrap">Retry</Link>}</td>
+              </tr>);
+          })}
+        </Table>
+      )}
+      <p className="text-xs text-gray-400">Showing the latest {all.length} call{all.length === 1 ? '' : 's'}.</p>
+    </div>)}</Async>;
 };
 
 const AgentReport = () => {
@@ -163,10 +221,19 @@ export default function CallingPage() {
   const tabs = [['history', 'Call history', History], ...(isAdmin ? [['agents', 'Agent report', AgentReport]] : []), ['wallet', 'Wallet', WalletTab], ['numbers', 'Numbers & rates', NumbersRates]];
   const [tab, setTab] = useState('history');
   const Active = tabs.find(t => t[0] === tab)[2];
+  const wallet = useLoad(() => voiceAPI.wallet());
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-bold">Calling</h1>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <h1 className="text-xl font-bold">Calling</h1>
+        {wallet.loading ? <div className="h-8 w-40 rounded-lg bg-gray-100 animate-pulse" aria-busy="true" aria-label="Loading wallet balance" />
+          : wallet.data && (
+            <button type="button" onClick={() => setTab('wallet')} title="Open wallet"
+              className="px-3 py-1.5 rounded-lg border bg-white text-sm flex items-center gap-2 hover:bg-gray-50">
+              <span className="text-gray-500">Wallet</span><span className="font-semibold">{formatMinor(wallet.data.available_balance, wallet.data.currency)}</span>
+            </button>)}
+      </div>
       <div className="flex flex-wrap gap-1">{tabs.map(([id, label]) => (
         <button key={id} onClick={() => setTab(id)} className={`px-3 py-1.5 rounded-lg text-sm font-medium ${tab === id ? 'bg-brand-600 text-white' : 'bg-white border text-gray-600'}`}>{label}</button>))}</div>
       <Active isAdmin={isAdmin} />

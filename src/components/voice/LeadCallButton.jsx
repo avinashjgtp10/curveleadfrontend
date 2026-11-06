@@ -20,7 +20,7 @@ const DRAWER_PHASES = ['connecting', 'ringing', 'active', 'held', 'ended', 'erro
 
 // One labelled "Call" split button for a lead: the main part calls from CurveLead when that is available, the arrow offers
 // "Call from CurveLead" and "Call from my phone" (tel:). Also owns the pre-call dialog and the call drawer.
-export default function LeadCallButton({ lead, onLogged, onRequestFollowup, onNextStep }) {
+export default function LeadCallButton({ lead, onLogged, onRequestFollowup, onNextStep, startSignal }) {
   const { user } = useAuth();
   const v = useVoiceCall();
   const enabled = useVoiceStatus();          // null while loading
@@ -81,6 +81,15 @@ export default function LeadCallButton({ lead, onLogged, onRequestFollowup, onNe
   const callFromPhone = () => { logPhoneCall(); window.location.href = `tel:${lead.phone}`; };
   const startInApp = () => { setMenuOpen(false); setDialStarted(false); v.begin(lead.id); };
   const onMain = () => (canInApp ? startInApp() : callFromPhone());
+
+  // "Call now" elsewhere on the page (or a retry link) bumps startSignal: start the call once the workspace status is known.
+  const onMainRef = useRef(onMain); onMainRef.current = onMain;
+  const handledSignal = useRef(0);
+  useEffect(() => {
+    if (!startSignal || startSignal === handledSignal.current || enabled === null || noPhone || mainDisabled) return;
+    handledSignal.current = startSignal;
+    onMainRef.current();
+  }, [startSignal, enabled, noPhone, mainDisabled]);
 
   const closeAll = (done) => {
     setDialStarted(false); v.reset();
