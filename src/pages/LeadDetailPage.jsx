@@ -24,6 +24,7 @@ import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, Check
 import { formatMoney, currencySymbol } from '../utils/locale';
 import LeadCallButton from '../components/voice/LeadCallButton';
 import LastCallLine from '../components/voice/LastCallLine';
+import LeadCallsCard from '../components/voice/LeadCallsCard';
 
 // Mirrors WhatsApp's own delivery ticks for an outbound message.
 const MessageStatus = ({ status }) => {
@@ -769,6 +770,9 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
        <div className="space-y-4">
         {/* Lead Intent */}
         <LeadIntentCard lead={lead} activities={activities} onRecalculate={handleAIScore} />
+
+        {/* Recent calls (CurveLead Voice) — hidden when calling isn't enabled */}
+        <LeadCallsCard leadId={id} refreshKey={callRefresh} />
 
         {/* Automation Sequence — only shown if this lead has ever been enrolled */}
         {enrollment && (

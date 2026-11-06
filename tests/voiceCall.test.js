@@ -162,3 +162,46 @@ test('next-step suggestions follow the outcome and never act on their own', () =
   assert.deepEqual(nextSteps('wrong_number', false), []); assert.deepEqual(nextSteps('follow_up_required', true), []);
   assert.equal(nextSteps('not_interested', true)[0].label, 'Mark as Lost?');
 });
+
+import { statusKey, filterCalls, retryableLeadIds, parseQueue, STATUS_FILTERS } from '../src/utils/voiceCall.js';
+const mk = (o) => ({ id: Math.random().toString(36).slice(2), status: 'completed', agent_id: 'a1', lead_id: 'l1', started_at: '2026-11-05T10:00:00Z', ...o });
+const done = { status: 'completed', answered_at: '2026-11-05T10:00:05Z' };
+
+test('every call maps to one filterable status', () => {
+  assert.equal(statusKey(mk(done), NOW), 'connected');
+  for (const s of ['no_answer', 'busy', 'failed', 'canceled']) assert.equal(statusKey(mk({ status: s }), NOW), s);
+  assert.equal(statusKey(mk({ status: 'initiating', started_at: new Date(NOW - 90_000).toISOString() }), NOW), 'timed_out');
+  assert.equal(statusKey(mk({ status: 'initiating', started_at: new Date(NOW - 5_000).toISOString() }), NOW), 'in_progress');
+  assert.equal(statusKey(mk({ status: 'ringing' }), NOW), 'in_progress');
+  assert.equal(statusKey(mk({ status: 'completed', answered_at: null }), NOW), 'failed'); // "completed" without an answer is not a connection
+  assert.ok(STATUS_FILTERS.every((f) => f.value && f.label));
+});
+test('history filters combine, and the outcome filter uses the outcome that is actually shown', () => {
+  const calls = [
+    mk({ ...done, id: 'c1', agent_id: 'a1', outcome: 'interested', started_at: '2026-11-05T10:00:00Z' }),
+    mk({ id: 'c2', agent_id: 'a2', status: 'no_answer', outcome: 'no_answer', started_at: '2026-11-04T10:00:00Z' }),
+    mk({ id: 'c3', agent_id: 'a1', status: 'failed', outcome: 'connected', started_at: '2026-11-03T10:00:00Z' }), // contradictory outcome
+    mk({ id: 'c4', agent_id: 'a2', status: 'busy', started_at: '2026-11-02T10:00:00Z' }),
+  ];
+  const ids = (f) => filterCalls(calls, f, { nowMs: NOW }).map((c) => c.id);
+  assert.deepEqual(ids({}), ['c1', 'c2', 'c3', 'c4']);
+  assert.deepEqual(ids({ agent: 'a2' }), ['c2', 'c4']);
+  assert.deepEqual(ids({ status: 'failed' }), ['c3']);
+  assert.deepEqual(ids({ outcome: 'interested' }), ['c1']);
+  assert.deepEqual(ids({ outcome: 'connected' }), []);          // c3's "connected" is hidden because the call failed
+  assert.deepEqual(ids({ outcome: 'none' }), ['c3', 'c4']);
+  assert.deepEqual(ids({ from: '2026-11-03', to: '2026-11-04' }), ['c2', 'c3']);
+  assert.deepEqual(ids({ from: '2026-11-05' }), ['c1']);
+  assert.deepEqual(ids({ agent: 'a1', status: 'connected', to: '2026-11-05' }), ['c1']);
+  assert.deepEqual(filterCalls(undefined, { agent: 'x' }), []);
+});
+test('only calls that never connected are retryable, once per lead', () => {
+  const calls = [mk({ lead_id: 'A', status: 'failed' }), mk({ lead_id: 'A', status: 'no_answer' }), mk({ lead_id: 'B', status: 'busy' }), mk({ ...done, lead_id: 'C' }), mk({ lead_id: 'D', status: 'canceled' }), mk({ lead_id: null, status: 'failed' })];
+  assert.deepEqual(retryableLeadIds(calls, NOW), ['A', 'B']);
+  assert.deepEqual(retryableLeadIds(undefined, NOW), []);
+});
+test('the retry queue tolerates garbage in storage', () => {
+  assert.deepEqual(parseQueue('["a","b"]'), ['a', 'b']);
+  assert.deepEqual(parseQueue('["a",3,null,"","c"]'), ['a', 'c']);
+  for (const bad of [null, undefined, '', 'nope', '{"a":1}', '5']) assert.deepEqual(parseQueue(bad), []);
+});
