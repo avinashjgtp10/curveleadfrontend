@@ -115,11 +115,16 @@ export default function useVoiceCall() {
 
   const sendDigit = useCallback((d) => { try { callRef.current?.dtmf(d); } catch { /* ignore */ } }, []);
 
+  // Ends the call (or cancels one that has not started). Resolves once the server has released the claim (max 3 s), so a
+  // "Retry" straight afterwards does not collide with the call we just ended.
   const hangup = useCallback(async () => {
     const wasLive = !!callRef.current;
     try { callRef.current?.hangup(); } catch { /* ignore */ }
-    if (callId && phaseRef.current !== 'ended') voiceAPI.hangup(callId).catch(() => {}); // backstop via provider/cancel authorization
+    const backend = callId && phaseRef.current !== 'ended'
+      ? Promise.race([voiceAPI.hangup(callId).catch(() => {}), new Promise((r) => setTimeout(r, 3000))])
+      : Promise.resolve();
     if (wasLive) setPhaseBoth('ended'); else { teardown(); setPhaseBoth('idle'); }
+    await backend;
   }, [callId, teardown]);
 
   const reset = useCallback(() => { teardown(); setPhaseBoth('idle'); setAuth(null); setCallId(null); setError(null); setSeconds(0); }, [teardown]);

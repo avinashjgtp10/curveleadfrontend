@@ -6,9 +6,9 @@ import { loadRazorpay } from '../utils/razorpay';
 import { useToast } from '../components/ui/Toast';
 import { useAuth } from '../context/AuthContext';
 import { formatDateTime } from '../utils/dateTime.js';
-import { formatDuration, formatMinor, toMinor } from '../utils/voiceCall';
+import { formatMinor, toMinor, callResult, durationText, chargeText, outcomeLabel } from '../utils/voiceCall';
 
-const STATUS_CLS = { completed: 'bg-green-50 text-green-700', no_answer: 'bg-gray-100 text-gray-600', busy: 'bg-amber-50 text-amber-700', failed: 'bg-red-50 text-red-700', canceled: 'bg-gray-100 text-gray-600' };
+const TONE_CLS = { ok: 'bg-green-50 text-green-700', bad: 'bg-red-50 text-red-700', warn: 'bg-amber-50 text-amber-800', live: 'bg-blue-50 text-blue-700', muted: 'bg-gray-100 text-gray-600' };
 const fmt = (d) => (d ? formatDateTime(d, undefined, { dateStyle: 'medium', timeStyle: 'short' }) : '—');
 
 // Loads once; shows loading / error / empty / data so a failed request never looks like "no calls".
@@ -38,18 +38,24 @@ const Table = ({ head, children }) => (
 
 const History = () => {
   const s = useLoad(() => voiceAPI.listCalls({ limit: 100 }));
-  return <Async s={s} empty="No calls yet. Open a lead and tap the call button.">{(rows) => (
+  return <Async s={s} empty="No calls yet. Open a lead and tap Call.">{(rows) => (
     <Table head={['When', 'Lead', 'Number', 'Status', 'Duration', 'Charge', 'Outcome']}>
-      {rows.map(c => (
-        <tr key={c.id}>
-          <td className="px-3 py-2 whitespace-nowrap">{fmt(c.started_at)}</td>
-          <td className="px-3 py-2">{c.lead_id ? <Link className="text-brand-600 hover:underline" to={`/leads/${c.lead_id}`}>Open lead</Link> : '—'}</td>
-          <td className="px-3 py-2 whitespace-nowrap">{c.to_number}</td>
-          <td className="px-3 py-2"><span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${STATUS_CLS[c.status] || 'bg-blue-50 text-blue-700'}`}>{c.status.replace('_', ' ')}</span></td>
-          <td className="px-3 py-2">{c.duration_seconds != null ? formatDuration(c.duration_seconds) : '—'}</td>
-          <td className="px-3 py-2">{formatMinor(c.customer_cost, c.currency)}</td>
-          <td className="px-3 py-2 capitalize">{c.outcome ? c.outcome.replace(/_/g, ' ') : '—'}</td>
-        </tr>))}
+      {rows.map(c => {
+        const r = callResult(c);
+        return (
+          <tr key={c.id}>
+            <td className="px-3 py-2 whitespace-nowrap">{fmt(c.started_at)}</td>
+            <td className="px-3 py-2">{c.lead_id ? <Link className="text-brand-600 hover:underline" to={`/leads/${c.lead_id}`}>Open lead</Link> : '\u2014'}</td>
+            <td className="px-3 py-2 whitespace-nowrap">{c.to_number}</td>
+            <td className="px-3 py-2">
+              <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${TONE_CLS[r.tone]}`}>{r.label}</span>
+              {r.reason && <span className="block text-[11px] text-gray-500 mt-0.5">{r.reason}</span>}
+            </td>
+            <td className="px-3 py-2">{durationText(c)}</td>
+            <td className="px-3 py-2">{chargeText(c)}</td>
+            <td className="px-3 py-2">{r.outcome ? outcomeLabel(r.outcome) : '\u2014'}</td>
+          </tr>);
+      })}
     </Table>)}</Async>;
 };
 

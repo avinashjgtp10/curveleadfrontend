@@ -23,6 +23,7 @@ import DateTimePicker from '../components/ui/DateTimePicker';
 import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, CheckCheck, AlertCircle, Clock, X, Send, FileText, List, Calendar, ChevronDown, PhoneCall, MessageSquare, Navigation, StickyNote, GitBranch, UserCheck, Share2, Star, PlusCircle, Paperclip, Radio, CheckCircle, ChevronLeft, ChevronRight, Video, Gauge, Building2, Users, Workflow, PlayCircle, Ban, AlertTriangle } from 'lucide-react';
 import { formatMoney, currencySymbol } from '../utils/locale';
 import LeadCallButton from '../components/voice/LeadCallButton';
+import LastCallLine from '../components/voice/LastCallLine';
 
 // Mirrors WhatsApp's own delivery ticks for an outbound message.
 const MessageStatus = ({ status }) => {
@@ -235,6 +236,25 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
   });
   const [savingFollowup, setSavingFollowup] = useState(false);
   const [dateShortcutOpen, setDateShortcutOpen] = useState(false);
+  const [actionsOpen, setActionsOpen] = useState(false);
+  const actionsRef = useRef(null);
+  const [callRefresh, setCallRefresh] = useState(0);
+  const followupCardRef = useRef(null);
+
+  useEffect(() => {
+    if (!actionsOpen) return undefined;
+    const onDown = (e) => { if (actionsRef.current && !actionsRef.current.contains(e.target)) setActionsOpen(false); };
+    const onKey = (e) => { if (e.key === 'Escape') setActionsOpen(false); };
+    document.addEventListener('mousedown', onDown); document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [actionsOpen]);
+
+  // "Save & schedule follow-up" in the call panel: open the Schedule Follow-up card with the call notes filled in.
+  const handleRequestFollowup = ({ notes } = {}) => {
+    setActiveTab('overview');
+    setFollowupForm(f => ({ ...f, followup_type: 'call', notes: (notes || '').trim() || f.notes, next_followup_at: f.next_followup_at || getDateShortcut(1, 11) }));
+    setTimeout(() => followupCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 80);
+  };
 
   // Follow-up history with pagination
   const [followupHistory, setFollowupHistory] = useState([]);
@@ -695,19 +715,24 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
               </div>
             )}
           </div>
-          <div className="flex gap-1.5 shrink-0">
-            <button onClick={() => setShowShareBrochure(true)}
-              className="whitespace-nowrap px-3 py-2 bg-indigo-50 text-indigo-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
-              <Share2 size={14} /> Share Brochure
+          <div className="relative shrink-0" ref={actionsRef}>
+            <button type="button" onClick={() => setActionsOpen(o => !o)} aria-haspopup="menu" aria-expanded={actionsOpen}
+              className="whitespace-nowrap px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-1.5 hover:bg-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+              Actions <ChevronDown size={14} className={`transition-transform ${actionsOpen ? 'rotate-180' : ''}`} />
             </button>
-            <button onClick={() => navigate(`/quotations/new?lead_id=${id}`)}
-              className="whitespace-nowrap px-3 py-2 bg-purple-50 text-purple-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
-              <FileText size={14} /> New Quotation
-            </button>
-            <button onClick={() => { loadStaff(); setTeamCommError(''); setTeamCommForm(f => ({ ...f, recipient_id: lead?.assigned_to || '' })); setShowTeamComm(true); }}
-              className="whitespace-nowrap px-3 py-2 bg-brand-50 text-brand-600 rounded-lg text-sm font-medium flex items-center gap-1.5">
-              <Users size={14} /> Team Communication
-            </button>
+            {actionsOpen && (
+              <div role="menu" className="absolute right-0 top-full mt-1 w-56 bg-white border rounded-lg shadow-lg z-30 py-1">
+                <button role="menuitem" onClick={() => { setActionsOpen(false); setShowShareBrochure(true); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+                  <Share2 size={14} className="text-indigo-600" /> Share Brochure
+                </button>
+                <button role="menuitem" onClick={() => { setActionsOpen(false); navigate(`/quotations/new?lead_id=${id}`); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+                  <FileText size={14} className="text-purple-600" /> New Quotation
+                </button>
+                <button role="menuitem" onClick={() => { setActionsOpen(false); loadStaff(); setTeamCommError(''); setTeamCommForm(f => ({ ...f, recipient_id: lead?.assigned_to || '' })); setShowTeamComm(true); }} className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2">
+                  <Users size={14} className="text-brand-600" /> Team Communication
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -722,10 +747,10 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           <span className="shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-600 capitalize">
             {lead.stage}
           </span>
-          <LeadCallButton lead={lead} variant="icon" onLogged={() => loadData()} />
-          <a href={`tel:${lead.phone}`} onClick={() => leadAPI.logCall(lead.id).catch(() => {})} title="Call" className="shrink-0 p-2 bg-blue-50 text-blue-600 rounded-lg"><Phone size={14} /></a>
-          <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" className="shrink-0 p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
+          <LeadCallButton lead={lead} onLogged={() => { loadData(); setCallRefresh(k => k + 1); }} onRequestFollowup={handleRequestFollowup} />
+          <a href={`https://wa.me/${lead.phone}`} target="_blank" rel="noopener noreferrer" title="WhatsApp" aria-label="WhatsApp" className="shrink-0 p-2 bg-green-50 text-green-600 rounded-lg"><MessageCircle size={14} /></a>
         </div>
+        <LastCallLine leadId={lead.id} refreshKey={callRefresh} />
 
         <div className="flex flex-wrap gap-1">
           {tabs.map(t => (
@@ -1036,7 +1061,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
 
        <div className="space-y-4">
           {/* Schedule Follow-up */}
-          <div className="bg-white rounded-2xl border p-5">
+          <div ref={followupCardRef} className="bg-white rounded-2xl border p-5">
             <h3 className="font-semibold mb-3 flex items-center gap-2 text-sm">
               <Calendar size={16} /> Schedule Follow-up
             </h3>

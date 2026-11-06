@@ -98,3 +98,107 @@ export const playbookTips = (playbook, max = 3) => {
   const tips = { practices: texts(playbook.best_practices, max), phrases: texts(playbook.phrases_that_work, max), avoid: texts(playbook.phrases_to_avoid, max), objections };
   return Object.values(tips).some((a) => a.length) ? tips : null;
 };
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Call UX helpers (status vs outcome, scripts, relative time, next steps). Pure and unit-tested.
+// ---------------------------------------------------------------------------------------------------------------------
+
+// UI outcome choices -> the values the API accepts. "Call back later" is stored as follow_up_required.
+export const OUTCOME_OPTIONS = [
+  { value: 'connected', label: 'Connected' },
+  { value: 'no_answer', label: 'No answer' },
+  { value: 'busy', label: 'Busy' },
+  { value: 'wrong_number', label: 'Wrong number' },
+  { value: 'not_interested', label: 'Not interested' },
+  { value: 'follow_up_required', label: 'Call back later' },
+];
+const OUTCOME_LABEL = { ...Object.fromEntries(OUTCOME_OPTIONS.map((o) => [o.value, o.label])), interested: 'Interested' };
+export const outcomeLabel = (v) => OUTCOME_LABEL[v] || (v ? String(v).replace(/_/g, ' ') : '');
+
+// A call that never connected cannot have a conversational outcome. "Connected" / "Not interested" / "Call back later"
+// need someone to have picked up, so they are not offered (and never shown) for a call that did not connect.
+const NOT_CONNECTED_OUTCOMES = ['no_answer', 'busy', 'wrong_number'];
+export const allowedOutcomes = (connected) => (connected ? OUTCOME_OPTIONS : OUTCOME_OPTIONS.filter((o) => NOT_CONNECTED_OUTCOMES.includes(o.value)));
+export const defaultOutcome = (connected) => (connected ? 'connected' : 'no_answer');
+
+// Telnyx hangup causes -> plain words. Unknown causes fall back to a generic reason. (The list endpoint does not return
+// hangup_cause yet; this is used as soon as it does.)
+const CAUSE_REASON = {
+  unallocated_number: 'Invalid number', invalid_number: 'Invalid number', number_changed: 'Invalid number',
+  user_busy: 'Busy', no_answer: 'No answer', timeout: 'No answer', originator_cancel: 'Cancelled',
+  call_rejected: 'Rejected', destination_out_of_order: 'Unreachable', network_out_of_order: 'Unreachable', unreachable: 'Unreachable',
+};
+const STUCK_AFTER_MS = 60 * 1000;
+const time = (v) => { const t = v ? new Date(v).getTime() : NaN; return Number.isNaN(t) ? null : t; };
+
+// A call still "initiating" after 60 seconds never got off the ground.
+export const isStuck = (call, nowMs = Date.now()) => {
+  const t = time(call?.started_at) ?? time(call?.created_at);
+  return call?.status === 'initiating' && t !== null && nowMs - t > STUCK_AFTER_MS;
+};
+
+/**
+ * One truthful description of a call, whatever the agent typed as outcome.
+ *   connected  : the other side answered
+ *   label      : headline ("Connected", "Not connected", "In progress", "Timed out")
+ *   reason     : why it did not connect (only when connected is false and the call is over)
+ *   outcome    : the agent's outcome, but ONLY when it is consistent with what happened
+ *   tone       : 'ok' | 'bad' | 'warn' | 'live' | 'muted' for colouring
+ *   retryable  : the call did not connect and can be tried again
+ */
+export const callResult = (call, nowMs = Date.now()) => {
+  const status = call?.status;
+  const connected = !!call?.answered_at && status === 'completed';
+  if (connected) return { connected: true, label: 'Connected', reason: null, outcome: call.outcome || null, tone: 'ok', retryable: false };
+  if (status === 'answered') return { connected: true, label: 'In progress', reason: null, outcome: null, tone: 'live', retryable: false };
+  if (status === 'ringing') return { connected: false, label: 'Ringing', reason: null, outcome: null, tone: 'live', retryable: false };
+  if (status === 'initiating') {
+    return isStuck(call, nowMs)
+      ? { connected: false, label: 'Timed out', reason: 'The call never started', outcome: null, tone: 'warn', retryable: true }
+      : { connected: false, label: 'Starting', reason: null, outcome: null, tone: 'live', retryable: false };
+  }
+  if (status === 'authorized') return { connected: false, label: 'Not started', reason: null, outcome: null, tone: 'muted', retryable: false };
+  const byStatus = { no_answer: 'No answer', busy: 'Busy', canceled: 'Cancelled', failed: 'Couldn’t connect' };
+  const fromCause = CAUSE_REASON[String(call?.hangup_cause || '').toLowerCase()];
+  const reason = (status === 'failed' ? fromCause : null) || byStatus[status] || 'Couldn’t connect';
+  const keep = NOT_CONNECTED_OUTCOMES.includes(call?.outcome) ? call.outcome : null; // never show "Connected" on a failed call
+  return { connected: false, label: 'Not connected', reason, outcome: keep, tone: status === 'failed' ? 'bad' : 'muted', retryable: status === 'failed' || status === 'no_answer' || status === 'busy' };
+};
+
+// Duration and charge only mean something once the call connected; otherwise show a dash, never "0:00" or "0.00".
+export const durationText = (call) => (callResult(call).connected && call?.duration_seconds != null ? formatDuration(call.duration_seconds) : '—');
+export const chargeText = (call) => (callResult(call).connected && call?.customer_cost != null ? formatMinor(call.customer_cost, call.currency) : '—');
+
+// "[Name]" and "[Your name]" placeholders in the organization's call script (case-insensitive, whitespace tolerant).
+export const fillScript = (script, { name, agent } = {}) => String(script || '')
+  .replace(/\[\s*your\s+name\s*\]/gi, agent || 'your name')
+  .replace(/\[\s*name\s*\]/gi, name || 'there');
+
+export const timeAgo = (value, nowMs = Date.now()) => {
+  const t = time(value); if (t === null) return '';
+  const s = Math.max(0, Math.floor((nowMs - t) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60); if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60); if (h < 24) return `${h}h ago`;
+  const d = Math.floor(h / 24); return d === 1 ? 'yesterday' : `${d}d ago`;
+};
+
+// "Last call: 2h ago, No answer" for the lead header, from the newest call that actually ended. Null when none.
+export const lastCallLine = (calls, nowMs = Date.now()) => {
+  const done = (Array.isArray(calls) ? calls : []).filter((c) => ['completed', 'no_answer', 'busy', 'failed', 'canceled'].includes(c.status));
+  if (!done.length) return null;
+  const c = done.reduce((a, b) => ((time(b.started_at) ?? 0) > (time(a.started_at) ?? 0) ? b : a));
+  const r = callResult(c, nowMs);
+  const what = r.connected ? (outcomeLabel(r.outcome) || 'Connected') : (r.reason || r.label);
+  return `Last call: ${timeAgo(c.ended_at || c.started_at, nowMs)}, ${what}`;
+};
+
+// Suggestions shown after saving an outcome. These are only suggestions: nothing changes until the agent clicks.
+const RETRY_STEPS = [{ key: 'retry', label: 'Retry in 2 hours' }, { key: 'whatsapp', label: 'Send WhatsApp' }];
+export const nextSteps = (outcome, connected) => {
+  if (outcome === 'wrong_number') return [];
+  if (!connected || outcome === 'no_answer' || outcome === 'busy') return RETRY_STEPS;
+  if (outcome === 'not_interested') return [{ key: 'lost', label: 'Mark as Lost?' }];
+  if (outcome === 'connected' || outcome === 'interested') return [{ key: 'demo', label: 'Book demo' }, { key: 'brochure', label: 'Send brochure' }];
+  return [];
+};
