@@ -55,3 +55,14 @@ test('a SIP 403 channel-limit hangup is recognised as "all lines busy"; other en
   assert.equal(hangupReason(null), null);
   assert.match(CAPACITY_MESSAGE, /lines are busy/);
 });
+
+import { isFirstCall } from '../src/utils/voiceCall.js';
+test('first call = no earlier call that reached the network; the current authorization does not count', () => {
+  const cur = 'auth-now';
+  assert.equal(isFirstCall([{ id: cur, status: 'authorized' }], cur), true);                 // only this attempt
+  assert.equal(isFirstCall([], cur), true);
+  assert.equal(isFirstCall([{ id: 'a', status: 'canceled' }, { id: 'b', status: 'failed' }, { id: 'c', status: 'expired' }], cur), true); // never reached the phone
+  for (const status of ['completed', 'no_answer', 'busy', 'answered', 'ringing']) assert.equal(isFirstCall([{ id: 'old', status }], cur), false, status);
+  assert.equal(isFirstCall(undefined, cur), true);                                          // unreadable history: show the reminder
+  assert.equal(isFirstCall('oops', cur), true);
+});
