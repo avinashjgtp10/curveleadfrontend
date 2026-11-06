@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Phone, PhoneOff, Mic, MicOff, Pause, Play, Hash, Loader2, AlertTriangle, WifiOff, X } from 'lucide-react';
 import { leadAPI, voiceAPI } from '../../services/api';
 import { dateTimeInputToUTC, toDateTimeInput } from '../../utils/dateTime.js';
-import { formatDuration, formatMinor, OUTCOMES } from '../../utils/voiceCall';
+import { formatDuration, formatMinor, isFirstCall, OUTCOMES } from '../../utils/voiceCall';
 import useVoiceCall from '../../hooks/useVoiceCall';
 import Button from '../ui/Button';
 import { useToast } from '../ui/Toast';
@@ -25,6 +25,18 @@ export default function LeadCallButton({ lead, variant = 'icon', onLogged }) {
   const [enabled, setEnabled] = useState(false);
   const [keypad, setKeypad] = useState(false);
   const [outcomeOpen, setOutcomeOpen] = useState(false);
+  const [first, setFirst] = useState(null); // null = still checking, true/false once known
+  const [ack, setAck] = useState(false);
+
+  // On the confirm dialog, find out whether this is the first call to this lead. If the history can't be read, assume it is.
+  useEffect(() => {
+    if (v.phase !== 'confirm' || !v.auth) { setFirst(null); setAck(false); return undefined; }
+    let live = true;
+    voiceAPI.listCalls({ leadId: lead.id, limit: 20 })
+      .then(({ data }) => { if (live) setFirst(isFirstCall(data, v.auth.authorizationId)); })
+      .catch(() => { if (live) setFirst(true); });
+    return () => { live = false; };
+  }, [v.phase, v.auth, lead.id]);
 
   useEffect(() => {
     let live = true;
@@ -65,8 +77,15 @@ export default function LeadCallButton({ lead, variant = 'icon', onLogged }) {
               <div className="flex justify-between"><dt className="text-gray-500">Max duration</dt><dd className="font-medium">{formatDuration(v.auth.maxDurationSeconds)}</dd></div>
             </dl>
             <p className="text-xs text-gray-500">Estimate only. Final charge is based on billed talk time, rounded up to {v.auth.billingIncrementSeconds}s.</p>
+            {first === true && (
+              <div role="alert" className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-2">
+                <p className="text-sm font-semibold text-amber-900">First call to {v.auth.lead.name}</p>
+                <p className="text-xs text-amber-900">Introduce yourself and your business, and check they are happy to talk. If they ask not to be contacted, end the call politely and record it in the outcome.</p>
+                <label className="flex items-center gap-2 text-xs font-medium text-amber-900"><input type="checkbox" checked={ack} onChange={e => setAck(e.target.checked)} /> I understand</label>
+              </div>
+            )}
             <div className="flex gap-2"><Button variant="secondary" className="flex-1" onClick={v.hangup}>Cancel</Button>
-              <Button className="flex-1" onClick={v.dial}><Phone size={14} /> Start call</Button></div>
+              <Button className="flex-1" onClick={v.dial} disabled={first === null || (first === true && !ack)}><Phone size={14} /> Start call</Button></div>
           </div>
         </Overlay>
       )}
