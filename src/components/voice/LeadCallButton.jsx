@@ -1,16 +1,42 @@
 import { useEffect, useState } from 'react';
 import { Phone, PhoneOff, Mic, MicOff, Pause, Play, Hash, Loader2, AlertTriangle, WifiOff, X } from 'lucide-react';
-import { leadAPI, voiceAPI } from '../../services/api';
+import { leadAPI, voiceAPI, settingsAPI, playbookAPI } from '../../services/api';
 import { dateTimeInputToUTC, toDateTimeInput } from '../../utils/dateTime.js';
-import { formatDuration, formatMinor, isFirstCall, OUTCOMES } from '../../utils/voiceCall';
+import { formatDuration, formatMinor, isFirstCall, playbookTips, OUTCOMES } from '../../utils/voiceCall';
 import useVoiceCall from '../../hooks/useVoiceCall';
 import Button from '../ui/Button';
 import { useToast } from '../ui/Toast';
 
+// The organization's call script plus playbook tips (when it has any). Collapsible so it never hides the call controls.
+const PitchPanel = ({ pitch, defaultOpen }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  const { script, tips } = pitch || {};
+  if (!script && !tips) return null;
+  return (
+    <div className="rounded-lg border border-brand-200 bg-brand-50/40 text-left">
+      <button onClick={() => setOpen(o => !o)} aria-expanded={open} className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-brand-800">
+        Pitch <span className="text-xs font-normal">{open ? 'Hide' : 'Show'}</span></button>
+      {open && (
+        <div className="px-3 pb-3 space-y-3 text-sm max-h-56 overflow-y-auto">
+          {script && <p className="whitespace-pre-wrap text-gray-800">{script}</p>}
+          {tips && (
+            <div className="space-y-2 text-xs text-gray-700">
+              {tips.practices.length > 0 && <div><p className="font-semibold">What works</p><ul className="list-disc ml-4">{tips.practices.map((t, i) => <li key={i}>{t}</li>)}</ul></div>}
+              {tips.phrases.length > 0 && <div><p className="font-semibold">Phrases that work</p><ul className="list-disc ml-4">{tips.phrases.map((t, i) => <li key={i}>{t}</li>)}</ul></div>}
+              {tips.objections.length > 0 && <div><p className="font-semibold">If they say…</p><ul className="ml-0 space-y-1">{tips.objections.map((o, i) => <li key={i}><span className="font-medium">“{o.objection}”</span>{o.response ? ` → ${o.response}` : ''}</li>)}</ul></div>}
+              {tips.avoid.length > 0 && <div><p className="font-semibold">Avoid</p><ul className="list-disc ml-4">{tips.avoid.map((t, i) => <li key={i}>{t}</li>)}</ul></div>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const Overlay = ({ children, onClose }) => (
   <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
     <div className="fixed inset-0 bg-black/50" onClick={onClose} />
-    <div className="relative bg-white rounded-2xl w-full max-w-sm shadow-2xl">{children}</div>
+    <div className="relative bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-2xl">{children}</div>
   </div>
 );
 
@@ -27,6 +53,20 @@ export default function LeadCallButton({ lead, variant = 'icon', onLogged }) {
   const [outcomeOpen, setOutcomeOpen] = useState(false);
   const [first, setFirst] = useState(null); // null = still checking, true/false once known
   const [ack, setAck] = useState(false);
+  const [pitch, setPitch] = useState(null); // { script, tips } for the dialog and the live call screen
+
+  // Load the script and playbook tips when the confirm dialog opens. Either may be missing; failures just mean no pitch is shown.
+  useEffect(() => {
+    if (v.phase !== 'confirm') return undefined;
+    let live = true;
+    Promise.allSettled([settingsAPI.get(), playbookAPI.get()]).then(([st, pb]) => {
+      if (!live) return;
+      const script = st.status === 'fulfilled' ? (st.value.data?.settings?.call_script || '').trim() : '';
+      const tips = pb.status === 'fulfilled' ? playbookTips(pb.value.data?.playbook) : null;
+      setPitch({ script, tips });
+    });
+    return () => { live = false; };
+  }, [v.phase]);
 
   // On the confirm dialog, find out whether this is the first call to this lead. If the history can't be read, assume it is.
   useEffect(() => {
@@ -76,6 +116,7 @@ export default function LeadCallButton({ lead, variant = 'icon', onLogged }) {
               <div className="flex justify-between"><dt className="text-gray-500">Rate</dt><dd className="font-medium">{v.auth.rate}</dd></div>
               <div className="flex justify-between"><dt className="text-gray-500">Max duration</dt><dd className="font-medium">{formatDuration(v.auth.maxDurationSeconds)}</dd></div>
             </dl>
+            <PitchPanel pitch={pitch} defaultOpen />
             <p className="text-xs text-gray-500">Estimate only. Final charge is based on billed talk time, rounded up to {v.auth.billingIncrementSeconds}s.</p>
             {first === true && (
               <div role="alert" className="rounded-lg bg-amber-50 border border-amber-200 p-3 space-y-2">
@@ -100,6 +141,7 @@ export default function LeadCallButton({ lead, variant = 'icon', onLogged }) {
             <p className="text-3xl font-mono tabular-nums">{formatDuration(v.seconds)}</p>
             {!v.online && <p className="flex items-center justify-center gap-1 text-xs text-amber-700 bg-amber-50 rounded-lg p-2"><WifiOff size={12} /> You are offline. Audio may drop; reconnecting when your network returns.</p>}
             {v.micState === 'denied' && <p className="flex items-center justify-center gap-1 text-xs text-red-700 bg-red-50 rounded-lg p-2"><AlertTriangle size={12} /> Microphone blocked</p>}
+            <PitchPanel pitch={pitch} defaultOpen={false} />
             {keypad && <div className="grid grid-cols-3 gap-2">{KEYS.map(k => <button key={k} onClick={() => v.sendDigit(k)} className="h-10 rounded-lg bg-gray-100 hover:bg-gray-200 font-semibold">{k}</button>)}</div>}
             <div className="flex items-center justify-center gap-3">
               <button onClick={v.toggleMute} disabled={v.phase === 'connecting'} aria-pressed={v.muted} title={v.muted ? 'Unmute' : 'Mute'}

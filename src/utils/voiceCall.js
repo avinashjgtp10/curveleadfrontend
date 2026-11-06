@@ -85,3 +85,16 @@ export const hangupReason = (call) => {
 const REACHED_NETWORK = ['ringing', 'answered', 'completed', 'no_answer', 'busy'];
 export const isFirstCall = (calls, currentAuthorizationId) =>
   !(Array.isArray(calls) && calls.some((c) => c.id !== currentAuthorizationId && REACHED_NETWORK.includes(c.status)));
+
+// Shapes the stored sales playbook (best_practices, common_objections, phrases_that_work, phrases_to_avoid; any of them may be
+// missing or malformed) into a short list for the call dialog. Returns null when there is nothing worth showing.
+const texts = (v, max) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim()).slice(0, max) : []);
+export const playbookTips = (playbook, max = 3) => {
+  if (!playbook || typeof playbook !== 'object') return null;
+  const objections = (Array.isArray(playbook.common_objections) ? playbook.common_objections : [])
+    .filter((o) => o && typeof o.objection === 'string' && o.objection.trim())
+    .map((o) => ({ objection: o.objection.trim(), response: typeof o.recommended_response === 'string' ? o.recommended_response.trim() : '' }))
+    .slice(0, max);
+  const tips = { practices: texts(playbook.best_practices, max), phrases: texts(playbook.phrases_that_work, max), avoid: texts(playbook.phrases_to_avoid, max), objections };
+  return Object.values(tips).some((a) => a.length) ? tips : null;
+};

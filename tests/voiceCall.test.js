@@ -66,3 +66,19 @@ test('first call = no earlier call that reached the network; the current authori
   assert.equal(isFirstCall(undefined, cur), true);                                          // unreadable history: show the reminder
   assert.equal(isFirstCall('oops', cur), true);
 });
+
+import { playbookTips } from '../src/utils/voiceCall.js';
+test('playbook tips are trimmed to a few lines, tolerate junk, and are null when empty', () => {
+  assert.equal(playbookTips(null), null);
+  assert.equal(playbookTips({}), null);
+  assert.equal(playbookTips({ best_practices: [], common_objections: [], phrases_that_work: 'oops', phrases_to_avoid: null }), null);
+  const t = playbookTips({
+    best_practices: ['  Ask about budget early  ', '', 5, 'b2', 'b3', 'b4'],
+    common_objections: [{ objection: 'Too expensive', recommended_response: 'Show ROI' }, { objection: '  ' }, { objection: 'Later' }, null],
+    phrases_that_work: ['p1'], phrases_to_avoid: ['a1'],
+  });
+  assert.deepEqual(t.practices, ['Ask about budget early', 'b2', 'b3']);          // trimmed, junk dropped, max 3
+  assert.deepEqual(t.objections, [{ objection: 'Too expensive', response: 'Show ROI' }, { objection: 'Later', response: '' }]);
+  assert.deepEqual(t.phrases, ['p1']); assert.deepEqual(t.avoid, ['a1']);
+  assert.equal(playbookTips({ phrases_that_work: ['only this'] }).practices.length, 0);
+});
