@@ -33,6 +33,7 @@ const SettingsPage = () => {
     daily_report_time: '08:00',
     dedupe_mode: 'phone',
     email_reply_to: '',
+    call_script: '',
     automation_business_hours_enabled: false,
     automation_business_hours_start: '09:00',
     automation_business_hours_end: '20:00',
@@ -95,6 +96,7 @@ const SettingsPage = () => {
         daily_report_time: s.daily_report_time || '08:00',
         dedupe_mode: s.dedupe_mode || 'phone',
         email_reply_to: s.email_reply_to || '',
+        call_script: s.call_script || '',
         automation_business_hours_enabled: !!s.automation_business_hours_enabled,
         automation_business_hours_start: s.automation_business_hours_start || '09:00',
         automation_business_hours_end: s.automation_business_hours_end || '20:00',
@@ -605,6 +607,18 @@ const SettingsPage = () => {
                             className={`px-3 py-2 border rounded-lg text-sm ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
                         </div>
                       )}
+                    </div>
+
+                    {/* Calling */}
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Calling</p>
+                    <div className="mb-5">
+                      <label className="block text-sm font-medium">Call script
+                        <textarea disabled={!editingBusiness} rows={6} maxLength={2000} value={business.call_script}
+                          onChange={e => setBusiness({ ...business, call_script: e.target.value })}
+                          placeholder={'Opening line, 2–3 key points, closing question.\nAgents see this when they start a call.'}
+                          className={`block w-full mt-1 px-3 py-2 border rounded-lg text-sm font-normal ${!editingBusiness ? 'bg-gray-50 text-gray-600 cursor-not-allowed' : ''}`} />
+                      </label>
+                      <p className="text-xs text-gray-400 mt-1">{business.call_script.length}/2000. Write it in the language(s) your agents use; it is shown exactly as typed.</p>
                     </div>
 
                     {/* Automation */}
