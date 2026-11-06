@@ -82,3 +82,130 @@ test('playbook tips are trimmed to a few lines, tolerate junk, and are null when
   assert.deepEqual(t.phrases, ['p1']); assert.deepEqual(t.avoid, ['a1']);
   assert.equal(playbookTips({ phrases_that_work: ['only this'] }).practices.length, 0);
 });
+
+import { callResult, durationText, chargeText, isStuck, allowedOutcomes, defaultOutcome, fillScript, timeAgo, lastCallLine, nextSteps, outcomeLabel, OUTCOME_OPTIONS } from '../src/utils/voiceCall.js';
+
+const NOW = Date.parse('2026-11-06T12:00:00Z');
+const call = (o) => ({ id: 'c', status: 'completed', started_at: '2026-11-06T11:00:00Z', ...o });
+
+test('a failed or unanswered call is never shown as "Connected", whatever outcome the agent typed', () => {
+  for (const status of ['failed', 'no_answer', 'busy', 'canceled']) {
+    const r = callResult(call({ status, outcome: 'connected' }), NOW);
+    assert.equal(r.connected, false, status); assert.equal(r.label, 'Not connected', status); assert.equal(r.outcome, null, status);
+    assert.ok(r.reason, status);
+  }
+  assert.equal(callResult(call({ status: 'completed', answered_at: null, outcome: 'interested' }), NOW).connected, false); // "completed" without an answer is not a connection
+  const ok = callResult(call({ status: 'completed', answered_at: '2026-11-06T11:00:05Z', outcome: 'interested' }), NOW);
+  assert.deepEqual([ok.connected, ok.label, ok.outcome], [true, 'Connected', 'interested']);
+});
+test('reasons are plain: invalid number, busy, no answer, unreachable, with a generic fallback', () => {
+  assert.equal(callResult(call({ status: 'failed', hangup_cause: 'unallocated_number' }), NOW).reason, 'Invalid number');
+  assert.equal(callResult(call({ status: 'failed', hangup_cause: 'NETWORK_OUT_OF_ORDER' }), NOW).reason, 'Unreachable');
+  assert.equal(callResult(call({ status: 'failed', hangup_cause: 'weird' }), NOW).reason, 'Couldn’t connect');
+  assert.equal(callResult(call({ status: 'failed' }), NOW).reason, 'Couldn’t connect');
+  assert.equal(callResult(call({ status: 'no_answer' }), NOW).reason, 'No answer');
+  assert.equal(callResult(call({ status: 'busy' }), NOW).reason, 'Busy');
+});
+test('outcomes that fit a call that did not connect are kept (no answer, busy, wrong number)', () => {
+  assert.equal(callResult(call({ status: 'failed', outcome: 'wrong_number' }), NOW).outcome, 'wrong_number');
+  assert.equal(callResult(call({ status: 'no_answer', outcome: 'no_answer' }), NOW).outcome, 'no_answer');
+  assert.equal(callResult(call({ status: 'busy', outcome: 'not_interested' }), NOW).outcome, null);
+});
+test('a call stuck on "initiating" for over 60 seconds is "Timed out" and can be retried', () => {
+  const fresh = call({ status: 'initiating', started_at: new Date(NOW - 30_000).toISOString() });
+  const old = call({ status: 'initiating', started_at: new Date(NOW - 61_000).toISOString() });
+  assert.equal(isStuck(fresh, NOW), false); assert.equal(isStuck(old, NOW), true);
+  assert.equal(callResult(fresh, NOW).label, 'Starting');
+  const r = callResult(old, NOW); assert.deepEqual([r.label, r.retryable], ['Timed out', true]);
+  assert.equal(isStuck(call({ status: 'ringing', started_at: new Date(NOW - 600_000).toISOString() }), NOW), false); // only "initiating" counts
+  assert.equal(isStuck({ status: 'initiating' }, NOW), false); // no timestamp: do not guess
+});
+test('duration and charge show a dash unless the call connected', () => {
+  const done = call({ status: 'completed', answered_at: '2026-11-06T11:00:05Z', duration_seconds: 75, customer_cost: '4200', currency: 'INR' });
+  assert.equal(durationText(done), '1:15'); assert.match(chargeText(done), /42/);
+  for (const status of ['failed', 'no_answer', 'busy', 'canceled', 'initiating']) {
+    const c = call({ status, duration_seconds: 0, customer_cost: '0', currency: 'INR' });
+    assert.equal(durationText(c), '—', status); assert.equal(chargeText(c), '—', status);
+  }
+  assert.equal(chargeText({ ...done, customer_cost: null }), '—');
+});
+test('only sensible outcomes are offered for a call that did not connect', () => {
+  assert.deepEqual(allowedOutcomes(false).map((o) => o.value), ['no_answer', 'busy', 'wrong_number']);
+  assert.equal(allowedOutcomes(true).length, OUTCOME_OPTIONS.length);
+  assert.equal(defaultOutcome(true), 'connected'); assert.equal(defaultOutcome(false), 'no_answer');
+  assert.deepEqual(OUTCOME_OPTIONS.map((o) => o.label), ['Connected', 'No answer', 'Busy', 'Wrong number', 'Not interested', 'Call back later']);
+  assert.equal(OUTCOME_OPTIONS.find((o) => o.label === 'Call back later').value, 'follow_up_required'); // maps onto the API's existing value
+  assert.equal(outcomeLabel('interested'), 'Interested'); assert.equal(outcomeLabel(null), '');
+});
+test('script placeholders are filled in for the lead and the agent', () => {
+  assert.equal(fillScript('Hi [Name], this is [Your name] from Salonox.', { name: 'Shani', agent: 'Avi' }), 'Hi Shani, this is Avi from Salonox.');
+  assert.equal(fillScript('Hello [name]! I am [ YOUR NAME ].', { name: 'A', agent: 'B' }), 'Hello A! I am B.');
+  assert.equal(fillScript('Hi [Name]', {}), 'Hi there');
+  assert.equal(fillScript('No placeholders'), 'No placeholders'); assert.equal(fillScript(null), '');
+  assert.equal(fillScript('[Name] and [Name]', { name: 'Z' }), 'Z and Z');
+});
+test('relative time and the "Last call" line use the newest finished call', () => {
+  assert.equal(timeAgo('2026-11-06T11:59:30Z', NOW), 'just now'); assert.equal(timeAgo('2026-11-06T11:15:00Z', NOW), '45m ago');
+  assert.equal(timeAgo('2026-11-06T09:00:00Z', NOW), '3h ago'); assert.equal(timeAgo('2026-11-05T09:00:00Z', NOW), 'yesterday'); assert.equal(timeAgo('2026-11-01T09:00:00Z', NOW), '5d ago');
+  assert.equal(timeAgo(null, NOW), '');
+  const calls = [call({ id: 'a', status: 'no_answer', started_at: '2026-11-06T09:00:00Z', ended_at: '2026-11-06T09:00:30Z' }), call({ id: 'b', status: 'initiating', started_at: '2026-11-06T11:59:00Z' })];
+  assert.equal(lastCallLine(calls, NOW), 'Last call: 2h ago, No answer'); // the in-progress one is ignored
+  assert.equal(lastCallLine([call({ status: 'completed', answered_at: '2026-11-06T10:00:05Z', ended_at: '2026-11-06T10:05:00Z', outcome: 'interested' })], NOW), 'Last call: 1h ago, Interested');
+  assert.equal(lastCallLine([], NOW), null); assert.equal(lastCallLine(undefined, NOW), null);
+});
+test('next-step suggestions follow the outcome and never act on their own', () => {
+  assert.deepEqual(nextSteps('no_answer', false).map((s) => s.key), ['retry', 'whatsapp']);
+  assert.deepEqual(nextSteps('busy', false).map((s) => s.key), ['retry', 'whatsapp']);
+  assert.deepEqual(nextSteps('not_interested', true).map((s) => s.key), ['lost']);
+  assert.deepEqual(nextSteps('connected', true).map((s) => s.key), ['demo', 'brochure']);
+  assert.deepEqual(nextSteps('interested', true).map((s) => s.key), ['demo', 'brochure']);
+  assert.deepEqual(nextSteps('wrong_number', false), []); assert.deepEqual(nextSteps('follow_up_required', true), []);
+  assert.equal(nextSteps('not_interested', true)[0].label, 'Mark as Lost?');
+});
+
+import { statusKey, filterCalls, retryableLeadIds, latestCallByLead, parseQueue, STATUS_FILTERS } from '../src/utils/voiceCall.js';
+const mk = (o) => ({ id: Math.random().toString(36).slice(2), status: 'completed', agent_id: 'a1', lead_id: 'l1', started_at: '2026-11-05T10:00:00Z', ...o });
+const done = { status: 'completed', answered_at: '2026-11-05T10:00:05Z' };
+
+test('every call maps to one filterable status', () => {
+  assert.equal(statusKey(mk(done), NOW), 'connected');
+  for (const s of ['no_answer', 'busy', 'failed', 'canceled']) assert.equal(statusKey(mk({ status: s }), NOW), s);
+  assert.equal(statusKey(mk({ status: 'initiating', started_at: new Date(NOW - 90_000).toISOString() }), NOW), 'timed_out');
+  assert.equal(statusKey(mk({ status: 'initiating', started_at: new Date(NOW - 5_000).toISOString() }), NOW), 'in_progress');
+  assert.equal(statusKey(mk({ status: 'ringing' }), NOW), 'in_progress');
+  assert.equal(statusKey(mk({ status: 'completed', answered_at: null }), NOW), 'failed'); // "completed" without an answer is not a connection
+  assert.ok(STATUS_FILTERS.every((f) => f.value && f.label));
+});
+test('history filters combine, and the outcome filter uses the outcome that is actually shown', () => {
+  const calls = [
+    mk({ ...done, id: 'c1', agent_id: 'a1', outcome: 'interested', started_at: '2026-11-05T10:00:00Z' }),
+    mk({ id: 'c2', agent_id: 'a2', status: 'no_answer', outcome: 'no_answer', started_at: '2026-11-04T10:00:00Z' }),
+    mk({ id: 'c3', agent_id: 'a1', status: 'failed', outcome: 'connected', started_at: '2026-11-03T10:00:00Z' }), // contradictory outcome
+    mk({ id: 'c4', agent_id: 'a2', status: 'busy', started_at: '2026-11-02T10:00:00Z' }),
+  ];
+  const ids = (f) => filterCalls(calls, f, { nowMs: NOW }).map((c) => c.id);
+  assert.deepEqual(ids({}), ['c1', 'c2', 'c3', 'c4']);
+  assert.deepEqual(ids({ agent: 'a2' }), ['c2', 'c4']);
+  assert.deepEqual(ids({ status: 'failed' }), ['c3']);
+  assert.deepEqual(ids({ outcome: 'interested' }), ['c1']);
+  assert.deepEqual(ids({ outcome: 'connected' }), []);          // c3's "connected" is hidden because the call failed
+  assert.deepEqual(ids({ outcome: 'none' }), ['c3', 'c4']);
+  assert.deepEqual(ids({ from: '2026-11-03', to: '2026-11-04' }), ['c2', 'c3']);
+  assert.deepEqual(ids({ from: '2026-11-05' }), ['c1']);
+  assert.deepEqual(ids({ agent: 'a1', status: 'connected', to: '2026-11-05' }), ['c1']);
+  assert.deepEqual(filterCalls(undefined, { agent: 'x' }), []);
+});
+test('only calls that never connected are retryable, once per lead', () => {
+  const calls = [mk({ lead_id: 'A', status: 'failed' }), mk({ lead_id: 'A', status: 'no_answer' }), mk({ lead_id: 'B', status: 'busy' }), mk({ ...done, lead_id: 'C' }), mk({ lead_id: 'D', status: 'canceled' }), mk({ lead_id: null, status: 'failed' })];
+  assert.deepEqual(retryableLeadIds(calls, NOW), ['A', 'B']);
+  assert.deepEqual(retryableLeadIds(undefined, NOW), []);
+  // newest first: E was reached afterwards, so its older failure is not retried; F is still unreached
+  const history = [mk({ ...done, lead_id: 'E' }), mk({ lead_id: 'E', status: 'failed' }), mk({ lead_id: 'F', status: 'failed' }), mk({ lead_id: 'F', status: 'busy' }), mk({ lead_id: 'G', status: 'authorized' })];
+  assert.deepEqual(retryableLeadIds(history, NOW), ['F']);
+  assert.equal(latestCallByLead(history).get('E').status, 'completed');
+});
+test('the retry queue tolerates garbage in storage', () => {
+  assert.deepEqual(parseQueue('["a","b"]'), ['a', 'b']);
+  assert.deepEqual(parseQueue('["a",3,null,"","c"]'), ['a', 'c']);
+  for (const bad of [null, undefined, '', 'nope', '{"a":1}', '5']) assert.deepEqual(parseQueue(bad), []);
+});
