@@ -163,7 +163,7 @@ test('next-step suggestions follow the outcome and never act on their own', () =
   assert.equal(nextSteps('not_interested', true)[0].label, 'Mark as Lost?');
 });
 
-import { statusKey, filterCalls, retryableLeadIds, parseQueue, STATUS_FILTERS } from '../src/utils/voiceCall.js';
+import { statusKey, filterCalls, retryableLeadIds, latestCallByLead, parseQueue, STATUS_FILTERS } from '../src/utils/voiceCall.js';
 const mk = (o) => ({ id: Math.random().toString(36).slice(2), status: 'completed', agent_id: 'a1', lead_id: 'l1', started_at: '2026-11-05T10:00:00Z', ...o });
 const done = { status: 'completed', answered_at: '2026-11-05T10:00:05Z' };
 
@@ -199,6 +199,10 @@ test('only calls that never connected are retryable, once per lead', () => {
   const calls = [mk({ lead_id: 'A', status: 'failed' }), mk({ lead_id: 'A', status: 'no_answer' }), mk({ lead_id: 'B', status: 'busy' }), mk({ ...done, lead_id: 'C' }), mk({ lead_id: 'D', status: 'canceled' }), mk({ lead_id: null, status: 'failed' })];
   assert.deepEqual(retryableLeadIds(calls, NOW), ['A', 'B']);
   assert.deepEqual(retryableLeadIds(undefined, NOW), []);
+  // newest first: E was reached afterwards, so its older failure is not retried; F is still unreached
+  const history = [mk({ ...done, lead_id: 'E' }), mk({ lead_id: 'E', status: 'failed' }), mk({ lead_id: 'F', status: 'failed' }), mk({ lead_id: 'F', status: 'busy' }), mk({ lead_id: 'G', status: 'authorized' })];
+  assert.deepEqual(retryableLeadIds(history, NOW), ['F']);
+  assert.equal(latestCallByLead(history).get('E').status, 'completed');
 });
 test('the retry queue tolerates garbage in storage', () => {
   assert.deepEqual(parseQueue('["a","b"]'), ['a', 'b']);

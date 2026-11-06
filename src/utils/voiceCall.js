@@ -237,12 +237,16 @@ export const filterCalls = (calls, filters = {}, { nowMs = Date.now(), dayOf = (
     return true;
   });
 
-// Calls that can be tried again: they never connected (failed, unanswered, busy, timed out). One lead appears once.
-export const retryableLeadIds = (calls, nowMs = Date.now()) => {
-  const seen = new Set();
-  for (const c of Array.isArray(calls) ? calls : []) if (c.lead_id && callResult(c, nowMs).retryable) seen.add(c.lead_id);
-  return [...seen];
+// The newest call per lead (the API returns calls newest first). Used so a lead who was reached afterwards isn't offered a retry.
+export const latestCallByLead = (calls) => {
+  const m = new Map();
+  for (const c of Array.isArray(calls) ? calls : []) if (c.lead_id && !m.has(c.lead_id) && c.status !== 'authorized') m.set(c.lead_id, c);
+  return m;
 };
+
+// Leads whose LATEST call never connected (failed, unanswered, busy, timed out). One entry per lead, newest-first order.
+export const retryableLeadIds = (calls, nowMs = Date.now()) =>
+  [...latestCallByLead(calls)].filter(([, c]) => callResult(c, nowMs).retryable).map(([id]) => id);
 
 // The retry queue lives in sessionStorage as a JSON array of lead ids; anything else reads as an empty queue.
 export const parseQueue = (raw) => {
