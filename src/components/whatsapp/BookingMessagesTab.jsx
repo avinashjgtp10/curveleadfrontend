@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Copy, ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink, CheckCircle2, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
+import { templateStatus } from '../../utils/templateCheck';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Card, ErrorBox, LoadError, Loading, Toggle, useLoad, fmtDateTime } from './hubUi';
@@ -32,27 +33,44 @@ const STATUS_STYLES = {
 const bodyOf = t => t?.components?.find(c => c.type === 'BODY')?.text || '';
 const varCount = text => Math.max(0, ...[...text.matchAll(/\{\{(\d+)\}\}/g)].map(m => Number(m[1])));
 
-const TemplateSelect = ({ label, type, value, onChange, templates, samples }) => {
-  const selected = templates.find(t => t.name === value);
+const TONE = {
+  ok: { cls: 'text-green-700', Icon: CheckCircle2 },
+  warn: { cls: 'text-amber-700', Icon: AlertTriangle },
+  bad: { cls: 'text-red-600', Icon: XCircle },
+  muted: { cls: 'text-gray-500', Icon: Loader2 },
+};
+
+// `check` is the server's verdict for the SAVED template (same lookup the sender uses). `listState` is how the template list
+// loaded on this screen. A template is only called "not found" once WhatsApp has really answered.
+const TemplateSelect = ({ label, type, value, onChange, templates, samples, check, listState, onRecheck }) => {
+  const status = templateStatus({ value, check, listState, templates });
+  const selected = status.template || templates.find(t => t.name === value);
   const body = bodyOf(selected);
   const needed = varCount(body);
   const header = selected?.components?.find(c => c.type === 'HEADER');
   const preview = body.replace(/\{\{(\d+)\}\}/g, (m, n) => samples[Number(n) - 1] ?? m);
-  const missing = value && !selected;
+  const inList = templates.some(t => t.name === value);
+  const tone = TONE[status.tone] || TONE.muted;
+  const canRecheck = ['not_found', 'not_approved', 'unverified'].includes(status.state);
 
   return (
     <div>
       <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
       <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
         <option value="">None (only sent inside the 24-hour window)</option>
-        {missing && <option value={value}>{value} (not found)</option>}
+        {value && !inList && <option value={value}>{value}{status.state === 'not_found' ? ' (not found)' : ''}</option>}
         {templates.map(t => (
           <option key={`${t.name}:${t.language}`} value={t.name} disabled={t.status !== 'APPROVED'}>
             {t.name} · {t.language}{t.status !== 'APPROVED' ? ` (${t.status.toLowerCase()})` : ''}
           </option>
         ))}
       </select>
-      {missing && <p className="text-[11px] text-red-600 mt-1">This template no longer exists in WhatsApp Manager. Pick another.</p>}
+      {status.state !== 'none' && (
+        <p role="status" className={`text-[11px] mt-1 flex items-start gap-1 ${tone.cls}`}>
+          <tone.Icon size={12} className={`shrink-0 mt-0.5 ${status.state === 'checking' ? 'animate-spin' : ''}`} />
+          <span>{status.text}{canRecheck && onRecheck && <> <button type="button" onClick={onRecheck} className="underline">Check again</button></>}</span>
+        </p>
+      )}
       {selected && needed > VARIABLES[type].length && (
         <p className="text-[11px] text-red-600 mt-1">This template has {needed} variables; a {type} message can fill at most {VARIABLES[type].length}. It will fail to send.</p>
       )}
@@ -73,6 +91,7 @@ const BookingMessagesTab = () => {
   const toast = useToast();
   const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubGetBookingMessages());
   const tpl = useLoad(() => whatsappAPI.getBroadcastTemplates());
+  const [checks, setChecks] = useState(null); // fresher server verdicts after "Check again"
   const [f, setF] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -81,6 +100,15 @@ const BookingMessagesTab = () => {
   if (loading || !f) return <Loading />;
 
   const templates = tpl.data?.templates || [];
+  const listState = tpl.loading ? 'loading' : tpl.error ? 'error' : 'ready';
+  // The server's verdict only applies to the template that is actually saved, not to one just picked in the dropdown.
+  const checkFor = key => (f[key] && f[key] === data?.[key] ? (checks ?? data?.template_checks)?.[key] : undefined);
+  // Re-run the checks without touching the form, so unsaved edits are not lost.
+  const recheck = () => {
+    tpl.reload();
+    whatsappAPI.hubGetBookingMessages().then(r => setChecks(r.data?.template_checks || {})).catch(() => {});
+  };
+  const field = key => ({ value: f[key], check: checkFor(key), listState, onRecheck: recheck });
   const set = patch => setF(prev => ({ ...prev, ...patch }));
   const address = f.address || f.business_address;
   const samples = when => ({
@@ -100,7 +128,7 @@ const BookingMessagesTab = () => {
   const save = async () => {
     setSaving(true);
     try {
-      const { recent, business_name, business_address, timezone, ...payload } = f;
+      const { recent, business_name, business_address, timezone, template_checks, ...payload } = f;
       await whatsappAPI.hubSaveBookingMessages(payload);
       toast.success('Booking messages saved.');
       reload();
@@ -115,7 +143,7 @@ const BookingMessagesTab = () => {
         Inside WhatsApp's 24-hour window a normal message is sent; outside it, the approved template you pick here.
       </p>
 
-      {tpl.error && <ErrorBox>Couldn't load your WhatsApp templates: {tpl.error}</ErrorBox>}
+      {tpl.error && <ErrorBox>Couldn't load your WhatsApp templates: {tpl.error} Your saved templates are untouched; they just can't be checked right now. <button type="button" onClick={recheck} className="underline">Try again</button></ErrorBox>}
 
       <Card title="Confirmation when booked">
         <Toggle checked={f.confirmation_enabled} onChange={v => set({ confirmation_enabled: v })}
@@ -124,9 +152,9 @@ const BookingMessagesTab = () => {
         {f.confirmation_enabled && (
           <div className="grid md:grid-cols-2 gap-4 mt-4">
             <TemplateSelect label="Demo confirmation template" type="demo" templates={templates} samples={confirmSamples.demo}
-              value={f.demo_confirmation_template} onChange={v => set({ demo_confirmation_template: v })} />
+              {...field('demo_confirmation_template')} onChange={v => set({ demo_confirmation_template: v })} />
             <TemplateSelect label="Visit confirmation template" type="visit" templates={templates} samples={confirmSamples.visit}
-              value={f.visit_confirmation_template} onChange={v => set({ visit_confirmation_template: v })} />
+              {...field('visit_confirmation_template')} onChange={v => set({ visit_confirmation_template: v })} />
           </div>
         )}
       </Card>
@@ -150,9 +178,9 @@ const BookingMessagesTab = () => {
             </div>
             <div className="grid md:grid-cols-2 gap-4 mt-4">
               <TemplateSelect label="Demo reminder template" type="demo" templates={templates} samples={reminderSamples.demo}
-                value={f.demo_reminder_template} onChange={v => set({ demo_reminder_template: v })} />
+                {...field('demo_reminder_template')} onChange={v => set({ demo_reminder_template: v })} />
               <TemplateSelect label="Visit reminder template" type="visit" templates={templates} samples={reminderSamples.visit}
-                value={f.visit_reminder_template} onChange={v => set({ visit_reminder_template: v })} />
+                {...field('visit_reminder_template')} onChange={v => set({ visit_reminder_template: v })} />
             </div>
           </>
         )}
