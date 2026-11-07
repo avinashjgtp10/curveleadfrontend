@@ -3,7 +3,7 @@
 //   * Sequence rules that start when "a new lead is received"
 // Pure: the screens pass in what the existing APIs return.
 export const WELCOME_EDIT_PATH = '/whatsapp?tab=auto';
-export const SEQUENCE_PATH = '/lead-automation';
+export const SEQUENCE_PATH = '/whatsapp?tab=sequences';
 
 /**
  * @param responder { enabled, template, message } (hub auto-messages: welcome_enabled, welcome_template_name, welcome_message)
