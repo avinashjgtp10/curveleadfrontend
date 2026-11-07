@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import AssignmentRulesSection from './AssignmentRulesSection';
 import StepAttachment from './StepAttachment';
 import TemplatePicker from '../../components/whatsapp/TemplatePicker';
+import WelcomeStatusCard from '../../components/whatsapp/WelcomeStatusCard';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
 const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'minutes', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
@@ -613,6 +614,7 @@ const AutomationBuilder = () => {
                   <option value="lead_status">A lead's status changes to a specific status</option>
                 </select>
               </div>
+              {ruleForm.trigger_type === 'new_lead' && <WelcomeStatusCard where="rule" />}
               {ruleForm.trigger_type === 'stage_change' && (
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Stage</label>

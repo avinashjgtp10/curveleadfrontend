@@ -3,6 +3,7 @@ import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Card, LoadError, Loading, Toggle, useLoad } from './hubUi';
 import TemplatePicker from './TemplatePicker';
+import WelcomeStatusCard from './WelcomeStatusCard';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -11,6 +12,7 @@ const AutoMessagesTab = () => {
   const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubGetAutoMessages());
   const [f, setF] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(0);
   const [templates, setTemplates] = useState(null);
   const optins = useLoad(() => whatsappAPI.hubOptIns());
 
@@ -28,13 +30,15 @@ const AutoMessagesTab = () => {
 
   const save = async () => {
     setSaving(true);
-    try { await whatsappAPI.hubSaveAutoMessages(f); toast.success('Auto messages saved.'); }
+    try { await whatsappAPI.hubSaveAutoMessages(f); toast.success('Auto messages saved.'); setSavedAt(n => n + 1); }
     catch (e) { toast.error(e.response?.data?.error || 'Failed to save'); }
     finally { setSaving(false); }
   };
 
   return (
     <div className="space-y-4">
+      <WelcomeStatusCard where="auto" refreshKey={savedAt} />
+
       <Card title="Welcome message">
         <Toggle checked={f.welcome_enabled} onChange={v => setF({ ...f, welcome_enabled: v })}
           label="Send a welcome message to every new lead" hint="Sent right after a lead is created, from your shared WhatsApp number." />
