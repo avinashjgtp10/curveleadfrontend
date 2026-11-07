@@ -4,6 +4,8 @@ import { useToast } from '../ui/Toast';
 import { Card, LoadError, Loading, Toggle, useLoad } from './hubUi';
 import TemplatePicker from './TemplatePicker';
 import WelcomeStatusCard from './WelcomeStatusCard';
+import VariableHelp, { UnknownVariables } from './VariableHelp';
+import { unknownVariables } from '../../utils/leadVariables';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -58,6 +60,8 @@ const AutoMessagesTab = () => {
         <textarea id="welcome-text" value={f.welcome_message} onChange={e => setF({ ...f, welcome_message: e.target.value })} rows={3} maxLength={1000}
           placeholder="Hi {{name}}, thanks for your interest! We'll be in touch shortly."
           className="w-full px-3 py-2 border rounded-lg text-sm" />
+        <UnknownVariables items={unknownVariables(f.welcome_message)} />
+        <VariableHelp className="mt-2" />
       </Card>
 
       <Card title="Away message">

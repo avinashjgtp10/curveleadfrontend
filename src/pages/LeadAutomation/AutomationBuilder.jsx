@@ -9,6 +9,8 @@ import StepAttachment from './StepAttachment';
 import TemplatePicker from '../../components/whatsapp/TemplatePicker';
 import WelcomeStatusCard from '../../components/whatsapp/WelcomeStatusCard';
 import { DELAY_UNIT_MINUTES, bestUnit, describeDelay } from '../../utils/delay';
+import { TEMPLATE_FIELD_OPTIONS, unknownVariables } from '../../utils/leadVariables';
+import VariableHelp, { UnknownVariables } from '../../components/whatsapp/VariableHelp';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
 const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
@@ -514,6 +516,7 @@ const AutomationBuilder = () => {
                           <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
                             rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
                             placeholder={'Hi {{name}}, ...'} />
+                          <UnknownVariables items={unknownVariables(step.message)} />
                         </>
                       )}
                       {step.channel === 'whatsapp' && !step.always_template && (
@@ -524,10 +527,11 @@ const AutomationBuilder = () => {
                           <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!step.always_template} onChange={e => updateStep(idx, { always_template: e.target.checked, ...(e.target.checked ? { media: [] } : {}) })} />Always send approved template</label>
                           <label className="block text-xs">Template language<input aria-label={`Step ${idx + 1} template language`} value={step.template_language || ''} onChange={e => updateStep(idx, { template_language: e.target.value })} className="w-full px-2 py-1 border rounded" placeholder="e.g. en_US" /></label>
                           {(step.template_parameters || []).map((mapping,mi) => <div key={mi} className="flex gap-2 items-center text-xs">
-                            <span>{`{{${mi+1}}}`}</span><select aria-label={`Step ${idx+1} parameter ${mi+1}`} className="border rounded p-1" value={mapping.field} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { field: e.target.value, value: '' } : m) })}>{['name','phone','email','location','source','product','literal'].map(field => <option key={field} value={field}>{field === 'literal' ? 'Fixed text' : field}</option>)}</select>
+                            <span>{`{{${mi+1}}}`}</span><select aria-label={`Step ${idx+1} parameter ${mi+1}`} className="border rounded p-1" value={mapping.field} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { field: e.target.value, value: '' } : m) })}>{TEMPLATE_FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
                             {mapping.field === 'literal' && <input aria-label={`Step ${idx+1} parameter ${mi+1} text`} className="border rounded p-1 min-w-0" value={mapping.value || ''} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { ...m, value: e.target.value } : m) })} />}
                             <button type="button" onClick={() => updateStep(idx, { template_parameters: step.template_parameters.filter((_,j) => j !== mi) })}>Remove</button>
                           </div>)}
+                          <p className="text-[11px] text-gray-500">An approved WhatsApp template has numbered gaps ({'{{1}}'}, {'{{2}}'}…). Choose which lead detail fills each one, in order.</p>
                           <button type="button" className="text-xs text-brand-600" onClick={() => updateStep(idx, { template_parameters: [...(step.template_parameters || []), { field: 'name' }] })}>Add body parameter</button>
                           {approvedTemplates.length > 0 ? (
                             <TemplatePicker label="Approved template" templates={approvedTemplates} identity="name_language" purpose="followup"
@@ -566,12 +570,7 @@ const AutomationBuilder = () => {
                   <Plus size={13} /> Add Step
                 </button>
                 {seqErrors.steps && <p className="text-xs text-red-500 mt-2">{seqErrors.steps}</p>}
-                <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
-                  Variables:{' '}
-                  {['{{name}}', '{{phone}}', '{{email}}', '{{city}}', '{{source}}'].map(v => (
-                    <code key={v} className="bg-gray-100 px-1 rounded mr-1">{v}</code>
-                  ))}
-                </p>
+                <VariableHelp className="mt-3" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
