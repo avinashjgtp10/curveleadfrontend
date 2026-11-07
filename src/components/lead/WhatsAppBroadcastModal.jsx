@@ -1,5 +1,6 @@
 import { formatDateTime } from '../../utils/dateTime.js';
 import { useEffect, useRef, useState } from 'react';
+import { isSystemTemplate } from '../../utils/templatePicker';
 import { whatsappAPI } from '../../services/api';
 import { X, MessageCircle, AlertCircle, CheckCircle, Send, Plus, ArrowLeft, Image as ImageIcon, Film, FileText, Upload, Search, Megaphone, Wrench, ShieldCheck, ChevronRight } from 'lucide-react';
 import { useToast } from '../ui/Toast';
@@ -91,9 +92,11 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
 
   useEffect(() => { loadTemplates(); }, []);
 
+  const [showHiddenTemplates, setShowHiddenTemplates] = useState(false);
+  const hiddenTemplateCount = templates.filter(t => isSystemTemplate(t.name)).length;
   const filteredTemplates = templates.filter(t => {
     const q = templateSearch.trim().toLowerCase();
-    if (!q) return true;
+    if (!q) return showHiddenTemplates || !isSystemTemplate(t.name); // test and system templates stay out of the way
     return t.name.toLowerCase().includes(q) || (getComponent(t, 'BODY')?.text || '').toLowerCase().includes(q);
   });
 
@@ -210,6 +213,11 @@ const WhatsAppBroadcastModal = ({ leads, onClose, onSent }) => {
                 <p className="text-sm text-gray-400 text-center py-6">No templates match "{templateSearch}"</p>
               ) : (
                 <div className="space-y-2.5">
+                  {hiddenTemplateCount > 0 && !templateSearch.trim() && (
+                    <button type="button" onClick={() => setShowHiddenTemplates(v => !v)} className="text-xs text-brand-700 hover:underline">
+                      {showHiddenTemplates ? 'Hide' : 'Show'} {hiddenTemplateCount} test or system template{hiddenTemplateCount === 1 ? '' : 's'}
+                    </button>
+                  )}
                   {filteredTemplates.map(t => {
                     const supported = isSupported(t) && t.status === 'APPROVED';
                     const cat = CATEGORY_STYLE[t.category] || CATEGORY_STYLE.UTILITY;

@@ -3,12 +3,13 @@ import { useOverview } from "../components/workspace/Overview";
 import PageLoader from "../components/ui/PageLoader";
 import StatusBadge from "../components/ui/StatusBadge";
 import { useAuth } from "../context/AuthContext";
+import WelcomeStatusCard from "../components/whatsapp/WelcomeStatusCard";
 // [id, title, where to configure, what it does]
 export const AUTOMATIONS = [
   ["sources", "Lead sources", "/integrations", "New leads arrive automatically from Meta, Google Ads, your website or the API."],
   ["assignment", "Assignment rules", "/settings?tab=assignment", "New leads go to the right person by source, campaign or round-robin."],
   ["dedupe", "Dedupe", "/settings?tab=business", "Repeat enquiries from the same number join the existing lead."],
-  ["responder", "Auto-responder", "/integrations", "A WhatsApp welcome message the moment a new lead arrives."],
+  ["responder", "Welcome message", "/whatsapp?tab=auto", "A WhatsApp welcome message the moment a new lead arrives. Edit it in WhatsApp \u2192 Auto messages."],
   ["sequences", "Sequences", "/lead-automation", "Scripted WhatsApp and email follow-ups for matching leads."],
   ["inbound", "Inbound auto-reply", "/whatsapp?tab=ai", "Replies to customer messages: AI auto-reply or keyword rules."],
   ["bulk", "Bulk campaigns", "/whatsapp?tab=broadcasts", "Approved-template broadcasts to opted-in lists."],
@@ -32,6 +33,7 @@ export default function AutomationsPage() {
       <p className="text-gray-500">
         Manage your workspace automations in one place.
       </p>
+      {admin && <WelcomeStatusCard where="hub" />}
       <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {AUTOMATIONS.map(([id, title, to, desc]) => (
           <section

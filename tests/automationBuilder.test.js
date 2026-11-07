@@ -6,6 +6,12 @@ import { createRequire } from 'node:module';
 import React from 'react';
 import { create, act } from 'react-test-renderer';
 const require = createRequire(import.meta.url);
+// Pure helper modules (no side effects) are loaded for real; everything else the editor imports is stubbed below.
+function pureUtil(file) {
+ const m = { exports: {} };
+ vm.runInNewContext(require('esbuild').transformSync(readFileSync(new URL('../src/' + file, import.meta.url),'utf8'), { loader:'js',format:'cjs' }).code, { module:m, exports:m.exports });
+ return m.exports;
+}
 function component(file, apis) {
  const module = { exports: {} };
  const code = require('esbuild').transformSync(readFileSync(new URL('../src/' + file, import.meta.url),'utf8'), { loader:'jsx',format:'cjs',jsx:'automatic' }).code;
@@ -17,6 +23,9 @@ function component(file, apis) {
   if(name.includes('AuthContext'))return{useAuth:()=>({user:{role:'admin'}})};
   if(name.includes('ConfirmDialog'))return{useConfirmDialog:()=>async()=>true};
   if(name.includes('Toast'))return{useToast:()=>({success:()=>{},error:message=>{throw new Error(message);}})};
+  if(name.includes('utils/delay'))return pureUtil('utils/delay.js');
+  if(name.includes('utils/leadVariables'))return pureUtil('utils/leadVariables.js');
+  if(name.includes('VariableHelp'))return{__esModule:true,default:()=>null,UnknownVariables:()=>null};
   return{__esModule:true,default:()=>null};
  }});
  return module.exports.default;

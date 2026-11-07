@@ -3,6 +3,8 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianG
 import { whatsappAPI } from '../../services/api';
 import { Card, DaysSelect, Empty, LoadError, Loading, Stat, fmtDuration, useLoad } from './hubUi';
 
+import FailureReason from './FailureReason';
+
 const AnalyticsTab = () => {
   const [days, setDays] = useState(30);
   const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubAnalytics(days), [days]);
@@ -23,6 +25,26 @@ const AnalyticsTab = () => {
         <Stat label="Leads who replied" value={t.leads_replied} />
         <Stat label="Median reply time" value={fmtDuration(data.median_response_seconds)} sub="to an inbound message" />
       </div>
+
+      {t.failed > 0 && (
+        <Card title="Why messages failed">
+          {(data.failure_reasons || []).length === 0 ? (
+            <p className="text-sm text-gray-500">{t.failed} message{t.failed === 1 ? '' : 's'} failed in this period, but the reason wasn\u2019t recorded for them.</p>
+          ) : (
+            <ul className="divide-y">
+              {data.failure_reasons.map((r, i) => (
+                <li key={i} className="py-2 flex items-start justify-between gap-4 text-sm">
+                  <div className="min-w-0">
+                    <FailureReason detail={r.detail} className="text-gray-800" />
+                    {r.templates?.length > 0 && <p className="text-[11px] text-gray-400 mt-0.5">Templates: {r.templates.join(', ')}</p>}
+                  </div>
+                  <span className="shrink-0 font-semibold text-red-600 tabular-nums">{r.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      )}
 
       <Card title="Messages per day">
         {data.daily.length === 0 ? <Empty>No messages in this period.</Empty> : (

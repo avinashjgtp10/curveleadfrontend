@@ -6,6 +6,8 @@ import { Copy, Check, RefreshCw, Trash2, Key, AlertCircle, CheckCircle, ArrowLef
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
 import { FB_LOGIN_CONFIG_ID, loadFbSdk } from '../utils/facebookSdk';
+import { Link } from 'react-router-dom';
+import WelcomeStatusCard from '../components/whatsapp/WelcomeStatusCard';
 
 const GoogleGIcon = ({ size = 20 }) => (
   <svg width={size} height={size} viewBox="0 0 48 48">
@@ -1227,6 +1229,10 @@ const WhatsAppConfig = ({ settings, onRefresh }) => {
           <div>
             <h2 className="font-semibold mb-1">Auto-message new leads</h2>
             <p className="text-xs text-gray-500 mb-3">Instantly send a WhatsApp message to every new lead received via your integrations (Meta Ads, website, API) — even when you're busy or offline.</p>
+            <div className="mb-3">
+              <WelcomeStatusCard where="integrations" compact />
+              <p className="text-[11px] text-gray-500 mt-1.5">This is the same welcome message you can pick a template for in <Link to="/whatsapp?tab=auto" className="underline font-semibold">WhatsApp \u2192 Auto messages</Link>. Changing it here changes it there.</p>
+            </div>
             <label className="flex items-center gap-2 text-sm cursor-pointer mb-3">
               <input type="checkbox" checked={autoForm.whatsapp_auto_responder_enabled}
                 onChange={e => setAutoForm(f => ({ ...f, whatsapp_auto_responder_enabled: e.target.checked }))}

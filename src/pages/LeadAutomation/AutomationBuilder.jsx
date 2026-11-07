@@ -6,15 +6,26 @@ import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 import AssignmentRulesSection from './AssignmentRulesSection';
 import StepAttachment from './StepAttachment';
+import TemplatePicker from '../../components/whatsapp/TemplatePicker';
+import WelcomeStatusCard from '../../components/whatsapp/WelcomeStatusCard';
+import { DELAY_UNIT_MINUTES, bestUnit, describeDelay } from '../../utils/delay';
+import { TEMPLATE_FIELD_OPTIONS, unknownVariables } from '../../utils/leadVariables';
+import VariableHelp, { UnknownVariables } from '../../components/whatsapp/VariableHelp';
+
+// A checkbox with a plain-language label and a line saying what it does.
+const CheckRow = ({ checked, onChange, label, hint }) => (
+  <label className="flex gap-2 text-sm items-start cursor-pointer">
+    <input type="checkbox" className="mt-1" checked={checked} onChange={onChange} />
+    <span><span className="font-medium">{label}</span>{hint && <span className="block text-xs text-gray-500 font-normal">{hint}</span>}</span>
+  </label>
+);
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
-const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'minutes', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
+const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
 
-const DELAY_UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440 };
-const delayValueForStep = (step) => {
-  const factor = DELAY_UNIT_MINUTES[step.delay_unit || 'minutes'];
-  return step.delay_minutes ? Math.round(step.delay_minutes / factor) : '';
-};
+// The saved step only keeps minutes, so pick the friendliest unit from them (1440 -> "1 day"), not "1440 minutes".
+const unitFor = (step) => step.delay_unit || bestUnit(step.delay_minutes);
+const delayValueForStep = (step) => (step.delay_minutes ? Math.round(step.delay_minutes / DELAY_UNIT_MINUTES[unitFor(step)]) : '');
 
 const SOURCE_OPTIONS = ['manual', 'website', 'meta_ads', 'google_ads', 'whatsapp', 'referral', 'walkin'];
 
@@ -427,8 +438,16 @@ const AutomationBuilder = () => {
 
               <fieldset className="border rounded-xl p-3 space-y-2">
                 <legend className="text-sm font-semibold">Sequence behaviour</legend>
-                <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!seqForm.is_active} onChange={e => setSeqForm({ ...seqForm, is_active: e.target.checked })} /> Active (new sequences are saved as drafts)</label>
-                {[['on_reply','Stop on reply (for sequences without a reply question)'],['demo_booked','Stop when a demo is booked'],['customer_converted','Stop when the lead becomes a customer']].map(([key,label]) => <label key={key} className="flex gap-2 text-sm"><input type="checkbox" checked={!!seqForm.stop_conditions?.[key]} onChange={e => setSeqForm({ ...seqForm, stop_conditions: { ...seqForm.stop_conditions, [key]: e.target.checked } })} />{label}</label>)}
+                <CheckRow checked={!!seqForm.is_active} onChange={e => setSeqForm({ ...seqForm, is_active: e.target.checked })}
+                  label="Turn this sequence on" hint="Leave it off to save a draft. Nothing is sent while a sequence is off; you can turn it on whenever you are ready." />
+                {[
+                  ['on_reply', 'Stop when the lead replies', 'Good for simple follow-ups. Leave it off if a step asks a question with reply buttons, so their answer can carry the sequence on.'],
+                  ['demo_booked', 'Stop when a demo is booked', 'No more messages once a demo is booked for the lead.'],
+                  ['customer_converted', 'Stop when the lead becomes a customer', 'No more messages once they become a customer.'],
+                ].map(([key, label, hint]) => (
+                  <CheckRow key={key} checked={!!seqForm.stop_conditions?.[key]} label={label} hint={hint}
+                    onChange={e => setSeqForm({ ...seqForm, stop_conditions: { ...seqForm.stop_conditions, [key]: e.target.checked } })} />
+                ))}
                 <p className="text-xs text-gray-600">Opt-out always stops sending. Manual pause suspends sending until resumed.</p>
               </fieldset>
               <div className="pt-2">
@@ -452,16 +471,16 @@ const AutomationBuilder = () => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Delay after previous step</label>
+                          <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Wait {idx === 0 ? 'after the sequence starts' : 'after the previous step'}</label>
                           <div className="flex gap-1.5">
                             <input type="number" min="0" value={delayValueForStep(step)}
                               onChange={e => {
-                                const factor = DELAY_UNIT_MINUTES[step.delay_unit || 'minutes'];
-                                updateStep(idx, { delay_minutes: (parseInt(e.target.value, 10) || 0) * factor });
+                                const factor = DELAY_UNIT_MINUTES[unitFor(step)];
+                                updateStep(idx, { delay_unit: unitFor(step), delay_minutes: (parseInt(e.target.value, 10) || 0) * factor }); // pin the unit so typing 24 hours doesn't flip to 1 day
                               }}
                               onFocus={e => e.target.select()}
                               className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="0" />
-                            <select value={step.delay_unit || 'minutes'}
+                            <select value={unitFor(step)} aria-label={`Step ${idx + 1} delay unit`}
                               onChange={e => {
                                 const newUnit = e.target.value;
                                 const currentValue = delayValueForStep(step) || 0;
@@ -473,6 +492,7 @@ const AutomationBuilder = () => {
                               <option value="days">Days</option>
                             </select>
                           </div>
+                          <p className="text-[11px] text-gray-500 mt-1">{step.delay_minutes ? `Sends ${describeDelay(step.delay_minutes)} after ${idx === 0 ? 'the sequence starts' : 'the previous step'}.` : `Sends straight away${idx === 0 ? ' when the sequence starts' : ' after the previous step'}.`}</p>
                         </div>
                       </div>
                       {step.channel === 'email' && (
@@ -512,6 +532,7 @@ const AutomationBuilder = () => {
                           <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
                             rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
                             placeholder={'Hi {{name}}, ...'} />
+                          <UnknownVariables items={unknownVariables(step.message)} />
                         </>
                       )}
                       {step.channel === 'whatsapp' && !step.always_template && (
@@ -522,25 +543,21 @@ const AutomationBuilder = () => {
                           <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!step.always_template} onChange={e => updateStep(idx, { always_template: e.target.checked, ...(e.target.checked ? { media: [] } : {}) })} />Always send approved template</label>
                           <label className="block text-xs">Template language<input aria-label={`Step ${idx + 1} template language`} value={step.template_language || ''} onChange={e => updateStep(idx, { template_language: e.target.value })} className="w-full px-2 py-1 border rounded" placeholder="e.g. en_US" /></label>
                           {(step.template_parameters || []).map((mapping,mi) => <div key={mi} className="flex gap-2 items-center text-xs">
-                            <span>{`{{${mi+1}}}`}</span><select aria-label={`Step ${idx+1} parameter ${mi+1}`} className="border rounded p-1" value={mapping.field} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { field: e.target.value, value: '' } : m) })}>{['name','phone','email','location','source','product','literal'].map(field => <option key={field} value={field}>{field === 'literal' ? 'Fixed text' : field}</option>)}</select>
+                            <span>{`{{${mi+1}}}`}</span><select aria-label={`Step ${idx+1} parameter ${mi+1}`} className="border rounded p-1" value={mapping.field} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { field: e.target.value, value: '' } : m) })}>{TEMPLATE_FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
                             {mapping.field === 'literal' && <input aria-label={`Step ${idx+1} parameter ${mi+1} text`} className="border rounded p-1 min-w-0" value={mapping.value || ''} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { ...m, value: e.target.value } : m) })} />}
                             <button type="button" onClick={() => updateStep(idx, { template_parameters: step.template_parameters.filter((_,j) => j !== mi) })}>Remove</button>
                           </div>)}
+                          <p className="text-[11px] text-gray-500">An approved WhatsApp template has numbered gaps ({'{{1}}'}, {'{{2}}'}…). Choose which lead detail fills each one, in order.</p>
                           <button type="button" className="text-xs text-brand-600" onClick={() => updateStep(idx, { template_parameters: [...(step.template_parameters || []), { field: 'name' }] })}>Add body parameter</button>
                           {approvedTemplates.length > 0 ? (
-                            <select value={step.approved_template_name ? `${step.approved_template_name}::${step.template_language || approvedTemplates.find(t => t.name === step.approved_template_name)?.language || ''}` : ''} onChange={e => {
-                              const [name,language] = e.target.value.split('::');
-                              const template = approvedTemplates.find(t => t.name === name && t.language === language);
-                              const text = template?.components?.find(c => c.type === 'BODY')?.text || '';
-                              const count = new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1])).size;
-                              updateStep(idx, { approved_template_name: name || '', template_language: language || '', template_parameters: Array.from({ length: count }, () => ({ field: 'name' })) });
-                            }}
-                              className="w-full px-2.5 py-2 border rounded-lg text-xs bg-white">
-                              <option value="">No fallback template</option>
-                              {approvedTemplates.map(t => (
-                                <option key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>{t.name} ({t.language})</option>
-                              ))}
-                            </select>
+                            <TemplatePicker label="Approved template" templates={approvedTemplates} identity="name_language" purpose="followup"
+                              emptyLabel="No fallback template"
+                              value={step.approved_template_name ? `${step.approved_template_name}::${step.template_language || approvedTemplates.find(t => t.name === step.approved_template_name)?.language || ''}` : ''}
+                              onChange={(_, template) => {
+                                const text = template?.components?.find(c => c.type === 'BODY')?.text || '';
+                                const count = new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1])).size;
+                                updateStep(idx, { approved_template_name: template?.name || '', template_language: template?.language || '', template_parameters: Array.from({ length: count }, () => ({ field: 'name' })) });
+                              }} />
                           ) : (
                             <input value={step.approved_template_name || ''} onChange={e => updateStep(idx, { approved_template_name: e.target.value })}
                               className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="Approved template name (optional fallback)" />
@@ -569,12 +586,7 @@ const AutomationBuilder = () => {
                   <Plus size={13} /> Add Step
                 </button>
                 {seqErrors.steps && <p className="text-xs text-red-500 mt-2">{seqErrors.steps}</p>}
-                <p className="text-[10px] text-gray-400 mt-2 leading-relaxed">
-                  Variables:{' '}
-                  {['{{name}}', '{{phone}}', '{{email}}', '{{city}}', '{{source}}'].map(v => (
-                    <code key={v} className="bg-gray-100 px-1 rounded mr-1">{v}</code>
-                  ))}
-                </p>
+                <VariableHelp className="mt-3" />
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-4">
@@ -604,7 +616,7 @@ const AutomationBuilder = () => {
                   className={`w-full px-3 py-2.5 border rounded-lg text-sm ${ruleErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Welcome new leads" />
                 {ruleErrors.name && <p className="text-xs text-red-500 mt-1">{ruleErrors.name}</p>}
               </div>
-              <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!ruleForm.is_active} onChange={e => setRuleForm({ ...ruleForm, is_active: e.target.checked })} />Active rule</label>
+              <CheckRow checked={!!ruleForm.is_active} onChange={e => setRuleForm({ ...ruleForm, is_active: e.target.checked })} label="Turn this rule on" hint="While it is off, this rule does not start the sequence for any lead." />
               <label className="block text-xs">Product interest (optional exact filter)<input className="w-full border rounded-lg p-2" value={ruleForm.product_interest || ''} onChange={e => setRuleForm({ ...ruleForm, product_interest: e.target.value })} placeholder="Leave empty for all products" /></label>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">When...</label>
@@ -617,6 +629,7 @@ const AutomationBuilder = () => {
                   <option value="lead_status">A lead's status changes to a specific status</option>
                 </select>
               </div>
+              {ruleForm.trigger_type === 'new_lead' && <WelcomeStatusCard where="rule" />}
               {ruleForm.trigger_type === 'stage_change' && (
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Stage</label>

@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Card, LoadError, Loading, Toggle, useLoad } from './hubUi';
+import TemplatePicker from './TemplatePicker';
+import WelcomeStatusCard from './WelcomeStatusCard';
+import VariableHelp, { UnknownVariables } from './VariableHelp';
+import { unknownVariables } from '../../utils/leadVariables';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -10,7 +14,9 @@ const AutoMessagesTab = () => {
   const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubGetAutoMessages());
   const [f, setF] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [savedAt, setSavedAt] = useState(0);
   const [templates, setTemplates] = useState(null);
+  const optins = useLoad(() => whatsappAPI.hubOptIns());
 
   useEffect(() => { if (data) setF(data); }, [data]);
   useEffect(() => {
@@ -26,24 +32,24 @@ const AutoMessagesTab = () => {
 
   const save = async () => {
     setSaving(true);
-    try { await whatsappAPI.hubSaveAutoMessages(f); toast.success('Auto messages saved.'); }
+    try { await whatsappAPI.hubSaveAutoMessages(f); toast.success('Auto messages saved.'); setSavedAt(n => n + 1); }
     catch (e) { toast.error(e.response?.data?.error || 'Failed to save'); }
     finally { setSaving(false); }
   };
 
   return (
     <div className="space-y-4">
+      <WelcomeStatusCard where="auto" refreshKey={savedAt} />
+
       <Card title="Welcome message">
         <Toggle checked={f.welcome_enabled} onChange={v => setF({ ...f, welcome_enabled: v })}
           label="Send a welcome message to every new lead" hint="Sent right after a lead is created, from your shared WhatsApp number." />
-        <label className="block text-xs font-medium text-gray-600 mt-3 mb-1" htmlFor="welcome-template">Approved template for new leads</label>
-        <select id="welcome-template" value={f.welcome_template_name || ''} onChange={e => setF({ ...f, welcome_template_name: e.target.value })}
-          className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-          <option value="">No template (the welcome won't reach new leads)</option>
-          {(templates || []).filter(t => t.variable_count <= 1).map(t => (
-            <option key={`${t.name}-${t.language}`} value={t.name}>{t.name} · {String(t.category || '').toLowerCase()} · {t.language}</option>
-          ))}
-        </select>
+        <div className="mt-3">
+          <TemplatePicker id="welcome-template" label="Approved template for new leads" templates={templates || []} loading={templates === null}
+            value={f.welcome_template_name || ''} onChange={v => setF({ ...f, welcome_template_name: v })} purpose="welcome"
+            filter={t => t.variableCount <= 1} samples={['Priya']} optIn={optins.data?.summary}
+            emptyLabel="No template (the welcome won't reach new leads)" />
+        </div>
         <p className="text-[11px] text-gray-500 mt-1">
           A new lead hasn't messaged you yet, and WhatsApp only allows an approved template in that case. Use a <b>Utility</b> template
           (e.g. "Thanks for your enquiry, we'll contact you shortly"): it goes to leads from your ads and forms and to leads you add after
@@ -54,6 +60,8 @@ const AutoMessagesTab = () => {
         <textarea id="welcome-text" value={f.welcome_message} onChange={e => setF({ ...f, welcome_message: e.target.value })} rows={3} maxLength={1000}
           placeholder="Hi {{name}}, thanks for your interest! We'll be in touch shortly."
           className="w-full px-3 py-2 border rounded-lg text-sm" />
+        <UnknownVariables items={unknownVariables(f.welcome_message)} />
+        <VariableHelp className="mt-2" />
       </Card>
 
       <Card title="Away message">
