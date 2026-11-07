@@ -1,8 +1,11 @@
+import { Fragment } from 'react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Card, DaysSelect, Empty, ErrorBox, LoadError, Loading, fmtDateTime, pct, useLoad } from './hubUi';
+
+import FailureReason from './FailureReason';
 
 const STATUS_STYLE = {
   pending: 'bg-blue-100 text-blue-700', sending: 'bg-amber-100 text-amber-700', sent: 'bg-green-100 text-green-700',
@@ -46,7 +49,7 @@ const BroadcastsTab = () => {
                   <p className="text-xs text-gray-400">
                     {fmtDateTime(b.scheduled_at)}{b.created_by_name ? ` · ${b.created_by_name}` : ''}
                     {b.status === 'sent' ? ` · ${b.sent_count} sent, ${b.failed_count} failed` : ''}
-                    {b.status === 'failed' && b.error ? ` · ${b.error}` : ''}
+                    {b.status === 'failed' && b.error ? <> · <FailureReason detail={b.error} className="text-red-600" /></> : ''}
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
@@ -69,7 +72,8 @@ const BroadcastsTab = () => {
               </tr></thead>
               <tbody>
                 {data.broadcasts.map((b, i) => (
-                  <tr key={i} className="border-b last:border-0">
+                  <Fragment key={i}>
+                  <tr className={b.failed ? '' : 'border-b last:border-0'}>
                     <td className="py-2 pr-3 whitespace-nowrap text-gray-500">{fmtDateTime(b.sent_at)}</td>
                     <td className="pr-3 font-medium text-gray-800">{b.template_name}</td>
                     <td className="pr-3 text-gray-500">{b.sent_by_name || '—'}</td>
@@ -79,6 +83,17 @@ const BroadcastsTab = () => {
                     <td className={`pr-3 ${b.failed ? 'text-red-500' : ''}`}>{b.failed}</td>
                     <td>{b.replied} <span className="text-xs text-gray-400">({pct(b.replied, b.total)})</span></td>
                   </tr>
+                  {b.failed > 0 && (
+                    <tr className="border-b last:border-0">
+                      <td colSpan={8} className="pb-2 pr-3 text-xs text-gray-600">
+                        <span className="font-semibold text-red-600">Why {b.failed} failed: </span>
+                        {(b.failure_reasons || []).length === 0 ? 'reason not recorded' : b.failure_reasons.map((r, j) => (
+                          <span key={j} className="mr-3 inline-block"><FailureReason detail={r.detail} /> <span className="font-semibold">×{r.count}</span></span>
+                        ))}
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
                 ))}
               </tbody>
             </table>

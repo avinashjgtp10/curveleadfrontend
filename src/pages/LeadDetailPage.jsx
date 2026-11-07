@@ -24,6 +24,7 @@ import { ArrowLeft, Phone, MessageCircle, Mail, MapPin, Zap, Edit2, Check, Check
 import { formatMoney, currencySymbol } from '../utils/locale';
 import LeadCallButton from '../components/voice/LeadCallButton';
 import LastCallLine from '../components/voice/LastCallLine';
+import FailureReason from '../components/whatsapp/FailureReason';
 import LeadCallsCard from '../components/voice/LeadCallsCard';
 import { parseQueue } from '../utils/voiceCall';
 
@@ -1369,7 +1370,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                       {m.direction === 'outbound' && <MessageStatus status={m.status} />}
                     </p>
                     {m.direction === 'outbound' && m.status === 'failed' && (
-                      <p className="mt-1 text-[11px] font-medium text-red-100">Not delivered{m.error_detail ? ` · ${m.error_detail}` : ''}</p>
+                      <p className="mt-1 text-[11px] font-medium text-red-100">Not delivered · <FailureReason detail={m.error_detail} chipClassName="bg-red-900/40 text-red-50" /></p>
                     )}
                   </div>
                 </div>

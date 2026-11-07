@@ -8,6 +8,7 @@ import InboxComposer, { lastInboundAt, fmtRemaining } from '../components/whatsa
 import { AVATAR_COLORS } from '../utils/constants';
 import LeadDetailPage from './LeadDetailPage';
 import ShareBrochureModal from '../components/lead/ShareBrochureModal';
+import FailureReason from '../components/whatsapp/FailureReason';
 import { useToast } from '../components/ui/Toast';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import {
@@ -768,7 +769,7 @@ const WhatsAppInboxPage = () => {
                             </div>
                             {outbound && m.status === 'failed' && (
                               <div className="mt-1.5 pt-1.5 border-t border-red-100 text-[11px] text-red-600">
-                                <span className="font-semibold">Not delivered</span>{m.error_detail ? ` · ${m.error_detail}` : ''}
+                                <span className="font-semibold">Not delivered</span> · <FailureReason detail={m.error_detail} />
                                 {windowClosedError(m) ? (
                                   <button onClick={() => setTemplateRequest(n => n + 1)} className="ml-2 font-semibold underline hover:text-red-700">
                                     Send a template instead

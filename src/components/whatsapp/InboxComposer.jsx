@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { whatsappAPI, attachmentsAPI, templateAPI, featureAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Paperclip, Send, Smile, Zap, Layers, X, Search, Clock, Image as ImageIcon, FileText, Lock } from 'lucide-react';
+import { isSystemTemplate, categoryOf } from '../../utils/templatePicker';
+import { CategoryBadge } from './TemplatePicker';
 
 const EMOJIS = ['😀','😁','😂','🤣','😊','😍','😘','😎','🤔','😅','😉','🙂','😢','😭','😡','👍','👎','🙏','👏','💪','🔥','🎉','❤️','💯'];
 const WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -24,6 +26,7 @@ export const fmtRemaining = (ms) => {
 const TemplatePickerModal = ({ leadId, leadName, onClose, onSent }) => {
   const toast = useToast();
   const [templates, setTemplates] = useState(null);
+  const [showHidden, setShowHidden] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
@@ -44,7 +47,9 @@ const TemplatePickerModal = ({ leadId, leadName, onClose, onSent }) => {
   const preview = selected ? selected.body_text.replace(/\{\{(\d+)\}\}/g, (m, n) => (vars[n - 1]?.trim() ? vars[n - 1] : m)) : '';
   const canSend = !!selected && vars.every(v => v.trim());
 
-  const filtered = (templates || []).filter(t => `${t.name} ${t.body_text}`.toLowerCase().includes(search.toLowerCase()));
+  const matches = (templates || []).filter(t => `${t.name} ${t.body_text}`.toLowerCase().includes(search.toLowerCase()));
+  const hiddenCount = (templates || []).filter(t => isSystemTemplate(t.name)).length;
+  const filtered = search || showHidden ? matches : matches.filter(t => !isSystemTemplate(t.name)); // test and system templates stay out of the way
 
   const send = async () => {
     setSending(true);
@@ -88,12 +93,17 @@ const TemplatePickerModal = ({ leadId, leadName, onClose, onSent }) => {
                   className={`w-full text-left p-3 rounded-xl border ${t.unsupported ? 'bg-gray-50 opacity-70 cursor-not-allowed' : 'hover:border-brand-300 hover:bg-brand-50/30'}`}>
                   <div className="flex items-center justify-between gap-2">
                     <p className="text-sm font-semibold text-gray-900 truncate">{t.name}</p>
-                    <span className="text-[10px] font-semibold text-gray-400 uppercase shrink-0">{t.category}</span>
+                    <CategoryBadge category={categoryOf(t)} />
                   </div>
                   <p className="text-xs text-gray-500 mt-1 line-clamp-2 whitespace-pre-wrap">{t.body_text}</p>
                   {t.unsupported && <p className="text-[11px] text-amber-600 mt-1">{t.unsupported}</p>}
                 </button>
               ))}
+              {hiddenCount > 0 && !search && (
+                <button type="button" onClick={() => setShowHidden(v => !v)} className="text-xs text-brand-700 hover:underline">
+                  {showHidden ? 'Hide' : 'Show'} {hiddenCount} test or system template{hiddenCount === 1 ? '' : 's'}
+                </button>
+              )}
             </>
           ) : (
             <>
