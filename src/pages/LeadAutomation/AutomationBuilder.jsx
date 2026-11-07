@@ -9,6 +9,8 @@ import StepAttachment from './StepAttachment';
 import TemplatePicker from '../../components/whatsapp/TemplatePicker';
 import WelcomeStatusCard from '../../components/whatsapp/WelcomeStatusCard';
 import { DELAY_UNIT_MINUTES, bestUnit, describeDelay } from '../../utils/delay';
+import { toggleAction, duplicatePayload, stepPayload } from '../../utils/sequenceStatus';
+import SequenceList from './SequenceList';
 import { TEMPLATE_FIELD_OPTIONS, unknownVariables } from '../../utils/leadVariables';
 import VariableHelp, { UnknownVariables } from '../../components/whatsapp/VariableHelp';
 
@@ -193,7 +195,7 @@ const AutomationBuilder = () => {
     if (seqForm.steps.some(s => (s.reply_routes || []).some(r => !r.answer?.trim() || !r.classification?.trim() || !r.sequence_id))) errors.steps = 'Complete each reply route answer, classification and target sequence.';
     setSeqErrors(errors);
     if (Object.keys(errors).length) return;
-    const payload = { ...seqForm, steps: seqForm.steps.map(step => ({ ...step, media: (step.media || []).map(({ preview_url, ...m }) => m), reply_routes: (step.reply_routes || []).map(route => ({ ...route, aliases: (route.aliases || []).map(a => a.trim()).filter(Boolean) })) })) };
+    const payload = { ...seqForm, steps: seqForm.steps.map(stepPayload) };
     try {
       let sequenceId = editingSeq?.id;
       if (editingSeq) {
@@ -214,10 +216,16 @@ const AutomationBuilder = () => {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to save sequence'); }
   };
 
-  const handleDeleteSeq = async (id) => {
-    if (!await confirm({ title: 'Delete this sequence?', message: 'Rules pointing to it will also be deleted.' })) return;
+  const handleDeleteSeq = async (seq) => {
+    const inIt = Number(seq.enrolled_active) || 0;
+    const ok = await confirm({
+      title: `Delete \u201C${seq.name}\u201D?`,
+      message: `${inIt ? `${inIt} lead${inIt === 1 ? ' is' : 's are'} in it right now and will stop getting its messages. ` : ''}Trigger rules that start it will be deleted too. This can\u2019t be undone.`,
+      confirmText: 'Delete', destructive: true,
+    });
+    if (!ok) return;
     try {
-      await automationAPI.deleteSequence(id);
+      await automationAPI.deleteSequence(seq.id);
       loadSequences();
       loadRules();
     } catch (e) { toast.error('Failed to delete'); }
@@ -261,11 +269,33 @@ const AutomationBuilder = () => {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to save rule'); }
   };
 
-  const toggleSeqActive = async (s) => {
+  // Pause a live sequence, resume a paused one, turn on a draft. Pausing asks first: leads already in it stop getting messages.
+  const handleToggleSeq = async (seq) => {
+    const action = toggleAction(seq);
+    if (action.key === 'pause') {
+      const inIt = Number(seq.enrolled_active) || 0;
+      const ok = await confirm({
+        title: `Pause \u201C${seq.name}\u201D?`,
+        message: inIt ? `${inIt} lead${inIt === 1 ? ' is' : 's are'} in it right now. They won\u2019t get more messages until you resume it.` : 'Nothing will be sent while it is paused. You can resume it any time.',
+        confirmText: 'Pause', destructive: false,
+      });
+      if (!ok) return;
+    }
     try {
-      await automationAPI.updateSequence(s.id, { is_active: !s.is_active });
+      await automationAPI.updateSequence(seq.id, { is_active: action.next });
+      toast.success(action.next ? `\u201C${seq.name}\u201D is on.` : `\u201C${seq.name}\u201D is paused.`);
       loadSequences();
     } catch (e) { toast.error('Failed to update'); }
+  };
+
+  // Copies the steps and stop rules into a new sequence that is switched off, so nothing starts sending by surprise.
+  const handleDuplicateSeq = async (seq) => {
+    const payload = duplicatePayload(seq, sequences.map(x => x.name));
+    try {
+      await automationAPI.createSequence(payload);
+      toast.success(`Created \u201C${payload.name}\u201D. It is off until you turn it on.`);
+      loadSequences();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to duplicate'); }
   };
 
   const toggleRuleActive = async (r) => {
@@ -327,35 +357,8 @@ const AutomationBuilder = () => {
         {sequences.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">No sequences yet. Create one to get started.</p>
         ) : (
-          <div className="space-y-2">
-            {sequences.map(s => (
-              <div key={s.id} className="border rounded-xl p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="font-semibold text-sm">{s.name}</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-50 text-brand-700">{s.steps?.length || 0} step{s.steps?.length === 1 ? '' : 's'}</span>
-                      {isAdmin ? (
-                        <button onClick={() => toggleSeqActive(s)}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${s.is_active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                          <Power size={9} /> {s.is_active ? 'Active' : 'Inactive'}
-                        </button>
-                      ) : (
-                        !s.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Inactive</span>
-                      )}
-                    </div>
-                    {s.description && <p className="text-xs text-gray-500 line-clamp-2">{s.description}</p>}
-                  </div>
-                  {isAdmin && (
-                    <div className="flex gap-1 shrink-0">
-                      <button aria-label={`Edit sequence ${s.name}`} onClick={() => openEditSeq(s)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Edit2 size={13} /></button>
-                      <button onClick={() => handleDeleteSeq(s.id)} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><Trash2 size={13} /></button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          <SequenceList sequences={sequences} rules={rules} isAdmin={isAdmin} triggerLabel={(r) => TRIGGER_LABEL(r, campaigns)}
+            onEdit={openEditSeq} onToggle={handleToggleSeq} onDuplicate={handleDuplicateSeq} onDelete={handleDeleteSeq} />
         )}
       </div>
 
