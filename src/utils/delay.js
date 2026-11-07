@@ -22,3 +22,7 @@ export const describeDelay = (minutes) => {
   if (h >= 24) { const d = Math.floor(h / 24); const hh = h % 24; return `${plural(d, 'day')}${hh ? ` ${plural(hh, 'hour')}` : ''}${r ? ` ${plural(r, 'minute')}` : ''}`; }
   return r ? `${plural(h, 'hour')} ${plural(r, 'minute')}` : plural(h, 'hour');
 };
+
+// A step keeps only minutes on the server, so the unit is remembered while editing and otherwise derived from the minutes.
+export const unitFor = (step) => step?.delay_unit || bestUnit(step?.delay_minutes);
+export const delayValue = (step) => (step?.delay_minutes ? Math.round(step.delay_minutes / DELAY_UNIT_MINUTES[unitFor(step)]) : '');
