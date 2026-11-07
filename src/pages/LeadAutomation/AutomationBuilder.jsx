@@ -10,6 +10,7 @@ import CheckRow from './CheckRow';
 import WelcomeStatusCard from '../../components/whatsapp/WelcomeStatusCard';
 import { toggleAction, duplicatePayload, stepPayload } from '../../utils/sequenceStatus';
 import SequenceList from './SequenceList';
+import SequenceResults from './SequenceResults';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
 const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [], business_hours_only: false });
@@ -80,6 +81,7 @@ const AutomationBuilder = ({ part } = {}) => {
   const [messageTemplates, setMessageTemplates] = useState([]);
   const [approvedTemplates, setApprovedTemplates] = useState([]);
   const [optIn, setOptIn] = useState(null);
+  const [resultsFor, setResultsFor] = useState(null);
 
   useEffect(() => { loadSequences(); loadRules(); loadStages(); loadCampaigns(); loadMessageTemplates(); loadApprovedTemplates(); loadLeadStatuses(); }, []);
 
@@ -360,7 +362,7 @@ const AutomationBuilder = ({ part } = {}) => {
           <p className="text-sm text-gray-400 text-center py-8">No sequences yet. Create one to get started.</p>
         ) : (
           <SequenceList sequences={sequences} rules={rules} isAdmin={isAdmin} triggerLabel={(r) => TRIGGER_LABEL(r, campaigns)}
-            onEdit={openEditSeq} onToggle={handleToggleSeq} onDuplicate={handleDuplicateSeq} onDelete={handleDeleteSeq} />
+            onEdit={openEditSeq} onToggle={handleToggleSeq} onDuplicate={handleDuplicateSeq} onDelete={handleDeleteSeq} onResults={setResultsFor} />
         )}
       </div>
 
@@ -418,6 +420,8 @@ const AutomationBuilder = ({ part } = {}) => {
       </div>
 
       {part !== 'automation' && <AssignmentRulesSection />}
+
+      {resultsFor && <SequenceResults sequence={resultsFor} onClose={() => setResultsFor(null)} />}
 
       {seqModal && (
         <SequenceEditor editing={!!editingSeq} form={seqForm} setForm={setSeqForm} errors={seqErrors} setErrors={setSeqErrors}

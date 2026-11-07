@@ -1,4 +1,5 @@
 import AutomationRecovery from '../components/lead/AutomationRecovery';
+import AutomationTimeline from '../components/lead/AutomationTimeline';
 import { isBookingType, notifyBookingWhatsApp } from '../utils/bookingMessages.js';
 import { normalizePhone } from '../utils/leadData.js';
 import { sourceLabel } from '../utils/leadData.js';
@@ -1488,6 +1489,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
                 </span>
               </div>
 
+              <AutomationTimeline leadId={id} />
               <div className="p-5"><AutomationRecovery enrollment={enrollment} onRecovered={async () => { const { data } = await automationAPI.getEnrollments([id]); setEnrollment(data.enrollments?.[id] || null); }} /></div>
               <div className="p-5 grid grid-cols-2 gap-x-4 gap-y-5">
                 <div className="col-span-2">
