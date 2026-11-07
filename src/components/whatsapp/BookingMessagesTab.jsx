@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Copy, ExternalLink, CheckCircle2, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
 import { templateStatus } from '../../utils/templateCheck';
+import FailureReason from './FailureReason';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Card, ErrorBox, LoadError, Loading, Toggle, useLoad, fmtDateTime } from './hubUi';
@@ -244,7 +245,7 @@ const BookingMessagesTab = () => {
                     <td className="py-2">
                       <span className={`px-2 py-0.5 rounded-full text-[11px] font-semibold capitalize ${STATUS_STYLES[r.status] || STATUS_STYLES.skipped}`}>{r.status}</span>
                       {r.via && <span className="ml-1.5 text-[11px] text-gray-400">{r.via}</span>}
-                      {r.error && <p className="text-[11px] text-red-600 mt-0.5 max-w-xs">{r.error}</p>}
+                      {r.error && <p className="text-[11px] text-red-600 mt-0.5 max-w-xs"><FailureReason detail={r.error} /></p>}
                     </td>
                   </tr>
                 ))}
