@@ -12,6 +12,14 @@ import { DELAY_UNIT_MINUTES, bestUnit, describeDelay } from '../../utils/delay';
 import { TEMPLATE_FIELD_OPTIONS, unknownVariables } from '../../utils/leadVariables';
 import VariableHelp, { UnknownVariables } from '../../components/whatsapp/VariableHelp';
 
+// A checkbox with a plain-language label and a line saying what it does.
+const CheckRow = ({ checked, onChange, label, hint }) => (
+  <label className="flex gap-2 text-sm items-start cursor-pointer">
+    <input type="checkbox" className="mt-1" checked={checked} onChange={onChange} />
+    <span><span className="font-medium">{label}</span>{hint && <span className="block text-xs text-gray-500 font-normal">{hint}</span>}</span>
+  </label>
+);
+
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
 const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
 
@@ -430,8 +438,16 @@ const AutomationBuilder = () => {
 
               <fieldset className="border rounded-xl p-3 space-y-2">
                 <legend className="text-sm font-semibold">Sequence behaviour</legend>
-                <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!seqForm.is_active} onChange={e => setSeqForm({ ...seqForm, is_active: e.target.checked })} /> Active (new sequences are saved as drafts)</label>
-                {[['on_reply','Stop on reply (for sequences without a reply question)'],['demo_booked','Stop when a demo is booked'],['customer_converted','Stop when the lead becomes a customer']].map(([key,label]) => <label key={key} className="flex gap-2 text-sm"><input type="checkbox" checked={!!seqForm.stop_conditions?.[key]} onChange={e => setSeqForm({ ...seqForm, stop_conditions: { ...seqForm.stop_conditions, [key]: e.target.checked } })} />{label}</label>)}
+                <CheckRow checked={!!seqForm.is_active} onChange={e => setSeqForm({ ...seqForm, is_active: e.target.checked })}
+                  label="Turn this sequence on" hint="Leave it off to save a draft. Nothing is sent while a sequence is off; you can turn it on whenever you are ready." />
+                {[
+                  ['on_reply', 'Stop when the lead replies', 'Good for simple follow-ups. Leave it off if a step asks a question with reply buttons, so their answer can carry the sequence on.'],
+                  ['demo_booked', 'Stop when a demo is booked', 'No more messages once a demo is booked for the lead.'],
+                  ['customer_converted', 'Stop when the lead becomes a customer', 'No more messages once they become a customer.'],
+                ].map(([key, label, hint]) => (
+                  <CheckRow key={key} checked={!!seqForm.stop_conditions?.[key]} label={label} hint={hint}
+                    onChange={e => setSeqForm({ ...seqForm, stop_conditions: { ...seqForm.stop_conditions, [key]: e.target.checked } })} />
+                ))}
                 <p className="text-xs text-gray-600">Opt-out always stops sending. Manual pause suspends sending until resumed.</p>
               </fieldset>
               <div className="pt-2">
@@ -600,7 +616,7 @@ const AutomationBuilder = () => {
                   className={`w-full px-3 py-2.5 border rounded-lg text-sm ${ruleErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. Welcome new leads" />
                 {ruleErrors.name && <p className="text-xs text-red-500 mt-1">{ruleErrors.name}</p>}
               </div>
-              <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!ruleForm.is_active} onChange={e => setRuleForm({ ...ruleForm, is_active: e.target.checked })} />Active rule</label>
+              <CheckRow checked={!!ruleForm.is_active} onChange={e => setRuleForm({ ...ruleForm, is_active: e.target.checked })} label="Turn this rule on" hint="While it is off, this rule does not start the sequence for any lead." />
               <label className="block text-xs">Product interest (optional exact filter)<input className="w-full border rounded-lg p-2" value={ruleForm.product_interest || ''} onChange={e => setRuleForm({ ...ruleForm, product_interest: e.target.value })} placeholder="Leave empty for all products" /></label>
               <div>
                 <label className="block text-xs font-medium text-gray-500 mb-1">When...</label>
