@@ -8,7 +8,7 @@ export const ONBOARDING_STEPS = [
   ["whatsapp", "Connect WhatsApp", "/integrations"],
   ["assignment", "Set assignment rules", "/settings?tab=assignment"],
   ["import", "Import leads", "/leads"],
-  ["sequence", "Create first sequence", "/lead-automation"],
+  ["sequence", "Create first sequence", "/whatsapp?tab=sequences"],
   ["team", "Invite team", "/staff"],
 ];
 const overviewClient = new QueryClient();

@@ -10,7 +10,7 @@ export const AUTOMATIONS = [
   ["assignment", "Assignment rules", "/settings?tab=assignment", "New leads go to the right person by source, campaign or round-robin."],
   ["dedupe", "Dedupe", "/settings?tab=business", "Repeat enquiries from the same number join the existing lead."],
   ["responder", "Welcome message", "/whatsapp?tab=auto", "A WhatsApp welcome message the moment a new lead arrives. Edit it in WhatsApp \u2192 Auto messages."],
-  ["sequences", "Sequences", "/lead-automation", "Scripted WhatsApp and email follow-ups for matching leads."],
+  ["sequences", "Sequences", "/whatsapp?tab=sequences", "Scripted WhatsApp and email follow-ups for matching leads. Build them in WhatsApp \u2192 Automation."],
   ["inbound", "Inbound auto-reply", "/whatsapp?tab=ai", "Replies to customer messages: AI auto-reply or keyword rules."],
   ["bulk", "Bulk campaigns", "/whatsapp?tab=broadcasts", "Approved-template broadcasts to opted-in lists."],
   ["capi", "Conversions API", "/integrations", "Tells Meta which leads qualified or became customers, so ads find more like them."],
@@ -53,7 +53,7 @@ export default function AutomationsPage() {
                 : <StatusBadge status="not_set_up" />;
             })()}
             {admin || id === "sequences" ? (
-              <Link className="inline-block btn-primary" to={to}>
+              <Link className="inline-block btn-primary" to={id === "sequences" && !admin ? "/lead-automation" : to}>
                 Configure <span className="sr-only">{title}</span>
               </Link>
             ) : (

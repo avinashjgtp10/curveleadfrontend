@@ -10,6 +10,8 @@ import {
 import EmptyState from '../../components/ui/EmptyState';
 import { leadAPI, automationAPI, whatsappAPI, recordingAPI } from '../../services/api';
 import AutomationBuilder from './AutomationBuilder';
+import AssignmentRulesSection from './AssignmentRulesSection';
+import { useAuth } from '../../context/AuthContext';
 
 const AVATAR_COLORS = [
   'from-brand-500 to-brand-700',
@@ -323,6 +325,9 @@ const LeadDrawer = ({ lead, onClose, onViewChat, onViewCalls, onReEnable, onReco
 const PAGE_SIZE = 25;
 
 const LeadAutomationPage = () => {
+  const { user } = useAuth();
+  // Only workspace admins see the WhatsApp hub, so only they are pointed to the new home of sequences and triggers.
+  const canManage = user?.role === 'admin';
   const [tab, setTab] = useState('leads');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All Status');
@@ -422,8 +427,17 @@ const LeadAutomationPage = () => {
       </div>
 
       {tab === 'settings' ? (
-        <div className="bg-white rounded-2xl border p-4 sm:p-6 shadow-sm">
-          <AutomationBuilder />
+        <div className="bg-white rounded-2xl border p-4 sm:p-6 shadow-sm space-y-6">
+          {canManage ? (
+            <>
+              <div role="note" className="rounded-xl border border-brand-200 bg-brand-50/50 px-4 py-3 text-sm">
+                <p className="font-semibold text-gray-800">Sequences and triggers have moved</p>
+                <p className="text-xs text-gray-600 mt-0.5">You will now find them under WhatsApp \u2192 Automation \u2192 Sequences &amp; triggers.</p>
+                <Link to="/whatsapp?tab=sequences" className="inline-block mt-2 text-xs font-semibold text-brand-700 underline">Open Sequences &amp; triggers</Link>
+              </div>
+              <AssignmentRulesSection />
+            </>
+          ) : <AutomationBuilder />}
         </div>
       ) : (
       <div className="bg-white rounded-2xl border p-4 sm:p-6 shadow-sm">

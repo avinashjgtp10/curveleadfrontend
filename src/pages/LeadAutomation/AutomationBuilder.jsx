@@ -1,31 +1,18 @@
 import { useEffect, useState } from 'react';
-import { Plus, Edit2, Trash2, Clock, Power, X } from 'lucide-react';
+import { Plus, Edit2, Trash2, Power, X } from 'lucide-react';
 import { automationAPI, stageAPI, statusAPI, campaignAPI, templateAPI, whatsappAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 import AssignmentRulesSection from './AssignmentRulesSection';
-import StepAttachment from './StepAttachment';
-import TemplatePicker from '../../components/whatsapp/TemplatePicker';
+import SequenceEditor from './SequenceEditor';
+import CheckRow from './CheckRow';
 import WelcomeStatusCard from '../../components/whatsapp/WelcomeStatusCard';
-import { DELAY_UNIT_MINUTES, bestUnit, describeDelay } from '../../utils/delay';
-import { TEMPLATE_FIELD_OPTIONS, unknownVariables } from '../../utils/leadVariables';
-import VariableHelp, { UnknownVariables } from '../../components/whatsapp/VariableHelp';
-
-// A checkbox with a plain-language label and a line saying what it does.
-const CheckRow = ({ checked, onChange, label, hint }) => (
-  <label className="flex gap-2 text-sm items-start cursor-pointer">
-    <input type="checkbox" className="mt-1" checked={checked} onChange={onChange} />
-    <span><span className="font-medium">{label}</span>{hint && <span className="block text-xs text-gray-500 font-normal">{hint}</span>}</span>
-  </label>
-);
+import { toggleAction, duplicatePayload, stepPayload } from '../../utils/sequenceStatus';
+import SequenceList from './SequenceList';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
 const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
-
-// The saved step only keeps minutes, so pick the friendliest unit from them (1440 -> "1 day"), not "1440 minutes".
-const unitFor = (step) => step.delay_unit || bestUnit(step.delay_minutes);
-const delayValueForStep = (step) => (step.delay_minutes ? Math.round(step.delay_minutes / DELAY_UNIT_MINUTES[unitFor(step)]) : '');
 
 const SOURCE_OPTIONS = ['manual', 'website', 'meta_ads', 'google_ads', 'whatsapp', 'referral', 'walkin'];
 
@@ -68,7 +55,8 @@ const SCENARIO_PRESETS = [
   },
 ];
 
-const AutomationBuilder = () => {
+// part: 'automation' = quick start, sequences and triggers only (the WhatsApp tab); otherwise everything, including assignment rules.
+const AutomationBuilder = ({ part } = {}) => {
   const { user } = useAuth();
   const confirm = useConfirmDialog();
   const toast = useToast();
@@ -180,6 +168,12 @@ const AutomationBuilder = () => {
   };
   const addStep = () => setSeqForm(f => ({ ...f, steps: [...f.steps, emptyStep()] }));
   const removeStep = (idx) => setSeqForm(f => ({ ...f, steps: f.steps.filter((_, i) => i !== idx) }));
+  const moveStep = (idx, dir) => setSeqForm(f => {
+    const j = idx + dir;
+    if (j < 0 || j >= f.steps.length) return f;
+    const steps = [...f.steps]; [steps[idx], steps[j]] = [steps[j], steps[idx]];
+    return { ...f, steps };
+  });
 
   const handleSaveSeq = async () => {
     const errors = {};
@@ -193,7 +187,7 @@ const AutomationBuilder = () => {
     if (seqForm.steps.some(s => (s.reply_routes || []).some(r => !r.answer?.trim() || !r.classification?.trim() || !r.sequence_id))) errors.steps = 'Complete each reply route answer, classification and target sequence.';
     setSeqErrors(errors);
     if (Object.keys(errors).length) return;
-    const payload = { ...seqForm, steps: seqForm.steps.map(step => ({ ...step, media: (step.media || []).map(({ preview_url, ...m }) => m), reply_routes: (step.reply_routes || []).map(route => ({ ...route, aliases: (route.aliases || []).map(a => a.trim()).filter(Boolean) })) })) };
+    const payload = { ...seqForm, steps: seqForm.steps.map(stepPayload) };
     try {
       let sequenceId = editingSeq?.id;
       if (editingSeq) {
@@ -214,10 +208,16 @@ const AutomationBuilder = () => {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to save sequence'); }
   };
 
-  const handleDeleteSeq = async (id) => {
-    if (!await confirm({ title: 'Delete this sequence?', message: 'Rules pointing to it will also be deleted.' })) return;
+  const handleDeleteSeq = async (seq) => {
+    const inIt = Number(seq.enrolled_active) || 0;
+    const ok = await confirm({
+      title: `Delete \u201C${seq.name}\u201D?`,
+      message: `${inIt ? `${inIt} lead${inIt === 1 ? ' is' : 's are'} in it right now and will stop getting its messages. ` : ''}Trigger rules that start it will be deleted too. This can\u2019t be undone.`,
+      confirmText: 'Delete', destructive: true,
+    });
+    if (!ok) return;
     try {
-      await automationAPI.deleteSequence(id);
+      await automationAPI.deleteSequence(seq.id);
       loadSequences();
       loadRules();
     } catch (e) { toast.error('Failed to delete'); }
@@ -261,11 +261,33 @@ const AutomationBuilder = () => {
     } catch (e) { toast.error(e.response?.data?.error || 'Failed to save rule'); }
   };
 
-  const toggleSeqActive = async (s) => {
+  // Pause a live sequence, resume a paused one, turn on a draft. Pausing asks first: leads already in it stop getting messages.
+  const handleToggleSeq = async (seq) => {
+    const action = toggleAction(seq);
+    if (action.key === 'pause') {
+      const inIt = Number(seq.enrolled_active) || 0;
+      const ok = await confirm({
+        title: `Pause \u201C${seq.name}\u201D?`,
+        message: inIt ? `${inIt} lead${inIt === 1 ? ' is' : 's are'} in it right now. They won\u2019t get more messages until you resume it.` : 'Nothing will be sent while it is paused. You can resume it any time.',
+        confirmText: 'Pause', destructive: false,
+      });
+      if (!ok) return;
+    }
     try {
-      await automationAPI.updateSequence(s.id, { is_active: !s.is_active });
+      await automationAPI.updateSequence(seq.id, { is_active: action.next });
+      toast.success(action.next ? `\u201C${seq.name}\u201D is on.` : `\u201C${seq.name}\u201D is paused.`);
       loadSequences();
     } catch (e) { toast.error('Failed to update'); }
+  };
+
+  // Copies the steps and stop rules into a new sequence that is switched off, so nothing starts sending by surprise.
+  const handleDuplicateSeq = async (seq) => {
+    const payload = duplicatePayload(seq, sequences.map(x => x.name));
+    try {
+      await automationAPI.createSequence(payload);
+      toast.success(`Created \u201C${payload.name}\u201D. It is off until you turn it on.`);
+      loadSequences();
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed to duplicate'); }
   };
 
   const toggleRuleActive = async (r) => {
@@ -289,6 +311,14 @@ const AutomationBuilder = () => {
   };
 
   const isAdmin = ['admin','super_admin'].includes(user?.role);
+
+  // What starts the sequence being edited: its saved trigger rules, or the rule a Quick Start will create after saving.
+  const editorTriggers = editingSeq
+    ? rules.filter(r => r.sequence_id === editingSeq.id).map(r => ({ label: TRIGGER_LABEL(r, campaigns), off: !r.is_active }))
+    : (pendingRulePreset ? [{ label: TRIGGER_LABEL(pendingRulePreset, campaigns), off: false }] : []);
+  const editorTriggerHint = editingSeq
+    ? 'No trigger starts this sequence yet. Add one under Automated Triggers after you save.'
+    : 'You choose what starts it right after you save, under Automated Triggers.';
 
   return (
     <div className="space-y-8">
@@ -327,35 +357,8 @@ const AutomationBuilder = () => {
         {sequences.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-8">No sequences yet. Create one to get started.</p>
         ) : (
-          <div className="space-y-2">
-            {sequences.map(s => (
-              <div key={s.id} className="border rounded-xl p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap mb-1">
-                      <span className="font-semibold text-sm">{s.name}</span>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-brand-50 text-brand-700">{s.steps?.length || 0} step{s.steps?.length === 1 ? '' : 's'}</span>
-                      {isAdmin ? (
-                        <button onClick={() => toggleSeqActive(s)}
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-semibold flex items-center gap-1 ${s.is_active ? 'bg-green-50 text-green-700 hover:bg-green-100' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}>
-                          <Power size={9} /> {s.is_active ? 'Active' : 'Inactive'}
-                        </button>
-                      ) : (
-                        !s.is_active && <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-500">Inactive</span>
-                      )}
-                    </div>
-                    {s.description && <p className="text-xs text-gray-500 line-clamp-2">{s.description}</p>}
-                  </div>
-                  {isAdmin && (
-                    <div className="flex gap-1 shrink-0">
-                      <button aria-label={`Edit sequence ${s.name}`} onClick={() => openEditSeq(s)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Edit2 size={13} /></button>
-                      <button onClick={() => handleDeleteSeq(s.id)} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><Trash2 size={13} /></button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+          <SequenceList sequences={sequences} rules={rules} isAdmin={isAdmin} triggerLabel={(r) => TRIGGER_LABEL(r, campaigns)}
+            onEdit={openEditSeq} onToggle={handleToggleSeq} onDuplicate={handleDuplicateSeq} onDelete={handleDeleteSeq} />
         )}
       </div>
 
@@ -412,191 +415,15 @@ const AutomationBuilder = () => {
         )}
       </div>
 
-      <AssignmentRulesSection />
+      {part !== 'automation' && <AssignmentRulesSection />}
 
       {seqModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-          <div className="bg-white rounded-2xl p-5 w-full max-w-2xl max-h-[85vh] overflow-y-auto shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-base">{editingSeq ? 'Edit Sequence' : 'New Sequence'}</h3>
-              <button onClick={() => { setSeqModal(false); setPendingRulePreset(null); }} className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500">
-                <X size={18} />
-              </button>
-            </div>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Name <span className="text-red-500">*</span></label>
-                <input value={seqForm.name} onChange={e => { setSeqForm({ ...seqForm, name: e.target.value }); if (seqErrors.name) setSeqErrors(er => ({ ...er, name: undefined })); }}
-                  className={`w-full px-3 py-2.5 border rounded-lg text-sm ${seqErrors.name ? 'border-red-500' : ''}`} placeholder="e.g. New Lead Intro Sequence" />
-                {seqErrors.name && <p className="text-xs text-red-500 mt-1">{seqErrors.name}</p>}
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-gray-500 mb-1">Description</label>
-                <input value={seqForm.description} onChange={e => setSeqForm({ ...seqForm, description: e.target.value })}
-                  className="w-full px-3 py-2.5 border rounded-lg text-sm" placeholder="Optional — what this sequence is for" />
-              </div>
-
-              <fieldset className="border rounded-xl p-3 space-y-2">
-                <legend className="text-sm font-semibold">Sequence behaviour</legend>
-                <CheckRow checked={!!seqForm.is_active} onChange={e => setSeqForm({ ...seqForm, is_active: e.target.checked })}
-                  label="Turn this sequence on" hint="Leave it off to save a draft. Nothing is sent while a sequence is off; you can turn it on whenever you are ready." />
-                {[
-                  ['on_reply', 'Stop when the lead replies', 'Good for simple follow-ups. Leave it off if a step asks a question with reply buttons, so their answer can carry the sequence on.'],
-                  ['demo_booked', 'Stop when a demo is booked', 'No more messages once a demo is booked for the lead.'],
-                  ['customer_converted', 'Stop when the lead becomes a customer', 'No more messages once they become a customer.'],
-                ].map(([key, label, hint]) => (
-                  <CheckRow key={key} checked={!!seqForm.stop_conditions?.[key]} label={label} hint={hint}
-                    onChange={e => setSeqForm({ ...seqForm, stop_conditions: { ...seqForm.stop_conditions, [key]: e.target.checked } })} />
-                ))}
-                <p className="text-xs text-gray-600">Opt-out always stops sending. Manual pause suspends sending until resumed.</p>
-              </fieldset>
-              <div className="pt-2">
-                <label className="block text-xs font-medium text-gray-500 mb-2">Steps</label>
-                <div className="space-y-3">
-                  {seqForm.steps.map((step, idx) => (
-                    <div key={idx} className="border rounded-xl p-3 bg-gray-50">
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-gray-600">Step {idx + 1}</span>
-                        {seqForm.steps.length > 1 && (
-                          <button onClick={() => removeStep(idx)} className="p-1 hover:bg-red-50 text-red-500 rounded"><Trash2 size={12} /></button>
-                        )}
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 mb-2">
-                        <div>
-                          <label className="block text-[10px] font-medium text-gray-400 mb-1">Channel</label>
-                          <select value={step.channel} onChange={e => updateStep(idx, { channel: e.target.value, ...(e.target.value === 'email' ? { media: [] } : {}) })}
-                            className="w-full px-2.5 py-2 border rounded-lg text-xs bg-white">
-                            <option value="whatsapp">WhatsApp</option>
-                            <option value="email">Email</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Wait {idx === 0 ? 'after the sequence starts' : 'after the previous step'}</label>
-                          <div className="flex gap-1.5">
-                            <input type="number" min="0" value={delayValueForStep(step)}
-                              onChange={e => {
-                                const factor = DELAY_UNIT_MINUTES[unitFor(step)];
-                                updateStep(idx, { delay_unit: unitFor(step), delay_minutes: (parseInt(e.target.value, 10) || 0) * factor }); // pin the unit so typing 24 hours doesn't flip to 1 day
-                              }}
-                              onFocus={e => e.target.select()}
-                              className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="0" />
-                            <select value={unitFor(step)} aria-label={`Step ${idx + 1} delay unit`}
-                              onChange={e => {
-                                const newUnit = e.target.value;
-                                const currentValue = delayValueForStep(step) || 0;
-                                updateStep(idx, { delay_unit: newUnit, delay_minutes: currentValue * DELAY_UNIT_MINUTES[newUnit] });
-                              }}
-                              className="px-2 py-2 border rounded-lg text-xs bg-white shrink-0">
-                              <option value="minutes">Minutes</option>
-                              <option value="hours">Hours</option>
-                              <option value="days">Days</option>
-                            </select>
-                          </div>
-                          <p className="text-[11px] text-gray-500 mt-1">{step.delay_minutes ? `Sends ${describeDelay(step.delay_minutes)} after ${idx === 0 ? 'the sequence starts' : 'the previous step'}.` : `Sends straight away${idx === 0 ? ' when the sequence starts' : ' after the previous step'}.`}</p>
-                        </div>
-                      </div>
-                      {step.channel === 'email' && (
-                        <input value={step.email_subject} onChange={e => updateStep(idx, { email_subject: e.target.value })}
-                          className="w-full px-2.5 py-2 border rounded-lg text-xs mb-2" placeholder="Email subject" />
-                      )}
-                      {step.channel === 'whatsapp' && (
-                        <label className="flex items-center gap-2 text-xs font-medium text-gray-600 mb-2 cursor-pointer">
-                          <input type="checkbox" checked={!!step.ai_generated}
-                            onChange={e => updateStep(idx, { ai_generated: e.target.checked })} />
-                          Let AI write this message
-                        </label>
-                      )}
-                      {step.channel === 'whatsapp' && step.ai_generated ? (
-                        <>
-                          <label className="block text-[10px] font-medium text-gray-400 mb-1">Instructions for the AI (optional)</label>
-                          <textarea value={step.ai_instructions} onChange={e => updateStep(idx, { ai_instructions: e.target.value })}
-                            rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs"
-                            placeholder="e.g. mention our new autumn discount, keep it under 3 lines, casual tone" />
-                          <p className="text-[10px] text-gray-400 mt-1">
-                            AI writes the actual message using this guidance plus the lead's own conversation. Applies only within the 24h WhatsApp session window — outside it, the approved template below (if set) is sent instead, unchanged.
-                          </p>
-                        </>
-                      ) : (
-                        <>
-                          {messageTemplates.filter(t => t.channel === step.channel).length > 0 && (
-                            <select value="" onChange={e => {
-                              const tmpl = messageTemplates.find(t => String(t.id) === e.target.value);
-                              if (tmpl) updateStep(idx, { message: tmpl.message });
-                            }} className="w-full px-2.5 py-2 border rounded-lg text-xs bg-white mb-2">
-                              <option value="">Insert saved template...</option>
-                              {messageTemplates.filter(t => t.channel === step.channel).map(t => (
-                                <option key={t.id} value={t.id}>{t.name}</option>
-                              ))}
-                            </select>
-                          )}
-                          <textarea value={step.message} onChange={e => updateStep(idx, { message: e.target.value })}
-                            rows={3} className="w-full px-2.5 py-2 border rounded-lg text-xs font-mono"
-                            placeholder={'Hi {{name}}, ...'} />
-                          <UnknownVariables items={unknownVariables(step.message)} />
-                        </>
-                      )}
-                      {step.channel === 'whatsapp' && !step.always_template && (
-                        <StepAttachment stepNumber={idx + 1} media={step.media} onChange={media => updateStep(idx, { media })} />
-                      )}
-                      {step.channel === 'whatsapp' && (
-                        <div className="mt-2 space-y-2">
-                          <label className="flex gap-2 text-sm"><input type="checkbox" checked={!!step.always_template} onChange={e => updateStep(idx, { always_template: e.target.checked, ...(e.target.checked ? { media: [] } : {}) })} />Always send approved template</label>
-                          <label className="block text-xs">Template language<input aria-label={`Step ${idx + 1} template language`} value={step.template_language || ''} onChange={e => updateStep(idx, { template_language: e.target.value })} className="w-full px-2 py-1 border rounded" placeholder="e.g. en_US" /></label>
-                          {(step.template_parameters || []).map((mapping,mi) => <div key={mi} className="flex gap-2 items-center text-xs">
-                            <span>{`{{${mi+1}}}`}</span><select aria-label={`Step ${idx+1} parameter ${mi+1}`} className="border rounded p-1" value={mapping.field} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { field: e.target.value, value: '' } : m) })}>{TEMPLATE_FIELD_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
-                            {mapping.field === 'literal' && <input aria-label={`Step ${idx+1} parameter ${mi+1} text`} className="border rounded p-1 min-w-0" value={mapping.value || ''} onChange={e => updateStep(idx, { template_parameters: step.template_parameters.map((m,j) => j === mi ? { ...m, value: e.target.value } : m) })} />}
-                            <button type="button" onClick={() => updateStep(idx, { template_parameters: step.template_parameters.filter((_,j) => j !== mi) })}>Remove</button>
-                          </div>)}
-                          <p className="text-[11px] text-gray-500">An approved WhatsApp template has numbered gaps ({'{{1}}'}, {'{{2}}'}…). Choose which lead detail fills each one, in order.</p>
-                          <button type="button" className="text-xs text-brand-600" onClick={() => updateStep(idx, { template_parameters: [...(step.template_parameters || []), { field: 'name' }] })}>Add body parameter</button>
-                          {approvedTemplates.length > 0 ? (
-                            <TemplatePicker label="Approved template" templates={approvedTemplates} identity="name_language" purpose="followup"
-                              emptyLabel="No fallback template"
-                              value={step.approved_template_name ? `${step.approved_template_name}::${step.template_language || approvedTemplates.find(t => t.name === step.approved_template_name)?.language || ''}` : ''}
-                              onChange={(_, template) => {
-                                const text = template?.components?.find(c => c.type === 'BODY')?.text || '';
-                                const count = new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1])).size;
-                                updateStep(idx, { approved_template_name: template?.name || '', template_language: template?.language || '', template_parameters: Array.from({ length: count }, () => ({ field: 'name' })) });
-                              }} />
-                          ) : (
-                            <input value={step.approved_template_name || ''} onChange={e => updateStep(idx, { approved_template_name: e.target.value })}
-                              className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="Approved template name (optional fallback)" />
-                          )}
-                          <p className="text-[10px] text-gray-400 mt-1">
-                            Used outside the WhatsApp messaging window, or on every send when Always send approved template is enabled.
-                          </p>
-                        </div>
-                      )}
-                      {step.channel === 'whatsapp' && <fieldset className="mt-3 border rounded-lg p-3 space-y-2">
-                        <legend className="text-xs font-semibold">Reply question routes</legend>
-                        <p className="text-xs text-gray-600">Routes become eligible only after this step is sent. Answers and aliases match exactly, ignoring case and punctuation. Unmatched replies pause automation for human review.</p>
-                        {(step.reply_routes || []).map((route,ri) => <div key={ri} className="border rounded p-2 space-y-2">
-                          <label className="block text-xs">Answer<input className="w-full border rounded p-2" value={route.answer} onChange={e => updateStep(idx, { reply_routes: step.reply_routes.map((r,j) => j === ri ? { ...r, answer: e.target.value } : r) })} placeholder="e.g. 1" /></label>
-                          <label className="block text-xs">Classification / label<input className="w-full border rounded p-2" value={route.classification} onChange={e => updateStep(idx, { reply_routes: step.reply_routes.map((r,j) => j === ri ? { ...r, classification: e.target.value } : r) })} /></label>
-                          <label className="block text-xs">Natural-language aliases (one per line)<textarea className="w-full border rounded p-2" value={(route.aliases || []).join('\n')} onChange={e => updateStep(idx, { reply_routes: step.reply_routes.map((r,j) => j === ri ? { ...r, aliases: e.target.value.split('\n') } : r) })} /></label>
-                          <label className="block text-xs">Start sequence<select className="w-full border rounded p-2" value={route.sequence_id} onChange={e => updateStep(idx, { reply_routes: step.reply_routes.map((r,j) => j === ri ? { ...r, sequence_id: e.target.value } : r) })}><option value="">Choose sequence</option>{sequences.filter(seq => seq.id !== editingSeq?.id).map(seq => <option key={seq.id} value={seq.id}>{seq.name}{!seq.is_active ? ' (draft)' : ''}</option>)}</select></label>
-                          <button type="button" className="text-xs text-red-600" onClick={() => updateStep(idx, { reply_routes: step.reply_routes.filter((_,j) => j !== ri) })}>Remove route</button>
-                        </div>)}
-                        <button type="button" className="text-xs text-brand-600" onClick={() => updateStep(idx, { reply_routes: [...(step.reply_routes || []), { answer: '', classification: '', aliases: [], sequence_id: '' }] })}>Add reply route</button>
-                      </fieldset>}
-                    </div>
-                  ))}
-                </div>
-                <button onClick={addStep} className="mt-2 flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700">
-                  <Plus size={13} /> Add Step
-                </button>
-                {seqErrors.steps && <p className="text-xs text-red-500 mt-2">{seqErrors.steps}</p>}
-                <VariableHelp className="mt-3" />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => { setSeqModal(false); setPendingRulePreset(null); }} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancel</button>
-              <button onClick={handleSaveSeq} className="px-4 py-2 text-sm bg-brand-600 text-white rounded-lg font-semibold hover:bg-brand-700">
-                {editingSeq ? 'Update' : 'Create'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <SequenceEditor editing={!!editingSeq} form={seqForm} setForm={setSeqForm} errors={seqErrors} setErrors={setSeqErrors}
+          updateStep={updateStep} addStep={addStep} removeStep={removeStep} moveStep={moveStep}
+          triggers={editorTriggers} triggerHint={editorTriggerHint}
+          approvedTemplates={approvedTemplates} messageTemplates={messageTemplates}
+          otherSequences={sequences.filter(seq => seq.id !== editingSeq?.id)}
+          onSave={handleSaveSeq} onClose={() => { setSeqModal(false); setPendingRulePreset(null); }} />
       )}
 
       {ruleModal && (
