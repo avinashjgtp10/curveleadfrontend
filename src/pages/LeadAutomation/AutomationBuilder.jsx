@@ -55,7 +55,8 @@ const SCENARIO_PRESETS = [
   },
 ];
 
-const AutomationBuilder = () => {
+// part: 'automation' = quick start, sequences and triggers only (the WhatsApp tab); otherwise everything, including assignment rules.
+const AutomationBuilder = ({ part } = {}) => {
   const { user } = useAuth();
   const confirm = useConfirmDialog();
   const toast = useToast();
@@ -414,7 +415,7 @@ const AutomationBuilder = () => {
         )}
       </div>
 
-      <AssignmentRulesSection />
+      {part !== 'automation' && <AssignmentRulesSection />}
 
       {seqModal && (
         <SequenceEditor editing={!!editingSeq} form={seqForm} setForm={setSeqForm} errors={seqErrors} setErrors={setSeqErrors}
