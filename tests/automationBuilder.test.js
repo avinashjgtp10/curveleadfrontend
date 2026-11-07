@@ -27,6 +27,11 @@ function component(file, apis) {
   if(name.includes('utils/leadVariables'))return pureUtil('utils/leadVariables.js');
   if(name.includes('utils/sequenceStatus'))return pureUtil('utils/sequenceStatus.js');
   if(name.includes('utils/sequenceSteps'))return pureUtil('utils/sequenceSteps.js');
+  if(name.includes('utils/replyRoutes'))return pureUtil('utils/replyRoutes.js');
+  if(name.includes('utils/sequenceReview'))return pureUtil('utils/sequenceReview.js');
+  if(name.includes('/ReplyRoutesEditor'))return{__esModule:true,default:component('pages/LeadAutomation/ReplyRoutesEditor.jsx',apis)};
+  if(name.includes('/SequenceReview'))return{__esModule:true,default:component('pages/LeadAutomation/SequenceReview.jsx',apis)};
+  if(name.includes('/TestSend'))return{__esModule:true,default:component('pages/LeadAutomation/TestSend.jsx',apis)};
   if(name.includes('/CheckRow'))return{__esModule:true,default:component('pages/LeadAutomation/CheckRow.jsx',apis)};
   if(name.includes('/SequenceEditor'))return{__esModule:true,default:component('pages/LeadAutomation/SequenceEditor.jsx',apis)};
   if(name.includes('/SequenceList'))return{__esModule:true,default:component('pages/LeadAutomation/SequenceList.jsx',apis)};
@@ -119,5 +124,34 @@ test('the timeline editor reads as sentences, shows what starts the sequence and
  await act(async()=>{r=create(React.createElement(Editor,{...props,triggers:[],form:{...form,stop_conditions:{on_reply:false}}}));});
  const plain=textOf(r.toJSON()).replace(/\s+/g,' ');
  assert.ok(plain.includes('Wait 1 day, then send a WhatsApp message')&&!plain.includes('If no reply after 1 day')&&plain.includes('No trigger yet'));
+ await act(async()=>r.unmount());
+});
+
+const str=n=>n.children.filter(c=>typeof c==='string').join('');
+test('buttons branch in one click, the default path is stated, business hours can be set and the review explains the rules',async()=>{
+ const sent=[];const calls=[];
+ const apis={automationAPI:{testSend:async body=>{sent.push(body);return{data:{sent:true,to_last4:'3210',window_note:'Free-text messages reach your phone only within 24 hours.'}};}}};
+ const Editor=component('pages/LeadAutomation/SequenceEditor.jsx',apis);
+ const template={name:'demo_confirm',language:'en',status:'APPROVED',category:'MARKETING',components:[{type:'BODY',text:'Hi {{1}}'},{type:'BUTTONS',buttons:[{type:'QUICK_REPLY',text:'Yes'},{type:'QUICK_REPLY',text:'Reschedule'}]}]};
+ const step={channel:'whatsapp',delay_minutes:0,message:'Hi',approved_template_name:'demo_confirm',template_language:'en',template_parameters:[{field:'name'}],reply_routes:[],media:[]};
+ const props={editing:false,form:{name:'Demo',description:'',is_active:false,stop_conditions:{on_reply:false},steps:[step]},setForm:()=>{},errors:{},setErrors:()=>{},updateStep:(i,p)=>calls.push([i,p]),addStep:()=>{},removeStep:()=>{},moveStep:()=>{},
+  triggers:[{label:'a demo is booked',off:false}],triggerHint:'',approvedTemplates:[template],messageTemplates:[],otherSequences:[],optIn:{total:10,opted_in:4},onSave:()=>{},onClose:()=>{}};
+ let r;await act(async()=>{r=create(React.createElement(Editor,props));});
+ const text=()=>textOf(r.toJSON()).replace(/\s+/g,' ');
+ const branch=r.root.findAllByType('button').find(b=>str(b).includes('Branch on button reply'));
+ assert.ok(branch&&str(branch).includes('“Yes”, “Reschedule”'));
+ await act(async()=>branch.props.onClick());
+ assert.deepEqual(JSON.parse(JSON.stringify(calls.at(-1))),[0,{reply_routes:[{answer:'Yes',classification:'Yes',aliases:[],sequence_id:''},{answer:'Reschedule',classification:'Reschedule',aliases:[],sequence_id:''}]}]);
+ calls.length=0;for(const box of r.root.findAllByType('input').filter(i=>i.props.type==='checkbox'))await act(async()=>box.props.onChange({target:{checked:true}}));
+ assert.ok(calls.some(([,p])=>p.business_hours_only===true),'the business-hours checkbox updates the step');
+ // the business-hours checkbox, the review, and the test-send button are present
+ assert.ok(text().includes('Only send during business hours')&&text().includes('lead’s own time zone'));
+ for(const t of ['Review before you turn it on','Starts when a demo is booked','Marketing template','4 of 10 leads (40%)','Only an opt-out stops this sequence'])assert.ok(text().includes(t),t);
+ // with routes present the default path is stated plainly
+ await act(async()=>{r.update(React.createElement(Editor,{...props,form:{...props.form,steps:[{...step,reply_routes:[{answer:'Yes',classification:'Yes',aliases:[],sequence_id:''}]}]}}));});
+ assert.ok(text().includes('Otherwise: Any other reply goes to a team member to review.'));
+ await act(async()=>r.root.findByProps({'aria-label':'Step 1 send test to my own number'}).props.onClick());
+ assert.equal(sent.length,1);assert.equal(sent[0].step.approved_template_name,'demo_confirm');assert.equal(Object.keys(sent[0]).join(),'step','the request names no recipient');
+ assert.ok(text().includes('Sent to your number ending 3210.')&&text().includes('within 24 hours'));
  await act(async()=>r.unmount());
 });
