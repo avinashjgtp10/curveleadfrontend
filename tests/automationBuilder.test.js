@@ -27,6 +27,11 @@ function component(file, apis) {
   if(name.includes('utils/leadVariables'))return pureUtil('utils/leadVariables.js');
   if(name.includes('utils/sequenceStatus'))return pureUtil('utils/sequenceStatus.js');
   if(name.includes('utils/sequenceSteps'))return pureUtil('utils/sequenceSteps.js');
+  if(name.includes('utils/automationInsights'))return pureUtil('utils/automationInsights.js');
+  if(name.includes('utils/failureReason'))return pureUtil('utils/failureReason.js');
+  if(name==='react-router-dom')return{Link:({to,children})=>React.createElement('a',{href:to},children)};
+  if(name.includes('/SequenceResults'))return{__esModule:true,default:component('pages/LeadAutomation/SequenceResults.jsx',apis)};
+  if(name.includes('/AutomationTimeline'))return{__esModule:true,default:component('components/lead/AutomationTimeline.jsx',apis)};
   if(name.includes('utils/replyRoutes'))return pureUtil('utils/replyRoutes.js');
   if(name.includes('utils/sequenceReview'))return pureUtil('utils/sequenceReview.js');
   if(name.includes('/ReplyRoutesEditor'))return{__esModule:true,default:component('pages/LeadAutomation/ReplyRoutesEditor.jsx',apis)};
@@ -153,5 +158,45 @@ test('buttons branch in one click, the default path is stated, business hours ca
  await act(async()=>r.root.findByProps({'aria-label':'Step 1 send test to my own number'}).props.onClick());
  assert.equal(sent.length,1);assert.equal(sent[0].step.approved_template_name,'demo_confirm');assert.equal(Object.keys(sent[0]).join(),'step','the request names no recipient');
  assert.ok(text().includes('Sent to your number ending 3210.')&&text().includes('within 24 hours'));
+ await act(async()=>r.unmount());
+});
+
+test('sequence results show the funnel, why leads stopped or failed, opt-in coverage and who needs attention',async()=>{
+ const asked=[];
+ const data={sequence:{id:'s1'},days:30,enrolled:{total:3,by_status:{failed:1,blocked:1,cancelled:1},completed:0,completion_rate:0},stopped_because:[{reason:'opted_out',count:1}],
+  steps:[{step_number:1,channel:'whatsapp',template:'welcome',sent:4,delivered:3,read:2,failed:0,replied:1,reply_rate:25}],failure_reasons:[{code:'131047',detail:'[131047] (#131047) Graph API error',count:2}],
+  opt_in:{total:10,opted_in:4,opted_out:1,held_for_opt_in:2,coverage_rate:40},problems:[{enrollment_id:'e1',lead_id:'l1',lead_name:'Asha',status:'blocked',current_step:0,reason:'blocked_no_opt_in'}]};
+ const Results=component('pages/LeadAutomation/SequenceResults.jsx',{automationAPI:{sequenceAnalytics:async(id,days)=>{asked.push([id,days]);return{data};}}});
+ let r;await act(async()=>{r=create(React.createElement(Results,{sequence:{id:'s1',name:'Welcome',is_active:true,with_errors:2,enrolled_total:3},onClose:()=>{}}));});
+ const all=textOf(r.toJSON()).replace(/\s+/g,' ').replace(/ ([.:,%])/g,'$1');
+ for(const t of ['Has errors','Leads added in this period: 3','1 failed · 1 held back · 1 stopped','1. WhatsApp · welcome','75%','1 × The lead opted out','2 × More than 24 hours since this person last messaged you','4 of 10 leads (40%) have a WhatsApp opt-in','Asha','No WhatsApp marketing opt-in on record'])assert.ok(all.includes(t),t);
+ assert.equal(r.root.findByType('a').props.href,'/leads/l1');
+ await act(async()=>r.root.findByProps({'aria-label':'Time period'}).props.onChange({target:{value:'90'}}));
+ assert.deepEqual(asked,[['s1',30],['s1',90]]);
+ await act(async()=>r.unmount());
+});
+test('the lead history loads only when opened and tells the story in order, including what is next',async()=>{
+ let loads=0;
+ const timeline={lead:{id:'l1'},events:[{kind:'enrolled',sequence_name:'Welcome',trigger:'New lead',at:'2026-01-01T10:00:00Z'},{kind:'sent',step_number:1,channel:'whatsapp',delivery:'read',template:'welcome',at:'2026-01-01T10:01:00Z'},{kind:'failed',step_number:2,channel:'whatsapp',error:'Template missing',at:'2026-01-02T10:00:00Z'}],
+  current:[{enrollment_id:'e1',sequence_name:'Welcome',status:'failed',reason:'Template missing'}]};
+ const Timeline=component('components/lead/AutomationTimeline.jsx',{automationAPI:{leadTimeline:async()=>{loads++;return{data:timeline};}}});
+ let r;await act(async()=>{r=create(React.createElement(Timeline,{leadId:'l1'}));});
+ assert.equal(loads,0);
+ await act(async()=>r.root.findByType('button').props.onClick());
+ const all=textOf(r.toJSON()).replace(/\s+/g,' ').replace(/ ([.:,%])/g,'$1');
+ assert.equal(loads,1);
+ const order=['Added to “Welcome”','Step 1: WhatsApp message read','Step 2: could not be sent'].map(t=>all.indexOf(t));
+ assert.ok(order.every(i=>i>=0)&&order[0]<order[1]&&order[1]<order[2],'in order');
+ assert.ok(all.includes('Welcome: Failed: Template missing'));
+ await act(async()=>r.root.findByType('button').props.onClick());assert.ok(!textOf(r.toJSON()).includes('Added to'));
+ await act(async()=>r.unmount());
+});
+test('the sequence list offers Results only when a handler is given',async()=>{
+ const List=component('pages/LeadAutomation/SequenceList.jsx',{});
+ const seqs=[{id:'s1',name:'A',is_active:true,steps:[{}],with_errors:0}];const got=[];
+ let r;await act(async()=>{r=create(React.createElement(List,{sequences:seqs,rules:[],isAdmin:true,triggerLabel:()=>'',onEdit(){},onToggle(){},onDuplicate(){},onDelete(){},onResults:s=>got.push(s.id)}));});
+ await act(async()=>r.root.findByProps({'aria-label':'See results for sequence A'}).props.onClick());assert.deepEqual(got,['s1']);
+ await act(async()=>{r.update(React.createElement(List,{sequences:seqs,rules:[],isAdmin:true,triggerLabel:()=>'',onEdit(){},onToggle(){},onDuplicate(){},onDelete(){}}));});
+ assert.equal(r.root.findAllByProps({'aria-label':'See results for sequence A'}).length,0);
  await act(async()=>r.unmount());
 });

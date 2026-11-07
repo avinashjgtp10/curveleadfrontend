@@ -1,10 +1,10 @@
-import { Edit2, Trash2, Copy, Pause, Play } from 'lucide-react';
+import { Edit2, Trash2, Copy, Pause, Play, BarChart3 } from 'lucide-react';
 import { sequenceStatus, sequenceSummary, toggleAction } from '../../utils/sequenceStatus';
 
 const TONE = { ok: 'bg-green-50 text-green-700', warn: 'bg-amber-50 text-amber-800', bad: 'bg-red-50 text-red-700', muted: 'bg-gray-100 text-gray-600' };
 
 // The sequence list: status (Active / Paused / Draft / Has errors), how many leads are in it, what starts it, and the actions.
-export default function SequenceList({ sequences, rules, isAdmin, triggerLabel, onEdit, onToggle, onDuplicate, onDelete }) {
+export default function SequenceList({ sequences, rules, isAdmin, triggerLabel, onEdit, onToggle, onDuplicate, onDelete, onResults }) {
   return (
     <div className="space-y-2">
       {sequences.map((s) => {
@@ -34,6 +34,7 @@ export default function SequenceList({ sequences, rules, isAdmin, triggerLabel, 
                     className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border hover:bg-gray-50 flex items-center gap-1">
                     {action.next ? <Play size={12} /> : <Pause size={12} />} {action.label}
                   </button>
+                  {onResults && <button type="button" aria-label={`See results for sequence ${s.name}`} title="Results" onClick={() => onResults(s)} className="p-1.5 hover:bg-gray-100 rounded-lg"><BarChart3 size={13} /></button>}
                   <button type="button" aria-label={`Edit sequence ${s.name}`} title="Edit" onClick={() => onEdit(s)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Edit2 size={13} /></button>
                   <button type="button" aria-label={`Duplicate sequence ${s.name}`} title="Duplicate" onClick={() => onDuplicate(s)} className="p-1.5 hover:bg-gray-100 rounded-lg"><Copy size={13} /></button>
                   <button type="button" aria-label={`Delete sequence ${s.name}`} title="Delete" onClick={() => onDelete(s)} className="p-1.5 hover:bg-red-50 text-red-500 rounded-lg"><Trash2 size={13} /></button>
