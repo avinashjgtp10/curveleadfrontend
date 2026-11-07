@@ -12,7 +12,7 @@ import { toggleAction, duplicatePayload, stepPayload } from '../../utils/sequenc
 import SequenceList from './SequenceList';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
-const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
+const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [], business_hours_only: false });
 
 const SOURCE_OPTIONS = ['manual', 'website', 'meta_ads', 'google_ads', 'whatsapp', 'referral', 'walkin'];
 
@@ -79,6 +79,7 @@ const AutomationBuilder = ({ part } = {}) => {
   const [pendingRulePreset, setPendingRulePreset] = useState(null);
   const [messageTemplates, setMessageTemplates] = useState([]);
   const [approvedTemplates, setApprovedTemplates] = useState([]);
+  const [optIn, setOptIn] = useState(null);
 
   useEffect(() => { loadSequences(); loadRules(); loadStages(); loadCampaigns(); loadMessageTemplates(); loadApprovedTemplates(); loadLeadStatuses(); }, []);
 
@@ -104,6 +105,7 @@ const AutomationBuilder = ({ part } = {}) => {
       const { data } = await whatsappAPI.getBroadcastTemplates();
       setApprovedTemplates((data.templates || []).filter(t => t.status === 'APPROVED'));
     } catch (e) { /* not connected / not permitted — picker stays empty */ }
+    try { setOptIn((await whatsappAPI.hubOptIns()).data?.summary || null); } catch (e) { /* the review just omits the counts */ }
   };
 
   const loadSequences = async () => {
@@ -325,8 +327,8 @@ const AutomationBuilder = ({ part } = {}) => {
       <div>
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h2 className="text-lg font-bold text-gray-800">Quick Start</h2>
-            <p className="text-xs text-gray-400 mt-0.5">Common automations, ready to customize — pick one to prefill a sequence and its trigger rule.</p>
+            <h2 className="text-lg font-bold text-gray-800">What do you want to achieve?</h2>
+            <p className="text-xs text-gray-400 mt-0.5">Pick a goal to prefill the sequence and what starts it. You review everything, including WhatsApp rules, before anything is turned on.</p>
           </div>
         </div>
         <div className="grid sm:grid-cols-3 gap-3">
@@ -421,7 +423,7 @@ const AutomationBuilder = ({ part } = {}) => {
         <SequenceEditor editing={!!editingSeq} form={seqForm} setForm={setSeqForm} errors={seqErrors} setErrors={setSeqErrors}
           updateStep={updateStep} addStep={addStep} removeStep={removeStep} moveStep={moveStep}
           triggers={editorTriggers} triggerHint={editorTriggerHint}
-          approvedTemplates={approvedTemplates} messageTemplates={messageTemplates}
+          approvedTemplates={approvedTemplates} messageTemplates={messageTemplates} optIn={optIn}
           otherSequences={sequences.filter(seq => seq.id !== editingSeq?.id)}
           onSave={handleSaveSeq} onClose={() => { setSeqModal(false); setPendingRulePreset(null); }} />
       )}
