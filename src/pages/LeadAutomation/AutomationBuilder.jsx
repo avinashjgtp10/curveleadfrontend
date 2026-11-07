@@ -8,15 +8,14 @@ import AssignmentRulesSection from './AssignmentRulesSection';
 import StepAttachment from './StepAttachment';
 import TemplatePicker from '../../components/whatsapp/TemplatePicker';
 import WelcomeStatusCard from '../../components/whatsapp/WelcomeStatusCard';
+import { DELAY_UNIT_MINUTES, bestUnit, describeDelay } from '../../utils/delay';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
-const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'minutes', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
+const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
 
-const DELAY_UNIT_MINUTES = { minutes: 1, hours: 60, days: 1440 };
-const delayValueForStep = (step) => {
-  const factor = DELAY_UNIT_MINUTES[step.delay_unit || 'minutes'];
-  return step.delay_minutes ? Math.round(step.delay_minutes / factor) : '';
-};
+// The saved step only keeps minutes, so pick the friendliest unit from them (1440 -> "1 day"), not "1440 minutes".
+const unitFor = (step) => step.delay_unit || bestUnit(step.delay_minutes);
+const delayValueForStep = (step) => (step.delay_minutes ? Math.round(step.delay_minutes / DELAY_UNIT_MINUTES[unitFor(step)]) : '');
 
 const SOURCE_OPTIONS = ['manual', 'website', 'meta_ads', 'google_ads', 'whatsapp', 'referral', 'walkin'];
 
@@ -454,16 +453,16 @@ const AutomationBuilder = () => {
                           </select>
                         </div>
                         <div>
-                          <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Delay after previous step</label>
+                          <label className="block text-[10px] font-medium text-gray-400 mb-1 flex items-center gap-1"><Clock size={10} /> Wait {idx === 0 ? 'after the sequence starts' : 'after the previous step'}</label>
                           <div className="flex gap-1.5">
                             <input type="number" min="0" value={delayValueForStep(step)}
                               onChange={e => {
-                                const factor = DELAY_UNIT_MINUTES[step.delay_unit || 'minutes'];
-                                updateStep(idx, { delay_minutes: (parseInt(e.target.value, 10) || 0) * factor });
+                                const factor = DELAY_UNIT_MINUTES[unitFor(step)];
+                                updateStep(idx, { delay_unit: unitFor(step), delay_minutes: (parseInt(e.target.value, 10) || 0) * factor }); // pin the unit so typing 24 hours doesn't flip to 1 day
                               }}
                               onFocus={e => e.target.select()}
                               className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="0" />
-                            <select value={step.delay_unit || 'minutes'}
+                            <select value={unitFor(step)} aria-label={`Step ${idx + 1} delay unit`}
                               onChange={e => {
                                 const newUnit = e.target.value;
                                 const currentValue = delayValueForStep(step) || 0;
@@ -475,6 +474,7 @@ const AutomationBuilder = () => {
                               <option value="days">Days</option>
                             </select>
                           </div>
+                          <p className="text-[11px] text-gray-500 mt-1">{step.delay_minutes ? `Sends ${describeDelay(step.delay_minutes)} after ${idx === 0 ? 'the sequence starts' : 'the previous step'}.` : `Sends straight away${idx === 0 ? ' when the sequence starts' : ' after the previous step'}.`}</p>
                         </div>
                       </div>
                       {step.channel === 'email' && (
