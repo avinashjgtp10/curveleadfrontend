@@ -6,6 +6,7 @@ import { useConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { useToast } from '../../components/ui/Toast';
 import AssignmentRulesSection from './AssignmentRulesSection';
 import StepAttachment from './StepAttachment';
+import TemplatePicker from '../../components/whatsapp/TemplatePicker';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
 const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'minutes', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [] });
@@ -528,19 +529,14 @@ const AutomationBuilder = () => {
                           </div>)}
                           <button type="button" className="text-xs text-brand-600" onClick={() => updateStep(idx, { template_parameters: [...(step.template_parameters || []), { field: 'name' }] })}>Add body parameter</button>
                           {approvedTemplates.length > 0 ? (
-                            <select value={step.approved_template_name ? `${step.approved_template_name}::${step.template_language || approvedTemplates.find(t => t.name === step.approved_template_name)?.language || ''}` : ''} onChange={e => {
-                              const [name,language] = e.target.value.split('::');
-                              const template = approvedTemplates.find(t => t.name === name && t.language === language);
-                              const text = template?.components?.find(c => c.type === 'BODY')?.text || '';
-                              const count = new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1])).size;
-                              updateStep(idx, { approved_template_name: name || '', template_language: language || '', template_parameters: Array.from({ length: count }, () => ({ field: 'name' })) });
-                            }}
-                              className="w-full px-2.5 py-2 border rounded-lg text-xs bg-white">
-                              <option value="">No fallback template</option>
-                              {approvedTemplates.map(t => (
-                                <option key={`${t.name}::${t.language}`} value={`${t.name}::${t.language}`}>{t.name} ({t.language})</option>
-                              ))}
-                            </select>
+                            <TemplatePicker label="Approved template" templates={approvedTemplates} identity="name_language" purpose="followup"
+                              emptyLabel="No fallback template"
+                              value={step.approved_template_name ? `${step.approved_template_name}::${step.template_language || approvedTemplates.find(t => t.name === step.approved_template_name)?.language || ''}` : ''}
+                              onChange={(_, template) => {
+                                const text = template?.components?.find(c => c.type === 'BODY')?.text || '';
+                                const count = new Set([...text.matchAll(/\{\{(\d+)\}\}/g)].map(m => m[1])).size;
+                                updateStep(idx, { approved_template_name: template?.name || '', template_language: template?.language || '', template_parameters: Array.from({ length: count }, () => ({ field: 'name' })) });
+                              }} />
                           ) : (
                             <input value={step.approved_template_name || ''} onChange={e => updateStep(idx, { approved_template_name: e.target.value })}
                               className="w-full px-2.5 py-2 border rounded-lg text-xs" placeholder="Approved template name (optional fallback)" />

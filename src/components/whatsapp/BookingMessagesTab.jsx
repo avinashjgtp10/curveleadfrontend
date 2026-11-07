@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Copy, ExternalLink, CheckCircle2, AlertTriangle, XCircle, Loader2 } from 'lucide-react';
 import { templateStatus } from '../../utils/templateCheck';
 import FailureReason from './FailureReason';
+import TemplatePicker from './TemplatePicker';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Card, ErrorBox, LoadError, Loading, Toggle, useLoad, fmtDateTime } from './hubUi';
@@ -43,7 +44,7 @@ const TONE = {
 
 // `check` is the server's verdict for the SAVED template (same lookup the sender uses). `listState` is how the template list
 // loaded on this screen. A template is only called "not found" once WhatsApp has really answered.
-const TemplateSelect = ({ label, type, value, onChange, templates, samples, check, listState, onRecheck }) => {
+const TemplateSelect = ({ label, type, kind, value, onChange, templates, samples, check, listState, onRecheck, optIn }) => {
   const status = templateStatus({ value, check, listState, templates });
   const selected = status.template || templates.find(t => t.name === value);
   const body = bodyOf(selected);
@@ -56,16 +57,8 @@ const TemplateSelect = ({ label, type, value, onChange, templates, samples, chec
 
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
-      <select value={value} onChange={e => onChange(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-        <option value="">None (only sent inside the 24-hour window)</option>
-        {value && !inList && <option value={value}>{value}{status.state === 'not_found' ? ' (not found)' : ''}</option>}
-        {templates.map(t => (
-          <option key={`${t.name}:${t.language}`} value={t.name} disabled={t.status !== 'APPROVED'}>
-            {t.name} · {t.language}{t.status !== 'APPROVED' ? ` (${t.status.toLowerCase()})` : ''}
-          </option>
-        ))}
-      </select>
+      <TemplatePicker label={label} templates={templates} value={value} onChange={onChange} purpose={kind} samples={samples} optIn={optIn}
+        includeUnapproved loading={listState === 'loading'} emptyLabel="None (only sent inside the 24-hour window)" />
       {status.state !== 'none' && (
         <p role="status" className={`text-[11px] mt-1 flex items-start gap-1 ${tone.cls}`}>
           <tone.Icon size={12} className={`shrink-0 mt-0.5 ${status.state === 'checking' ? 'animate-spin' : ''}`} />
@@ -81,9 +74,6 @@ const TemplateSelect = ({ label, type, value, onChange, templates, samples, chec
       {selected && ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(header?.format) && !selected.media_url && (
         <p className="text-[11px] text-amber-700 mt-1">Its header media isn't on file in CurveLead, so sending may fail. Recreate it from the Templates tab.</p>
       )}
-      {selected && (
-        <p className="mt-2 text-xs text-gray-700 whitespace-pre-wrap bg-[#e7fbe0] border border-green-100 rounded-lg px-3 py-2">{preview}</p>
-      )}
     </div>
   );
 };
@@ -92,6 +82,7 @@ const BookingMessagesTab = () => {
   const toast = useToast();
   const { data, error, loading, reload } = useLoad(() => whatsappAPI.hubGetBookingMessages());
   const tpl = useLoad(() => whatsappAPI.getBroadcastTemplates());
+  const optins = useLoad(() => whatsappAPI.hubOptIns());
   const [checks, setChecks] = useState(null); // fresher server verdicts after "Check again"
   const [f, setF] = useState(null);
   const [saving, setSaving] = useState(false);
@@ -109,7 +100,7 @@ const BookingMessagesTab = () => {
     tpl.reload();
     whatsappAPI.hubGetBookingMessages().then(r => setChecks(r.data?.template_checks || {})).catch(() => {});
   };
-  const field = key => ({ value: f[key], check: checkFor(key), listState, onRecheck: recheck });
+  const field = key => ({ value: f[key], check: checkFor(key), listState, onRecheck: recheck, optIn: optins.data?.summary });
   const set = patch => setF(prev => ({ ...prev, ...patch }));
   const address = f.address || f.business_address;
   const samples = when => ({
@@ -153,9 +144,9 @@ const BookingMessagesTab = () => {
         {f.confirmation_enabled && (
           <div className="grid md:grid-cols-2 gap-4 mt-4">
             <TemplateSelect label="Demo confirmation template" type="demo" templates={templates} samples={confirmSamples.demo}
-              {...field('demo_confirmation_template')} onChange={v => set({ demo_confirmation_template: v })} />
+              kind="confirmation" {...field('demo_confirmation_template')} onChange={v => set({ demo_confirmation_template: v })} />
             <TemplateSelect label="Visit confirmation template" type="visit" templates={templates} samples={confirmSamples.visit}
-              {...field('visit_confirmation_template')} onChange={v => set({ visit_confirmation_template: v })} />
+              kind="confirmation" {...field('visit_confirmation_template')} onChange={v => set({ visit_confirmation_template: v })} />
           </div>
         )}
       </Card>
@@ -179,9 +170,9 @@ const BookingMessagesTab = () => {
             </div>
             <div className="grid md:grid-cols-2 gap-4 mt-4">
               <TemplateSelect label="Demo reminder template" type="demo" templates={templates} samples={reminderSamples.demo}
-                {...field('demo_reminder_template')} onChange={v => set({ demo_reminder_template: v })} />
+                kind="reminder" {...field('demo_reminder_template')} onChange={v => set({ demo_reminder_template: v })} />
               <TemplateSelect label="Visit reminder template" type="visit" templates={templates} samples={reminderSamples.visit}
-                {...field('visit_reminder_template')} onChange={v => set({ visit_reminder_template: v })} />
+                kind="reminder" {...field('visit_reminder_template')} onChange={v => set({ visit_reminder_template: v })} />
             </div>
           </>
         )}

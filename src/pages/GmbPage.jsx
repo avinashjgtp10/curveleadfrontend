@@ -8,6 +8,7 @@ import { Card, Toggle, Loading, LoadError, useLoad } from '../components/whatsap
 import GmbProfileTab from '../components/gmb/GmbProfileTab';
 import GmbInsightsTab from '../components/gmb/GmbInsightsTab';
 import { googleReviewLink, googleProblem } from '../utils/gmbProfile';
+import TemplatePicker from '../components/whatsapp/TemplatePicker';
 
 const CONNECT_MESSAGES = {
   success: { type: 'success', text: 'Google Business Profile connected.' },
@@ -187,10 +188,8 @@ const ReviewRequestsTab = () => {
         <p className="text-xs text-gray-500 mb-3">
           WhatsApp only allows free text within 24 hours of the customer's last message. Most won leads are outside that window, so pick an approved template — ideally a <b>Utility</b> one — with <code className="bg-gray-100 px-1 rounded">{'{{1}}'}</code> for the name and <code className="bg-gray-100 px-1 rounded">{'{{2}}'}</code> for the review link. Without one, the request is skipped and the lead's timeline says why.
         </p>
-        <select value={templateName} onChange={e => setTemplateName(e.target.value)} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-          <option value="">No template — send only inside the 24-hour window</option>
-          {(templates || []).map(t => <option key={`${t.name}-${t.language}`} value={t.name}>{t.name} · {String(t.category || '').toLowerCase()} · {t.language}</option>)}
-        </select>
+        <TemplatePicker label="Template" templates={templates || []} loading={templates === null} value={templateName} onChange={setTemplateName}
+          purpose="followup" samples={['Priya', 'Your business']} emptyLabel="No template \u2014 send only inside the 24-hour window" />
       </Card>
 
       <Card title="Message (inside the 24-hour window)"

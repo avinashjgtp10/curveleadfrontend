@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { whatsappAPI } from '../../services/api';
 import { useToast } from '../ui/Toast';
 import { Card, LoadError, Loading, Toggle, useLoad } from './hubUi';
+import TemplatePicker from './TemplatePicker';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -11,6 +12,7 @@ const AutoMessagesTab = () => {
   const [f, setF] = useState(null);
   const [saving, setSaving] = useState(false);
   const [templates, setTemplates] = useState(null);
+  const optins = useLoad(() => whatsappAPI.hubOptIns());
 
   useEffect(() => { if (data) setF(data); }, [data]);
   useEffect(() => {
@@ -36,14 +38,12 @@ const AutoMessagesTab = () => {
       <Card title="Welcome message">
         <Toggle checked={f.welcome_enabled} onChange={v => setF({ ...f, welcome_enabled: v })}
           label="Send a welcome message to every new lead" hint="Sent right after a lead is created, from your shared WhatsApp number." />
-        <label className="block text-xs font-medium text-gray-600 mt-3 mb-1" htmlFor="welcome-template">Approved template for new leads</label>
-        <select id="welcome-template" value={f.welcome_template_name || ''} onChange={e => setF({ ...f, welcome_template_name: e.target.value })}
-          className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
-          <option value="">No template (the welcome won't reach new leads)</option>
-          {(templates || []).filter(t => t.variable_count <= 1).map(t => (
-            <option key={`${t.name}-${t.language}`} value={t.name}>{t.name} · {String(t.category || '').toLowerCase()} · {t.language}</option>
-          ))}
-        </select>
+        <div className="mt-3">
+          <TemplatePicker id="welcome-template" label="Approved template for new leads" templates={templates || []} loading={templates === null}
+            value={f.welcome_template_name || ''} onChange={v => setF({ ...f, welcome_template_name: v })} purpose="welcome"
+            filter={t => t.variableCount <= 1} samples={['Priya']} optIn={optins.data?.summary}
+            emptyLabel="No template (the welcome won't reach new leads)" />
+        </div>
         <p className="text-[11px] text-gray-500 mt-1">
           A new lead hasn't messaged you yet, and WhatsApp only allows an approved template in that case. Use a <b>Utility</b> template
           (e.g. "Thanks for your enquiry, we'll contact you shortly"): it goes to leads from your ads and forms and to leads you add after
