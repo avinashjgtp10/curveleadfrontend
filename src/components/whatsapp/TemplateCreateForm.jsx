@@ -31,10 +31,11 @@ const emptyCreateForm = () => ({ name: '', category: 'MARKETING', language: 'en_
 
 // Create a WhatsApp message template (manually or drafted by AI) and submit it
 // to Meta for approval. Shared by the Templates page and the broadcast modal.
-const TemplateCreateForm = ({ onCreated, onCancel }) => {
+// initial: optional suggested draft { name, category, language, body_text, examples } to start from (the user still reviews and submits).
+const TemplateCreateForm = ({ onCreated, onCancel, initial }) => {
   const toast = useToast();
-  const [createForm, setCreateForm] = useState(emptyCreateForm());
-  const [createExamples, setCreateExamples] = useState([]);
+  const [createForm, setCreateForm] = useState(() => (initial ? { ...emptyCreateForm(), name: initial.name, category: initial.category, language: initial.language || 'en_US', body_text: initial.body_text } : emptyCreateForm()));
+  const [createExamples, setCreateExamples] = useState(() => initial?.examples || []);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
   const [buttons, setButtons] = useState([]); // { type: 'QUICK_REPLY' | 'URL', text, url? }
