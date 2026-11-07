@@ -5,6 +5,9 @@ import { TEMPLATE_FIELD_OPTIONS, unknownVariables, fillExamples } from '../../ut
 import { stepSentence, previewTemplateBody, usesAdvanced } from '../../utils/sequenceSteps';
 import StepAttachment from './StepAttachment';
 import CheckRow from './CheckRow';
+import ReplyRoutesEditor from './ReplyRoutesEditor';
+import TestSend from './TestSend';
+import SequenceReview from './SequenceReview';
 import TemplatePicker from '../../components/whatsapp/TemplatePicker';
 import VariableHelp, { UnknownVariables } from '../../components/whatsapp/VariableHelp';
 
@@ -106,6 +109,7 @@ function StepCard({ idx, count, step, form, updateStep, removeStep, moveStep, ap
         )}
 
         <Preview step={step} approvedTemplates={approvedTemplates} />
+        {step.channel === 'whatsapp' && <TestSend step={step} n={n} />}
 
         {step.channel === 'whatsapp' && (
           <div>
@@ -118,6 +122,8 @@ function StepCard({ idx, count, step, form, updateStep, removeStep, moveStep, ap
                   hint="AI uses the lead’s own conversation and your instructions. It only applies inside WhatsApp’s 24-hour window." />
                 <CheckRow checked={!!step.always_template} onChange={(e) => updateStep(idx, { always_template: e.target.checked, ...(e.target.checked ? { media: [] } : {}) })}
                   label="Always send an approved template" hint="Use this when the lead may not have messaged you in the last 24 hours. Otherwise the template is only the fallback outside that window." />
+                <CheckRow checked={!!step.business_hours_only} onChange={(e) => updateStep(idx, { business_hours_only: e.target.checked })} label="Only send during business hours"
+                  hint="If this step comes due at night, it waits for your business-hours window in the lead’s own time zone (taken from their phone number when the country has one time zone; otherwise your workspace time zone). Set the hours under Automation settings." />
                 {approvedTemplates.length > 0 ? (
                   <TemplatePicker label={step.always_template ? 'Approved template' : 'Fallback template'} templates={approvedTemplates} identity="name_language" purpose="followup"
                     emptyLabel="No fallback template"
@@ -149,20 +155,8 @@ function StepCard({ idx, count, step, form, updateStep, removeStep, moveStep, ap
                   <button type="button" className="text-xs text-brand-600" onClick={() => updateStep(idx, { template_parameters: [...(step.template_parameters || []), { field: 'name' }] })}>Add body parameter</button>
                 </div>
 
-                <fieldset className="border rounded-lg p-3 space-y-2 bg-white">
-                  <legend className="text-xs font-semibold">Reply question routes</legend>
-                  <p className="text-xs text-gray-600">Routes become eligible only after this step is sent. Answers and aliases match exactly, ignoring case and punctuation. Unmatched replies pause automation for human review.</p>
-                  {(step.reply_routes || []).map((route, ri) => (
-                    <div key={ri} className="border rounded p-2 space-y-2">
-                      <label className="block text-xs">Answer<input className="w-full border rounded p-2" value={route.answer} onChange={(e) => updateStep(idx, { reply_routes: step.reply_routes.map((r, j) => (j === ri ? { ...r, answer: e.target.value } : r)) })} placeholder="e.g. 1" /></label>
-                      <label className="block text-xs">Classification / label<input className="w-full border rounded p-2" value={route.classification} onChange={(e) => updateStep(idx, { reply_routes: step.reply_routes.map((r, j) => (j === ri ? { ...r, classification: e.target.value } : r)) })} /></label>
-                      <label className="block text-xs">Natural-language aliases (one per line)<textarea className="w-full border rounded p-2" value={(route.aliases || []).join('\n')} onChange={(e) => updateStep(idx, { reply_routes: step.reply_routes.map((r, j) => (j === ri ? { ...r, aliases: e.target.value.split('\n') } : r)) })} /></label>
-                      <label className="block text-xs">Start sequence<select className="w-full border rounded p-2" value={route.sequence_id} onChange={(e) => updateStep(idx, { reply_routes: step.reply_routes.map((r, j) => (j === ri ? { ...r, sequence_id: e.target.value } : r)) })}><option value="">Choose sequence</option>{otherSequences.map((seq) => <option key={seq.id} value={seq.id}>{seq.name}{!seq.is_active ? ' (draft)' : ''}</option>)}</select></label>
-                      <button type="button" className="text-xs text-red-600" onClick={() => updateStep(idx, { reply_routes: step.reply_routes.filter((_, j) => j !== ri) })}>Remove route</button>
-                    </div>
-                  ))}
-                  <button type="button" className="text-xs text-brand-600" onClick={() => updateStep(idx, { reply_routes: [...(step.reply_routes || []), { answer: '', classification: '', aliases: [], sequence_id: '' }] })}>Add reply route</button>
-                </fieldset>
+                <ReplyRoutesEditor n={n} idx={idx} step={step} otherSequences={otherSequences} updateStep={updateStep}
+                  template={approvedTemplates.find((t) => t.name === step.approved_template_name && (!step.template_language || t.language === step.template_language))} />
               </div>
             )}
           </div>
@@ -176,7 +170,7 @@ function StepCard({ idx, count, step, form, updateStep, removeStep, moveStep, ap
 // All state and saving stay in AutomationBuilder; this component only draws and edits the form it is given.
 export default function SequenceEditor({
   editing, form, setForm, errors, setErrors, updateStep, addStep, removeStep, moveStep,
-  triggers, triggerHint, approvedTemplates, messageTemplates, otherSequences, onSave, onClose,
+  triggers, triggerHint, approvedTemplates, messageTemplates, otherSequences, optIn, onSave, onClose,
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
@@ -236,6 +230,7 @@ export default function SequenceEditor({
             ))}
             <p className="text-xs text-gray-600">Opt-out always stops sending. Manual pause suspends sending until resumed.</p>
           </fieldset>
+          <SequenceReview form={form} templates={approvedTemplates} optIn={optIn} triggers={triggers} />
           <VariableHelp />
         </div>
 

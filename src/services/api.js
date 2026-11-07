@@ -426,6 +426,8 @@ export const automationAPI = {
   // Photo, document or video for a step to send. Returns { url, name, type, size, mime, preview_url }.
   uploadStepMedia: (file, onUploadProgress) => { const fd = new FormData(); fd.append('file', file); return api.post('/automations/media', fd, { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 300000, onUploadProgress }); },
   updateSequence: (id, data) => api.put(`/automations/sequences/${id}`, data),
+  // Sends one step to the signed-in user's own phone only (the server picks the number).
+  testSend: (data) => api.post('/automations/test-send', data),
   deleteSequence: (id) => api.delete(`/automations/sequences/${id}`),
   getRules: () => api.get('/automations/rules'),
   createRule: (data) => api.post('/automations/rules', data),
