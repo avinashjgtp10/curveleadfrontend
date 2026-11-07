@@ -428,6 +428,8 @@ export const automationAPI = {
   updateSequence: (id, data) => api.put(`/automations/sequences/${id}`, data),
   // Sends one step to the signed-in user's own phone only (the server picks the number).
   testSend: (data) => api.post('/automations/test-send', data),
+  leadTimeline: (leadId) => api.get(`/automations/leads/${leadId}/timeline`),
+  sequenceAnalytics: (id, days = 30) => api.get(`/automations/sequences/${id}/analytics`, { params: { days } }),
   deleteSequence: (id) => api.delete(`/automations/sequences/${id}`),
   getRules: () => api.get('/automations/rules'),
   createRule: (data) => api.post('/automations/rules', data),
