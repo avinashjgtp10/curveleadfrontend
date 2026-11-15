@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
@@ -11,9 +11,30 @@ const loginHighlights = [
   { icon: BarChart3, title: 'Source visibility', text: 'See which campaigns, salespeople, and lead sources are moving revenue.' },
 ];
 
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+const loadGoogleScript = () => new Promise((resolve, reject) => {
+  if (window.google?.accounts?.id) return resolve();
+  const existing = document.querySelector('script[data-gsi]');
+  if (existing) {
+    existing.addEventListener('load', resolve);
+    existing.addEventListener('error', reject);
+    return;
+  }
+  const s = document.createElement('script');
+  s.src = 'https://accounts.google.com/gsi/client';
+  s.async = true;
+  s.defer = true;
+  s.dataset.gsi = '1';
+  s.onload = resolve;
+  s.onerror = reject;
+  document.head.appendChild(s);
+});
+
 const LoginPage = () => {
   const navigate = useNavigate();
-  const { login, verifyOtp } = useAuth();
+  const { login, verifyOtp, googleLogin } = useAuth();
+  const googleBtnRef = useRef(null);
   const [mode, setMode] = useState('password');
   const [form, setForm] = useState({ email: '', password: '', otp: '' });
   const [showPassword, setShowPassword] = useState(false);
@@ -86,6 +107,33 @@ const LoginPage = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID) return undefined;
+    let cancelled = false;
+    loadGoogleScript().then(() => {
+      if (cancelled || !googleBtnRef.current) return;
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: async ({ credential }) => {
+          setLoading(true);
+          setError('');
+          try {
+            const data = await googleLogin(credential);
+            navigate(data.user?.role === 'super_admin' ? '/super-admin/dashboard' : '/dashboard');
+          } catch (err) {
+            setError(err.response?.data?.error || 'Google sign-in failed.');
+          } finally {
+            setLoading(false);
+          }
+        },
+      });
+      window.google.accounts.id.renderButton(googleBtnRef.current, {
+        theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', width: googleBtnRef.current.offsetWidth || 360,
+      });
+    }).catch(() => setError('Could not load Google sign-in.'));
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#f4f7fb] text-gray-950">
@@ -224,6 +272,29 @@ const LoginPage = () => {
                   {!loading && <ArrowRight size={18} />}
                 </button>
               </form>
+
+              <div className="mt-5">
+                <div className="mb-4 flex items-center gap-3 text-xs font-bold uppercase text-gray-400">
+                  <span className="h-px flex-1 bg-gray-200" />or<span className="h-px flex-1 bg-gray-200" />
+                </div>
+                {GOOGLE_CLIENT_ID ? (
+                  <div ref={googleBtnRef} className="flex w-full justify-center" />
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setError('Google sign-in is not configured yet. Set VITE_GOOGLE_CLIENT_ID and restart the app.')}
+                    className="flex w-full items-center justify-center gap-3 rounded-xl border border-gray-300 bg-white py-3 text-sm font-bold text-gray-700 hover:bg-gray-50"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
+                      <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/>
+                      <path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.4 5.7c4.3-4 6.9-9.9 6.9-17.1z"/>
+                      <path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-2.9-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C1 16.4 0 20.1 0 24s1 7.6 2.6 10.8l7.9-6.1z"/>
+                      <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.4-5.7c-2.1 1.4-4.8 2.3-8.5 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/>
+                    </svg>
+                    Continue with Google
+                  </button>
+                )}
+              </div>
 
               <div className="mt-6 flex items-start gap-2 border-t pt-5 text-sm text-gray-500">
                 <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-500" />

@@ -50,6 +50,15 @@ export const AuthProvider = ({ children }) => {
     return data;
   };
 
+  const googleLogin = async (credential) => {
+    const { data } = await authAPI.googleLogin(credential);
+    clearApiCache();
+    localStorage.setItem('token', data.token);
+    setUser(data.user);
+    setTenant(data.tenant);
+    return data;
+  };
+
   const signup = async (formData) => {
     const { data } = await authAPI.signup(formData);
     clearApiCache();
@@ -79,7 +88,7 @@ export const AuthProvider = ({ children }) => {
   setWorkspaceLocale({ country: tenant?.country, currency: tenant?.currency });
 
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, signup, acceptInvite, logout, refreshProfile }}>
+    <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, googleLogin, signup, acceptInvite, logout, refreshProfile }}>
       {children}
     </AuthContext.Provider>
   );
