@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { RotateCcw } from 'lucide-react';
+import { RotateCcw, X } from 'lucide-react';
+import LeadDetailPage from './LeadDetailPage';
 import { voiceAPI } from '../services/api';
 import { loadRazorpay } from '../utils/razorpay';
 import { useToast } from '../components/ui/Toast';
@@ -47,6 +48,7 @@ const History = ({ isAdmin }) => {
   const s = useLoad(() => voiceAPI.listCalls({ limit: 200 }));
   const [f, setF] = useState(EMPTY_FILTERS);
   const [picked, setPicked] = useState(() => new Set());
+  const [viewLeadId, setViewLeadId] = useState(null);
 
   const all = useMemo(() => (s.data || []).filter(c => c.status !== 'authorized'), [s.data]); // an unused authorization is not a call
   const rows = useMemo(() => filterCalls(all, f, { dayOf: (v) => toDateTimeInput(v).slice(0, 10) }), [all, f]);
@@ -98,7 +100,7 @@ const History = ({ isAdmin }) => {
               <tr key={c.id}>
                 <td className="px-3 py-2 w-8">{canRetry(c) && <input type="checkbox" aria-label="Select for retry" checked={picked.has(c.id)} onChange={() => toggle(c.id)} />}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{fmt(c.started_at)}</td>
-                <td className="px-3 py-2">{c.lead_id ? <Link className="text-brand-600 hover:underline" to={`/leads/${c.lead_id}`}>Open lead</Link> : '\u2014'}</td>
+                <td className="px-3 py-2">{c.lead_id ? <button type="button" className="text-brand-600 hover:underline" onClick={() => setViewLeadId(c.lead_id)}>Open lead</button> : '\u2014'}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{names[c.agent_id] || (c.agent_id ? 'Agent' : '\u2014')}</td>
                 <td className="px-3 py-2 whitespace-nowrap">{c.to_number}</td>
                 <td className="px-3 py-2">
@@ -112,6 +114,22 @@ const History = ({ isAdmin }) => {
               </tr>);
           })}
         </Table>
+      )}
+      {viewLeadId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-8">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setViewLeadId(null)} />
+          <div className="relative bg-white rounded-2xl w-full max-w-6xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 z-[60] h-0">
+              <button type="button" onClick={() => setViewLeadId(null)} aria-label="Close"
+                className="absolute top-3 right-3 sm:top-4 sm:right-4 p-2 bg-white hover:bg-gray-100 rounded-full shadow border">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="p-4 sm:p-6">
+              <LeadDetailPage leadId={viewLeadId} onClose={() => setViewLeadId(null)} />
+            </div>
+          </div>
+        </div>
       )}
       <p className="text-xs text-gray-400">Showing the latest {all.length} call{all.length === 1 ? '' : 's'}.</p>
     </div>)}</Async>;
