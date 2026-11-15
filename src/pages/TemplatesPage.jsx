@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { suggestedTemplate } from '../utils/presetLibrary';
 import { whatsappAPI } from '../services/api';
 import TemplateCreateForm from '../components/whatsapp/TemplateCreateForm';
 import {
@@ -107,7 +108,11 @@ const TemplatesPage = () => {
   const [tokenExpired, setTokenExpired] = useState(false);
   const [status, setStatus] = useState('ALL');
   const [search, setSearch] = useState('');
-  const [creating, setCreating] = useState(false);
+  // ?suggest=<key> (from an automation preset) opens the create form with suggested wording to review and submit.
+  const [params, setParams] = useSearchParams();
+  const suggestion = suggestedTemplate(params.get('suggest'));
+  const [creating, setCreating] = useState(!!suggestion);
+  const closeCreate = () => { setCreating(false); if (params.get('suggest')) { const next = new URLSearchParams(params); next.delete('suggest'); setParams(next, { replace: true }); } };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,7 +147,7 @@ const TemplatesPage = () => {
   if (creating) {
     return (
       <div className="max-w-4xl mx-auto space-y-4">
-        <button onClick={() => setCreating(false)} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
+        <button onClick={closeCreate} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-800">
           <ArrowLeft size={14} /> Back to templates
         </button>
         <div className="bg-white rounded-2xl border p-5">
@@ -150,8 +155,9 @@ const TemplatesPage = () => {
             <Sparkles size={18} className="text-violet-600" /> Create template
           </h2>
           <TemplateCreateForm
-            onCancel={() => setCreating(false)}
-            onCreated={() => { setCreating(false); load(); }}
+            initial={suggestion}
+            onCancel={closeCreate}
+            onCreated={() => { closeCreate(); load(); }}
           />
         </div>
       </div>

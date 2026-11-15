@@ -27,6 +27,9 @@ function component(file, apis) {
   if(name.includes('utils/leadVariables'))return pureUtil('utils/leadVariables.js');
   if(name.includes('utils/sequenceStatus'))return pureUtil('utils/sequenceStatus.js');
   if(name.includes('utils/sequenceSteps'))return pureUtil('utils/sequenceSteps.js');
+  if(name.includes('utils/presetLibrary'))return pureUtil('utils/presetLibrary.js');
+  if(name.includes('utils/templateCheck'))return pureUtil('utils/templateCheck.js');
+  if(name.includes('/PresetSetup'))return{__esModule:true,default:component('pages/LeadAutomation/PresetSetup.jsx',apis)};
   if(name.includes('utils/automationInsights'))return pureUtil('utils/automationInsights.js');
   if(name.includes('utils/failureReason'))return pureUtil('utils/failureReason.js');
   if(name==='react-router-dom')return{Link:({to,children})=>React.createElement('a',{href:to},children)};
@@ -198,5 +201,37 @@ test('the sequence list offers Results only when a handler is given',async()=>{
  await act(async()=>r.root.findByProps({'aria-label':'See results for sequence A'}).props.onClick());assert.deepEqual(got,['s1']);
  await act(async()=>{r.update(React.createElement(List,{sequences:seqs,rules:[],isAdmin:true,triggerLabel:()=>'',onEdit(){},onToggle(){},onDuplicate(){},onDelete(){}}));});
  assert.equal(r.root.findAllByProps({'aria-label':'See results for sequence A'}).length,0);
+ await act(async()=>r.unmount());
+});
+
+test('a preset shows its templates and how to get missing ones, needs a stage, and opens the editor with its stop rules',async()=>{
+ const approved={name:'demo_confirmation',status:'APPROVED',language:'en_US',category:'UTILITY',components:[{type:'BODY',text:'Hi {{1}}'}]};
+ const stages=[{id:'1',name:'New'},{id:'2',name:'Demo Booked'},{id:'3',name:'Lost',is_lost:true}];
+ const empty=async()=>({data:{}});
+ const Builder=component('pages/LeadAutomation/AutomationBuilder.jsx',{automationAPI:{getSequences:async()=>({data:{sequences:[]}}),getRules:async()=>({data:{rules:[]}})},stageAPI:{getAll:empty},statusAPI:{getAll:empty,byStage:async()=>({data:{stages}})},campaignAPI:{getAll:empty},templateAPI:{getAll:empty},whatsappAPI:{getBroadcastTemplates:async()=>({data:{templates:[approved]}}),hubOptIns:async()=>({data:{}})}});
+ let r;await act(async()=>{r=create(React.createElement(Builder));});
+ const cards=r.root.findAllByType('button').filter(b=>b.findAllByType('p').some(p=>textOf(p.children).includes('Demo booking and reminders')));
+ assert.equal(cards.length,1);
+ await act(async()=>cards[0].props.onClick());
+ const text=()=>textOf(r.toJSON()).replace(/\s+/g,' ').replace(/ ([.:,%])/g,'$1');
+ // the stage was suggested from the workspace's own names, a lost stage is not offered, and templates show their state
+ assert.equal(r.root.findByProps({'aria-label':'Trigger stage'}).props.value,'Demo Booked');
+ assert.deepEqual(r.root.findByProps({'aria-label':'Trigger stage'}).findAllByType('option').map(o=>o.props.value),['','New','Demo Booked']);
+ assert.ok(text().includes('demo_confirmation')&&text().includes('Approved and ready')&&text().includes('You do not have this template yet.'));
+ assert.equal(r.root.findAllByType('a').find(a=>a.props.href==='/whatsapp?tab=templates&suggest=demo_reminder')?.props.href,'/whatsapp?tab=templates&suggest=demo_reminder');
+ assert.equal(r.root.findAllByType('a').some(a=>a.props.href.includes('suggest=demo_confirmation')),false,'an approved template needs no creation link');
+ // no stage, no continue
+ await act(async()=>r.root.findByProps({'aria-label':'Trigger stage'}).props.onChange({target:{value:''}}));
+ const go=()=>r.root.findAllByType('button').find(b=>str(b)==='Review and edit');
+ assert.equal(go().props.disabled,true);
+ await act(async()=>r.root.findByProps({'aria-label':'Trigger stage'}).props.onChange({target:{value:'Demo Booked'}}));
+ assert.equal(go().props.disabled,false);
+ await act(async()=>go().props.onClick());
+ // the editor opens: the confirmation uses the approved template, the reminder keeps plain text, and replies do not stop this preset
+ const all=text();
+ assert.ok(all.includes('New Sequence')&&all.includes('Demo booking and reminders')&&all.includes('Stage → Demo Booked')&&all.includes('Send the template “demo_confirmation” straight away'));
+ const boxes=r.root.findAllByType('input').filter(i=>i.props.type==='checkbox');
+ const stop=label=>boxes.find(b=>textOf(b.parent.children).includes(label)).props.checked;
+ assert.equal(stop('Stop when the lead replies'),false);assert.equal(stop('Stop when the lead becomes a customer'),true);assert.equal(stop('Stop when a demo is booked'),false);
  await act(async()=>r.unmount());
 });

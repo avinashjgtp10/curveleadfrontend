@@ -11,6 +11,8 @@ import WelcomeStatusCard from '../../components/whatsapp/WelcomeStatusCard';
 import { toggleAction, duplicatePayload, stepPayload } from '../../utils/sequenceStatus';
 import SequenceList from './SequenceList';
 import SequenceResults from './SequenceResults';
+import PresetSetup from './PresetSetup';
+import { PRESETS, suggestStage } from '../../utils/presetLibrary';
 
 const defaultStops = { on_reply: true, demo_booked: false, customer_converted: false };
 const emptyStep = () => ({ always_template: false, template_language: '', template_parameters: [], reply_routes: [], channel: 'whatsapp', delay_minutes: 0, delay_unit: 'hours', message: '', email_subject: '', approved_template_name: '', ai_generated: false, ai_instructions: '', media: [], business_hours_only: false });
@@ -24,37 +26,6 @@ const TRIGGER_LABEL = (r, campaigns) => {
   if (r.trigger_type === 'lead_status') return `Status → ${r.status_value}`;
   return `Stage → ${r.stage_name}`;
 };
-
-// Quick-start presets — common real-world automations built from the two
-// trigger types and two step channels the backend actually supports today.
-// Picking one pre-fills both the New Sequence and New Rule forms.
-const SCENARIO_PRESETS = [
-  {
-    label: 'Welcome new leads',
-    description: 'Send an instant WhatsApp greeting the moment a lead comes in.',
-    sequence: { name: 'New Lead Welcome', description: 'Instant greeting for every new lead.', steps: [
-      { channel: 'whatsapp', delay_minutes: 0, message: 'Hi {{name}}, thanks for reaching out! We’ll get back to you shortly.', email_subject: '' },
-    ] },
-    rule: { name: 'Welcome new leads', trigger_type: 'new_lead', stage_name: '' },
-  },
-  {
-    label: 'Nudge leads stuck in a stage',
-    description: 'Follow up a lead a few hours after they reach a given stage.',
-    sequence: { name: 'Stage Follow-up', description: 'Check in after a lead reaches a stage.', steps: [
-      { channel: 'whatsapp', delay_minutes: 180, message: 'Hi {{name}}, just checking in — do you have any questions so far?', email_subject: '' },
-    ] },
-    rule: { name: 'Follow up in stage', trigger_type: 'stage_change', stage_name: '' },
-  },
-  {
-    label: 'Multi-touch nurture',
-    description: 'A same-day WhatsApp message followed by a next-day email.',
-    sequence: { name: 'New Lead Nurture', description: 'WhatsApp on day 0, email on day 1.', steps: [
-      { channel: 'whatsapp', delay_minutes: 0, message: 'Hi {{name}}, thanks for your interest! We’ll follow up with more details soon.', email_subject: '' },
-      { channel: 'email', delay_minutes: 1440, message: 'Hi {{name}}, following up on your enquiry — happy to answer any questions.', email_subject: 'Following up on your enquiry' },
-    ] },
-    rule: { name: 'New lead nurture', trigger_type: 'new_lead', stage_name: '' },
-  },
-];
 
 // part: 'automation' = quick start, sequences and triggers only (the WhatsApp tab); otherwise everything, including assignment rules.
 const AutomationBuilder = ({ part } = {}) => {
@@ -82,6 +53,9 @@ const AutomationBuilder = ({ part } = {}) => {
   const [approvedTemplates, setApprovedTemplates] = useState([]);
   const [optIn, setOptIn] = useState(null);
   const [resultsFor, setResultsFor] = useState(null);
+  const [allTemplates, setAllTemplates] = useState([]);
+  const [templatesKnown, setTemplatesKnown] = useState(false);
+  const [setup, setSetup] = useState(null);
 
   useEffect(() => { loadSequences(); loadRules(); loadStages(); loadCampaigns(); loadMessageTemplates(); loadApprovedTemplates(); loadLeadStatuses(); }, []);
 
@@ -106,6 +80,8 @@ const AutomationBuilder = ({ part } = {}) => {
     try {
       const { data } = await whatsappAPI.getBroadcastTemplates();
       setApprovedTemplates((data.templates || []).filter(t => t.status === 'APPROVED'));
+      setAllTemplates(data.templates || []);
+      setTemplatesKnown(true);
     } catch (e) { /* not connected / not permitted — picker stays empty */ }
     try { setOptIn((await whatsappAPI.hubOptIns()).data?.summary || null); } catch (e) { /* the review just omits the counts */ }
   };
@@ -145,7 +121,7 @@ const AutomationBuilder = ({ part } = {}) => {
 
   const openCreateSeq = (preset) => {
     setEditingSeq(null);
-    setSeqForm(preset ? { ...preset, is_active: false, stop_conditions: { ...defaultStops }, steps: preset.steps.map(s => ({ ...s })) } : { name: '', description: '', is_active: false, stop_conditions: { ...defaultStops }, steps: [emptyStep()] });
+    setSeqForm(preset ? { ...preset, is_active: false, stop_conditions: preset.stop_conditions ? { on_reply: false, demo_booked: false, customer_converted: false, ...preset.stop_conditions } : { ...defaultStops }, steps: preset.steps.map(s => ({ ...emptyStep(), ...s })) } : { name: '', description: '', is_active: false, stop_conditions: { ...defaultStops }, steps: [emptyStep()] });
     setSeqErrors({});
     setSeqModal(true);
   };
@@ -309,9 +285,11 @@ const AutomationBuilder = ({ part } = {}) => {
     } catch (e) { toast.error('Failed to delete'); }
   };
 
-  const useScenario = (scenario) => {
-    setPendingRulePreset(scenario.rule);
-    openCreateSeq(scenario.sequence);
+  const choosePreset = (preset) => setSetup({ preset, stageName: suggestStage(stages, preset.trigger) });
+  const continueWithPreset = (built) => {
+    setPendingRulePreset(built.rule);
+    openCreateSeq(built.sequence);
+    setSetup(null);
   };
 
   const isAdmin = ['admin','super_admin'].includes(user?.role);
@@ -333,9 +311,9 @@ const AutomationBuilder = ({ part } = {}) => {
             <p className="text-xs text-gray-400 mt-0.5">Pick a goal to prefill the sequence and what starts it. You review everything, including WhatsApp rules, before anything is turned on.</p>
           </div>
         </div>
-        <div className="grid sm:grid-cols-3 gap-3">
-          {SCENARIO_PRESETS.map(sc => (
-            <button key={sc.label} onClick={() => useScenario(sc)} disabled={!isAdmin}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {PRESETS.map(sc => (
+            <button key={sc.id} onClick={() => choosePreset(sc)} disabled={!isAdmin}
               className="text-left border rounded-xl p-3.5 hover:border-brand-300 hover:shadow-sm transition-all disabled:opacity-50 disabled:cursor-not-allowed">
               <p className="font-semibold text-sm text-gray-800">{sc.label}</p>
               <p className="text-xs text-gray-500 mt-1">{sc.description}</p>
@@ -420,6 +398,9 @@ const AutomationBuilder = ({ part } = {}) => {
       </div>
 
       {part !== 'automation' && <AssignmentRulesSection />}
+
+      {setup && <PresetSetup preset={setup.preset} stages={stages} templates={allTemplates} templatesKnown={templatesKnown} stageName={setup.stageName}
+        onStageChange={(name) => setSetup((x) => ({ ...x, stageName: name }))} onContinue={continueWithPreset} onClose={() => setSetup(null)} />}
 
       {resultsFor && <SequenceResults sequence={resultsFor} onClose={() => setResultsFor(null)} />}
 
