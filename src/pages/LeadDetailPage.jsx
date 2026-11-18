@@ -425,7 +425,20 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
     try {
       const { stage, lead_status, ...updateFields } = form;
       await leadAPI.update(id, updateFields);
-      const { data } = await leadAPI.getOne(id);
+      let data;
+      try {
+        ({ data } = await leadAPI.getOne(id));
+      } catch (fetchErr) {
+        // The save succeeded, but the lead is no longer visible to this user —
+        // it was reassigned to another staff member. Don't report that as an error.
+        const reassigned = fetchErr.response?.status === 404 && (form.assigned_to || null) !== (lead?.assigned_to || null);
+        if (!reassigned) throw fetchErr;
+        toast.success('Lead reassigned');
+        setEditing(false);
+        setLeadFormErrors({});
+        if (onClose) onClose(); else navigate('/leads');
+        return;
+      }
       setLead(data.lead);
       setForm(data.lead);
       setFollowups(data.followups || []);
