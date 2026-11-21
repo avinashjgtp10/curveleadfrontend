@@ -177,7 +177,7 @@ const InlineSelect = ({ value, onChange, options, disabled, placeholder, ringCol
   );
 };
 
-const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = {}) => {
+const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext, autoCall, onOpenLead } = {}) => {
   const confirm = useConfirmDialog();
   const toast = useToast();
   const { id: routeId } = useParams();
@@ -292,11 +292,12 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
 
   // Deep link from the Calling page ("Retry"): /leads/:id?autocall=1 starts the call once, and drops this lead from the retry queue.
   useEffect(() => {
-    if (!lead?.id || autoCalled.current || searchParams.get('autocall') !== '1') return;
+    const fromUrl = searchParams.get('autocall') === '1';
+    if (!lead?.id || autoCalled.current || !(autoCall || fromUrl)) return;
     autoCalled.current = true;
     setCallStartSignal(n => n + 1);
     saveQueue(retryQueue.filter(q => q !== lead.id));
-    const next = new URLSearchParams(searchParams); next.delete('autocall'); setSearchParams(next, { replace: true });
+    if (fromUrl) { const next = new URLSearchParams(searchParams); next.delete('autocall'); setSearchParams(next, { replace: true }); }
   }, [lead?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Follow-up history with pagination
@@ -798,7 +799,7 @@ const LeadDetailPage = ({ leadId, onClose, onPrev, onNext, hasPrev, hasNext } = 
           <div role="status" className="flex items-center justify-between gap-2 rounded-lg bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-900">
             <span>Retry queue: {retryQueue.length} more lead{retryQueue.length === 1 ? '' : 's'} to call.</span>
             <span className="flex gap-3 font-semibold">
-              <button type="button" onClick={() => { const [next, ...rest] = retryQueue; saveQueue(rest); navigate(`/leads/${next}?autocall=1`); }} className="underline">Next lead</button>
+              <button type="button" onClick={() => { const [next, ...rest] = retryQueue; saveQueue(rest); if (onOpenLead) onOpenLead(next); else navigate(`/leads/${next}?autocall=1`); }} className="underline">Next lead</button>
               <button type="button" onClick={() => saveQueue([])} className="underline">Stop</button>
             </span>
           </div>
