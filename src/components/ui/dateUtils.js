@@ -1,4 +1,4 @@
-import { intlLocale } from '../../utils/locale';
+import { intlLocale } from '../../utils/locale.js';
 // Shared date/time helpers for DatePicker and DateTimePicker — no external
 // date library, just plain Date math, matching the string formats native
 // <input type="date"> ('YYYY-MM-DD') and <input type="datetime-local">
@@ -50,7 +50,15 @@ export const buildMonthMatrix = (year, month) => {
 };
 
 // All 15-minute-increment times in a day, as Date objects on the given day.
-export const buildTimeOptions = (onDay) => {
+// 15-minute slots for the day of `onDay`. When `exact` (the currently selected time) falls between slots, e.g.
+// "Today" picking 12:43, it is inserted in order so it shows highlighted and the list scrolls to it.
+export const buildTimeOptions = (onDay, exact = null) => {
   const base = new Date(onDay.getFullYear(), onDay.getMonth(), onDay.getDate());
-  return Array.from({ length: 96 }, (_, i) => new Date(base.getTime() + i * 15 * 60000));
+  const slots = Array.from({ length: 96 }, (_, i) => new Date(base.getTime() + i * 15 * 60000));
+  if (!exact || exact.getMinutes() % 15 === 0) return slots;
+  const extra = new Date(base);
+  extra.setHours(exact.getHours(), exact.getMinutes(), 0, 0);
+  const at = slots.findIndex((t) => t > extra);
+  slots.splice(at === -1 ? slots.length : at, 0, extra);
+  return slots;
 };
