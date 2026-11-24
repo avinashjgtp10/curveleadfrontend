@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Phone, ChevronDown, Loader2, AlertTriangle, X } from 'lucide-react';
 import { leadAPI, voiceAPI, settingsAPI, playbookAPI } from '../../services/api';
 import { fillScript, formatDuration, isFirstCall, playbookTips } from '../../utils/voiceCall';
@@ -9,11 +10,13 @@ import PitchPanel from './PitchPanel';
 import CallDrawer from './CallDrawer';
 import Button from '../ui/Button';
 
-const Overlay = ({ children, onClose }) => (
-  <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+// Portaled to <body> so page headers/transformed ancestors can't cover or clip the modal.
+const Overlay = ({ children, onClose }) => createPortal(
+  <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
     <div className="fixed inset-0 bg-black/50" onClick={onClose} />
     <div className="relative bg-white rounded-2xl w-full max-w-sm max-h-[90vh] overflow-y-auto shadow-2xl">{children}</div>
-  </div>
+  </div>,
+  document.body
 );
 
 const DRAWER_PHASES = ['connecting', 'ringing', 'active', 'held', 'ended', 'error'];
