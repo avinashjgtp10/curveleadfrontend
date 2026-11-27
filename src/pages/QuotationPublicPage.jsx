@@ -32,7 +32,7 @@ const QuotationPublicPage = () => {
   );
 
   // This quotation's own currency and country, whoever is viewing it.
-  const qm = (v) => formatMoney(parseFloat(v), data.currency, { country: data.business_country, decimals: 2 });
+  const qm = (v) => formatMoney(parseFloat(v), data.currency, { country: data.business_country, decimals: 2, convert: false });
   const taxLabel = (key, fallback) => countryProfile(data.business_country).tax.find(f => f.key === key)?.label || fallback;
 
   return (

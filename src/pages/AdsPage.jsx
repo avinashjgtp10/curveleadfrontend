@@ -245,7 +245,7 @@ const AdsPage = ({ provider = 'meta' }) => {
     setBusyId(budgetEdit.row.id);
     try {
       await adsAPI.setBudget(entityLevel, budgetEdit.row.id, Math.round(rupees * 100));
-      toast.success(`Daily budget for ${budgetEdit.row.name} set to ${inr(rupees, cur)}.`);
+      toast.success(`Daily budget for ${budgetEdit.row.name} set to ${formatMoney(rupees, cur, { convert: false })}.`);
       setBudgetEdit(null);
       setReload((n) => n + 1);
     } catch (e) { toast.error(e.response?.data?.error || `Could not change the budget on ${P.name}.`); }

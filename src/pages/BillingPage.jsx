@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { CheckCircle, CreditCard, DollarSign, Loader2, ShieldCheck, Users, Zap } from 'lucide-react';
 import { paymentAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
+import { workspaceCurrency, convertAmount } from '../utils/locale';
 
 const planCopy = {
   Free: {
@@ -52,13 +53,15 @@ const loadRazorpay = () => new Promise((resolve, reject) => {
   document.body.appendChild(script);
 });
 
-const formatPrice = (amount, currency = 'USD') => {
+const formatPrice = (amount, currency = 'USD', { convert = false } = {}) => {
   if (!amount) return 'Free';
+  const shown = convert ? workspaceCurrency() : currency;
+  const value = convert ? convertAmount(amount / 100, currency, shown) : amount / 100;
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency,
+    currency: shown,
     maximumFractionDigits: 0,
-  }).format(amount / 100);
+  }).format(value);
 };
 
 const BillingPage = () => {
@@ -230,10 +233,13 @@ const BillingPage = () => {
               {plan.name !== 'Free' && (
                 <div className="mt-5 flex items-end gap-1">
                   <span className="text-3xl font-extrabold text-gray-950">
-                    {plan.name === 'Pro' ? 'Custom' : formatPrice(amount, currency)}
+                    {plan.name === 'Pro' ? 'Custom' : formatPrice(amount, currency, { convert: true })}
                   </span>
                   {amount > 0 && plan.name !== 'Pro' && <span className="pb-1 text-sm text-gray-500">/{billingPeriod === 'yearly' ? 'yr' : 'mo'}</span>}
                 </div>
+              )}
+              {plan.name !== 'Free' && plan.name !== 'Pro' && amount > 0 && currency !== workspaceCurrency() && (
+                <p className="mt-1 text-[11px] text-gray-400">Approximate. You are billed {formatPrice(amount, currency)}{billingPeriod === 'yearly' ? '/yr' : '/mo'} at checkout.</p>
               )}
               {billingPeriod === 'yearly' && selectedPrice && (
                 <p className="mt-2 text-xs font-semibold text-green-700">Two months free</p>

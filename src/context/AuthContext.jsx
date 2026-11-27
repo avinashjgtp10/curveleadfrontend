@@ -1,6 +1,6 @@
 import { setWorkspaceTimezone } from '../utils/dateTime';
-import { setWorkspaceLocale } from '../utils/locale';
-import { createContext, useContext, useState, useEffect } from 'react';
+import { setWorkspaceLocale, setLegacyCurrency, loadRates } from '../utils/locale';
+import { createContext, useContext, useState, useEffect, Fragment } from 'react';
 import { authAPI, clearApiCache } from '../services/api';
 
 const AuthContext = createContext();
@@ -9,6 +9,10 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [tenant, setTenant] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [ratesVersion, setRatesVersion] = useState(0);
+
+  // Daily exchange rates, so amounts recorded in another currency show in the workspace currency.
+  useEffect(() => { loadRates().then((fresh) => { if (fresh) setRatesVersion((v) => v + 1); }); }, []);
 
   useEffect(() => {
     let active = true;
@@ -30,6 +34,11 @@ export const AuthProvider = ({ children }) => {
     setUser(data.user);
     setTenant(data.tenant);
     return data;
+  };
+
+  // Apply a just-saved country/currency at once, so every screen formats with it even if /me lags behind.
+  const applyWorkspaceLocale = (patch) => {
+    setTenant((t) => (t ? { ...t, ...patch, settings: { ...(t.settings || {}), ...patch } } : t));
   };
 
   const login = async (credentials) => {
@@ -86,10 +95,11 @@ export const AuthProvider = ({ children }) => {
 
   setWorkspaceTimezone(tenant?.settings?.timezone || tenant?.timezone || 'Asia/Kolkata');
   setWorkspaceLocale({ country: tenant?.country, currency: tenant?.currency });
+  setLegacyCurrency(tenant?.settings?.currency_history?.[0]?.from);
 
   return (
-    <AuthContext.Provider value={{ user, tenant, loading, login, verifyOtp, googleLogin, signup, acceptInvite, logout, refreshProfile }}>
-      {children}
+    <AuthContext.Provider value={{ user, tenant, applyWorkspaceLocale, loading, login, verifyOtp, googleLogin, signup, acceptInvite, logout, refreshProfile }}>
+      <Fragment key={ratesVersion}>{children}</Fragment>
     </AuthContext.Provider>
   );
 };

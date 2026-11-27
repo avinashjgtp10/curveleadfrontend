@@ -12,6 +12,44 @@ export function intlLocale(country = workspace.country) {
   try { return Intl.NumberFormat.supportedLocalesOf([tag]).length ? tag : 'en'; } catch { return 'en'; }
 }
 
+// --- Exchange rates -------------------------------------------------------------
+// Amounts are stored in the currency they were recorded in. For display they are converted
+// into the workspace currency with daily rates (open.er-api.com, no key, cached 12 h).
+// Nothing in the database is rewritten, and if rates can't be loaded amounts show as stored.
+const RATES_KEY = 'fx_rates_v1';
+const RATES_TTL = 12 * 3600 * 1000;
+let fx = null; // { at, rates: { USD: 1, INR: 83.2, ... } }
+try { const c = JSON.parse(localStorage.getItem(RATES_KEY) || 'null'); if (c?.rates) fx = c; } catch { /* no cache */ }
+
+// For tests and previews: use these USD-based rates instead of the downloaded ones.
+export const setRates = (rates) => { fx = rates ? { at: Date.now(), rates } : null; };
+export const ratesReady = () => !!fx?.rates;
+export async function loadRates() {
+  if (fx && Date.now() - fx.at < RATES_TTL) return false;
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/USD');
+    const j = await res.json();
+    if (j?.result === 'success' && j.rates) {
+      fx = { at: Date.now(), rates: j.rates };
+      try { localStorage.setItem(RATES_KEY, JSON.stringify(fx)); } catch { /* storage full or blocked */ }
+      return true;
+    }
+  } catch { /* offline: keep whatever we have */ }
+  return false;
+}
+export function convertAmount(amount, from, to) {
+  if (!from || !to || from === to || !fx?.rates?.[from] || !fx?.rates?.[to]) return Number(amount);
+  return (Number(amount) / fx.rates[from]) * fx.rates[to];
+}
+
+// Amounts saved without a currency of their own (deal values, advances) were entered in the
+// currency the workspace used first; after a switch they are converted from that one.
+let legacyCurrency = DEFAULT_LOCALE.currency;
+export const setLegacyCurrency = (c) => { legacyCurrency = validCurrency(c) ? c : DEFAULT_LOCALE.currency; };
+
+// A amount saved without its own currency, expressed in the workspace currency.
+export const convertLegacy = (amount) => convertAmount(amount, legacyCurrency, workspace.currency);
+
 export function setWorkspaceLocale({ country, currency } = {}) {
   workspace = {
     ...workspace,
@@ -25,11 +63,13 @@ export const workspaceCountry = () => workspace.country;
 // formatMoney(1250) → "₹1,250" in an India workspace, "AED 1,250" in a UAE one.
 // currency: the amount's own currency when known (an ad account's, a quotation's).
 // country: whose digit grouping to use when it isn't this workspace's (a public quote page).
-export function formatMoney(amount, currency, { decimals, compact = false, country } = {}) {
+export function formatMoney(amount, currency, { decimals, compact = false, country, convert = true } = {}) {
   if (amount === null || amount === undefined || amount === '') return '—';
-  const n = Number(amount);
-  if (!Number.isFinite(n)) return '—';
-  const cur = validCurrency(currency) ? currency : workspace.currency;
+  if (!Number.isFinite(Number(amount))) return '—';
+  const src = validCurrency(currency) ? currency : legacyCurrency;
+  // convert:false keeps the amount in its own currency (a quotation document, a per-currency list).
+  const cur = convert ? workspace.currency : src;
+  const n = convert ? convertAmount(Number(amount), src, cur) : Number(amount);
   const opts = { style: 'currency', currency: cur };
   if (compact) Object.assign(opts, { notation: 'compact', maximumFractionDigits: 1 });
   else if (decimals != null) Object.assign(opts, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -51,7 +91,7 @@ export function currencySymbol(currency = workspace.currency) {
 export function formatMoneyByCurrency(spendByCurrency, fallback = '—') {
   const entries = Object.entries(spendByCurrency || {}).filter(([, v]) => v != null);
   if (!entries.length) return fallback;
-  return entries.map(([cur, v]) => formatMoney(v, cur)).join(' + ');
+  return entries.map(([cur, v]) => formatMoney(v, cur, { convert: false })).join(' + ');
 }
 export const isMixedCurrency = (spendByCurrency) => Object.keys(spendByCurrency || {}).length > 1;
 
@@ -88,7 +128,16 @@ export const COUNTRIES = [
   ['KE', 'Kenya', 'KES', 'Africa/Nairobi'],
 ].map(([code, name, currency, timezone]) => ({ code, name, currency, timezone }));
 
-export const CURRENCIES = [...new Set(COUNTRIES.map(c => c.currency))];
+const COUNTRY_CURRENCIES = [...new Set(COUNTRIES.map(c => c.currency))];
+// Every ISO currency the browser knows (workspace countries first), not just the listed countries' own.
+export const CURRENCIES = (() => {
+  try { return [...new Set([...COUNTRY_CURRENCIES, ...Intl.supportedValuesOf('currency')])]; } catch { return COUNTRY_CURRENCIES; }
+})();
+
+// "INR · Indian Rupee"
+export function currencyName(code) {
+  try { return new Intl.DisplayNames(['en'], { type: 'currency' }).of(code) || code; } catch { return code; }
+}
 
 export function timezones() {
   try { return Intl.supportedValuesOf('timeZone'); } catch { return [...new Set(COUNTRIES.map(c => c.timezone))]; }
