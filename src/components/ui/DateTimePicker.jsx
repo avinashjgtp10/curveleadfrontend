@@ -74,7 +74,7 @@ const DateTimePicker = ({ value, onChange, placeholder = 'Select date & time', m
     setOpen(false);
   };
 
-  const timeOptions = buildTimeOptions(selected || new Date());
+  const timeOptions = buildTimeOptions(selected || new Date(), selected);
   const isTimeDisabled = (t) => minDate && selected && isSameDay(selected, minDate) && t < minDate;
 
   return (
