@@ -11,7 +11,13 @@ export const ONBOARDING_STEPS = [
   ["sequence", "Create first sequence", "/whatsapp?tab=sequences"],
   ["team", "Invite team", "/staff"],
 ];
-const overviewClient = new QueryClient();
+// React Query's defaults (3 retries with backoff, refetch on every window focus and reconnect) stacked on top of
+// the axios 429 retry in services/api.js: one failed request was sent ~11 times in a minute, each counted against
+// the rate limit. The overview is cheap to refresh on mount (60s staleTime), so: no query-level retry (axios
+// already retries a short 429 once or twice) and no refetch just because the window regained focus.
+const overviewClient = new QueryClient({
+  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false } },
+});
 export function useOverview() {
   const { user, tenant } = useAuth();
   return useQuery(
