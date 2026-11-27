@@ -1,4 +1,5 @@
 // Pure helpers for the calling UI (no React, no SDK) so they can be unit-tested.
+import { workspaceCurrency, convertAmount } from './locale.js';
 
 // Telnyx SDK call states -> what the UI shows. Unknown states are treated as "connecting" (never "active").
 export const mapSdkState = (state) => {
@@ -19,10 +20,13 @@ export const formatDuration = (seconds) => {
 };
 
 // Minor units (paise/fils/cents, string or number) -> display. Display only; never used for arithmetic.
-export const formatMinor = (minor, currency = 'INR') => {
+// Shown in the workspace currency; pass { convert: false } where the exact amount charged matters (a payment button).
+export const formatMinor = (minor, currency = 'INR', { convert = true } = {}) => {
   if (minor === null || minor === undefined) return '—';
-  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(Number(minor) / 100); }
-  catch { return `${currency} ${(Number(minor) / 100).toFixed(2)}`; }
+  const shown = convert ? workspaceCurrency() : currency;
+  const amount = convert ? convertAmount(Number(minor) / 100, currency, shown) : Number(minor) / 100;
+  try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: shown }).format(amount); }
+  catch { return `${shown} ${amount.toFixed(2)}`; }
 };
 
 export const OUTCOMES = [

@@ -15,12 +15,13 @@ import {
 } from 'lucide-react';
 import StatCard from '../components/ui/StatCard';
 import StageBars from '../components/ui/StageBars';
-import { workspaceCurrency } from '../utils/locale';
+import { workspaceCurrency, convertAmount, convertLegacy } from '../utils/locale';
 
-// Revenue is in the workspace currency, spend in the ad account's — only divide like with like.
+// Revenue and spend are both brought into the workspace currency before dividing, so the ratio compares like with like.
 const roas = (c) => {
-  const spend = Number(c.spend), revenue = Number(c.revenue);
-  if (!spend || !revenue || (c.currency && c.currency !== workspaceCurrency())) return '—';
+  const spend = convertAmount(Number(c.spend), c.currency || workspaceCurrency(), workspaceCurrency());
+  const revenue = convertLegacy(Number(c.revenue));
+  if (!spend || !revenue) return '—';
   return `${(revenue / spend).toFixed(1)}×`;
 };
 import EmptyState from '../components/ui/EmptyState';

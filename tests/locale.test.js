@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { formatMoney, formatNumber, formatMoneyByCurrency, setWorkspaceLocale, currencySymbol, countryProfile, bankLabel, COUNTRIES } from '../src/utils/locale.js';
+import { formatMoney, formatNumber, formatMoneyByCurrency, setWorkspaceLocale, setRates, currencySymbol, countryProfile, bankLabel, COUNTRIES } from '../src/utils/locale.js';
 import { formatDateTime, setWorkspaceTimezone } from '../src/utils/dateTime.js';
 
 // Batch 1 (E): no hardcoded ₹ / en-IN — the workspace's country and currency decide.
@@ -14,10 +14,13 @@ test('India workspace: rupees with lakh grouping, compact in L / Cr', () => {
   assert.equal(formatNumber(1234567), '12,34,567');
 });
 
-test('UAE workspace: dirhams with thousand grouping; an amount keeps its own currency', () => {
+test('UAE workspace: dirhams with thousand grouping; other currencies are converted for display', () => {
   setWorkspaceLocale({ country: 'AE', currency: 'AED' });
-  assert.equal(plain(formatMoney(125000)), 'AED 125,000');
-  assert.equal(formatMoney(30, 'USD'), '$30', 'ad account in USD is shown in USD, not converted');
+  setRates({ USD: 1, AED: 3.6725, INR: 83 });
+  assert.equal(plain(formatMoney(125000, 'AED')), 'AED 125,000');
+  assert.equal(plain(formatMoney(30, 'USD')), 'AED 110.18', '30 USD at 3.6725');
+  assert.equal(formatMoney(30, 'USD', { convert: false }), '$30', 'convert:false keeps the amount in its own currency');
+  setRates(null);
   assert.equal(formatNumber(1234567), '1,234,567');
   assert.equal(currencySymbol(), 'AED');
   setWorkspaceLocale({ country: 'IN', currency: 'INR' });
@@ -37,7 +40,7 @@ test('mixed currencies are listed side by side, never summed', () => {
 
 test('a public quote uses the quote’s country, not the viewer’s workspace', () => {
   setWorkspaceLocale({ country: 'IN', currency: 'INR' });
-  assert.equal(plain(formatMoney(125000, 'AED', { country: 'AE', decimals: 2 })), 'AED 125,000.00');
+  assert.equal(plain(formatMoney(125000, 'AED', { country: 'AE', decimals: 2, convert: false })), 'AED 125,000.00');
 });
 
 test('tax and bank fields follow the country', () => {

@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
 import { RotateCcw, X } from 'lucide-react';
 import LeadDetailPage from './LeadDetailPage';
 import { voiceAPI } from '../services/api';
@@ -42,13 +41,15 @@ const SELECT = 'px-2.5 py-1.5 border rounded-lg text-sm bg-white';
 const EMPTY_FILTERS = { agent: '', status: '', outcome: '', from: '', to: '' };
 
 const History = ({ isAdmin }) => {
-  const navigate = useNavigate();
   const names = useStaffNames();
   // The API returns the latest 200 calls; filters apply to those.
   const s = useLoad(() => voiceAPI.listCalls({ limit: 200 }));
   const [f, setF] = useState(EMPTY_FILTERS);
   const [picked, setPicked] = useState(() => new Set());
-  const [viewLeadId, setViewLeadId] = useState(null);
+  // Lead popup state: { id, autoCall } — never navigate away from the Calling page.
+  const [view, setView] = useState(null);
+  const viewLeadId = view?.id;
+  const setViewLeadId = (id) => setView(id ? { id, autoCall: false } : null);
 
   const all = useMemo(() => (s.data || []).filter(c => c.status !== 'authorized'), [s.data]); // an unused authorization is not a call
   const rows = useMemo(() => filterCalls(all, f, { dayOf: (v) => toDateTimeInput(v).slice(0, 10) }), [all, f]);
@@ -64,7 +65,7 @@ const History = ({ isAdmin }) => {
     const ids = [...new Set((picked.size ? retryable.filter(c => picked.has(c.id)) : retryable).map(c => c.lead_id))];
     if (!ids.length) return;
     try { sessionStorage.setItem('voiceRetryQueue', JSON.stringify(ids.slice(1))); } catch { /* storage unavailable: only the first lead is called */ }
-    navigate(`/leads/${ids[0]}?autocall=1`);
+    setView({ id: ids[0], autoCall: true });
   };
   const toggle = (id) => setPicked(p => { const n = new Set(p); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const filtered = JSON.stringify(f) !== JSON.stringify(EMPTY_FILTERS);
@@ -110,7 +111,7 @@ const History = ({ isAdmin }) => {
                 <td className="px-3 py-2">{durationText(c)}</td>
                 <td className="px-3 py-2">{chargeText(c)}</td>
                 <td className="px-3 py-2">{r.outcome ? outcomeLabel(r.outcome) : '\u2014'}</td>
-                <td className="px-3 py-2 text-right">{canRetry(c) && <Link to={`/leads/${c.lead_id}?autocall=1`} className="text-brand-600 hover:underline text-xs font-semibold whitespace-nowrap">Retry</Link>}</td>
+                <td className="px-3 py-2 text-right">{canRetry(c) && <button type="button" onClick={() => setView({ id: c.lead_id, autoCall: true })} className="text-brand-600 hover:underline text-xs font-semibold whitespace-nowrap">Retry</button>}</td>
               </tr>);
           })}
         </Table>
@@ -126,7 +127,8 @@ const History = ({ isAdmin }) => {
               </button>
             </div>
             <div className="p-4 sm:p-6">
-              <LeadDetailPage leadId={viewLeadId} onClose={() => setViewLeadId(null)} />
+              <LeadDetailPage key={`${view.id}:${view.autoCall}`} leadId={view.id} autoCall={view.autoCall}
+                onOpenLead={(id) => setView({ id, autoCall: true })} onClose={() => setView(null)} />
             </div>
           </div>
         </div>
@@ -189,7 +191,7 @@ const Recharge = ({ currency, onDone }) => {
       <input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" aria-label="Amount"
         className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
       <button onClick={pay} disabled={busy || !minor} className="h-9 px-4 rounded-lg bg-brand-600 text-white text-sm font-semibold disabled:opacity-50">
-        {busy ? 'Waiting for payment…' : `Pay ${minor ? formatMinor(minor, currency) : ''}`}</button>
+        {busy ? 'Waiting for payment…' : `Pay ${minor ? formatMinor(minor, currency, { convert: false }) : ''}`}</button>
     </div>
   );
 };
