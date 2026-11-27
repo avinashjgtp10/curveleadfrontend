@@ -191,7 +191,7 @@ const Recharge = ({ currency, onDone }) => {
       <input value={amount} onChange={e => setAmount(e.target.value)} inputMode="decimal" aria-label="Amount"
         className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-300" />
       <button onClick={pay} disabled={busy || !minor} className="h-9 px-4 rounded-lg bg-brand-600 text-white text-sm font-semibold disabled:opacity-50">
-        {busy ? 'Waiting for payment…' : `Pay ${minor ? formatMinor(minor, currency) : ''}`}</button>
+        {busy ? 'Waiting for payment…' : `Pay ${minor ? formatMinor(minor, currency, { convert: false }) : ''}`}</button>
     </div>
   );
 };

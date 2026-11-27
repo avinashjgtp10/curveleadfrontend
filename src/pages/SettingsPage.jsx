@@ -8,12 +8,12 @@ import { useAuth } from '../context/AuthContext';
 import { User, Building, CheckCircle, MessageSquare, Trash2, Plus, Edit2, Layers, GripVertical, X, ChevronDown, ChevronRight, Tag } from 'lucide-react';
 import { useConfirmDialog } from '../components/ui/ConfirmDialog';
 import { useToast } from '../components/ui/Toast';
-import { COUNTRIES, CURRENCIES, timezones, currencySymbol, countryProfile, bankLabel } from '../utils/locale';
+import { COUNTRIES, CURRENCIES, timezones, currencySymbol, currencyName, countryProfile, bankLabel } from '../utils/locale';
 
 const SettingsPage = () => {
   const confirm = useConfirmDialog();
   const toast = useToast();
-  const { user, tenant, refreshProfile } = useAuth();
+  const { user, tenant, refreshProfile, applyWorkspaceLocale } = useAuth();
   const [searchParams] = useSearchParams();
   const [tab, setTab] = useState(searchParams.get('tab') || 'profile');
   const [settings, setSettings] = useState({});
@@ -44,6 +44,7 @@ const SettingsPage = () => {
   const [businessOriginal, setBusinessOriginal] = useState(null);
   const [editingBusiness, setEditingBusiness] = useState(false);
   const [logoUploading, setLogoUploading] = useState(false);
+  const [currencySaving, setCurrencySaving] = useState(false);
 
   const [templates, setTemplates] = useState([]);
   const [tmplModal, setTmplModal] = useState(false);
@@ -137,8 +138,31 @@ const SettingsPage = () => {
       setEditingBusiness(false);
       showSaved();
       // Country, currency and timezone drive formatting everywhere — reload them.
-      if (['country', 'currency', 'timezone'].some(k => business[k] !== businessOriginal?.[k])) refreshProfile?.();
+      if (['country', 'currency', 'timezone'].some(k => business[k] !== businessOriginal?.[k])) refreshProfile?.()?.then?.(() => applyWorkspaceLocale?.({ country: business.country, currency: business.currency }));
     } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+  };
+
+  // Quick currency switch from My Profile: saves right away and refreshes every screen's formatting.
+  const handleCurrencyChange = async (currency) => {
+    const base = businessOriginal || business;
+    if (currency === base.currency) return;
+    const next = { ...base, currency };
+    setCurrencySaving(true);
+    try {
+      try {
+        await settingsAPI.update({ ...settings, ...next });
+      } catch (e) {
+        if (e.response?.status !== 409 || e.response?.data?.code !== 'CURRENCY_CHANGE_CONFIRM') throw e;
+        if (!window.confirm(`${e.response.data.error}\n\nChange the currency to ${e.response.data.to}?`)) return;
+        await settingsAPI.update({ ...settings, ...next, confirm_currency_change: true });
+      }
+      setBusiness(b => ({ ...b, currency }));
+      setBusinessOriginal(next);
+      showSaved();
+      await refreshProfile?.();
+      applyWorkspaceLocale?.({ currency }); // every screen now formats money in the chosen currency
+    } catch (e) { toast.error(e.response?.data?.error || 'Failed'); }
+    finally { setCurrencySaving(false); }
   };
 
   const handleCancelBusiness = () => {
@@ -382,6 +406,14 @@ const SettingsPage = () => {
                 <div>
                   <label className="block text-xs font-medium text-gray-500 mb-1">Role</label>
                   <input type="text" value={user?.role} disabled className="w-full px-3 py-2.5 border rounded-lg text-sm bg-gray-50 capitalize" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-500 mb-1">Currency</label>
+                  <select value={business.currency} disabled={currencySaving} onChange={e => handleCurrencyChange(e.target.value)}
+                    className="w-full px-3 py-2.5 border rounded-lg text-sm bg-white">
+                    {[...new Set([business.currency, ...CURRENCIES])].map(c => <option key={c} value={c}>{c} ({currencySymbol(c)}) · {currencyName(c)}</option>)}
+                  </select>
+                  <p className="text-[11px] text-gray-400 mt-1">Dashboard, leads and reports show money in this currency. Amounts already recorded are not converted.</p>
                 </div>
               </div>
 

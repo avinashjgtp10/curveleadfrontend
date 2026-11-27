@@ -39,7 +39,7 @@ const QuotationEditorPage = () => {
   }, [id]);
 
   // A saved quote keeps the currency it was written in; a new one uses the workspace's.
-  const qm = (v) => formatMoney(v, saved?.currency, { decimals: 2 });
+  const qm = (v) => formatMoney(v, saved?.currency, { decimals: 2, convert: false });
 
   const updateItem = (i, field, val) => {
     const items = [...form.items];
